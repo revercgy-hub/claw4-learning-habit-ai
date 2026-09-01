@@ -5,13 +5,13 @@
 本指令用于 WorkBuddy 在每个任务开始前同步 Codex 已发布的任务分支，并在实施后把提交安全推送到项目私有远端，供 Codex 复检。
 
 - 项目远端：`https://github.com/revercgy-hub/claw4-learning-habit-ai.git`
-- 当前任务：`WB-HW-001`
-- 当前任务分支：`workbuddy/wb-hw-001-readonly-intake`
-- 当前状态：`READY`
+- 当前任务：无
+- 上一已验收任务：`WB-HW-001` @ `9867a56121df4cdcdc85f66f4617f3ab8e0b7f81`
+- 当前状态：`HOLD`，等待用户硬件证据与重启确认
 - 当前允许修改：
-  - `docs/BOARD_REVISION.md`
-  - `docs/DEVICE_LOG_REFERENCE.md`
-  - `docs/project_management/reports/WB-HW-001_REPORT.md`
+  - 无
+
+任务看板没有 `READY` 项时，WorkBuddy 必须停止，不得继续运行下方上一任务的命令，也不得自行创建分支或开始下一阶段。
 
 任何命令结果与本指令不一致时立即停止并报告，不得用 force push、hard reset、覆盖文件或改写远端来“修复”。
 
@@ -71,11 +71,11 @@ git status --short --branch
 
 然后完整读取 `AGENTS.md`、任务看板、当前任务包和最新 Codex 复检报告，再开始修改。
 
-## 三、当前 WB-HW-001 要求
+## 三、当前任务状态
 
-完整执行 `docs/project_management/tasks/WB-HW-001_READONLY_DEVICE_INTAKE.md`。任务目标是建立当前实机的 USB/COM、板卡身份和未改动官方固件日志基线。
+`WB-HW-001` 已完成并等待 Codex 结果同步；当前没有新的实施任务。
 
-本轮严禁刷写、擦除、读取 Flash、运行 `esptool`/`idf.py flash`、发送 AT 命令、写串口、修改固件、复位到下载模式、修改分区/Bootloader/OTA。原始串口日志只能保存在任务包指定的仓库外证据目录，Git 中只提交脱敏摘要和哈希。
+已确认打开 COM3 即使设置 `DtrEnable=false`、`RtsEnable=false` 仍会触发 `CHIP_USB_UART_RESET`。后续任何 COM3 打开操作必须由新的任务包明确授权，并在用户确认可重启设备后执行。Flash、分区、Bootloader、OTA、JTAG、AT 和串口写入继续禁止。
 
 ## 四、提交前校验
 

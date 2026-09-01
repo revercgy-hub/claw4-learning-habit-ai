@@ -8,7 +8,7 @@
 
 ## 当前唯一指令
 
-WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 取得 `workbuddy/wb-hw-001-readonly-intake`，然后只执行 [`WB-HW-001_READONLY_DEVICE_INTAKE.md`](tasks/WB-HW-001_READONLY_DEVICE_INTAKE.md)。本轮只做枚举和被动证据采集，禁止刷写、擦除、读取 Flash、发送串口/AT 命令或修改固件。
+当前没有 WorkBuddy `READY` 任务。`WB-HW-001` 已验收，WorkBuddy 必须停止。下一轮硬件任务等待用户提供 SKU/板卡照片，并确认是否允许打开 COM3（已知会触发一次 `CHIP_USB_UART_RESET`）进行受控启动日志采集。
 
 ## 看板
 
@@ -22,8 +22,11 @@ WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 取得 `workbu
 | 4 | CR-001 | Codex | `ACCEPTED` | WB-001 `REVIEW_READY` | `CODEX_REVIEW_WB-001_2026-09-01.md`；本轮结论为 `CHANGES_REQUIRED` |
 | 4.1 | CR-001-R2 | Codex | `ACCEPTED` | WB-001 修订提交 `a829765` | `CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md`；技术内容通过，证据行号仍需窄范围修订 |
 | 4.2 | CR-001-FINAL | Codex | `ACCEPTED` | WB-001 最终提交 `45b2c73` | `CODEX_REVIEW_WB-001_FINAL_2026-09-01.md`；G1 `PASSED` |
-| 4.5 | WB-HW-001 | WorkBuddy | `READY` | WB-001、设备 USB 枚举 | 只读设备接收、COM/USB 映射、官方固件被动日志、`BOARD_REVISION.md`、`DEVICE_LOG_REFERENCE.md` |
-| 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-HW-001 `ACCEPTED` | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
+| 4.5 | WB-HW-001 | WorkBuddy | `ACCEPTED` | WB-001、设备 USB 枚举 | 实施提交 `9867a56`；COM/USB 映射、官方固件日志、`BOARD_REVISION.md`、`DEVICE_LOG_REFERENCE.md` |
+| 4.6 | CR-HW-001 | Codex | `ACCEPTED` | WB-HW-001 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-001_2026-09-01.md`；原始证据哈希与日志结论通过 |
+| 4.7 | USER-HW-EVIDENCE-001 | 用户 | `BLOCKED` | WB-HW-001 | 外观/包装/SKU/板卡丝印照片；确认是否允许一次会触发重启的 COM3 采集 |
+| 4.8 | WB-HW-002 | WorkBuddy | `BACKLOG` | USER-HW-EVIDENCE-001 | 受控完整启动段、屏驱/触摸/网络/分区被动证据；仍不访问 Flash |
+| 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-HW-002 或 Codex 调整优先级 | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
 | 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
@@ -40,6 +43,7 @@ WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 取得 `workbu
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
 | BLK-FLASH-AUTH-001 | 任何固件刷写、Flash 读取/擦除、分区或 OTA 操作 | 用户尚未明确授权；恢复路径、当前 boot partition 和 SKU 尚未确认 | Codex 完成只读接收复检后，另行向用户说明目标、风险和恢复方案并取得明确授权 |
+| BLK-USER-EVIDENCE-001 | WB-HW-002 的 SKU 与受控启动采集 | 尚无设备外观/包装/丝印照片；打开 COM3 已证实会触发设备重启 | 用户提供照片，并明确确认是否允许下一轮打开 COM3 触发一次重启 |
 
 ## 已解除阻塞
 
