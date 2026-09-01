@@ -7,7 +7,7 @@
 
 ## 当前唯一指令
 
-WorkBuddy 只执行 `WB-001`，任务包：[`tasks/WB-001_CLAW4_PLATFORM_MAP.md`](tasks/WB-001_CLAW4_PLATFORM_MAP.md)。其他任务不得提前开始。
+WorkBuddy 只处理 `WB-001` 的 Codex 复检修订项，依据：[`reports/CODEX_REVIEW_WB-001_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_2026-09-01.md)。其他任务不得提前开始。
 
 ## 看板
 
@@ -17,8 +17,8 @@ WorkBuddy 只执行 `WB-001`，任务包：[`tasks/WB-001_CLAW4_PLATFORM_MAP.md`
 | 1 | AUD-001 | 历史产出 / Codex 复核 | `ACCEPTED` | 无 | `docs/CLAW4_AUDIT.md`、`docs/HARDWARE_ASSUMPTIONS.md` |
 | 2 | BLD-001 | 历史产出 / Codex 复核 | `ACCEPTED` | AUD-001 | `docs/BUILD.md`、`docs/CLAW4_主机准备情况报告_2026-09-01.md`、`E:\b` 构建产物 |
 | 2.1 | WB-ENV-REVIEW | WorkBuddy / Codex 复核 | `ACCEPTED` | BLD-001 | `docs/CLAW4_报告复核_2026-09-01.md`，独立复跑主机检查 |
-| 3 | WB-001 | WorkBuddy | `READY` | AUD-001、BLD-001 | `docs/CLAW4_PLATFORM_MAP.md` + `WB-001_REPORT.md` |
-| 4 | CR-001 | Codex | `BACKLOG` | WB-001 `REVIEW_READY` | 平台映射验收报告；决定 G1 是否通过 |
+| 3 | WB-001 | WorkBuddy | `CHANGES_REQUIRED` | AUD-001、BLD-001 | 分支 `workbuddy/wb-001-platform-map` @ `dbdc691`；按 Codex 复检修订 |
+| 4 | CR-001 | Codex | `ACCEPTED` | WB-001 `REVIEW_READY` | `CODEX_REVIEW_WB-001_2026-09-01.md`；本轮结论为 `CHANGES_REQUIRED` |
 | 5 | WB-002 | WorkBuddy | `BACKLOG` | CR-001 `ACCEPTED` | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
 | 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BLOCKED` | 真机、数据线、串口、用户授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
