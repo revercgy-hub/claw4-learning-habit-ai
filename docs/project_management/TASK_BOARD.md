@@ -8,7 +8,7 @@
 
 ## 当前唯一指令
 
-WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任务分支与远端安全对齐，然后只处理 `WB-001` 的 Codex 复检修订项，依据：[`reports/CODEX_REVIEW_WB-001_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_2026-09-01.md)。其他任务不得提前开始。
+WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任务分支与远端安全对齐，然后只处理 `WB-001` 二次复检中列出的证据行号修订，依据：[`reports/CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md)。其他任务不得提前开始。
 
 ## 看板
 
@@ -18,9 +18,10 @@ WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任�
 | 1 | AUD-001 | 历史产出 / Codex 复核 | `ACCEPTED` | 无 | `docs/CLAW4_AUDIT.md`、`docs/HARDWARE_ASSUMPTIONS.md` |
 | 2 | BLD-001 | 历史产出 / Codex 复核 | `ACCEPTED` | AUD-001 | `docs/BUILD.md`、`docs/CLAW4_主机准备情况报告_2026-09-01.md`、`E:\b` 构建产物 |
 | 2.1 | WB-ENV-REVIEW | WorkBuddy / Codex 复核 | `ACCEPTED` | BLD-001 | `docs/CLAW4_报告复核_2026-09-01.md`，独立复跑主机检查 |
-| 3 | WB-001 | WorkBuddy | `CHANGES_REQUIRED` | AUD-001、BLD-001 | 分支 `workbuddy/wb-001-platform-map` @ `dbdc691`；按 Codex 复检修订 |
+| 3 | WB-001 | WorkBuddy | `CHANGES_REQUIRED` | AUD-001、BLD-001 | 远端分支 `workbuddy/wb-001-platform-map` @ `a829765`；四项技术修订通过，仅修正二次复检指出的证据行号 |
 | 4 | CR-001 | Codex | `ACCEPTED` | WB-001 `REVIEW_READY` | `CODEX_REVIEW_WB-001_2026-09-01.md`；本轮结论为 `CHANGES_REQUIRED` |
-| 5 | WB-002 | WorkBuddy | `BACKLOG` | CR-001 `ACCEPTED` | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
+| 4.1 | CR-001-R2 | Codex | `ACCEPTED` | WB-001 修订提交 `a829765` | `CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md`；技术内容通过，证据行号仍需窄范围修订 |
+| 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-001 `ACCEPTED` | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
 | 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BLOCKED` | 真机、数据线、串口、用户授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
