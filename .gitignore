@@ -1,0 +1,32 @@
+# 项目根仓库只管理规划、业务源码、脚本和可审查报告。
+# 第三方源码与工具链保留各自 Git 历史，不纳入本仓库。
+/toolchains/
+/vendor/
+
+# 本地构建与缓存
+/build/
+/out/
+/dist/
+**/build/
+**/.cache/
+**/__pycache__/
+*.pyc
+
+# 设备日志和本地运行状态可能包含设备标识，不提交。
+/docs/logs/
+*.log
+/.workbuddy/memory/
+
+# 密钥与本地配置
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# 编辑器与系统文件
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
