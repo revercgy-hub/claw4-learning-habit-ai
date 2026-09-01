@@ -5,7 +5,7 @@
 - 负责人：WorkBuddy
 - 复检人：Codex
 - 优先级：P0
-- 当前状态：`CHANGES_REQUIRED`（初次提交 `63281b2` 已采集；仅允许按最新 Codex 复检报告修订文档，不得新增硬件操作）
+- 当前状态：`ACCEPTED`（初次提交 `63281b2`，修订提交 `9fe38c3`，Codex Round 2 验收）
 - 目标分支：`workbuddy/wb-hw-002-controlled-boot`
 - 前置：`WB-HW-001` 已验收；用户照片已归档；用户已明确允许一次 COM3 打开并接受一次设备重启
 

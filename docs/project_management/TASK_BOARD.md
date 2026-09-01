@@ -2,13 +2,13 @@
 
 - 更新时间：2026-09-01
 - 维护者：Codex
-- 当前阶段：G0/G1 已通过；WB-HW-002 采集完成，证据边界修订中
+- 当前阶段：G0/G1 已通过；WB-HW-002 已验收；启动 MVP 架构定义
 - 调度规则：任意时刻只允许一个 WorkBuddy 任务为 `READY` 或 `IN_PROGRESS`
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前唯一指令
 
-`WB-HW-002` 当前为 `CHANGES_REQUIRED`。WorkBuddy 只允许在 `workbuddy/wb-hw-002-controlled-boot` 原分支处理 `CODEX_REVIEW_WB-HW-002_2026-09-01.md` 的 CR-WBHW002-01～04；**不得再次打开 COM3 或执行任何硬件操作**，不得开始后续任务。
+当前唯一 `READY` 任务是 `WB-002`。WorkBuddy 只允许在 `workbuddy/wb-002-architecture` 分支编写 `docs/ARCHITECTURE.md` 和 `WB-002_REPORT.md`；本任务不写业务源码、不操作硬件、不修改官方 BSP/固件/分区，也不自动解除 G2/G3 门禁。
 
 ## 看板
 
@@ -25,9 +25,10 @@
 | 4.5 | WB-HW-001 | WorkBuddy | `ACCEPTED` | WB-001、设备 USB 枚举 | 实施提交 `9867a56`；COM/USB 映射、官方固件日志、`BOARD_REVISION.md`、`DEVICE_LOG_REFERENCE.md` |
 | 4.6 | CR-HW-001 | Codex | `ACCEPTED` | WB-HW-001 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-001_2026-09-01.md`；原始证据哈希与日志结论通过 |
 | 4.7 | USER-HW-EVIDENCE-001 | 用户 / Codex 记录 | `ACCEPTED` | WB-HW-001 | `CODEX_USER_HW_EVIDENCE_2026-09-01.md`；4 张仓库外照片及一次 COM3 打开授权 |
-| 4.8 | WB-HW-002 | WorkBuddy | `CHANGES_REQUIRED` | USER-HW-EVIDENCE-001 | 初次提交 `63281b2`；采集证据通过，照片/日志结论边界与报告完整性需修订 |
+| 4.8 | WB-HW-002 | WorkBuddy | `ACCEPTED` | USER-HW-EVIDENCE-001 | 初次提交 `63281b2`、修订提交 `9fe38c3`；一次受控启动采集与照片证据已验收 |
 | 4.9 | CR-HW-002 | Codex | `ACCEPTED` | WB-HW-002 初次 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-002_2026-09-01.md`；结论 `CHANGES_REQUIRED`，禁止新增硬件操作 |
-| 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-HW-002 或 Codex 调整优先级 | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
+| 4.10 | CR-HW-002-R2 | Codex | `ACCEPTED` | WB-HW-002 修订提交 `9fe38c3` | `CODEX_REVIEW_WB-HW-002_ROUND2_2026-09-01.md`；技术内容通过，保留原采集脚本未留档的过程限制 |
+| 5 | WB-002 | WorkBuddy | `READY` | WB-HW-002 `ACCEPTED` | `WB-002_ARCHITECTURE.md`；`docs/ARCHITECTURE.md` 与 `WB-002_REPORT.md`，不写业务代码 |
 | 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
