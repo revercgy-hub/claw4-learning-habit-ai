@@ -5,7 +5,7 @@
 - 负责人：WorkBuddy
 - 复检人：Codex
 - 优先级：P0
-- 当前状态：`READY`
+- 当前状态：`CHANGES_REQUIRED`（初次提交 `7902378`；仅处理最新 Codex 复检项）
 - 目标分支：`workbuddy/wb-002-architecture`
 - 前置：WB-001、WB-HW-001、WB-HW-002 已验收
 - 性质：开发前架构设计；**只写文档，不实现业务代码**

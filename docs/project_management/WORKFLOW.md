@@ -32,7 +32,7 @@
 | G0 主机基线 | IDF v5.5.4、P4 工具链、Python 依赖、官方 baseline 构建产物存在 | `PASSED` |
 | G1 平台证据 | 仓库审计和平台实现映射被 Codex 接受 | `PASSED`：WB-001 @ `45b2c73` 已验收 |
 | G2 真机 Stage 1 | B001/B002/B003/B004/B005/B009/B013 有实机证据且复检通过 | `INCOMPLETE`：WB-HW-001/WB-HW-002 已验收；完整屏幕、触摸、音频、存储、电源等 Stage 1 仍未通过，未授权 Flash 访问 |
-| G3 MVP 开发准入 | Bring-up 准入项满足并给出 GO/GO WITH CONDITIONS | `HOLD`：允许 WB-002 架构文档，不授权业务源码实现 |
+| G3 MVP 开发准入 | Bring-up 准入项满足并给出 GO/GO WITH CONDITIONS | `HOLD`：WB-002 初次复检为 `CHANGES_REQUIRED`；仅修订架构契约，不授权业务源码实现 |
 | G4 MVP 闭环 | 设备到后端到家长端的在线与离线闭环均通过 | `HOLD` |
 
 ## Git 规则

@@ -1,14 +1,14 @@
 # 项目任务看板
 
-- 更新时间：2026-09-01
+- 更新时间：2026-09-02
 - 维护者：Codex
-- 当前阶段：G0/G1 已通过；WB-HW-002 已验收；启动 MVP 架构定义
+- 当前阶段：G0/G1 已通过；WB-HW-002 已验收；MVP 架构契约修订中
 - 调度规则：任意时刻只允许一个 WorkBuddy 任务为 `READY` 或 `IN_PROGRESS`
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前唯一指令
 
-当前唯一 `READY` 任务是 `WB-002`。WorkBuddy 只允许在 `workbuddy/wb-002-architecture` 分支编写 `docs/ARCHITECTURE.md` 和 `WB-002_REPORT.md`；本任务不写业务源码、不操作硬件、不修改官方 BSP/固件/分区，也不自动解除 G2/G3 门禁。
+`WB-002` 当前为 `CHANGES_REQUIRED`。WorkBuddy 只允许在 `workbuddy/wb-002-architecture` 原分支处理 `CODEX_REVIEW_WB-002_2026-09-02.md` 的 CR-WB002-01～05；仍只修改两个原交付文件，不得开始代码实现、构建或硬件操作。
 
 ## 看板
 
@@ -28,8 +28,9 @@
 | 4.8 | WB-HW-002 | WorkBuddy | `ACCEPTED` | USER-HW-EVIDENCE-001 | 初次提交 `63281b2`、修订提交 `9fe38c3`；一次受控启动采集与照片证据已验收 |
 | 4.9 | CR-HW-002 | Codex | `ACCEPTED` | WB-HW-002 初次 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-002_2026-09-01.md`；结论 `CHANGES_REQUIRED`，禁止新增硬件操作 |
 | 4.10 | CR-HW-002-R2 | Codex | `ACCEPTED` | WB-HW-002 修订提交 `9fe38c3` | `CODEX_REVIEW_WB-HW-002_ROUND2_2026-09-01.md`；技术内容通过，保留原采集脚本未留档的过程限制 |
-| 5 | WB-002 | WorkBuddy | `READY` | WB-HW-002 `ACCEPTED` | `WB-002_ARCHITECTURE.md`；`docs/ARCHITECTURE.md` 与 `WB-002_REPORT.md`，不写业务代码 |
-| 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
+| 5 | WB-002 | WorkBuddy | `CHANGES_REQUIRED` | WB-HW-002 `ACCEPTED` | 初次提交 `7902378`；需修订原子outbox、ACK/死信、重启状态机与设备—儿童授权绑定 |
+| 6 | CR-002 | Codex | `ACCEPTED` | WB-002 初次 `REVIEW_READY` | `CODEX_REVIEW_WB-002_2026-09-02.md`；结论 `CHANGES_REQUIRED` |
+| 6.1 | CR-002-R2 | Codex | `BACKLOG` | WB-002 修订 `REVIEW_READY` | 架构 Round 2 验收报告 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES | WorkBuddy | `HOLD` | G2/G3 门禁 | `learning_domain`、`sync`、`ui`、`assistant`、`telemetry` 接口骨架 |
