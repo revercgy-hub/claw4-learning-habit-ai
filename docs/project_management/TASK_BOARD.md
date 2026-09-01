@@ -8,7 +8,7 @@
 
 ## 当前唯一指令
 
-WorkBuddy 只处理 `WB-001` 的 Codex 复检修订项，依据：[`reports/CODEX_REVIEW_WB-001_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_2026-09-01.md)。其他任务不得提前开始。
+WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任务分支与远端安全对齐，然后只处理 `WB-001` 的 Codex 复检修订项，依据：[`reports/CODEX_REVIEW_WB-001_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_2026-09-01.md)。其他任务不得提前开始。
 
 ## 看板
 
