@@ -24,13 +24,14 @@
 3. `docs/project_management/WORKBUDDY_GIT_SYNC.md`
 4. 本任务包
 5. `docs/project_management/reports/CODEX_REVIEW_WB-001_2026-09-01.md`
-6. `项目总规划/AGENTS.md`
-7. `项目总规划/CLAW4_BRINGUP_PROMPT.md`
-8. `docs/CLAW4_AUDIT.md`
-9. `docs/HARDWARE_ASSUMPTIONS.md`
-10. `docs/BUILD.md`
-11. `docs/CLAW4_主机准备情况报告_2026-09-01.md`
-12. `vendor/MetalioClaw4/README.md`、`sdkconfig`、分区表及相关源码
+6. `docs/project_management/reports/CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md`
+7. `项目总规划/AGENTS.md`
+8. `项目总规划/CLAW4_BRINGUP_PROMPT.md`
+9. `docs/CLAW4_AUDIT.md`
+10. `docs/HARDWARE_ASSUMPTIONS.md`
+11. `docs/BUILD.md`
+12. `docs/CLAW4_主机准备情况报告_2026-09-01.md`
+13. `vendor/MetalioClaw4/README.md`、`sdkconfig`、分区表及相关源码
 
 ## 允许修改
 

@@ -8,6 +8,7 @@
 - 当前任务：`WB-001`
 - 当前任务分支：`workbuddy/wb-001-platform-map`
 - 当前状态：`CHANGES_REQUIRED`
+- 当前待修订实施提交：`a829765432b69b12ce4bf6ff0e06dc9458372d57`
 - 当前允许修改：
   - `docs/CLAW4_PLATFORM_MAP.md`
   - `docs/project_management/reports/WB-001_REPORT.md`
@@ -72,12 +73,13 @@ git status --short --branch
 
 ## 三、当前 WB-001 修订要求
 
-只处理 `CODEX_REVIEW_WB-001_2026-09-01.md` 中的以下四项：
+CR-WB001-01～04 的技术内容已经通过二次复检。当前只处理 `CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md` 中的证据行号修订：
 
-1. 默认 NV3051F 为 RGB888/24bpp，FL7707N 备选路径为 16bpp；保留实际 SKU 待实机确认。
-2. 更正 LVGL `buffer_size` 单位与 P4 防撕裂有效路径，不再推算未经证实的 25.9MB PSRAM 占用。
-3. 区分 CX25601N 充电控制、BQ27220 电量计和 USB charge status GPIO；其他电源实现只列为通用代码。
-4. 区分 legacy `NetworkType::ML307` 枚举名和 Claw4 当前实际实例化的 `Nt26Board`。
+1. 把 `esp_lvgl_port_disp.c:256-262` 修正为实际覆盖区间 `:317-325`，其中 ESP32-P4 的赋值与两个 frame buffer 获取位于 `:323-324`。
+2. 把 FL7707N 的证据改为 `metalio-claw-4.cc:356`（RGB888）和 `:392`（`bits_per_pixel = 16`），不得继续用未包含实际赋值的 `:355-376` 作为完整证据。
+3. BQ27220 绑定如保留行号，应引用实际调用 `metalio-claw-4.cc:609`，或完整上下文 `:606-610`。
+
+除上述引用修订外，不重写已经通过的技术结论。
 
 不得修改看板、本同步指令、Codex 报告、官方源码、配置、分区表或任何其他文件。
 
@@ -107,7 +109,7 @@ git diff -- docs/CLAW4_PLATFORM_MAP.md docs/project_management/reports/WB-001_RE
 git add -- docs/CLAW4_PLATFORM_MAP.md docs/project_management/reports/WB-001_REPORT.md
 git diff --cached --check
 git diff --cached --name-only
-git commit -m "docs(WB-001): correct platform map review findings"
+git commit -m "docs(WB-001): correct evidence line references"
 git push -u origin HEAD:workbuddy/wb-001-platform-map
 $workbuddyLocalCommit = git rev-parse HEAD
 $workbuddyRemoteRef = git ls-remote --heads origin workbuddy/wb-001-platform-map
