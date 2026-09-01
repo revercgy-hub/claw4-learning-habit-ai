@@ -5,7 +5,7 @@
 - 任务 ID：WB-001 (CLAW4_PLATFORM_MAP)
 - 结果：`REVIEW_READY`
 - 分支：`workbuddy/wb-001-platform-map`
-- 提交号：`ea5b691` (root-commit, docs(WB-001): add Claw4 platform map and implementation report)
+- 提交号：以任务分支 HEAD 为准（Git 元数据修订见 §6.7；首轮交付 `dbdc691`，父提交 `0f97af4` = Codex 基线）
 - 执行时间：2026-09-01 15:20 (UTC+8)
 
 ## 2. 输入与范围
@@ -44,8 +44,15 @@
   - 所有未连接实机的能力一律标记 `DEVICE_VERIFY_REQUIRED`，未将任何源码/配置存在写成实机工作正常，未根据电商描述推断硬件。
 - 额外的源码级发现（写入映射 §4）：
   - AEC 默认关闭（`application.cc:55` 注释确认，由 NVS 恢复）。
-  - `METALIO_CLAW_4 : public DualNetworkBoard`，默认网络类型为 ML307（4G），C5 经 ESP-Hosted SDIO 提供 Wi-Fi；实机网络路径待确认。
+  - `METALIO_CLAW_4 : public DualNetworkBoard`，4G 槽位设置值 1 对应 legacy 枚举名 `NetworkType::ML307`，当前源码实际实例化 `Nt26Board`（CR-WB001-04 修订，见 §4.1）；C5 经 ESP-Hosted SDIO 提供 Wi-Fi；实机网络路径待确认。
   - OV2710 摄像头为 MIPI CSI 1080p@25fps 配置。
+
+### 4.1 本轮修订（CR-WB001-01~04, Codex 复检意见）
+
+- **CR-01（显示 bpp）**: 摘要/总表/§4.4 统一为 "NV3051F 默认：RGB888/24bpp（metalio-claw-4.cc:312 `bits_per_pixel=24`）；FL7707N 备选：16bpp（:355-376）"。`config.h:36` `LCD_BIT_PER_PIXEL(16)` 与默认初始化 24bpp 的差异作为**源码内部不一致**单独记录，不覆盖初始化路径。SKU 保持 `DEVICE_VERIFY_REQUIRED`。
+- **CR-02（LVGL buffer）**: `lcd_display.cc:255` `buffer_size=width*height*50` 原样记录为可疑配置值（单位像素）；`avoid_tearing=true`（lcd_display.cc:221/279）时 `esp_lvgl_port_disp.c:256-262` 将 buffer_size 覆盖为 `hres*vres`=720×720 像素并复用 2 个 DPI panel frame buffer。**不再推算 25.9MB PSRAM 占用**；真实分配量/运行稳定性列为实机/运行时验证（§6 清单第 2 项）。
+- **CR-03（电源）**: 明确区分 CX25601N 充电控制（metalio-claw-4.cc:537/556/610 `InitializeCx25601n()` → `cx25601n_set_ichg_ma(ichg_ma)`）、BQ27220 电量计（:606）、USB 充电状态 GPIO（config.h:9 `USB_CHG_STA_PIN GPIO53`）；SY6970/ADC/AXP2101 只列为仓库通用/其他板卡实现。
+- **CR-04（4G 消歧）**: legacy `NetworkType::ML307` 枚举名（dual_network_board.cc:44/49）与当前实际实例化 `Nt26Board`（dual_network_board.cc:54-57）区分；不写成"当前默认使用 ML307 模组"；实机模组 `DEVICE_VERIFY_REQUIRED`。
 
 ## 5. 验收标准自检
 
@@ -59,6 +66,7 @@
 | 未把任何未连接实机的能力写成 CONFIRMED | PASS | 12 项 DEVICE_VERIFY_REQUIRED 清单 §6；无实机能力被写成 CONFIRMED |
 | Git diff 不包含 vendor/、toolchains/、构建产物或日志 | PASS | diff 仅 2 个 docs 文件；见 §6 |
 | 报告中附带只读核查命令和结果摘要 | PASS | 见 §6 验证命令与结果 |
+| CR-WB001-01~04 在平台映射与报告中均已反映 | PASS | 见 §4.1 与映射 §4.4/§4.6/§4.10/§8 |
 
 ## 6. 验证命令与结果
 
@@ -122,13 +130,42 @@ git status --short
 （提交前仅这两个新增文件；无其他改动）
 ```
 
+### 6.7 Git 提交链（Git 元数据修订，CR 复检报告 §3）
+
+```
+首轮交付提交：dbdc691  docs(WB-001): add Claw4 platform map and implementation report
+父提交：      0f97af4  chore: establish Codex WorkBuddy control workflow（Codex 基线，25 文件）
+异常独立根提交：5da866f（含 25 基础文件 + 2 交付文件，因 --amend --only 误操作产生）
+  → 已隔离保存于 backup/wb-001-orphan-race，不影响任务分支与交付内容
+本报告不固定提交号：以任务分支 HEAD 为准；提交说明记录父提交与前序提交
+本轮开始前远端同步：git pull --ff-only origin workbuddy/wb-001-platform-map → HEAD 与远端一致（4a04b3cd）
+```
+
+### 6.8 本轮修订证据（只读 grep，CR-WB001-01~04）
+
+```
+metalio-claw-4.cc:25-26   NV3051F 36MHz DPI RGB888 24bpp（默认）; FL7707N 48MHz DPI RGB888 16bpp（备选）
+metalio-claw-4.cc:312     .bits_per_pixel = 24（NV3051F 分支）
+metalio-claw-4.cc:355-376 FL7707N 分支 RGB888, bits_per_pixel=16
+config.h:36               LCD_BIT_PER_PIXEL (16) — 与 NV3051F 24bpp 初始化不一致（只记录不修改）
+lcd_display.cc:255        .buffer_size = width_ * height_ * 50（可疑值, 原样记录）
+lcd_display.cc:221/279    .avoid_tearing = true
+esp_lvgl_port_disp.c:256-262  avoid_tearing=true → buffer_size = hres*vres; dpi_panel_get_frame_buffer(2)
+metalio-claw-4.cc:537/556/610  InitializeCx25601n(); cx25601n_set_ichg_ma(ichg_ma)
+dual_network_board.cc:44/49    network_type==1 → NetworkType::ML307（legacy 枚举名）
+dual_network_board.cc:54-57    ML307 分支 make_unique<Nt26Board>（实际实例化）
+dual_network_board.cc:69       SaveNetworkTypeToSettings(NetworkType::ML307)
+```
+
 ## 7. 风险与未决项
 
 - `DEVICE_VERIFY_REQUIRED`：全部 12 项实机验证（见映射 §6 清单），包括 P4 revision、PSRAM/Flash 实测、屏幕 SKU、GT911、C5/ESP-Hosted、网络路径、音频硬件、OV2710、SD 热插拔、电池、boot 分区。
 - 其他风险：
   - Flash mode 不一致（QIO=y vs "dio"）——记录未修改，真机 Flash 异常时首个排查点。
   - 非对称 OTA + xiaozhi.bin 超 ota_1 容量——双槽 OTA 能力存疑，实机前不承诺、不改分区。
-  - AEC 默认关闭；DualNetworkBoard 默认 ML307(4G) 网络路径待实机确认。
+  - AEC 默认关闭；4G 槽位 legacy 枚举名 ML307 / 当前源码实际实例化 Nt26Board，实机模组与启动网络路径待确认（CR-WB001-04）。
+  - config.h `LCD_BIT_PER_PIXEL(16)` 与 NV3051F 初始化 24bpp 不一致（源码内部, CR-WB001-01）。
+  - LVGL `buffer_size=width*height*50` 可疑配置 + 防撕裂路径覆盖（CR-WB001-02）→ 实机显示压力测试验证。
   - P4 revision 未锁定（rev_min 0）；无签名 OTA 证据。
 - 阻塞项：无（本任务不依赖真机；真机相关项已全部标记 DEVICE_VERIFY_REQUIRED 而非阻塞）。
 
@@ -138,7 +175,7 @@ git status --short
 2. **Flash mode 不一致证据**：`sdkconfig:731`（QIO=y）vs `:736`（"dio"）是否如文档所述原样记录且未修改。
 3. **非对称 OTA 表述**：ota_0=9M/ota_1=4M 及 ESPClaw 双系统描述是否与 `esp_claw_bin/README.md`、分区 CSV 一致。
 4. **范围符合性**：`git diff` 仅两个交付文件，未触碰 vendor/toolchains/构建产物/看板/Codex 报告。
-5. **AEC 默认关闭、DualNetworkBoard 默认 ML307** 两个源码发现是否与 Codex 的仓库认识一致。
+5. **四项修订（CR-WB001-01~04）** 是否与 Codex 复检意见一致：显示 bpp（NV3051F 24bpp 默认/FL7707N 16bpp 备选 + config.h 不一致）、LVGL buffer 单位与防撕裂覆盖路径、CX25601N/BQ27220/USB GPIO 区分、ML307 legacy 枚举名 vs Nt26Board 实际实例化。
 
 ## 9. 下一步
 

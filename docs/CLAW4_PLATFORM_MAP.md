@@ -16,12 +16,12 @@
 | Flash | 32 MB, 40 MHz — `CONFIG_CONFIRMED` (注意 Flash mode 不一致风险) |
 | 分区表 | `partitions/v1/32m_dual.csv`, 非对称 OTA (ota_0=9M / ota_1=4M) — `CONFIG_CONFIRMED` |
 | 双系统 | ota_0 = xingzhi 主固件; ota_1 = ESPClaw edge_agent — `SOURCE_CONFIRMED` (esp_claw_bin/README.md) |
-| 显示 | 720×720, 2-lane MIPI-DSI, RGB565 16bpp; NV3051F 默认 / FL7707N 可选 — `SOURCE_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
+| 显示 | 720×720, 2-lane MIPI-DSI; NV3051F 默认: RGB888/24bpp; FL7707N 备选: 16bpp — `SOURCE_CONFIRMED`, 实机 SKU `DEVICE_VERIFY_REQUIRED` |
 | 触摸 | GT911, I2C (SDA=7, SCL=8), INT=GPIO33 — `SOURCE_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
 | 音频 | 16kHz, BTAudioCodecDuplex (I2S), esp-sr 唤醒词 — `SOURCE_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
 | 摄像头 | OV2710 (MIPI CSI, 1080p@25fps 配置) — `CONFIG_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
 | SD | SDMMC 4-bit (slot 0), 热插拔未确认 — `SOURCE_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
-| 电源 | BQ27220 电量计 + 充电设置 (ichg_ma), SY6970/ADC 备选 — `SOURCE_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
+| 电源 | CX25601N 充电控制 (ichg_ma) + BQ27220 电量计 + USB 充电状态 GPIO; SY6970/ADC/AXP2101 为通用实现 — `SOURCE_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
 | OTA | esp_ota 双槽 (跳过 factory; 用 next_update_partition) — `SOURCE_CONFIRMED`, 实机 `DEVICE_VERIFY_REQUIRED` |
 
 ## 2. 版本与配置基线
@@ -47,13 +47,13 @@
 | 1 | ESP-IDF/Target/CPU | CONFIG_CONFIRMED | esp32p4, RISC-V, 双核 360MHz, P4 rev_min 0 | sdkconfig |
 | 2 | RAM/PSRAM/Flash | CONFIG_CONFIRMED | PSRAM HEX 200MHz; Flash 32MB 40MHz; mode 不一致待实机 | sdkconfig |
 | 3 | Partition/OTA 分区 | CONFIG_CONFIRMED | 32m_dual; ota_0=9M, ota_1=4M; 非对称 | partitions/v1/32m_dual.csv |
-| 4 | LVGL/Display | SOURCE_CONFIRMED | LVGL 9.3.0; 720×720 MIPI-DSI 2-lane; NV3051F/FL7707N | main/display/, boards/metalio-claw-4/ |
+| 4 | LVGL/Display | SOURCE_CONFIRMED | LVGL 9.3.0; 720×720 MIPI-DSI 2-lane; NV3051F RGB888/24bpp 默认 / FL7707N 16bpp 备选 | main/display/, boards/metalio-claw-4/ |
 | 5 | Touch | SOURCE_CONFIRMED | GT911 I2C; INT=GPIO33; touch_feed ISR | boards/.../metalio-claw-4.cc, touch_feed.cc |
 | 6 | C5/ESP-Hosted/Wi-Fi | CONFIG_CONFIRMED | ESP-Hosted SDIO slot 1, 4-bit 40MHz, CP=esp32c5 | sdkconfig, managed_components/esp_hosted |
 | 7 | Audio | SOURCE_CONFIRMED | 16kHz; BTAudioCodecDuplex; esp-sr; AEC 默认关 | main/audio/, boards/common/bt_audio_codec.* |
 | 8 | Camera | CONFIG_CONFIRMED | OV2710 MIPI CSI 1080p25fps (配置); camera_screen 存在 | sdkconfig, boards/common/esp32_camera.* |
 | 9 | SD/Storage | SOURCE_CONFIRMED | SDMMC 4-bit slot 0; 热插拔未确认; FAT/SPIFFS 分区 | boards/.../config.h, SdCardManager.hpp |
-| 10 | Power/Battery | SOURCE_CONFIRMED | BQ27220 电量计; ichg_ma 充电设置; boot 低电检查 | bq27220_gauge.*, metalio-claw-4.cc |
+| 10 | Power/Battery | SOURCE_CONFIRMED | CX25601N 充电控制 (ichg_ma); BQ27220 电量计; USB_CHG_STA GPIO; boot 低电检查; SY6970/ADC/AXP2101 通用 | cx25601n.*, bq27220_gauge.*, metalio-claw-4.cc |
 | 11 | OTA | SOURCE_CONFIRMED | esp_ota 双槽; 跳过 factory; 无签名/回滚策略确认 | main/ota.cc |
 | 12 | 启动日志验证字段 | DEVICE_VERIFY_REQUIRED | 见 §7 采集清单 | system_info.*, 实机日志 |
 
@@ -112,10 +112,12 @@
 **状态: SOURCE_CONFIRMED (实现); 实机 SKU DEVICE_VERIFY_REQUIRED**
 
 - LVGL: `managed_components/lvgl__lvgl/lv_version.h` → **9.3.0**; `esp_lvgl_port` 2.6.3; `esp_lvgl_adapter ^0.5.0` (main/idf_component.yml)
-- 分辨率/总线: `boards/metalio-claw-4/config.h` — `DISPLAY_WIDTH/HEIGHT 720`, `LCD_BIT_PER_PIXEL 16`, `LCD_MIPI_DSI_LANE_NUM 2`, `MIPI_DSI_PHY_PWR_LDO_CHAN 3 / 2500mV`, `DISPLAY_BACKLIGHT_PIN GPIO52`
-- 屏驱切换宏: `metalio-claw-4.cc:24-37` — `METALIO_CLAW_4_USE_FL7707N` 默认 0 → **NV3051F** (36MHz DPI, RGB888, 24bpp); 置 1 → **FL7707N** (48MHz DPI, 16bpp)
+- 分辨率/总线: `boards/metalio-claw-4/config.h` — `DISPLAY_WIDTH/HEIGHT 720`, `LCD_BIT_PER_PIXEL (16)`, `LCD_MIPI_DSI_LANE_NUM 2`, `MIPI_DSI_PHY_PWR_LDO_CHAN 3 / 2500mV`, `DISPLAY_BACKLIGHT_PIN GPIO52`
+- ⚠️ **源码内部不一致 (CR-WB001-01, 只记录不修改)**: `config.h:36` `LCD_BIT_PER_PIXEL (16)` 与默认 NV3051F 初始化路径的 `bits_per_pixel = 24`（metalio-claw-4.cc:312）不一致；当前初始化以 NV3051F 的 24bpp 为准，config.h 的 16 不覆盖当前初始化路径，实机显示验证为最终依据。
+- 屏驱切换宏: `metalio-claw-4.cc:24-37` — `METALIO_CLAW_4_USE_FL7707N` 默认 0 → **NV3051F** (36MHz DPI, RGB888, `bits_per_pixel=24`, metalio-claw-4.cc:277/295-296/312); 置 1 → **FL7707N** (48MHz DPI, RGB888, `bits_per_pixel=16`, metalio-claw-4.cc:355-376)
 - 实现文件: `boards/metalio-claw-4/esp_lcd_nv3051f.c/h`, `esp_lcd_fl7707n.c/h`; `main/display/` (lcd_display, lvgl_display, emote_display, oled_display 等)
-- LVGL draw buffer: `lcd_display.cc` 中 `buffer_size = width*height*50` 且 `double_buffer=true` 的配置存在 (约 720*720*50≈ 25.9MB 需 PSRAM 支持) — 精确取值需进一步读码确认, 实机为最终依据。
+- LVGL draw buffer: `lcd_display.cc:255` 原样配置 `buffer_size = width_ * height_ * 50`（**可疑配置值**，单位是像素；若按字节推算约 25.9MB 需 PSRAM 支持的结论**不成立**，见下条）。
+- ⚠️ **P4 防撕裂路径覆盖 buffer_size (CR-WB001-02)**: 当前调用 `lvgl_port_add_disp_dsi(..., avoid_tearing=true)`（lcd_display.cc:221/279）；`managed_components/espressif__esp_lvgl_port/src/lvgl9/esp_lvgl_port_disp.c:256-262` 在 `avoid_tearing=true` 时把 `buffer_size` 覆盖为 `hres * vres`（= 720×720 像素），并调用 `esp_lcd_dpi_panel_get_frame_buffer(panel_handle, 2, ...)` 复用 **2 个 DPI panel frame buffer**，不再按 `width*height*50` 额外分配。因此不推断实际 PSRAM 占用；**真实分配量与运行稳定性（frame buffer 复用是否引入撕裂/冲突）列为 `DEVICE_VERIFY_REQUIRED` / 运行时验证项（见 §6 清单第 2 项）**。
 
 ### 4.5 Touch
 
@@ -134,7 +136,7 @@
 - 传输: `:3062` `CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y` (SPI/UART 均 not set); `:3075-3076` `SDIO_SLOT_1=y`, `SDIO_SLOT=1`; `:3073` `SDIO_OPTIMIZATION_RX_STREAMING_MODE=y`
 - 组件: `managed_components/espressif__esp_hosted`
 - ⚠️ **不是 P4 原生 Wi-Fi**: Wi-Fi 能力全部来自 C5 协处理器 (AUD-001 已确认, 不得写成 P4 原生)。
-- ⚠️ 双网络板: `class METALIO_CLAW_4 : public DualNetworkBoard` (metalio-claw-4.cc:127), DualNetworkBoard 支持 WiFi(C5)/4G(ML307/NT26) 切换, 默认 `ML307`(network_type 默认) — 实机实际网络路径需启动日志确认。
+- ⚠️ 双网络板: `class METALIO_CLAW_4 : public DualNetworkBoard` (metalio-claw-4.cc:127)。4G 槽位: 设置值 `network_type=1` 对应 **legacy 枚举名 `NetworkType::ML307`**（dual_network_board.cc:44/49），但当前源码在该分支**实际实例化 `Nt26Board`**（dual_network_board.cc:54-57 `current_board_ = std::make_unique<Nt26Board>(...)`），ML307 模组实例化代码已注释；保存到设置的仍是 legacy 枚举名（dual_network_board.cc:69）。**不写成"当前默认使用 ML307 模组"** — 实机模组与实际启动网络路径 `DEVICE_VERIFY_REQUIRED`（见 §6 清单第 7 项）。
 
 ### 4.7 Audio / Codec / Mic / SPK / AEC/VAD/Wake Word
 
@@ -169,11 +171,11 @@
 
 **状态: SOURCE_CONFIRMED (实现); 实机 DEVICE_VERIFY_REQUIRED**
 
-- 电量计: `boards/common/bq27220_gauge.cc/h`; `metalio-claw-4.cc:606` 将 BQ27220 绑定到 i2c_bus
-- 充电: `metalio-claw-4.cc:551-573` — `charge` settings `ichg_ma` (默认 1000); boot 低电检查 `Boot battery check: level=%d, charging=%s`
-- 其他实现: `boards/common/` 下 `sy6970.cc` (充电 IC), `adc_battery_monitor.cc` (ADC 备选), `axp2101.cc` (PMIC 备选), `power_save_timer.cc`
-- USB 充电状态: `config.h:9` `USB_CHG_STA_PIN GPIO_NUM_53`
-- ⚠️ 电池容量/充电 IC 型号: 需实机 (台账 HARDWARE_VERIFY_REQUIRED), 不根据电商描述推断。
+- **充电控制 (CX25601N, CR-WB001-03)**: `metalio-claw-4.cc:537` 定义 `InitializeCx25601n()`，板级构造函数 `:610` 调用；`:556` 充电电流 `ichg_ma`（500/1000mA 档）实际传给 `cx25601n_set_ichg_ma()`；boot 低电检查日志 `Boot battery check: level=%d, charging=%s`（metalio-claw-4.cc:551-573 附近）。
+- **电量计 (BQ27220)**: `boards/common/bq27220_gauge.cc/h`; `metalio-claw-4.cc:606` 将 Bq27220Gauge 绑定到 i2c_bus。
+- **USB 充电状态 GPIO**: `config.h:9` `USB_CHG_STA_PIN GPIO_NUM_53`。
+- **通用/其他板卡实现（非当前板级活跃路径，不得替代上述描述）**: `boards/common/` 下 `sy6970.cc` (充电 IC), `adc_battery_monitor.cc` (ADC 备选), `axp2101.cc` (PMIC 备选), `power_save_timer.cc`。
+- ⚠️ 电池容量/充电 IC 是否与实机一致: 需实机（台账 HARDWARE_VERIFY_REQUIRED），不根据电商描述推断。
 
 ### 4.11 OTA / 恢复边界
 
@@ -218,12 +220,12 @@
 | # | 项 | 验证方法 (真机) |
 | --- | --- | --- |
 | 1 | P4 硅片 revision / 实际 CPU 频率 | `esp_chip_info()` + 启动日志 |
-| 2 | PSRAM 实际容量/频率/可用性 | heap_caps API + 启动日志 |
+| 2 | PSRAM 实际容量/频率/可用性; LVGL 实际缓冲分配量 (防撕裂路径复用 panel frame buffer 的运行稳定性) | heap_caps API + 启动日志 + 显示压力测试 |
 | 3 | Flash 实际容量 / mode 一致性 (QIO vs dio) | `esp_flash_get_size()` + 启动日志 + 稳定性 |
 | 4 | 屏幕实际 SKU (NV3051F vs FL7707N) | 面板日志/显示测试 |
 | 5 | 触摸实际控制器与坐标方向 | GT911 初始化 + 四角触摸 |
 | 6 | C5 固件版本 / ESP-Hosted 状态 / Wi-Fi 能力 | Hosted 日志 + 扫描/连接 |
-| 7 | 实际网络路径 (C5-WiFi vs 4G-ML307/NT26) | 启动日志 + 连接测试 |
+| 7 | 实际网络路径 (C5-WiFi vs 4G 槽位; 当前源码实例化 Nt26Board, legacy 枚举名 ML307) | 启动日志 + 连接测试 |
 | 8 | 音频硬件 (Mic/SPK/Codec 型号), AEC/VAD/Wake Word | 录音/播放/全双工测试 |
 | 9 | 摄像头传感器型号与能力 | 传感器探测 + 分辨率测试 |
 | 10 | SD 热插拔 / 吞吐 | 无卡/插卡/读写/断电测试 |
@@ -249,9 +251,11 @@
 | --- | --- | --- |
 | Flash mode 不一致 (QIO=y 但 "dio") | 高 | sdkconfig 证据冲突, 已记录不修改; 真机 Flash 异常时首个排查点 |
 | 非对称 OTA + 固件超 ota_1 容量 | 高 | xiaozhi.bin 8.62MiB > ota_1 4M; 双槽 OTA 能力存疑, 实机前不承诺 |
-| 屏幕 SKU 两选一 | 中 | NV3051F 默认, FL7707N 备选; 实机前不锁定 |
+| 屏幕 SKU 两选一 | 中 | NV3051F 默认 (RGB888/24bpp), FL7707N 备选 (16bpp); 实机前不锁定 |
+| config.h LCD_BIT_PER_PIXEL(16) vs NV3051F 初始化 24bpp | 低 | 源码内部不一致 (CR-WB001-01), 初始化以 24bpp 为准, 只记录不修改 |
+| LVGL buffer_size=width*height*50 可疑配置 | 中 | 防撕裂路径下被覆盖为 720×720 像素并复用 panel frame buffer (CR-WB001-02); 实机显示压力测试验证 |
 | AEC 默认关闭 | 中 | application.cc 注释确认; 语音交互需评估是否重开 |
-| 网络路径默认 ML307(4G)? | 中 | DualNetworkBoard 默认 network_type=ML307; 实机实际路径待确认 |
+| 4G 槽位 legacy 名 ML307 / 实际实例化 Nt26Board | 中 | network_type=1 → legacy 枚举 ML307, 源码实际实例化 Nt26Board (CR-WB001-04); 实机模组与实际启动路径待确认 |
 | 电池/充电 IC/摄像头型号未确认 | 中 | 台账 UNKNOWN, 需实机 |
 | P4 revision 未锁定 (rev_min 0) | 低 | sdkconfig 未锁定具体 revision; 实机读取为准 |
 | 无签名 OTA 证据 | 中 | 正式版安全规划未在当前 sdkconfig 体现 |
@@ -264,7 +268,8 @@
 - 板卡: `vendor/MetalioClaw4/main/boards/metalio-claw-4/{config.h,config.json,metalio-claw-4.cc,esp_lcd_nv3051f.c,esp_lcd_fl7707n.c}`
 - 显示/触摸: `vendor/MetalioClaw4/main/display/`
 - 音频: `vendor/MetalioClaw4/main/audio/`, `boards/common/bt_audio_codec.*`
-- 电源: `vendor/MetalioClaw4/main/boards/common/{bq27220_gauge,sy6970,adc_battery_monitor}.*`
+- 电源: `vendor/MetalioClaw4/main/boards/common/{bq27220_gauge,cx25601n,sy6970,adc_battery_monitor}.*`
+- 显示缓冲: `vendor/MetalioClaw4/main/display/lcd_display.cc`; `managed_components/espressif__esp_lvgl_port/src/lvgl9/esp_lvgl_port_disp.c`
 - 网络: `vendor/MetalioClaw4/sdkconfig` (ESP_HOSTED), `boards/common/{dual_network_board,wifi_board,ml307_board,nt26_board}.*`
 - OTA: `vendor/MetalioClaw4/main/ota.cc`
 - 基线: `docs/BUILD.md`, `docs/CLAW4_主机准备情况报告_2026-09-01.md`, `docs/CLAW4_AUDIT.md`, `docs/HARDWARE_ASSUMPTIONS.md`
