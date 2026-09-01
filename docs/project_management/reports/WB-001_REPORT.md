@@ -49,9 +49,9 @@
 
 ### 4.1 本轮修订（CR-WB001-01~04, Codex 复检意见）
 
-- **CR-01（显示 bpp）**: 摘要/总表/§4.4 统一为 "NV3051F 默认：RGB888/24bpp（metalio-claw-4.cc:312 `bits_per_pixel=24`）；FL7707N 备选：16bpp（:355-376）"。`config.h:36` `LCD_BIT_PER_PIXEL(16)` 与默认初始化 24bpp 的差异作为**源码内部不一致**单独记录，不覆盖初始化路径。SKU 保持 `DEVICE_VERIFY_REQUIRED`。
-- **CR-02（LVGL buffer）**: `lcd_display.cc:255` `buffer_size=width*height*50` 原样记录为可疑配置值（单位像素）；`avoid_tearing=true`（lcd_display.cc:221/279）时 `esp_lvgl_port_disp.c:256-262` 将 buffer_size 覆盖为 `hres*vres`=720×720 像素并复用 2 个 DPI panel frame buffer。**不再推算 25.9MB PSRAM 占用**；真实分配量/运行稳定性列为实机/运行时验证（§6 清单第 2 项）。
-- **CR-03（电源）**: 明确区分 CX25601N 充电控制（metalio-claw-4.cc:537/556/610 `InitializeCx25601n()` → `cx25601n_set_ichg_ma(ichg_ma)`）、BQ27220 电量计（:606）、USB 充电状态 GPIO（config.h:9 `USB_CHG_STA_PIN GPIO53`）；SY6970/ADC/AXP2101 只列为仓库通用/其他板卡实现。
+- **CR-01（显示 bpp）**: 摘要/总表/§4.4 统一为 "NV3051F 默认：RGB888/24bpp（metalio-claw-4.cc:312 `bits_per_pixel=24`）；FL7707N 备选：16bpp（metalio-claw-4.cc:356 `LCD_COLOR_PIXEL_FORMAT_RGB888` / :392 `.bits_per_pixel = 16`）"。`config.h:36` `LCD_BIT_PER_PIXEL(16)` 与默认初始化 24bpp 的差异作为**源码内部不一致**单独记录，不覆盖初始化路径。SKU 保持 `DEVICE_VERIFY_REQUIRED`。
+- **CR-02（LVGL buffer）**: `lcd_display.cc:255` `buffer_size=width*height*50` 原样记录为可疑配置值（单位像素）；`avoid_tearing=true`（lcd_display.cc:221/279）时 `esp_lvgl_port_disp.c:317-325`（防撕裂分支完整区间；ESP32-P4 的 `buffer_size = hres * vres` 赋值与 2 个 frame buffer 获取位于 `:323-324`）将 buffer_size 覆盖为 `hres*vres`=720×720 像素并复用 2 个 DPI panel frame buffer。**不再推算 25.9MB PSRAM 占用**；真实分配量/运行稳定性列为实机/运行时验证（§6 清单第 2 项）。
+- **CR-03（电源）**: 明确区分 CX25601N 充电控制（metalio-claw-4.cc:537/556/610 `InitializeCx25601n()` → `cx25601n_set_ichg_ma(ichg_ma)`）、BQ27220 电量计（:609 `Begin(i2c_bus_)` 实际调用，构造上下文 :606-610）、USB 充电状态 GPIO（config.h:9 `USB_CHG_STA_PIN GPIO53`）；SY6970/ADC/AXP2101 只列为仓库通用/其他板卡实现。
 - **CR-04（4G 消歧）**: legacy `NetworkType::ML307` 枚举名（dual_network_board.cc:44/49）与当前实际实例化 `Nt26Board`（dual_network_board.cc:54-57）区分；不写成"当前默认使用 ML307 模组"；实机模组 `DEVICE_VERIFY_REQUIRED`。
 
 ## 5. 验收标准自检
@@ -146,11 +146,12 @@ git status --short
 ```
 metalio-claw-4.cc:25-26   NV3051F 36MHz DPI RGB888 24bpp（默认）; FL7707N 48MHz DPI RGB888 16bpp（备选）
 metalio-claw-4.cc:312     .bits_per_pixel = 24（NV3051F 分支）
-metalio-claw-4.cc:355-376 FL7707N 分支 RGB888, bits_per_pixel=16
+metalio-claw-4.cc:356      LCD_COLOR_PIXEL_FORMAT_RGB888（FL7707N 分支）
+metalio-claw-4.cc:392      .bits_per_pixel = 16（FL7707N 分支）
 config.h:36               LCD_BIT_PER_PIXEL (16) — 与 NV3051F 24bpp 初始化不一致（只记录不修改）
 lcd_display.cc:255        .buffer_size = width_ * height_ * 50（可疑值, 原样记录）
 lcd_display.cc:221/279    .avoid_tearing = true
-esp_lvgl_port_disp.c:256-262  avoid_tearing=true → buffer_size = hres*vres; dpi_panel_get_frame_buffer(2)
+esp_lvgl_port_disp.c:317-325  avoid_tearing=true → buffer_size = hres*vres; dpi_panel_get_frame_buffer(2)（赋值在 :323-324）
 metalio-claw-4.cc:537/556/610  InitializeCx25601n(); cx25601n_set_ichg_ma(ichg_ma)
 dual_network_board.cc:44/49    network_type==1 → NetworkType::ML307（legacy 枚举名）
 dual_network_board.cc:54-57    ML307 分支 make_unique<Nt26Board>（实际实例化）

@@ -114,10 +114,10 @@
 - LVGL: `managed_components/lvgl__lvgl/lv_version.h` → **9.3.0**; `esp_lvgl_port` 2.6.3; `esp_lvgl_adapter ^0.5.0` (main/idf_component.yml)
 - 分辨率/总线: `boards/metalio-claw-4/config.h` — `DISPLAY_WIDTH/HEIGHT 720`, `LCD_BIT_PER_PIXEL (16)`, `LCD_MIPI_DSI_LANE_NUM 2`, `MIPI_DSI_PHY_PWR_LDO_CHAN 3 / 2500mV`, `DISPLAY_BACKLIGHT_PIN GPIO52`
 - ⚠️ **源码内部不一致 (CR-WB001-01, 只记录不修改)**: `config.h:36` `LCD_BIT_PER_PIXEL (16)` 与默认 NV3051F 初始化路径的 `bits_per_pixel = 24`（metalio-claw-4.cc:312）不一致；当前初始化以 NV3051F 的 24bpp 为准，config.h 的 16 不覆盖当前初始化路径，实机显示验证为最终依据。
-- 屏驱切换宏: `metalio-claw-4.cc:24-37` — `METALIO_CLAW_4_USE_FL7707N` 默认 0 → **NV3051F** (36MHz DPI, RGB888, `bits_per_pixel=24`, metalio-claw-4.cc:277/295-296/312); 置 1 → **FL7707N** (48MHz DPI, RGB888, `bits_per_pixel=16`, metalio-claw-4.cc:355-376)
+- 屏驱切换宏: `metalio-claw-4.cc:24-37` — `METALIO_CLAW_4_USE_FL7707N` 默认 0 → **NV3051F** (36MHz DPI, RGB888, `bits_per_pixel=24`, metalio-claw-4.cc:277/295-296/312); 置 1 → **FL7707N** (48MHz DPI, RGB888, `bits_per_pixel=16`, metalio-claw-4.cc:356 `LCD_COLOR_PIXEL_FORMAT_RGB888` / :392 `.bits_per_pixel = 16`)
 - 实现文件: `boards/metalio-claw-4/esp_lcd_nv3051f.c/h`, `esp_lcd_fl7707n.c/h`; `main/display/` (lcd_display, lvgl_display, emote_display, oled_display 等)
 - LVGL draw buffer: `lcd_display.cc:255` 原样配置 `buffer_size = width_ * height_ * 50`（**可疑配置值**，单位是像素；若按字节推算约 25.9MB 需 PSRAM 支持的结论**不成立**，见下条）。
-- ⚠️ **P4 防撕裂路径覆盖 buffer_size (CR-WB001-02)**: 当前调用 `lvgl_port_add_disp_dsi(..., avoid_tearing=true)`（lcd_display.cc:221/279）；`managed_components/espressif__esp_lvgl_port/src/lvgl9/esp_lvgl_port_disp.c:256-262` 在 `avoid_tearing=true` 时把 `buffer_size` 覆盖为 `hres * vres`（= 720×720 像素），并调用 `esp_lcd_dpi_panel_get_frame_buffer(panel_handle, 2, ...)` 复用 **2 个 DPI panel frame buffer**，不再按 `width*height*50` 额外分配。因此不推断实际 PSRAM 占用；**真实分配量与运行稳定性（frame buffer 复用是否引入撕裂/冲突）列为 `DEVICE_VERIFY_REQUIRED` / 运行时验证项（见 §6 清单第 2 项）**。
+- ⚠️ **P4 防撕裂路径覆盖 buffer_size (CR-WB001-02)**: 当前调用 `lvgl_port_add_disp_dsi(..., avoid_tearing=true)`（lcd_display.cc:221/279）；`managed_components/espressif__esp_lvgl_port/src/lvgl9/esp_lvgl_port_disp.c:317-325`（防撕裂分支完整区间；ESP32-P4 的 `buffer_size = hres * vres` 赋值与 `esp_lcd_dpi_panel_get_frame_buffer(panel_handle, 2, ...)` 位于 `:323-324`）在 `avoid_tearing=true` 时把 `buffer_size` 覆盖为 `hres * vres`（= 720×720 像素），并复用 **2 个 DPI panel frame buffer**，不再按 `width*height*50` 额外分配。因此不推断实际 PSRAM 占用；**真实分配量与运行稳定性（frame buffer 复用是否引入撕裂/冲突）列为 `DEVICE_VERIFY_REQUIRED` / 运行时验证项（见 §6 清单第 2 项）**。
 
 ### 4.5 Touch
 
@@ -172,7 +172,7 @@
 **状态: SOURCE_CONFIRMED (实现); 实机 DEVICE_VERIFY_REQUIRED**
 
 - **充电控制 (CX25601N, CR-WB001-03)**: `metalio-claw-4.cc:537` 定义 `InitializeCx25601n()`，板级构造函数 `:610` 调用；`:556` 充电电流 `ichg_ma`（500/1000mA 档）实际传给 `cx25601n_set_ichg_ma()`；boot 低电检查日志 `Boot battery check: level=%d, charging=%s`（metalio-claw-4.cc:551-573 附近）。
-- **电量计 (BQ27220)**: `boards/common/bq27220_gauge.cc/h`; `metalio-claw-4.cc:606` 将 Bq27220Gauge 绑定到 i2c_bus。
+- **电量计 (BQ27220)**: `boards/common/bq27220_gauge.cc/h`; `metalio-claw-4.cc:609`（构造阶段上下文 `:606-610`）`Bq27220Gauge::GetInstance().Begin(i2c_bus_)` 将 BQ27220 绑定到 i2c_bus。
 - **USB 充电状态 GPIO**: `config.h:9` `USB_CHG_STA_PIN GPIO_NUM_53`。
 - **通用/其他板卡实现（非当前板级活跃路径，不得替代上述描述）**: `boards/common/` 下 `sy6970.cc` (充电 IC), `adc_battery_monitor.cc` (ADC 备选), `axp2101.cc` (PMIC 备选), `power_save_timer.cc`。
 - ⚠️ 电池容量/充电 IC 是否与实机一致: 需实机（台账 HARDWARE_VERIFY_REQUIRED），不根据电商描述推断。
