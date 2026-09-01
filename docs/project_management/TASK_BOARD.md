@@ -4,10 +4,11 @@
 - 维护者：Codex
 - 当前阶段：主机基线已通过；补齐平台证据；等待真机连接
 - 调度规则：任意时刻只允许一个 WorkBuddy 任务为 `READY` 或 `IN_PROGRESS`
+- 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前唯一指令
 
-WorkBuddy 只处理 `WB-001` 的 Codex 复检修订项，依据：[`reports/CODEX_REVIEW_WB-001_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_2026-09-01.md)。其他任务不得提前开始。
+WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任务分支与远端安全对齐，然后只处理 `WB-001` 的 Codex 复检修订项，依据：[`reports/CODEX_REVIEW_WB-001_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_2026-09-01.md)。其他任务不得提前开始。
 
 ## 看板
 
@@ -36,7 +37,12 @@ WorkBuddy 只处理 `WB-001` 的 Codex 复检修订项，依据：[`reports/CODE
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
 | BLK-HW-001 | WB-BRINGUP-S1 及所有业务实现 | 2026-09-01 复检返回 `NO_SERIAL_PORTS_DETECTED` | 连接 Claw4，记录 USB/COM 枚举并确认 P4 调试口 |
-| BLK-GIT-REMOTE-001 | 远端 push | 项目根目录此前无 Git 仓库，也没有项目远端 URL | 用户提供或确认项目 Git 远端；不得使用 Metalio 官方 origin |
+
+## 已解除阻塞
+
+| 阻塞 ID | 状态 | 解除证据 | 结果 |
+| --- | --- | --- | --- |
+| BLK-GIT-REMOTE-001 | `RESOLVED` | [`GIT_PROJECT_SETUP_2026-09-01.md`](reports/GIT_PROJECT_SETUP_2026-09-01.md) | 已创建独立私有仓库并推送 `main` 与 `workbuddy/wb-001-platform-map`；未使用 Metalio 官方 origin |
 
 ## 已知风险
 

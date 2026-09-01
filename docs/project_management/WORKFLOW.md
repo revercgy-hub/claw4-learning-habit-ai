@@ -38,10 +38,11 @@
 ## Git 规则
 
 - 项目根仓库管理规划、脚本、业务代码和可审查报告。
+- 项目协作远端固定为 `https://github.com/revercgy-hub/claw4-learning-habit-ai.git`；WorkBuddy 开始和交付任务时必须执行 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md)。
 - `vendor/` 与 `toolchains/` 是本地依赖，保留各自历史，不进入根仓库。
 - WorkBuddy 不直接在 `main` 上实施；分支名为 `workbuddy/<task-id>-<short-name>`。
 - Codex 复检通过后才允许合入主线。
-- 如果根仓库未配置远端，允许先生成本地提交；远端 URL 和权限由用户补充后再推送。
+- WorkBuddy 只允许普通 push 当前任务分支，禁止 force push、改写 `main`、删除远端分支或修改远端 URL。
 
 ## 阻塞与停止规则
 

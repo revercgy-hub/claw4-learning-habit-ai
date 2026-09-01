@@ -5,7 +5,7 @@
 - 负责人：WorkBuddy
 - 复检人：Codex
 - 优先级：P0
-- 当前状态：`READY`
+- 当前状态：`CHANGES_REQUIRED`
 - 前置任务：AUD-001、BLD-001 已验收
 - 目标分支：`workbuddy/wb-001-platform-map`
 
@@ -21,14 +21,16 @@
 
 1. `AGENTS.md`
 2. `docs/project_management/TASK_BOARD.md`
-3. 本任务包
-4. `项目总规划/AGENTS.md`
-5. `项目总规划/CLAW4_BRINGUP_PROMPT.md`
-6. `docs/CLAW4_AUDIT.md`
-7. `docs/HARDWARE_ASSUMPTIONS.md`
-8. `docs/BUILD.md`
-9. `docs/CLAW4_主机准备情况报告_2026-09-01.md`
-10. `vendor/MetalioClaw4/README.md`、`sdkconfig`、分区表及相关源码
+3. `docs/project_management/WORKBUDDY_GIT_SYNC.md`
+4. 本任务包
+5. `docs/project_management/reports/CODEX_REVIEW_WB-001_2026-09-01.md`
+6. `项目总规划/AGENTS.md`
+7. `项目总规划/CLAW4_BRINGUP_PROMPT.md`
+8. `docs/CLAW4_AUDIT.md`
+9. `docs/HARDWARE_ASSUMPTIONS.md`
+10. `docs/BUILD.md`
+11. `docs/CLAW4_主机准备情况报告_2026-09-01.md`
+12. `vendor/MetalioClaw4/README.md`、`sdkconfig`、分区表及相关源码
 
 ## 允许修改
 
@@ -123,4 +125,4 @@ rg -n "NV3051F|FL7707N|touch|esp_hosted|wifi|camera|audio|BQ27220|SD|OTA" .\vend
 
 ## 完成后的明确指令
 
-提交上述两个文件后停止。不要开始 `WB-002`、真机 Bring-up 或任何 MVP 代码。等待 Codex 复检。
+按 `docs/project_management/WORKBUDDY_GIT_SYNC.md` 的交付流程提交并推送上述两个文件后停止。不要开始 `WB-002`、真机 Bring-up 或任何 MVP 代码。等待 Codex 复检。
