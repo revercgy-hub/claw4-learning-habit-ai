@@ -2,13 +2,13 @@
 
 - 更新时间：2026-09-01
 - 维护者：Codex
-- 当前阶段：主机基线已通过；补齐平台证据；等待真机连接
+- 当前阶段：G0/G1 已通过；真机已枚举；准备只读设备接收检查
 - 调度规则：任意时刻只允许一个 WorkBuddy 任务为 `READY` 或 `IN_PROGRESS`
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前唯一指令
 
-WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任务分支与远端安全对齐，然后只处理 `WB-001` 二次复检中列出的证据行号修订，依据：[`reports/CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md`](reports/CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md)。其他任务不得提前开始。
+WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 取得 `workbuddy/wb-hw-001-readonly-intake`，然后只执行 [`WB-HW-001_READONLY_DEVICE_INTAKE.md`](tasks/WB-HW-001_READONLY_DEVICE_INTAKE.md)。本轮只做枚举和被动证据采集，禁止刷写、擦除、读取 Flash、发送串口/AT 命令或修改固件。
 
 ## 看板
 
@@ -18,12 +18,14 @@ WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任�
 | 1 | AUD-001 | 历史产出 / Codex 复核 | `ACCEPTED` | 无 | `docs/CLAW4_AUDIT.md`、`docs/HARDWARE_ASSUMPTIONS.md` |
 | 2 | BLD-001 | 历史产出 / Codex 复核 | `ACCEPTED` | AUD-001 | `docs/BUILD.md`、`docs/CLAW4_主机准备情况报告_2026-09-01.md`、`E:\b` 构建产物 |
 | 2.1 | WB-ENV-REVIEW | WorkBuddy / Codex 复核 | `ACCEPTED` | BLD-001 | `docs/CLAW4_报告复核_2026-09-01.md`，独立复跑主机检查 |
-| 3 | WB-001 | WorkBuddy | `CHANGES_REQUIRED` | AUD-001、BLD-001 | 远端分支 `workbuddy/wb-001-platform-map` @ `a829765`；四项技术修订通过，仅修正二次复检指出的证据行号 |
+| 3 | WB-001 | WorkBuddy | `ACCEPTED` | AUD-001、BLD-001 | 最终实施提交 `45b2c73`；`docs/CLAW4_PLATFORM_MAP.md` 与 `WB-001_REPORT.md` 已验收并纳入 main |
 | 4 | CR-001 | Codex | `ACCEPTED` | WB-001 `REVIEW_READY` | `CODEX_REVIEW_WB-001_2026-09-01.md`；本轮结论为 `CHANGES_REQUIRED` |
 | 4.1 | CR-001-R2 | Codex | `ACCEPTED` | WB-001 修订提交 `a829765` | `CODEX_REVIEW_WB-001_ROUND2_2026-09-01.md`；技术内容通过，证据行号仍需窄范围修订 |
-| 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-001 `ACCEPTED` | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
+| 4.2 | CR-001-FINAL | Codex | `ACCEPTED` | WB-001 最终提交 `45b2c73` | `CODEX_REVIEW_WB-001_FINAL_2026-09-01.md`；G1 `PASSED` |
+| 4.5 | WB-HW-001 | WorkBuddy | `READY` | WB-001、设备 USB 枚举 | 只读设备接收、COM/USB 映射、官方固件被动日志、`BOARD_REVISION.md`、`DEVICE_LOG_REFERENCE.md` |
+| 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-HW-001 `ACCEPTED` | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
 | 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
-| 7 | WB-BRINGUP-S1 | WorkBuddy | `BLOCKED` | 真机、数据线、串口、用户授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
+| 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES | WorkBuddy | `HOLD` | G2/G3 门禁 | `learning_domain`、`sync`、`ui`、`assistant`、`telemetry` 接口骨架 |
 | 10 | WB-MVP-DOMAIN | WorkBuddy | `HOLD` | 接口骨架验收 | Task、StudySession、DeviceEvent、DomainState 与单元测试 |
@@ -37,13 +39,14 @@ WorkBuddy 先按 [`WORKBUDDY_GIT_SYNC.md`](WORKBUDDY_GIT_SYNC.md) 将本地任�
 
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
-| BLK-HW-001 | WB-BRINGUP-S1 及所有业务实现 | 2026-09-01 复检返回 `NO_SERIAL_PORTS_DETECTED` | 连接 Claw4，记录 USB/COM 枚举并确认 P4 调试口 |
+| BLK-FLASH-AUTH-001 | 任何固件刷写、Flash 读取/擦除、分区或 OTA 操作 | 用户尚未明确授权；恢复路径、当前 boot partition 和 SKU 尚未确认 | Codex 完成只读接收复检后，另行向用户说明目标、风险和恢复方案并取得明确授权 |
 
 ## 已解除阻塞
 
 | 阻塞 ID | 状态 | 解除证据 | 结果 |
 | --- | --- | --- | --- |
 | BLK-GIT-REMOTE-001 | `RESOLVED` | [`GIT_PROJECT_SETUP_2026-09-01.md`](reports/GIT_PROJECT_SETUP_2026-09-01.md) | 已创建独立私有仓库并推送 `main` 与 `workbuddy/wb-001-platform-map`；未使用 Metalio 官方 origin |
+| BLK-HW-001 | `RESOLVED` | [`CODEX_DEVICE_INTAKE_2026-09-01.md`](reports/CODEX_DEVICE_INTAKE_2026-09-01.md) | 已检测 COM3/4/5/6；COM3 明确枚举为 Espressif USB JTAG/serial debug unit，可进入只读接收检查 |
 
 ## 已知风险
 

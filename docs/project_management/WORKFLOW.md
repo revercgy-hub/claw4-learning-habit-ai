@@ -30,8 +30,8 @@
 | 门禁 | 通过条件 | 当前状态 |
 | --- | --- | --- |
 | G0 主机基线 | IDF v5.5.4、P4 工具链、Python 依赖、官方 baseline 构建产物存在 | `PASSED` |
-| G1 平台证据 | 仓库审计和平台实现映射被 Codex 接受 | `INCOMPLETE` |
-| G2 真机 Stage 1 | B001/B002/B003/B004/B005/B009/B013 有实机证据且复检通过 | `BLOCKED`：无串口设备 |
+| G1 平台证据 | 仓库审计和平台实现映射被 Codex 接受 | `PASSED`：WB-001 @ `45b2c73` 已验收 |
+| G2 真机 Stage 1 | B001/B002/B003/B004/B005/B009/B013 有实机证据且复检通过 | `INCOMPLETE`：设备已枚举，先执行只读 WB-HW-001；未授权刷写 |
 | G3 MVP 开发准入 | Bring-up 准入项满足并给出 GO/GO WITH CONDITIONS | `HOLD` |
 | G4 MVP 闭环 | 设备到后端到家长端的在线与离线闭环均通过 | `HOLD` |
 

@@ -1,5 +1,7 @@
 # Claw4 到货前准备清单
 
+> 2026-09-01 状态更新：设备已连接并完成主机侧初次 USB/COM 枚举。本文件保留为历史准备清单；当前准入事实以 `docs/project_management/reports/CODEX_DEVICE_INTAKE_2026-09-01.md` 和任务看板为准。
+
 ## 已完成
 
 - [x] 获取官方 MetalioClaw4 源码快照。
