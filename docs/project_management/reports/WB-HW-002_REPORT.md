@@ -6,10 +6,11 @@
 - 任务包：`docs/project_management/tasks/WB-HW-002_CONTROLLED_BOOT_CAPTURE.md`
 - 负责人：WorkBuddy
 - 复检人：Codex
-- 状态：实施完成，待 Codex 复检
+- 状态：实施完成 → Codex 复检 `CHANGES_REQUIRED`（CODEX_REVIEW_WB-HW-002_2026-09-01.md）→ 本修订轮完成 CR-WBHW002-01~04，再次 `REVIEW_READY`
 - 调度基线（开始前远端任务分支 HEAD）：`f861ad9a70a4ed12bd6bd3fd675be3bb44be806f`
-- 本地最终 HEAD：以推送后 `git ls-remote` 为准（提交后填）
-- 远端最终 HEAD：以推送后 `git ls-remote` 为准
+- 初次交付提交：`63281b23c85433e184660517e8ecaeddabff94c7`
+- 本地最终 HEAD：`63281b23c85433e184660517e8ecaeddabff94c7`
+- 远端最终 HEAD（复检基准）：`63281b23c85433e184660517e8ecaeddabff94c7`
 - 工作区状态：任务提交后已 `symbolic-ref HEAD refs/heads/main` 收尾，工作树保留本任务交付文件副本
 
 ## 1. 输入范围（必读文件清单，全部已读）
@@ -80,7 +81,7 @@
 | 采集字节数 | 3,143 B |
 | 文件 SHA-256 | `6c45a072bed713f62257dd1f32655df60f7c332acf9ab564a0d07f31756b1c18` |
 
-**采集过程中没有出现下载模式/恢复模式/异常循环复位迹象**。预期的一次 `CHIP_USB_UART_RESET` 复位后 `boot:0x1f (SPI_FAST_FLASH_BOOT)` 正常启动、应用初始化到 `DualNetworkBoard: Initialize WiFi board` 行后稳态运行；未观察到 `JFI`、`<DOWNLOAD>`、`<HELLO>`、`Waiting for download` 等模式。
+**采集过程中没有出现下载模式/恢复模式/异常循环复位迹象**。预期的一次 `CHIP_USB_UART_RESET` 复位后 `boot:0x1f (SPI_FAST_FLASH_BOOT)` 正常启动、应用初始化到 `DualNetworkBoard: Initialize WiFi board` 行；90.17 秒采集内未观察到第二次复位/启动签名。未观察到 `JFI`、`<DOWNLOAD>`、`<HELLO>`、`Waiting for download` 等模式。
 
 ### 3.3 任务 C：证据整理（按任务包 §C）
 
@@ -91,6 +92,9 @@
    | `E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\precheck_pnp.txt` | 1,137 | `5cf137b87e5f3c72cbae81d86ef781bb53218bdc04b0a2201af07f3bd50591b2` |
    | `E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\com3_controlled.bin` | 3,143 | `6c45a072bed713f62257dd1f32655df60f7c332acf9ab564a0d07f31756b1c18` |
    | `E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\capture_log.txt` | 496 | `a8015e85ccaff34b8fed6d894d52ed108be07376501c72cc18b66acdfe5282f6` |
+   | `E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\capture_method_record.md`（修订轮补存） | 3,366 | `83615a9bb8e209f3c25741a8cbe3b1bb25ff9ac1027968a3feb1fbdc3abd403c` |
+
+   `capture_method_record.md` 为**执行方法记录（修订轮补存，非原始脚本副本）**：本次采集使用主机 PowerShell 会话内联 .NET `SerialPort` 代码执行，原始脚本逐字文本未单独保存、无法恢复，该文件按会话记录与产出文件忠实重建方法与参数，并如实声明"仅一次 `Open()` 且无 `Write*` 调用"的代码级证据缺口（CR-WBHW002-03）。未重新执行脚本、未重开 COM3、未事后编造。
 
    用户照片（不在本任务创建，4 张）：
 
@@ -102,8 +106,8 @@
    | `photo-04-side-connectors.jpg` | 249,513 | 752×1003 | `08056ad67ebdde5c5c9984da2c0333bb02611c2942cfa4fe3b20e11a40f6fda0` |
 
 2. **敏感信息检查与脱敏**（任务包 §C.2）：
-   - 3,143 B 原始日志 grep 确认**未发现 SSID、密码、token、密钥、账号、定位或儿童信息**。
-   - 4 张照片 grep 同样未发现敏感字段。
+   - 3,143 B 原始字节做文本模式扫描（`rg -a`）未发现 SSID、密码、token、密钥、账号、定位或儿童信息（基于原始字节中的可见文本字段）。
+   - 4 张照片按**人工可见内容**与**文件元数据**（大小、尺寸、SHA-256）边界陈述；不声称可对 JPEG 二进制内容做文本扫描以证明无敏感字段。
    - Git 摘录仅保留事实字段（ROM/复位源/版本/PSRAM/Flash/网络/UUID 等），不含凭据/账号。
 
 3. **日志实际出现的事实字段**（任务包 §C.3）：
@@ -116,54 +120,48 @@
    - 屏幕驱动：本次日志**未捕获**（`UNKNOWN`）
    - 触摸：本次日志**未捕获**（`UNKNOWN`）
    - ESP-Hosted/C5：SDIO 主机任务启动；C5 固件/连接未捕获（`UNKNOWN`）
-   - 网络初始化：`DualNetworkBoard: Initialize WiFi board`（**当前网络类型 = WiFi**；4G ML307/Nt26 未被驱动）
-   - 稳定运行证据：复位前 uptime 399,805 ms（约 6.7 分钟），期间无异常循环复位
+   - 网络初始化：P4 应用日志执行到 `DualNetworkBoard: Initialize WiFi board` 行；Wi-Fi 是否初始化成功、是否连接、实际网络通道，以及 4G 模组驱动/连接状态均 `UNKNOWN`（本次日志未观察到 P4 与 4G 模组间的数据交互行，4G 通道状态不据此作结论）
+   - 复位与启动：唯一一次预期 `CHIP_USB_UART_RESET`（复位前 uptime 399,805 ms），复位后 `boot:0x1f` 正常启动；90.17 秒采集内未观察到第二次复位/启动签名（不扩展为显示/触摸/网络/整体业务稳定性结论）
 
-4. **未出现的项目写 `UNKNOWN`**（任务包 §C.3）：屏驱 SKU、触摸型号、Flash 容量、C5 固件/连接、4G 模组型号、partition/OTA 实际布局、屏幕分辨率、面板型号、扬声器声道/阻抗、麦克风数、卡槽内容、侧边连接器引脚定义、顶部按钮功能、底边/顶视视角、尺寸与重量、外观 SKU 标签。
+4. **未出现的项目写 `UNKNOWN`**（任务包 §C.3）：屏驱 SKU、触摸型号、Flash 容量、C5 固件/连接、4G 模组型号与驱动状态、partition/OTA 实际布局、屏幕分辨率、面板型号、底边孔阵/细长开口/顶部圆形凸起等功能、侧边连接器引脚定义、底边/顶视视角、尺寸与重量、外观 SKU 标签。
 
-5. **物理外观只记录照片可见事实**（任务包 §C.4）：`PHYSICAL_INSPECTION.md` 严格按照片逐张记录；孔洞/连接器未猜成扬声器/麦克风/SIM/SD/调试口等具体功能；不通过外观推断硬件能力。
+5. **物理外观只记录照片可见事实**（任务包 §C.4）：`PHYSICAL_INSPECTION.md` 严格按照片逐张记录；孔洞/开口/连接器/圆形凸起均只作**纯形态描述**，未作任何功能、结构或材质推断；不通过外观推断硬件能力。
 
 ## 4. 验收标准自检（按任务包 §验收标准）
 
 | 验收项 | 状态 | 证据 |
 | --- | --- | --- |
-| 相对调度基线的 Git diff 只有四个允许文件 | 待推送后 `git diff --name-only origin/main...HEAD` 验证 | 已知 staged 仅 4 文件 |
+| 相对调度基线的 Git diff 只有四个允许文件 | PASS | 复验 `git diff --name-status f861ad9a..63281b2` 仅 4 文件（见 §5） |
 | COM3 PnP 身份在打开前经只读枚举确认 | PASS | `precheck_pnp.txt` §1-8 + 本报告 §3.1 |
 | 整个任务恰好一次 COM3 `Open()`，115200 8N1，DTR/RTS false；串口写入 0 B | PASS | `capture_log.txt` + 本报告 §3.2 |
 | 只出现预期的一次 `CHIP_USB_UART_RESET`，随后正常 Flash boot | PASS | `com3_controlled.bin` 解码后行 0-9 包含一次复位头 + 正常 boot:0x1f |
-| 捕获不少于 60 秒且能判断应用启动后是否稳定 | PASS（90.17 s，启动后到 `DualNetworkBoard: Initialize WiFi board` 行后稳态；复位前 399,805 ms uptime 期间无异常循环复位） | `com3_controlled.bin` + 上一轮 uptime 旁证 |
+| 捕获不少于 60 秒且能判断应用启动后状态 | PASS（90.17 s；启动到 `DualNetworkBoard: Initialize WiFi board` 行，采集内未观察到第二次复位/启动签名） | `com3_controlled.bin` 解码 + `capture_log.txt` 时长 |
 | 原始日志和照片位于仓库外，大小与 SHA-256 可复验，Git 中无原始二进制证据 | PASS | 本报告 §3.3 表 + `git status` 工作区无 `*.bin` 原始日志 |
 | 屏驱、触摸、C5/Hosted、网络、分区、Flash 等结论只依据本次日志；缺失即 `UNKNOWN` | PASS | `PHYSICAL_INSPECTION.md` §5 + `DEVICE_LOG_REFERENCE.md` §6/§7/§8 + `BOARD_REVISION.md` §5/§6 |
 | 物理外观只记录可见事实，没有对开孔/接口/SKU/硬件能力作无证据推断 | PASS | `PHYSICAL_INSPECTION.md` §2-§5 + §6 分离陈述 |
 | 未执行 Flash、刷写、JTAG、AT、其他端口、固件修改或范围外操作 | PASS | `capture_log.txt` 显示 0 B 写入；任务包 §绝对禁止项全部遵守 |
-| `git diff --check origin/main...HEAD` 无错误 | 提交后待 `git diff --check` 校验 | （推送后填） |
+| `git diff --check origin/main...HEAD` 无错误 | PASS | 复验 `git diff --check f861ad9a..63281b2` 无输出（见 §5） |
 
 ## 5. 验证命令与结果（按任务包 §提交前校验 + WORKBUDDY_GIT_SYNC.md §四）
 
+以下结果为交付提交 `63281b2` 的**实际复验输出**（从 Git 对象库复验，可重复）：
+
 ```powershell
-# 工作区状态（应仅 4 个新/修改文件）
-git status --short
-# 预期输出：A  docs/BOARD_REVISION.md
-#          M  docs/BOARD_REVISION.md（已修改）
-#          M  docs/DEVICE_LOG_REFERENCE.md
-#          ?? docs/PHYSICAL_INSPECTION.md
-#          ?? docs/project_management/reports/WB-HW-002_REPORT.md
-#          （即仅四个允许文件）
+# 1) 相对调度基线的修改文件（应仅 4 个允许文件）
+git diff --name-status f861ad9a70a4ed12bd6bd3fd675be3bb44be806f..63281b23c85433e184660517e8ecaeddabff94c7
+# 实际输出：
+# M docs/BOARD_REVISION.md
+# M docs/DEVICE_LOG_REFERENCE.md
+# A docs/PHYSICAL_INSPECTION.md
+# A docs/project_management/reports/WB-HW-002_REPORT.md
 
-# 空白检查
-git diff --check
-# 预期：无输出
+# 2) 空白检查（无错误）
+git diff --check f861ad9a70a4ed12bd6bd3fd675be3bb44be806f..63281b23c85433e184660517e8ecaeddabff94c7
+# 实际输出：无（exit 0）
 
-# 相对远端 main 的修改文件（应仅 4 个允许文件）
-git diff --name-only origin/main...HEAD
-# 预期：4 个文件
-
-# 仓库外证据（不应进入 Git）
-git status --short | Select-String -Pattern "\.bin|port_enum|capture_log|precheck"
-# 预期：无输出
+# 3) 仓库外证据（不应进入 Git）
+git status --short   # 不含任何 .bin / precheck / capture_log 原始文件
 ```
-
-实际执行结果（推送前本地）见本任务会话期间各次 `Bash` 输出（每项均符合预期，无 `.bin`/原始日志进入 Git）。
 
 ## 6. 范围偏差
 
@@ -184,14 +182,14 @@ git status --short | Select-String -Pattern "\.bin|port_enum|capture_log|prechec
 | 触摸型号/事件 | `UNKNOWN` | 本次日志未捕获 touch 字段 | 同上 |
 | Flash 容量 | `UNKNOWN` | 启动日志无 `flash size` 字段 | 被动日志（不读 Flash） |
 | C5 固件/连接 | `UNKNOWN` | 仅见 SDIO 主机任务启动 | 被动日志 / 后续只读探测 |
-| 4G 模组型号 | `UNKNOWN` | 设备当前选 WiFi 板卡，未驱动 4G 模组；log 口二进制流 | 用户授权切换网络类型 + 被动监听；**不发送 AT** |
+| 4G 模组型号与驱动/连接状态 | `UNKNOWN` | P4 应用日志执行到 `Initialize WiFi board` 行；未观察到 P4 与 4G 模组的数据交互行（4G 通道状态不据此作结论）；log 口为二进制流 | 用户授权切换网络通道 + 被动监听；**不发送 AT** |
 | partition/OTA 实际布局 | `UNKNOWN` | 无日志证据 | 被动日志/源码；不改分区 |
 | 外观 SKU/丝印/序列号/认证 | `USER_EVIDENCE_REQUIRED` | 4 张照片均不可见 | 包装、底部贴纸、保修卡或后盖内部特写 |
 | 屏幕分辨率/面板型号 | `UNKNOWN` | 照片分辨率仅 849×1132（设备无关）；日志无屏参 | 实机测温或屏厂 spec 文档 |
-| 扬声器/麦克风/卡槽/连接器功能 | `UNKNOWN` | 照片仅可数孔/针数，不可确认功能 | 实机测试（仍只读，需用户授权） |
-| 顶部按钮功能 | `UNKNOWN` | 4 张照片未正面对准顶视 | 用户补充顶视照片或实机按键日志 |
+| 底边小圆孔阵列/细长开口/顶部圆形凸起/连接器开口的功能 | `UNKNOWN` | 照片仅可数孔/针数，功能不可据此确认 | 实机测试（仍只读，需用户授权） |
+| 顶部圆形凸起的功能 | `UNKNOWN` | 4 张照片未正面对准顶视 | 用户补充顶视照片或实机按键日志 |
 | 设备尺寸/重量 | `USER_EVIDENCE_REQUIRED` | 4 张照片无参照尺 | 用户补充尺/台秤照片 |
-| 固件刷新授权与时间 | `USER_EVIDENCE_REQUIRED` | 本次日志显示两轮固件不同（Aug 7→Aug 18），但未在本次任务追溯刷新授权 | Codex/用户后续核实 |
+| 两轮运行镜像差异的来源/授权/时间 | `UNKNOWN` | 本次日志仅显示 WB-HW-002 运行镜像的 compile time 与 ELF hash 与 WB-HW-001 不同（Aug 7→Aug 18），更新来源/方式/时间/授权/启动分区均未追溯 | Codex/用户后续核实 |
 
 ## 8. Codex 复检重点
 
@@ -200,10 +198,10 @@ git status --short | Select-String -Pattern "\.bin|port_enum|capture_log|prechec
 1. **Git 与范围**：`git fetch --prune origin && git diff --name-status origin/main...origin/workbuddy/wb-hw-002-controlled-boot` 应只列 4 个允许文件；`git diff --check origin/main...origin/workbuddy/wb-hw-002-controlled-boot` 应无输出。
 2. **COM3 唯一一次 Open**：本报告 §3.2 与 `capture_log.txt` 字段一致；`precheck_pnp.txt` §3-4 Container ID `{7DF4FC2F-...}` 与 WB-HW-001 记录一致，§6-7 显示 Open 前设备无问题码。
 3. **写入 0 B**：`capture_log.txt` 中 `串口写入字节数: 0`；脚本未调用 `Write*`。
-4. **新固件事实**：`com3_controlled.bin` 解码后 `Compile time: Aug 18 2026 20:07:20` / `ELF file SHA256: fec753506...`（与 WB-HW-001 旧固件 `d456cc7c` / `Aug  7 2026 11:37:54` 明确不同）；`BOARD_REVISION.md` §1/§7 记录这一事实而**未推断**固件刷新时间/授权/方式。
+4. **运行镜像差异事实**：`com3_controlled.bin` 解码后 `Compile time: Aug 18 2026 20:07:20` / `ELF file SHA256: fec753506...`（与 WB-HW-001 的 `d456cc7c` / `Aug  7 2026 11:37:54` 不同）；`BOARD_REVISION.md` §1/§7 仅记录该差异，未声称发生过固件刷新，更新来源/方式/时间/授权/启动分区均标 `UNKNOWN`。
 5. **照片事实**：`PHYSICAL_INSPECTION.md` 逐张记录；4 张 SHA-256 与 `CODEX_USER_HW_EVIDENCE_2026-09-01.md` §2 完全一致；§6 板卡身份与外观分离陈述；§5 不可确认项独立列示。
-6. **网络与模组**：`Initialize WiFi board` 行证实当前网络类型为 WiFi（**非 4G**）；4G ML307/Nt26 模组未被 P4 固件驱动；COM4 log 二进制流仅作"上电活跃"事实。
-7. **未越级**：屏驱、触摸、Flash 容量、C5、partition、4G 模组型号、扬声器/麦克风/卡槽功能等**未在日志或照片中出现的事实**均标 `UNKNOWN` / `USER_EVIDENCE_REQUIRED`，未用源码或商品页推断。
+6. **网络与模组**：P4 应用日志执行到 `DualNetworkBoard: Initialize WiFi board` 行；Wi-Fi 是否初始化成功/是否连接、实际网络通道、4G 模组驱动与连接状态均 `UNKNOWN`（4G 通道状态不据此作结论）；COM4 log 二进制流仅作"上电活跃"事实。
+7. **未越级**：屏驱、触摸、Flash 容量、C5、partition、4G 模组型号与驱动状态、底边小圆孔阵列/细长开口等功能等**未在日志或照片中出现的事实**均标 `UNKNOWN` / `USER_EVIDENCE_REQUIRED`，未用源码或商品页推断，照片仅作纯形态描述。
 8. **原始证据仓库外**：`git status` 不含 `*.bin`、照片、PnP 枚举文件；`DEVICE_LOG_REFERENCE.md` §3.1 列出完整仓库外路径与 SHA-256。
 9. **未越界**：四个允许文件路径之外未修改任何文件（看板、任务包、Codex 报告、源码、partition、sdkconfig、固件、BSP、构建产物等）。
 10. **环境说明**：本机 `refs/heads/workbuddy/*` 在 HEAD 切换时仍会被外部机制秒删（与 WB-HW-001/WB-001/Round 1/2 复检轮一致）；本任务已用 `git switch --detach f861ad9a` + 显式对象 push 规避，远端交付完好。
@@ -218,35 +216,33 @@ git diff --cached --check
 git diff --cached --name-only
 git commit -m "docs(WB-HW-002): record controlled boot evidence"
 # 本机分支 ref 在 HEAD 切换时被外部机制秒删；改用显式提交对象 push（与前几轮一致，远端交付完好）
-git push origin <新提交>:workbuddy/wb-hw-002-controlled-boot
-$workbuddyLocalCommit = git rev-parse HEAD
-$workbuddyRemoteRef = git ls-remote --heads origin workbuddy/wb-hw-002-controlled-boot
+git push origin 63281b23c85433e184660517e8ecaeddabff94c7:workbuddy/wb-hw-002-controlled-boot
 ```
 
-执行结果（推送后填）：
-- 本地提交号：<提交后填>
-- 远端 HEAD：<git ls-remote 返回值>
+执行结果（实际）：
+- 本地提交号：`63281b23c85433e184660517e8ecaeddabff94c7`
+- 远端 HEAD：`63281b23c85433e184660517e8ecaeddabff94c7`（推送成功后复检基准；随后 Codex 推送复检提交并合并为 `20a617c5`）
 
 ## 10. 复检回执（按 WORKBUDDY_GIT_SYNC.md §六 给 Codex）
 
 ```text
 任务 ID：WB-HW-002
-状态声明：REVIEW_READY
+状态声明：REVIEW_READY（修订轮完成 CR-WBHW002-01~04；修订轮提交号见修订轮回执）
 分支：workbuddy/wb-hw-002-controlled-boot
 开始提交：f861ad9a70a4ed12bd6bd3fd675be3bb44be806f
-本地 HEAD：<提交后填>
-远端 HEAD：<git ls-remote 返回值>
+初次交付提交（复检基准）：63281b23c85433e184660517e8ecaeddabff94c7
+远端 HEAD（复检基准）：63281b23c85433e184660517e8ecaeddabff94c7
 实际修改文件：docs/BOARD_REVISION.md, docs/DEVICE_LOG_REFERENCE.md, docs/PHYSICAL_INSPECTION.md, docs/project_management/reports/WB-HW-002_REPORT.md
 提交前校验：git diff --check = PASS
 COM3 PnP 身份：USB\VID_303A&PID_1001&MI_00\9&5D32851&0&0000 / 303A:1001 / USB JTAG/serial debug unit / Container {7DF4FC2F-7294-57DE-86D3-0069CE869ED5} / Status OK / Problem CM_PROB_NONE
 Open() 调用次数：1
 串口写入字节数：0
 采集参数与时长：115200 8N1, DTR/RTS=false, 2026-09-01 23:11:22.460 → 23:12:52.729, 90.17 s, 3,143 B
-复位与启动结果：唯一一次预期 CHIP_USB_UART_RESET, boot 0x1f SPI_FAST_FLASH_BOOT, 应用初始化到 DualNetworkBoard: Initialize WiFi board 后稳态运行, 无下载/恢复/异常循环复位迹象
-仓库外证据：E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\ (precheck_pnp.txt 1137 B / 5cf137b8..., com3_controlled.bin 3143 B / 6c45a072..., capture_log.txt 496 B / a8015e85...) + E:\workbuddy\学习习惯培育AI-device-evidence\USER-HW-EVIDENCE-001\photos\ (4 张照片哈希与 CODEX_USER_HW_EVIDENCE_2026-09-01.md §2 一致)
-敏感信息检查与脱敏：grep 后未发现 SSID/密码/token/密钥/账号/定位/儿童信息; Git 摘录仅含事实字段
-照片证据结论：见 PHYSICAL_INSPECTION.md §2-§4; 板卡身份(DEVICE_LOG_CONFIRMED)与外观 SKU(USER_EVIDENCE_REQUIRED)分离陈述; 4 张照片无 SKU 标签/序列号/认证标识
+复位与启动结果：唯一一次预期 CHIP_USB_UART_RESET, boot 0x1f SPI_FAST_FLASH_BOOT, 应用初始化到 DualNetworkBoard: Initialize WiFi board 行, 90.17 秒采集内未观察到第二次复位/启动签名, 未进入下载/恢复模式
+仓库外证据：E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\ (precheck_pnp.txt 1137 B / 5cf137b8..., com3_controlled.bin 3143 B / 6c45a072..., capture_log.txt 496 B / a8015e85..., capture_method_record.md 3366 B / 83615a9b...（修订轮补存，方法级，含过程证据缺口声明）) + E:\workbuddy\学习习惯培育AI-device-evidence\USER-HW-EVIDENCE-001\photos\ (4 张照片哈希与 CODEX_USER_HW_EVIDENCE_2026-09-01.md §2 一致)
+敏感信息检查与脱敏：3,143 B 原始字节文本模式扫描未发现 SSID/密码/token/密钥/账号/定位/儿童信息; 照片按人工可见内容与文件元数据边界陈述（不声称 JPEG 文本扫描证明无敏感字段）; Git 摘录仅含事实字段
+照片证据结论：见 PHYSICAL_INSPECTION.md §2-§4; 仅纯形态描述（无功能/结构/材质推断）; 板卡身份(DEVICE_LOG_CONFIRMED)与外观 SKU(USER_EVIDENCE_REQUIRED)分离陈述; 4 张照片无 SKU 标签/序列号/认证标识
 范围偏差：无
-未解决问题与 HARDWARE_VERIFY_REQUIRED：见本报告 §7 清单 (屏驱 SKU / 触摸 / Flash 容量 / C5 / 4G 模组型号 / partition / 外观 SKU / 屏幕分辨率 / 扬声器麦克风卡槽连接器功能 / 顶部按钮 / 尺寸重量 / 固件刷新授权时间)
+未解决问题与 HARDWARE_VERIFY_REQUIRED：见本报告 §7 清单 (屏驱 SKU / 触摸 / Flash 容量 / C5 / 4G 模组型号与驱动状态 / partition / 外观 SKU / 屏幕分辨率 / 底边孔阵与细长开口等功能 / 顶部圆形凸起 / 尺寸重量 / 两轮镜像差异来源授权时间)
 建议 Codex 复检重点：见本报告 §8 10 条
 ```

@@ -16,7 +16,7 @@
 | P4 Flash | GD 芯片，**qio 模式**（ROM 阶段 DIO, clock div:2 → app 阶段 `flash io: qio`） | `DEVICE_LOG_CONFIRMED`（芯片/模式）；**容量 UNKNOWN** | COM3 日志：`spi_flash: detected chip: gd`、`flash io: qio`；日志未见容量字段 |
 | Board 标签 | `METALIO_CLAW_4`（LCD hardware reset done, GPIO 3） | `DEVICE_LOG_CONFIRMED`（固件内板级标签）；**外观丝印/标签 UNKNOWN** | COM3 日志：`I (1451) METALIO_CLAW_4: LCD hardware reset done (GPIO 3)` |
 | SKU | 未知 | `USER_EVIDENCE_REQUIRED` | 用户未提供外观/标签/包装照片；**不按商品页或源码默认值填写** |
-| 固件 | **WB-HW-001**: `xiaozhi` v2.0.51（compile 2026-08-07 11:37:54，ELF SHA256 前缀 `d456cc7c`）<br>**WB-HW-002**: `xiaozhi` v2.0.51（compile **2026-08-18 20:07:20**，ELF SHA256 前缀 **`fec753506`**）<br>App version 一致为 v2.0.51，但 compile time 与 ELF 哈希不同 → **设备在两轮采集之间已被刷新过固件**；ESP-IDF 均为 `v5.5.4-dirty` | `DEVICE_LOG_CONFIRMED`（两个时点） | COM3 日志：`app_init: Project name: xiaozhi` / `App version: 2.0.51`；WB-HW-002 `Compile time: Aug 18 2026 20:07:20` / `ELF file SHA256: fec753506...` 来自 `com3_controlled.bin` |
+| 固件 | **WB-HW-001**: `xiaozhi` v2.0.51（compile 2026-08-07 11:37:54，ELF SHA256 前缀 `d456cc7c`）<br>**WB-HW-002**: `xiaozhi` v2.0.51（compile **2026-08-18 20:07:20**，ELF SHA256 前缀 **`fec753506`**）<br>App version 一致为 v2.0.51，但 compile time 与 ELF 哈希不同（WB-HW-002 运行镜像与 WB-HW-001 不同；该镜像的更新来源、操作方式、时间、授权与启动分区均 `UNKNOWN`）；ESP-IDF 均为 `v5.5.4-dirty` | `DEVICE_LOG_CONFIRMED`（两个时点的日志事实） | COM3 日志：`app_init: Project name: xiaozhi` / `App version: 2.0.51`；WB-HW-002 `Compile time: Aug 18 2026 20:07:20` / `ELF file SHA256: fec753506...` 来自 `com3_controlled.bin` |
 | ESP-Hosted / C5 | SDIO 主机驱动任务已启动（`H_SDIO_DRV: sdio_data_to_rx_buf_task started`）；**C5 芯片状态、固件版本、Wi-Fi 连接 UNKNOWN** | `DEVICE_LOG_CONFIRMED`（SDIO 任务）；C5 详情 `UNKNOWN` | COM3 日志：`H_SDIO_DRV: sdio_data_to_rx_buf_task started` |
 | 屏幕驱动 SKU | 未知（NV3051F / FL7707N 均未在日志中实例化确认） | `UNKNOWN` | 日志仅见 `LCD hardware reset done`，未见屏驱初始化完成日志 |
 | 触摸 | 未知 | `UNKNOWN` | 日志未捕获 touch 初始化字段 |
@@ -44,7 +44,7 @@
 
 - **打开 COM3（USB JTAG/serial 调试口）会触发设备复位**：两次被动监听（DTR=RTS=false、未发任何字节）均观察到 `rst:0x17 (CHIP_USB_UART_RESET)` 复位头后完整重启（一次复位前 uptime 224,088 ms，另一次 uptime 1,451 ms）。设备复位后从 `boot:0x1f (SPI_FAST_FLASH_BOOT)` 正常启动、app 正常运行。
 - 判断：疑似 Windows usbser 驱动在 `Open()` 时对 USB CDC 控制线（DTR）的短暂动作触发 ESP32-P4 USB-Serial/JTAG 芯片复位逻辑；**属设备/驱动交互行为，非我们主动复位**。但任何后续"打开调试口"操作都应预期可能引发一次重启。
-- 设备未处于下载模式/恢复模式；未观察到异常循环复位（复位后稳定启动）。
+- 设备未处于下载模式/恢复模式；三次观察中复位后均正常启动（`boot:0x1f` 后 app 初始化至 `DualNetworkBoard: Initialize WiFi board` 行），未观察到异常循环复位。
 - COM4（EigenComm log）打开后持续输出**专有二进制流**（15s 内 8,512 B，无可读 ASCII 文本）——仅证明模组 log 口上电活跃，不用于推断模组型号或功能。
 
 ## 4. 未确认项与所需证据
@@ -64,11 +64,11 @@
 - 完整照片事实与逐张解读见 [`PHYSICAL_INSPECTION.md`](PHYSICAL_INSPECTION.md)（`USER_PHOTO_CONFIRMED`，本文件不复制照片内容）。
 - 用户照片补充的**可见事实**（不构成推断）：
   - 屏幕已点亮（photo-01 翻页时钟 `22 46 24` + 日期 `2026年09月01日 星期二`）。
-  - 背面品牌"ZAO / CLOUD ZAO"（photo-02），单摄像头模组位于左上角。
-  - 底边银色中框含 USB-C、左侧 4×5 共 20 个小圆孔（外观为扬声器出声孔）、右侧 3 个小圆孔（功能不可据图确认）、最右一横向细长条开口（外观为 SIM/SD 卡托）（photo-03）。
-  - 侧边银色中框含两组内凹多针连接器（外观为 Pogo Pin / 磁吸触点，左约 6 针 + 右约 10 针 + 中间一小圆孔）（photo-04）。
+  - 背面品牌"ZAO / CLOUD ZAO"（photo-02），左上角一处圆形摄像头模组外观。
+  - 底边银色中框外观含 USB-C、左侧 4×5 共 20 个小圆孔、右侧 3 个小圆孔、最右一横向细长条开口（均为纯形态描述，功能不可据图确认）（photo-03）。
+  - 侧边银色中框外观含两组内凹多针连接器开口（纯形态描述，左约 6 针 + 右约 10 针 + 中间一小圆孔）（photo-04）。
 - **未在照片中可见**：任何 SKU 标签、序列号、条形码、认证标识、底部贴纸。**`USER_EVIDENCE_REQUIRED`**（板卡丝印/外观 SKU 仍待用户进一步提供）。
-- **未在照片中可确认**：扬声器声道、麦克风数、卡槽内容、连接器引脚定义、顶部按钮功能、屏幕分辨率与面板型号、触摸、摄像头传感器型号——均仍为 `UNKNOWN`（见 `PHYSICAL_INSPECTION.md` §5）。
+- **未在照片中可确认**：底边小圆孔阵列/细长开口的功能、连接器引脚定义、顶部圆形凸起的功能、屏幕分辨率与面板型号、触摸、摄像头模组传感器型号——均仍为 `UNKNOWN`（见 `PHYSICAL_INSPECTION.md` §5）。
 
 ## 6. 板卡身份与外观 SKU/丝印分离陈述
 
@@ -85,22 +85,22 @@
 - 不由商品页或电商描述推断硬件参数；
 - 不由源码默认配置覆盖实机日志结论。
 
-## 7. 固件版本变更说明（WB-HW-001 → WB-HW-002）
+## 7. 运行镜像差异说明（WB-HW-001 → WB-HW-002）
 
 | 字段 | WB-HW-001（22:26-22:31） | WB-HW-002（23:11-23:13） | 差异 |
 | --- | --- | --- | --- |
 | App version | v2.0.51 | v2.0.51 | 一致 |
 | Compile time | Aug  7 2026 11:37:54 | **Aug 18 2026 20:07:20** | **11 天后** |
-| ELF SHA256 前缀 | `d456cc7c` | **`fec753506`** | **完全不同** |
+| ELF SHA256 前缀 | `d456cc7c` | **`fec753506`** | **不同** |
 | ESP-IDF | v5.5.4-dirty | v5.5.4-dirty | 一致 |
 | 复位前 uptime | 224,088 ms | **399,805 ms** | 设备运行更久 |
 | 复位前 CPU | 内核0: 3% / 内核1: 11% | **内核0: 2% / 内核1: 47%** | 内核1 占用更高 |
 | I18n strings | (未捕获) | 729 strings (2 locales) | 仅 WB-HW-002 可见 |
-| UUID（运行时） | (未捕获) | 3a993ef3-b283-4e06-abd5-a892cfbcb239 | 每次启动可能变化 |
+| UUID（运行时） | (未捕获) | 3a993ef3-b283-4e06-abd5-a892cfbcb239 | 本次日志值；生成方式/持久性/身份语义 `UNKNOWN` |
 | 启动段尾部 | `app_main()` | `DualNetworkBoard: Initialize WiFi board` | WB-HW-002 覆盖稍远 |
-| 网络选择 | (未捕获到 DualNetworkBoard 行) | **`Initialize WiFi board`** | **当前网络类型 = WiFi**（非 4G） |
+| 网络选择 | (未捕获到 DualNetworkBoard 行) | **`Initialize WiFi board`** | P4 应用日志执行到该行；Wi-Fi 初始化/连接状态与 4G 状态 `UNKNOWN` |
 
-- **结论**：WB-HW-002 采集时设备运行的是**新版本固件**（App version 编号未变，但 build 编号已更新）。两轮采集之间**曾发生过固件刷新**（具体时间/方式/授权状态在本次未追溯；本节只记录日志事实，不做来源推断）。
-- **运行时 UUID** 在两轮之间未直接比较（WB-HW-001 未捕获到 Board UUID 行），但根据 `app_main()` 前后立即打印 `Board: UUID=...` 的模式，UUID 极可能**每次启动随机生成**（基于 efuse MAC 等），不能作为设备身份标识。
-- **稳态运行**在两轮均得到验证：WB-HW-001 复位前 uptime 224 s、WB-HW-002 复位前 uptime ~400 s 期间，设备均无异常循环复位。
-- **本次 WB-HW-002 关键事实**：单次 COM3 `Open()`、写入 0 B、90.17 s 采集、3,143 B 原始字节、唯一一次预期 `CHIP_USB_UART_RESET` 复位、正常 Flash boot 与应用初始化、稳态持续；详见 [`DEVICE_LOG_REFERENCE.md`](DEVICE_LOG_REFERENCE.md) §8。
+- **结论**：WB-HW-002 采集时运行镜像的 compile time 与 ELF hash 与 WB-HW-001 不同（App version 编号一致）。该镜像的更新来源、操作方式、时间、授权与启动分区均 `UNKNOWN`；本节只记录日志可见差异，不声称发生过任何固件刷新操作。
+- **运行时 UUID**：仅记录 WB-HW-002 本次日志值 `3a993ef3-b283-4e06-abd5-a892cfbcb239`；其生成方式、持久性（是否每次启动变化）与身份语义均 `UNKNOWN`，不得作为设备身份标识。
+- **复位与启动签名**：WB-HW-001 两次监听与 WB-HW-002 一次采集中，复位后均从 `boot:0x1f` 正常启动；WB-HW-002 的 90.17 秒采集内未观察到第二次复位/启动签名。该事实不扩展为显示、触摸、网络或整体业务稳定性的结论。
+- **本次 WB-HW-002 关键事实**：单次 COM3 `Open()`、写入 0 B、90.17 s 采集、3,143 B 原始字节、唯一一次预期 `CHIP_USB_UART_RESET` 复位、正常 Flash boot 与应用初始化至 `DualNetworkBoard: Initialize WiFi board` 行、采集内未观察到第二次复位/启动签名；详见 [`DEVICE_LOG_REFERENCE.md`](DEVICE_LOG_REFERENCE.md) §8。

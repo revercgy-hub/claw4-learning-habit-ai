@@ -55,6 +55,11 @@
 | `precheck_pnp.txt` | 1,137 | `5cf137b87e5f3c72cbae81d86ef781bb53218bdc04b0a2201af07f3bd50591b2` | COM3 PnP 身份只读预检（VID/PID/Container ID/Bus desc/Problem 码） |
 | `com3_controlled.bin` | 3,143 | `6c45a072bed713f62257dd1f32655df60f7c332acf9ab564a0d07f31756b1c18` | COM3 唯一一次 `Open()` 字节模式被动采集（90.17 s、零写入） |
 | `capture_log.txt` | 496 | `a8015e85ccaff34b8fed6d894d52ed108be07376501c72cc18b66acdfe5282f6` | 采集过程记录（开始/结束时间、`Open()` 次数、写入字节数、字节数、SHA-256） |
+| `capture_method_record.md` | 3,366 | `83615a9bb8e209f3c25741a8cbe3b1bb25ff9ac1027968a3feb1fbdc3abd403c` | 采集过程证据记录（修订轮补存，方法级；**非原始脚本副本**，含过程证据缺口声明，见下方说明） |
+
+> **预检查询差异说明（`precheck_pnp.txt` §1/§2）**：§1/§2 的过滤式查询未命中（输出 `NOT FOUND`），§3 起改用 Container ID / `Get-PnpDevice -InstanceId` 精确查询与 `Win32_SerialPort` 清单后命中。§6 精确查询返回的 InstanceId `USB\VID_303A&PID_1001&MI_00\9&5D32851&0&0000`、FriendlyName、Class、Status、Problem 与 §8 `Win32_SerialPort` 的 PNPDeviceID 一致，并与 WB-HW-001 记录的 COM3 身份（VID/PID、`USB JTAG/serial debug unit`、Container ID）一致——精确查询直接命中设备实例，足以确认 COM3 身份，故 §1/§2 的 `NOT FOUND` 不构成身份否定；其具体未命中根因（查询语法/大小写/通配符）因采集脚本原文缺失无法追溯（见 `capture_method_record.md` 缺口声明）。
+>
+> **采集脚本过程证据缺口（CR-WBHW002-03）**：本次采集使用主机 PowerShell 会话内联 .NET `SerialPort` 代码执行，**原始脚本逐字文本未单独保存**，无法恢复；`capture_method_record.md` 为执行后按会话记录与产出文件忠实重建的方法与参数记录（非执行副本）。"仅一次 `Open()` 且无 `Write*` 调用"的代码级证据目前由 `capture_log.txt` 的 `Open() 调用次数: 1` / `串口写入字节数: 0` 字段及本任务实施报告声明支撑，存在如实声明的过程证据缺口。
 
 ## 4. 脱敏关键行（DEVICE_LOG_CONFIRMED）
 
@@ -92,15 +97,15 @@ esp_psram: Found 32MB PSRAM device / Speed: 200MHz          ← 同 WB-HW-001
 cpu_start: cpu freq: 360000000 Hz                           ← 同 WB-HW-001
 app_init: Project name:     xiaozhi                          ← 同 WB-HW-001
 app_init: App version:      2.0.51                           ← 同 WB-HW-001（App version 编号未变）
-app_init: Compile time:     Aug 18 2026 20:07:20            ← **新固件**（WB-HW-001 为 Aug 7）
-app_init: ELF file SHA256:  fec753506...                     ← **新固件**（WB-HW-001 为 d456cc7c）
+app_init: Compile time:     Aug 18 2026 20:07:20            ← 与 WB-HW-001 不同（Aug 7）
+app_init: ELF file SHA256:  fec753506...                     ← 与 WB-HW-001 不同（d456cc7c）
 app_init: ESP-IDF:          v5.5.4-dirty                     ← 同 WB-HW-001
 efuse_init: Chip rev:         v1.3                            ← 同 WB-HW-001
 spi_flash: detected chip: gd / flash io: qio                 ← 同 WB-HW-001
 H_SDIO_DRV: sdio_data_to_rx_buf_task started                 ← 同 WB-HW-001
 I (1130) I18n: locale=zh-CN (729 strings, 2 locales)         ← 仅 WB-HW-002 捕获
 I (1130) Board: UUID=3a993ef3-b283-4e06-abd5-a892cfbcb239 SKU=metalio-claw-4
-I (1131) DualNetworkBoard: Initialize WiFi board            ← **当前网络类型 = WiFi**（非 4G ML307/Nt26）
+I (1131) DualNetworkBoard: Initialize WiFi board            ← P4 应用日志执行到该行；Wi-Fi 初始化/连接与 4G 状态 UNKNOWN
 ```
 
 **COM4（EigenComm log 口）**：仅二进制流，无可读文本；证明 log 口上电活跃。**不用于推断模组型号/功能**。
@@ -109,10 +114,10 @@ I (1131) DualNetworkBoard: Initialize WiFi board            ← **当前网络�
 ## 5. 重要观察：打开 COM3 触发设备复位
 
 - **WB-HW-001 期间**：两次被动监听（DTR=RTS=false、零写入）均观察到 `rst:0x17 (CHIP_USB_UART_RESET)` 后完整重启（一次复位前 uptime 224,088 ms，另一次 1,451 ms）。
-- **WB-HW-002 期间**：用户授权唯一一次 `Open()`（DTR/RTS=false、零写入）同样出现 `rst:0x17`，复位前 uptime **399,805 ms**；复位后正常 `boot:0x1f (SPI_FAST_FLASH_BOOT)`，应用初始化到 `DualNetworkBoard: Initialize WiFi board` 行后稳态运行。
+- **WB-HW-002 期间**：用户授权唯一一次 `Open()`（DTR/RTS=false、零写入）同样出现 `rst:0x17`，复位前 uptime **399,805 ms**；复位后正常 `boot:0x1f (SPI_FAST_FLASH_BOOT)`，应用初始化到 `DualNetworkBoard: Initialize WiFi board` 行；90.17 秒采集内未观察到第二次复位/启动签名。
 - 共 **3 次观察**一致：均为 `CHIP_USB_UART_RESET`，均未进入下载/恢复模式、未观察到异常循环复位。
 - 判断：疑似 Windows usbser 驱动 `Open()` 对 USB CDC DTR 控制线的短暂动作触发 ESP32-P4 USB-Serial/JTAG 芯片复位逻辑。
-- 属设备/驱动交互行为；后续任何"打开调试口"的操作应预期可能引发一次重启，且不影响正常启动。
+- 属设备/驱动交互行为；后续任何"打开调试口"的操作应预期可能引发一次重启（三次观察中复位后均正常启动）。
 
 ## 6. 未确认项
 
@@ -129,9 +134,9 @@ I (1131) DualNetworkBoard: Initialize WiFi board            ← **当前网络�
 ## 7. 本次（WB-HW-002）已完成的只读接收
 
 - **物理外观事实归档**：见 [`PHYSICAL_INSPECTION.md`](PHYSICAL_INSPECTION.md)（4 张照片事实、不可确认项独立列示、证据等级 `USER_PHOTO_CONFIRMED`）。
-- 用户照片证明**设备屏幕已点亮**（翻页时钟 `22 46 24` + 中文日期 `2026年09月01日 星期二`），外观品牌 `ZAO / CLOUD ZAO`、单摄像头、底边扬声器孔阵列/卡槽、侧边两组内凹 Pogo Pin 连接器均为**仅照片可见事实**；**外观 SKU / 丝印 / 序列号 / 认证标识仍 `USER_EVIDENCE_REQUIRED`**（4 张照片中均不可见）。
-- 设备当前**网络类型 = WiFi**（固件日志 `Initialize WiFi board` 行，`DEVICE_LOG_CONFIRMED`）。**4G ML307/Nt26 模组当前未被 P4 固件驱动**（`DualNetworkBoard` 选择了 WiFi 分支）；模组自身（EigenComm Compo，COM4 log / COM5 at）仍上电，但本次日志未发现 P4 与模组之间有数据交互证据。
-- **固件已被刷新**（compile time Aug 18、ELF `fec753506`，详见 [`BOARD_REVISION.md`](BOARD_REVISION.md) §7）；设备运行稳定（复位前 uptime ~400 s、无异常循环复位）。
+- 用户照片证明**设备屏幕已点亮**（翻页时钟 `22 46 24` + 中文日期 `2026年09月01日 星期二`），外观品牌 `ZAO / CLOUD ZAO`、左上角圆形摄像头模组外观、底边小圆孔阵列与横向细长条开口、侧边两组内凹多针连接器开口均为**仅照片可见的形态事实**；**外观 SKU / 丝印 / 序列号 / 认证标识仍 `USER_EVIDENCE_REQUIRED`**（4 张照片中均不可见）。
+- P4 应用日志执行到 `DualNetworkBoard: Initialize WiFi board` 行（`DEVICE_LOG_CONFIRMED`）。Wi-Fi 是否初始化成功、是否连接、实际网络通道，以及 4G 模组（EigenComm Compo，COM4 log / COM5 at）的驱动/连接状态均 `UNKNOWN`；本次日志未观察到 P4 与 4G 模组之间的数据交互行，4G 通道状态不据此作结论。
+- WB-HW-002 运行镜像的 compile time（Aug 18）与 ELF（`fec753506`）与 WB-HW-001 不同（详见 [`BOARD_REVISION.md`](BOARD_REVISION.md) §7）；该镜像的更新来源、方式、时间、授权与启动分区均 `UNKNOWN`。90.17 秒采集内未观察到第二次复位/启动签名，不得据此扩展为显示、触摸、网络或整体业务稳定性结论。
 - **采集过程中没有出现 `JFI`、`*<DOWNLOAD>`、`*<HELLO>`、`Waiting for download`、`entering download mode`、`Entering flash mode` 等下载/恢复/异常循环复位迹象**。
 
 ## 8. WB-HW-002 受控采集参数与唯一一次 Open 记录
@@ -142,12 +147,13 @@ I (1131) DualNetworkBoard: Initialize WiFi board            ← **当前网络�
 - **`Open()` 调用次数：1**（无先测试打开、关闭后重开或失败重试）。
 - **串口写入字节数：0**（脚本未调用任何 `Write*` API）。
 - **采集字节**：3,143 B（原始字节，按 `Read(byte[])` 保存至 `com3_controlled.bin`，未做 UTF-8 转换）。
-- **采集行为**：与 WB-HW-001 一致——打开 COM3 立即触发 `rst:0x17 (CHIP_USB_UART_RESET)` 复位（本次复位前 uptime 399,805 ms）；复位后 `boot:0x1f (SPI_FAST_FLASH_BOOT)` 正常启动、应用初始化到 `DualNetworkBoard: Initialize WiFi board` 后稳态运行；未进入下载/恢复模式、无异常循环复位。
+- **采集行为**：与 WB-HW-001 一致——打开 COM3 立即触发 `rst:0x17 (CHIP_USB_UART_RESET)` 复位（本次复位前 uptime 399,805 ms）；复位后 `boot:0x1f (SPI_FAST_FLASH_BOOT)` 正常启动、应用初始化到 `DualNetworkBoard: Initialize WiFi board` 行；90.17 秒采集内未观察到第二次复位/启动签名，未进入下载/恢复模式。
 - **未打开 COM4/5/6**；未发送任何字节；未连接 JTAG；未运行 esptool；未读取/擦除/刷写 Flash；未修改固件、sdkconfig、partition table、Bootloader、OTA 或 BSP。
 - **复检命令（Codex 只读验证）**：
   ```text
   Get-FileHash E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\com3_controlled.bin -Algorithm SHA256
   Get-FileHash E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\capture_log.txt      -Algorithm SHA256
   Get-FileHash E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\precheck_pnp.txt     -Algorithm SHA256
+  Get-FileHash E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\capture_method_record.md -Algorithm SHA256
   rg -a -n "Aug 18|fec753506|Initialize WiFi|H_SDIO_DRV|METALIO_CLAW_4" <com3_controlled.bin>
   ```
