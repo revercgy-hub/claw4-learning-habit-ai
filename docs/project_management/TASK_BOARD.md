@@ -2,13 +2,13 @@
 
 - 更新时间：2026-09-01
 - 维护者：Codex
-- 当前阶段：G0/G1 已通过；用户硬件照片与一次 COM3 重启授权已收到；准备受控启动采集
+- 当前阶段：G0/G1 已通过；WB-HW-002 采集完成，证据边界修订中
 - 调度规则：任意时刻只允许一个 WorkBuddy 任务为 `READY` 或 `IN_PROGRESS`
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前唯一指令
 
-当前唯一 `READY` 任务是 `WB-HW-002`。WorkBuddy 只允许在 `workbuddy/wb-hw-002-controlled-boot` 分支执行任务包：打开 COM3 恰好一次、零串口写入、采集受控启动日志并整理照片证据；禁止重试、其他串口、Flash、JTAG、AT 和任何固件修改。
+`WB-HW-002` 当前为 `CHANGES_REQUIRED`。WorkBuddy 只允许在 `workbuddy/wb-hw-002-controlled-boot` 原分支处理 `CODEX_REVIEW_WB-HW-002_2026-09-01.md` 的 CR-WBHW002-01～04；**不得再次打开 COM3 或执行任何硬件操作**，不得开始后续任务。
 
 ## 看板
 
@@ -25,7 +25,8 @@
 | 4.5 | WB-HW-001 | WorkBuddy | `ACCEPTED` | WB-001、设备 USB 枚举 | 实施提交 `9867a56`；COM/USB 映射、官方固件日志、`BOARD_REVISION.md`、`DEVICE_LOG_REFERENCE.md` |
 | 4.6 | CR-HW-001 | Codex | `ACCEPTED` | WB-HW-001 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-001_2026-09-01.md`；原始证据哈希与日志结论通过 |
 | 4.7 | USER-HW-EVIDENCE-001 | 用户 / Codex 记录 | `ACCEPTED` | WB-HW-001 | `CODEX_USER_HW_EVIDENCE_2026-09-01.md`；4 张仓库外照片及一次 COM3 打开授权 |
-| 4.8 | WB-HW-002 | WorkBuddy | `READY` | USER-HW-EVIDENCE-001 | `WB-HW-002_CONTROLLED_BOOT_CAPTURE.md`；唯一一次 COM3 打开、完整启动段与物理证据整理 |
+| 4.8 | WB-HW-002 | WorkBuddy | `CHANGES_REQUIRED` | USER-HW-EVIDENCE-001 | 初次提交 `63281b2`；采集证据通过，照片/日志结论边界与报告完整性需修订 |
+| 4.9 | CR-HW-002 | Codex | `ACCEPTED` | WB-HW-002 初次 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-002_2026-09-01.md`；结论 `CHANGES_REQUIRED`，禁止新增硬件操作 |
 | 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-HW-002 或 Codex 调整优先级 | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
 | 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |

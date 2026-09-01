@@ -6,9 +6,10 @@
 
 - 项目远端：`https://github.com/revercgy-hub/claw4-learning-habit-ai.git`
 - 当前唯一任务：`WB-HW-002`
-- 当前状态：`READY`
+- 当前状态：`CHANGES_REQUIRED`
 - 任务分支：`workbuddy/wb-hw-002-controlled-boot`
 - 任务包：`docs/project_management/tasks/WB-HW-002_CONTROLLED_BOOT_CAPTURE.md`
+- 最新复检：`docs/project_management/reports/CODEX_REVIEW_WB-HW-002_2026-09-01.md`
 - 当前允许修改：
   - `docs/BOARD_REVISION.md`
   - `docs/DEVICE_LOG_REFERENCE.md`
@@ -73,21 +74,18 @@ git status --short --branch
 git rev-parse HEAD
 ```
 
-然后完整读取 `AGENTS.md`、任务看板、当前任务包、两份最新硬件证据/复检报告以及任务包列出的全部输入，再开始执行。
+然后完整读取 `AGENTS.md`、任务看板、当前任务包、`CODEX_REVIEW_WB-HW-002_2026-09-01.md` 和现有任务报告。本轮只能处理复检项，不得重新执行硬件采集。
 
-## 三、本轮操作边界
+## 三、本轮修订指令
 
-用户已经授权本任务打开 COM3 一次，并接受它可能触发一次 `CHIP_USB_UART_RESET`。该授权不能扩展：
+本轮不再授权任何设备操作。WorkBuddy 只处理最新 Codex 报告中的四项：
 
-- 只允许 COM3、115200 8N1、DTR/RTS false；
-- 整个任务恰好一次 `Open()`，失败后不得重试；
-- 串口写入必须为 0 B，打开后不得切换 DTR/RTS；
-- 采集约 90 秒，原始日志保存在仓库外 `E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\`；
-- 不打开 COM4/5/6，不发送 AT，不操作 JTAG；
-- 不运行 `esptool`，不读写/擦除 Flash，不刷写，不修改固件、分区、Bootloader 或 OTA；
-- 四张原始照片只从仓库外读取，不提交 Git；物理结论只写照片可见事实。
+1. `CR-WBHW002-01`：把扬声器、麦克风、SIM/SD、Pogo/磁吸、单摄和材质判断全部降级为照片能直接支持的形态描述，并在四份交付物中保持一致。
+2. `CR-WBHW002-02`：把 WiFi/4G、固件刷新、UUID 生成方式和“稳定运行”结论降级到原始日志能直接支持的范围。
+3. `CR-WBHW002-03`：清除报告占位符和“预期/待校验”；填写初次提交 `63281b23c85433e184660517e8ecaeddabff94c7` 与实测 Git 结果；补存并索引实际执行的采集脚本/命令，或如实声明无法恢复；解释 PnP 首次过滤 `NOT FOUND` 与后续精确查询成功的差异。
+4. `CR-WBHW002-04`：只修改原四个交付文件并普通快进推送。
 
-出现端口异常、首次打开失败、非预期复位、需要第二次打开或任何范围外操作时，立即停止并声明 `BLOCKED`。
+禁止再次打开 COM3，禁止打开其他串口、重新采集、发送数据、操作 JTAG/AT/Flash、运行 esptool、刷写或修改固件。不得为了补证据重演硬件过程，也不得事后编造无法恢复的命令原文。
 
 ## 四、提交前校验
 
@@ -104,8 +102,12 @@ git diff -- docs/BOARD_REVISION.md docs/DEVICE_LOG_REFERENCE.md docs/PHYSICAL_IN
 必须满足：
 
 - 待提交路径只有四个允许文件；
-- `docs/PHYSICAL_INSPECTION.md` 和报告已生成；
-- 报告明确记录 `Open()` 次数、写入字节数、采集时长、参数和停止原因；
+- 四个 CR 项逐项回应，并在报告中给出修改位置；
+- `docs/PHYSICAL_INSPECTION.md` 不再包含接口功能、材料或结构类型猜测；
+- 报告明确记录初次交付提交、实际远端校验结果、`Open()` 次数、写入字节数、采集时长和参数；
+- 实际执行过的采集脚本/完整命令已作为仓库外证据索引；若无法恢复则明确披露证据缺口，禁止伪造；
+- PnP 初次查询 `NOT FOUND` 与后续精确查询成功已解释；
+- WiFi/4G、镜像差异、UUID 和稳定性结论没有超出日志原文；
 - 原始日志/照片未进入 Git，只记录仓库外路径、大小、SHA-256 和必要脱敏摘录；
 - 没有 `vendor/`、`toolchains/`、构建产物、日志、凭据或密钥；
 - 未把照片外观、USB 描述符或源码推断写成实际功能已通过；
@@ -117,7 +119,7 @@ git diff -- docs/BOARD_REVISION.md docs/DEVICE_LOG_REFERENCE.md docs/PHYSICAL_IN
 git add -- docs/BOARD_REVISION.md docs/DEVICE_LOG_REFERENCE.md docs/PHYSICAL_INSPECTION.md docs/project_management/reports/WB-HW-002_REPORT.md
 git diff --cached --check
 git diff --cached --name-only
-git commit -m "docs(WB-HW-002): record controlled boot evidence"
+git commit -m "docs(WB-HW-002): correct evidence boundaries"
 git push -u origin HEAD:workbuddy/wb-hw-002-controlled-boot
 $workbuddyLocalCommit = git rev-parse HEAD
 $workbuddyRemoteRef = git ls-remote --heads origin workbuddy/wb-hw-002-controlled-boot
@@ -142,13 +144,18 @@ git status --short --branch
 实际修改文件：<git diff --name-only origin/main...HEAD>
 提交前校验：git diff --check = PASS/FAIL
 COM3 PnP 身份：<实例 ID、VID/PID、描述>
-Open() 调用次数：1 / 失败前为 0
-串口写入字节数：0
-采集参数与时长：<波特率、8N1、DTR/RTS、起止时间、秒数、字节数>
-复位与启动结果：<一次预期复位/异常；是否稳定启动>
+CR-WBHW002-01：<修改位置与结果>
+CR-WBHW002-02：<修改位置与结果>
+CR-WBHW002-03：<修改位置与结果；脚本/命令证据路径和哈希，或无法恢复声明>
+CR-WBHW002-04：<范围与 Git 校验>
+本轮硬件操作：0（不得重新打开 COM3）
+原采集 Open() 声明：1
+原采集串口写入声明：0 B
+原采集参数与时长：<波特率、8N1、DTR/RTS、起止时间、秒数、字节数>
+复位与启动原始证据：<只写日志直接支持的事实>
 仓库外证据：<路径、文件大小、SHA-256>
 敏感信息检查与脱敏：<结果>
-照片证据结论：<可见事实与仍未知项>
+照片证据结论：<纯形态事实与仍未知项>
 范围偏差：无/有（若有必须说明并停止）
 未解决问题与 HARDWARE_VERIFY_REQUIRED：<清单>
 建议 Codex 复检重点：<清单>
