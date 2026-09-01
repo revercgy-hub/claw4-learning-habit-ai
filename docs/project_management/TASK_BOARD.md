@@ -2,13 +2,13 @@
 
 - 更新时间：2026-09-01
 - 维护者：Codex
-- 当前阶段：G0/G1 已通过；真机已枚举；准备只读设备接收检查
+- 当前阶段：G0/G1 已通过；用户硬件照片与一次 COM3 重启授权已收到；准备受控启动采集
 - 调度规则：任意时刻只允许一个 WorkBuddy 任务为 `READY` 或 `IN_PROGRESS`
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前唯一指令
 
-当前没有 WorkBuddy `READY` 任务。`WB-HW-001` 已验收，WorkBuddy 必须停止。下一轮硬件任务等待用户提供 SKU/板卡照片，并确认是否允许打开 COM3（已知会触发一次 `CHIP_USB_UART_RESET`）进行受控启动日志采集。
+当前唯一 `READY` 任务是 `WB-HW-002`。WorkBuddy 只允许在 `workbuddy/wb-hw-002-controlled-boot` 分支执行任务包：打开 COM3 恰好一次、零串口写入、采集受控启动日志并整理照片证据；禁止重试、其他串口、Flash、JTAG、AT 和任何固件修改。
 
 ## 看板
 
@@ -24,8 +24,8 @@
 | 4.2 | CR-001-FINAL | Codex | `ACCEPTED` | WB-001 最终提交 `45b2c73` | `CODEX_REVIEW_WB-001_FINAL_2026-09-01.md`；G1 `PASSED` |
 | 4.5 | WB-HW-001 | WorkBuddy | `ACCEPTED` | WB-001、设备 USB 枚举 | 实施提交 `9867a56`；COM/USB 映射、官方固件日志、`BOARD_REVISION.md`、`DEVICE_LOG_REFERENCE.md` |
 | 4.6 | CR-HW-001 | Codex | `ACCEPTED` | WB-HW-001 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-001_2026-09-01.md`；原始证据哈希与日志结论通过 |
-| 4.7 | USER-HW-EVIDENCE-001 | 用户 | `BLOCKED` | WB-HW-001 | 外观/包装/SKU/板卡丝印照片；确认是否允许一次会触发重启的 COM3 采集 |
-| 4.8 | WB-HW-002 | WorkBuddy | `BACKLOG` | USER-HW-EVIDENCE-001 | 受控完整启动段、屏驱/触摸/网络/分区被动证据；仍不访问 Flash |
+| 4.7 | USER-HW-EVIDENCE-001 | 用户 / Codex 记录 | `ACCEPTED` | WB-HW-001 | `CODEX_USER_HW_EVIDENCE_2026-09-01.md`；4 张仓库外照片及一次 COM3 打开授权 |
+| 4.8 | WB-HW-002 | WorkBuddy | `READY` | USER-HW-EVIDENCE-001 | `WB-HW-002_CONTROLLED_BOOT_CAPTURE.md`；唯一一次 COM3 打开、完整启动段与物理证据整理 |
 | 5 | WB-002 | WorkBuddy | `BACKLOG` | WB-HW-002 或 Codex 调整优先级 | `docs/ARCHITECTURE.md`，仅架构文档，不写业务代码 |
 | 6 | CR-002 | Codex | `BACKLOG` | WB-002 `REVIEW_READY` | 架构验收报告 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
@@ -43,7 +43,6 @@
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
 | BLK-FLASH-AUTH-001 | 任何固件刷写、Flash 读取/擦除、分区或 OTA 操作 | 用户尚未明确授权；恢复路径、当前 boot partition 和 SKU 尚未确认 | Codex 完成只读接收复检后，另行向用户说明目标、风险和恢复方案并取得明确授权 |
-| BLK-USER-EVIDENCE-001 | WB-HW-002 的 SKU 与受控启动采集 | 尚无设备外观/包装/丝印照片；打开 COM3 已证实会触发设备重启 | 用户提供照片，并明确确认是否允许下一轮打开 COM3 触发一次重启 |
 
 ## 已解除阻塞
 
@@ -51,6 +50,7 @@
 | --- | --- | --- | --- |
 | BLK-GIT-REMOTE-001 | `RESOLVED` | [`GIT_PROJECT_SETUP_2026-09-01.md`](reports/GIT_PROJECT_SETUP_2026-09-01.md) | 已创建独立私有仓库并推送 `main` 与 `workbuddy/wb-001-platform-map`；未使用 Metalio 官方 origin |
 | BLK-HW-001 | `RESOLVED` | [`CODEX_DEVICE_INTAKE_2026-09-01.md`](reports/CODEX_DEVICE_INTAKE_2026-09-01.md) | 已检测 COM3/4/5/6；COM3 明确枚举为 Espressif USB JTAG/serial debug unit，可进入只读接收检查 |
+| BLK-USER-EVIDENCE-001 | `RESOLVED` | [`CODEX_USER_HW_EVIDENCE_2026-09-01.md`](reports/CODEX_USER_HW_EVIDENCE_2026-09-01.md) | 用户已提供 4 张设备照片并授权下一任务打开 COM3 一次；照片未显示可辨识 SKU 标签，相关字段继续标记待确认 |
 
 ## 已知风险
 

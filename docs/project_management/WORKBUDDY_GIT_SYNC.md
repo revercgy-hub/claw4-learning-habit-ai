@@ -2,18 +2,20 @@
 
 ## 适用范围
 
-本指令用于 WorkBuddy 在每个任务开始前同步 Codex 已发布的任务分支，并在实施后把提交安全推送到项目私有远端，供 Codex 复检。
+本指令用于 WorkBuddy 同步 Codex 已发布的唯一任务分支，并把实施提交以普通快进推送到项目私有远端，供 Codex 复检。
 
 - 项目远端：`https://github.com/revercgy-hub/claw4-learning-habit-ai.git`
-- 当前任务：无
-- 上一已验收任务：`WB-HW-001` @ `9867a56121df4cdcdc85f66f4617f3ab8e0b7f81`
-- 当前状态：`HOLD`，等待用户硬件证据与重启确认
+- 当前唯一任务：`WB-HW-002`
+- 当前状态：`READY`
+- 任务分支：`workbuddy/wb-hw-002-controlled-boot`
+- 任务包：`docs/project_management/tasks/WB-HW-002_CONTROLLED_BOOT_CAPTURE.md`
 - 当前允许修改：
-  - 无
+  - `docs/BOARD_REVISION.md`
+  - `docs/DEVICE_LOG_REFERENCE.md`
+  - `docs/PHYSICAL_INSPECTION.md`
+  - `docs/project_management/reports/WB-HW-002_REPORT.md`
 
-任务看板没有 `READY` 项时，WorkBuddy 必须停止，不得继续运行下方上一任务的命令，也不得自行创建分支或开始下一阶段。
-
-任何命令结果与本指令不一致时立即停止并报告，不得用 force push、hard reset、覆盖文件或改写远端来“修复”。
+任何命令结果与本指令不一致时立即停止并报告。不得用 force push、hard reset、rebase、删除分支、覆盖文件或改写远端来“修复”。
 
 ## 一、已有本地项目：开始前同步
 
@@ -42,20 +44,21 @@ git remote add origin https://github.com/revercgy-hub/claw4-learning-habit-ai.gi
 
 ```powershell
 git fetch --prune origin
-git ls-remote --heads origin main workbuddy/wb-hw-001-readonly-intake
-git switch workbuddy/wb-hw-001-readonly-intake
-git pull --ff-only origin workbuddy/wb-hw-001-readonly-intake
+git ls-remote --heads origin main workbuddy/wb-hw-002-controlled-boot
+git switch workbuddy/wb-hw-002-controlled-boot
+git pull --ff-only origin workbuddy/wb-hw-002-controlled-boot
 git status --short --branch
 git rev-parse HEAD
+git rev-parse origin/workbuddy/wb-hw-002-controlled-boot
 ```
 
 如果本地尚无任务分支，用下面这一条替代 `git switch` 和 `git pull`：
 
 ```powershell
-git switch --track -c workbuddy/wb-hw-001-readonly-intake origin/workbuddy/wb-hw-001-readonly-intake
+git switch --track -c workbuddy/wb-hw-002-controlled-boot origin/workbuddy/wb-hw-002-controlled-boot
 ```
 
-开始实施前，`git status --short --branch` 应显示当前分支跟踪 `origin/workbuddy/wb-hw-001-readonly-intake`，且没有待提交文件。
+开始实施前，本地 HEAD 必须等于 `origin/workbuddy/wb-hw-002-controlled-boot`，工作区必须干净。若同名本地分支存在但不能普通快进，停止并报告，不得 reset/rebase。
 
 ## 二、全新工作目录：首次取得项目
 
@@ -65,17 +68,26 @@ git switch --track -c workbuddy/wb-hw-001-readonly-intake origin/workbuddy/wb-hw
 git clone https://github.com/revercgy-hub/claw4-learning-habit-ai.git
 Set-Location -LiteralPath .\claw4-learning-habit-ai
 git fetch --prune origin
-git switch --track -c workbuddy/wb-hw-001-readonly-intake origin/workbuddy/wb-hw-001-readonly-intake
+git switch --track -c workbuddy/wb-hw-002-controlled-boot origin/workbuddy/wb-hw-002-controlled-boot
 git status --short --branch
+git rev-parse HEAD
 ```
 
-然后完整读取 `AGENTS.md`、任务看板、当前任务包和最新 Codex 复检报告，再开始修改。
+然后完整读取 `AGENTS.md`、任务看板、当前任务包、两份最新硬件证据/复检报告以及任务包列出的全部输入，再开始执行。
 
-## 三、当前任务状态
+## 三、本轮操作边界
 
-`WB-HW-001` 已完成并等待 Codex 结果同步；当前没有新的实施任务。
+用户已经授权本任务打开 COM3 一次，并接受它可能触发一次 `CHIP_USB_UART_RESET`。该授权不能扩展：
 
-已确认打开 COM3 即使设置 `DtrEnable=false`、`RtsEnable=false` 仍会触发 `CHIP_USB_UART_RESET`。后续任何 COM3 打开操作必须由新的任务包明确授权，并在用户确认可重启设备后执行。Flash、分区、Bootloader、OTA、JTAG、AT 和串口写入继续禁止。
+- 只允许 COM3、115200 8N1、DTR/RTS false；
+- 整个任务恰好一次 `Open()`，失败后不得重试；
+- 串口写入必须为 0 B，打开后不得切换 DTR/RTS；
+- 采集约 90 秒，原始日志保存在仓库外 `E:\workbuddy\学习习惯培育AI-device-evidence\WB-HW-002\`；
+- 不打开 COM4/5/6，不发送 AT，不操作 JTAG；
+- 不运行 `esptool`，不读写/擦除 Flash，不刷写，不修改固件、分区、Bootloader 或 OTA；
+- 四张原始照片只从仓库外读取，不提交 Git；物理结论只写照片可见事实。
+
+出现端口异常、首次打开失败、非预期复位、需要第二次打开或任何范围外操作时，立即停止并声明 `BLOCKED`。
 
 ## 四、提交前校验
 
@@ -86,28 +98,29 @@ git status --short
 git diff --check
 git diff --name-only
 git diff --name-only origin/main...HEAD
-git diff -- docs/BOARD_REVISION.md docs/DEVICE_LOG_REFERENCE.md docs/project_management/reports/WB-HW-001_REPORT.md
+git diff -- docs/BOARD_REVISION.md docs/DEVICE_LOG_REFERENCE.md docs/PHYSICAL_INSPECTION.md docs/project_management/reports/WB-HW-002_REPORT.md
 ```
 
 必须满足：
 
-- 待提交路径只有三个允许文件；
-- 所有结论区分 `HOST_ENUM_CONFIRMED`、`DEVICE_LOG_CONFIRMED`、`USER_EVIDENCE_REQUIRED`、`UNKNOWN`；
-- 原始日志未进入 Git，只记录仓库外路径、大小、SHA-256 和必要脱敏摘录；
+- 待提交路径只有四个允许文件；
+- `docs/PHYSICAL_INSPECTION.md` 和报告已生成；
+- 报告明确记录 `Open()` 次数、写入字节数、采集时长、参数和停止原因；
+- 原始日志/照片未进入 Git，只记录仓库外路径、大小、SHA-256 和必要脱敏摘录；
 - 没有 `vendor/`、`toolchains/`、构建产物、日志、凭据或密钥；
-- 没有把 USB 描述符或源码推断写成实际功能已通过；
+- 未把照片外观、USB 描述符或源码推断写成实际功能已通过；
 - `git diff --check` 无输出。
 
 ## 五、提交、推送和远端一致性校验
 
 ```powershell
-git add -- docs/BOARD_REVISION.md docs/DEVICE_LOG_REFERENCE.md docs/project_management/reports/WB-HW-001_REPORT.md
+git add -- docs/BOARD_REVISION.md docs/DEVICE_LOG_REFERENCE.md docs/PHYSICAL_INSPECTION.md docs/project_management/reports/WB-HW-002_REPORT.md
 git diff --cached --check
 git diff --cached --name-only
-git commit -m "docs(WB-HW-001): record read-only device intake"
-git push -u origin HEAD:workbuddy/wb-hw-001-readonly-intake
+git commit -m "docs(WB-HW-002): record controlled boot evidence"
+git push -u origin HEAD:workbuddy/wb-hw-002-controlled-boot
 $workbuddyLocalCommit = git rev-parse HEAD
-$workbuddyRemoteRef = git ls-remote --heads origin workbuddy/wb-hw-001-readonly-intake
+$workbuddyRemoteRef = git ls-remote --heads origin workbuddy/wb-hw-002-controlled-boot
 Write-Output $workbuddyLocalCommit
 Write-Output $workbuddyRemoteRef
 git status --short --branch
@@ -120,22 +133,28 @@ git status --short --branch
 推送成功后，向 Codex 返回以下信息，并停止工作：
 
 ```text
-任务 ID：WB-HW-001
-状态声明：REVIEW_READY
-分支：workbuddy/wb-hw-001-readonly-intake
-本地 HEAD：<git rev-parse HEAD>
+任务 ID：WB-HW-002
+状态声明：REVIEW_READY / BLOCKED
+分支：workbuddy/wb-hw-002-controlled-boot
+开始提交：<开始前 git rev-parse HEAD>
+本地 HEAD：<提交后 git rev-parse HEAD>
 远端 HEAD：<git ls-remote 返回值>
 实际修改文件：<git diff --name-only origin/main...HEAD>
-提交前校验：git diff --check = PASS
-只读边界自检：无刷写/擦除/Flash 读取/串口写入/AT 命令
-端口与日志结论：逐项状态和证据
-验证命令与关键结果：<摘要>
+提交前校验：git diff --check = PASS/FAIL
+COM3 PnP 身份：<实例 ID、VID/PID、描述>
+Open() 调用次数：1 / 失败前为 0
+串口写入字节数：0
+采集参数与时长：<波特率、8N1、DTR/RTS、起止时间、秒数、字节数>
+复位与启动结果：<一次预期复位/异常；是否稳定启动>
+仓库外证据：<路径、文件大小、SHA-256>
+敏感信息检查与脱敏：<结果>
+照片证据结论：<可见事实与仍未知项>
 范围偏差：无/有（若有必须说明并停止）
 未解决问题与 HARDWARE_VERIFY_REQUIRED：<清单>
 建议 Codex 复检重点：<清单>
 ```
 
-WorkBuddy 无权把任务标记为 `ACCEPTED`，不得合并到 `main`，不得开始完整 Stage 1、`WB-002` 或任何 MVP 工作。
+WorkBuddy 无权把任务标记为 `ACCEPTED`，不得修改任务看板、合并到 `main` 或开始下一任务。
 
 ## 七、Codex 复检入口
 
@@ -144,10 +163,10 @@ WorkBuddy 推送后，Codex 使用以下只读步骤取得证据：
 ```powershell
 git fetch --prune origin
 git rev-parse origin/main
-git rev-parse origin/workbuddy/wb-hw-001-readonly-intake
-git diff --check origin/main...origin/workbuddy/wb-hw-001-readonly-intake
-git diff --name-status origin/main...origin/workbuddy/wb-hw-001-readonly-intake
-git log --oneline --decorate origin/main..origin/workbuddy/wb-hw-001-readonly-intake
+git rev-parse origin/workbuddy/wb-hw-002-controlled-boot
+git diff --check origin/main...origin/workbuddy/wb-hw-002-controlled-boot
+git diff --name-status origin/main...origin/workbuddy/wb-hw-002-controlled-boot
+git log --oneline --decorate origin/main..origin/workbuddy/wb-hw-002-controlled-boot
 ```
 
-Codex 根据远端提交而不是 WorkBuddy 的口头描述给出 `ACCEPTED`、`CHANGES_REQUIRED` 或 `BLOCKED`。
+Codex 还会独立复验仓库外证据文件大小、SHA-256、日志关键行、一次 `Open()`/零写入记录和照片索引，再给出 `ACCEPTED`、`CHANGES_REQUIRED` 或 `BLOCKED`。

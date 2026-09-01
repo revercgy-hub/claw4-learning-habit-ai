@@ -5,7 +5,7 @@
 - 负责人：WorkBuddy
 - 复检人：Codex
 - 优先级：P0
-- 当前状态：`READY`
+- 当前状态：`ACCEPTED`（Codex 于 2026-09-01 验收；历史任务包，仅供追溯）
 - 目标分支：`workbuddy/wb-hw-001-readonly-intake`
 - 前置：WB-001 已验收；Windows 已枚举 Claw4 相关 USB/COM
 
