@@ -21,6 +21,13 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 4173,
   },
+  build: {
+    // Never let vite wipe the output directory: destructive bulk deletes are
+    // blocked by the host security policy and would break repeated builds.
+    // (Hashed assets are overwritten; stale hashed files are harmless for the
+    // host-MVP evidence runs.)
+    emptyOutDir: false,
+  },
   test: {
     environment: 'jsdom',
     globals: true,
