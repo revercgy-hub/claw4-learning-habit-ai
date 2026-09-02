@@ -236,54 +236,6 @@ CP2 完成并推送（精确 hash 由 CP3 报告回填）。立即进入 CP3（�
 CP3 完成并推送（精确 hash 由 CP4 报告回填）。立即进入 CP4（Home/Focus/Done/Offline 纯 UI Presenter）。
 
 
-## 5. CP3：设备应用协调器、同步策略与离线任务缓存
-
-### 5.1 修改文件（CP3）
-
-- `firmware/main/application/coordinator.h`（新建，AppCoordinator 接口）
-- `firmware/main/application/coordinator.cpp`（新建，实现）
-- `firmware/tests/unit/application/coordinator_tests.cpp`（新建，20 个主机 case）
-- `firmware/tests/fakes/fake_sync_transport.h`（新建，可编程 transport）
-- `tools/dev/verify-host-cpp-tests.ps1`（修改，实现源加入 application）
-- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP2 hash + 本段）
-
-### 5.2 实现要点（任务包 6 项）
-
-| 要求 | 实现 |
-| --- | --- |
-| 1 Intent→reducer→outbox→仅 commit 后发布 | `dispatchIntent`/`dispatchSegmentTimeout`/`retryLastFailed` 共用 `commitAndPublish`；reducer 拒绝或 outbox 失败均不发布；**失败转换缓存**，`retryLastFailed` 复用同一 event_id（7.3.1） |
-| 2 今日任务缓存 (task_id, version) 增量合并 | `mergeTodayTasks`：版本更高才更新；运行中 active session 的 task status 不被服务器覆盖；空列表正常；合并经 outbox 快照-only 提交持久化（重启可恢复） |
-| 3 同步只发 pending 连续前缀 | `runSyncOnce` 从 `last_acked+1` 起发连续段，遇断口停止 |
-| 4 Auth 一次 re-auth / 退避上限 60s | Auth(401/403)→注入 reauth 至多一次→ReauthOk/PausedAuth（pending 不动）；Network/5xx→确定性退避（base 倍增、`backoff_max_ms=60000` 封顶、种子抖动、绝不 sleep） |
-| 5 Conflict/Rejected/Gap/4xx/响应丢失收敛；诊断不递归 | 逐事件经 `OutboxCore.applyBatchResult`（死信/保留/prefix 清理）；`setDiagnostic` 只进合并诊断槽 |
-| 6 全注入 / 无 sleep / 无联网 | transport/reauth/id/时间均注入；测试用 FakeSyncTransport 编程响应 + 假时钟，无网络无 sleep 无 RNG |
-
-### 5.3 验证命令与结果（CP3）
-
-```powershell
-# 主机全量测试（w64devkit g++ 16.2.0 + P4 riscv32 交叉编译器）
-# 结果（exit 0）：
-#   unit coordinator_tests     : cases=20 failures=0 RUN PASS
-#   unit domain_reducer_tests  : cases=27 failures=0 RUN PASS
-#   unit outbox_core_tests     : cases=21 failures=0 RUN PASS
-#   unit summary : 3 / 3 PASS（全量 68 case）
-#   interface exit=0（P4 交叉编译契约 PASS）
-```
-
-### 5.4 CP3 验收自检
-
-| 验收标准 | 结果 |
-| --- | --- |
-| ≥18 独立 case 覆盖任务包 6 项 | PASS（20 case：commit-then-publish/reject/outbox 失败/timer、缓存 version/运行态/持久化/空任务、前缀批/成功清理/duplicate 收敛/auth 单次 re-auth/退避封顶/4xx 死信/conflict 保留/丢失响应收敛/诊断槽/端到端/重试同 ID） |
-| 主机全量 C++ 测试 PASS | PASS（68 case，3/3 测试程序 exit 0） |
-| 接口交叉编译 PASS | PASS（interface exit=0） |
-| `git diff --check` | PASS |
-
-### 5.5 CP3 结论
-
-CP3 完成并推送（精确 hash 由 CP4 报告回填）。立即进入 CP4（Home/Focus/Done/Offline 纯 UI Presenter）。
-
-
 ## 6. CP4：Home/Focus/Done/Offline 纯 UI Presenter
 
 ### 6.1 修改文件（CP4）
@@ -437,56 +389,6 @@ npm audit --omit=dev # found 0 vulnerabilities           PASS
 CP6 完成，进入 CP7（主机端 MVP 闭环集成验证）。
 
 
-## 8. CP6：家长 Responsive PWA（React + TypeScript + Vite）
-
-### 8.1 修改文件（CP6，全部位于 `frontend/**` + 报告）
-
-- `frontend/package.json` / `package-lock.json`（React 18 + Vite 6 + Vitest 3 + TS 5.8 + ESLint 9 flat + Testing Library；`package-lock.json` 锁定）
-- `frontend/tsconfig.json`、`vite.config.ts`（server/preview 仅绑 127.0.0.1；dev proxy /api → 8000）、`eslint.config.js`（flat）
-- `frontend/index.html`、`public/manifest.webmanifest`、`public/icon.svg`、`public/sw.js`（PWA：SW 只 precache 静态壳，`/api/*` 一律 network-only，绝不缓存认证/儿童数据/secret）
-- `frontend/.env.example`（`VITE_API_BASE_URL=http://127.0.0.1:8000`）、`frontend/.gitignore`
-- `frontend/src/api/types.ts`、`client.ts`（fetch wrapper：token 由登录页输入存 sessionStorage，不写死源码；注入式 `fetchImpl` 便于测试与 CP7）
-- `frontend/src/lib/format.ts`（纯格式化/校验，可测）+ `format.test.ts`
-- `frontend/src/components/`（TaskForm/TaskList/Login/display + 测试）
-- `frontend/src/pages/`（Dashboard/Tasks/Records/Devices 四页）、`App.tsx`（tab 导航+登录态）、`main.tsx`（SW 注册仅 PROD）、`style.css`（响应式、focus-visible、reduced-motion、对比度）
-- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP5 hash + 本段）
-
-### 8.2 实现要点（任务包 8 项）
-
-| 要求 | 实现 |
-| --- | --- |
-| 1 Dashboard | 计划数/完成数/完成率/专注分钟/当前学习状态（`DashboardCards`），日期取自后端（服务端时钟） |
-| 2 今日任务 | 列表 + 创建/编辑表单：科目/任务内容/预计分钟/优先级；loading/empty/error 三态齐备；编辑复用同表单（initial 预填、版本号后端自增） |
-| 3 学习记录 | 时间/任务/实际时长（分秒格式化）/暂停次数/完成状态/+XP |
-| 4 设备 | 在线状态/电量（null → “未知”，不伪造）/固件版本/最近同步时间 |
-| 5 配置 | `VITE_API_BASE_URL` 环境注入（`frontend/.env.example`）；token 用户登录输入（sessionStorage），源码零写死；无直连设备、无 AI Provider |
-| 6 PWA | manifest + SW：precache 仅静态壳（index/manifest/icon）；`/api/*` 请求不落缓存 → 认证响应/儿童 JSON/secret 零缓存 |
-| 7 可访问性/响应式 | label/aria-label/focus-visible/键盘（Enter 提交实测）、reduced-motion；grid auto-fit 手机/桌面 |
-| 8 依赖锁定 | `package-lock.json` 提交；无重量级图表/UI 框架 |
-
-### 8.3 验证命令与结果（CP6）
-
-```powershell
-cd frontend
-npm run typecheck   # tsc --noEmit -p tsconfig.json  PASS (exit 0)
-npm run lint        # eslint .                          PASS (exit 0)
-npm run test        # vitest run  →  30 passed (4 files)  PASS
-npm run build       # tsc && vite build → dist 生成     PASS (exit 0)
-npm audit --omit=dev # found 0 vulnerabilities           PASS
-```
-
-30 case 分布：format 12（时长/电量/表单校验）、api client 6（baseURL/token/JSON 体/ApiError/环境）、TaskForm 5（label/校验拦截/提交 payload/编辑预填/键盘 Enter）、展示组件 7（TaskList empty/rows/edit、StatCard、DashboardCards、RecordRow、DeviceRow 未知电量）。
-
-### 8.4 环境注意（记录供 Codex 审计）
-
-- 依赖安装 7 分钟（311 包）；`@types/node` 为 vite.config 的 `process.env` 补充；ESLint 忽略 `public/sw.js`（worker 全局）；上游 deprecation 警告（whatwg-encoding/glob/eslint 9.39.5 支持周期）不阻断且非本仓库缺陷。
-- Node 24.14.1 / npm 11.11.0（预检版本一致）。
-
-### 8.5 CP6 结论
-
-CP6 完成，进入 CP7（主机端 MVP 闭环集成验证）。
-
-
 ## 9. CP7：主机端 MVP 闭环集成验证
 
 ### 9.1 修改文件（CP7）
@@ -525,89 +427,6 @@ CP6 完成，进入 CP7（主机端 MVP 闭环集成验证）。
 ### 9.5 CP7 结论
 
 CP7 完成，进入 CP8（全流稳定性收口：C++/Backend 5 轮、PWA 3 轮、E2E 5 轮 + HOST_MVP_ACCEPTANCE.md）。
-
-
-## 9. CP7：主机端 MVP 闭环集成验证
-
-### 9.1 修改文件（CP7）
-
-- `backend/tests/e2e/__init__.py`、`backend/tests/e2e/test_host_loop.py`（新建：全链路 6 场景 2 测试）
-- `backend/tests/e2e/test_schema_drift.py`（新建：PWA/后端 schema 漂移自动门禁 2 测试）
-- `tools/dev/run-host-mvp-e2e.ps1`（新建：C++ gate + backend pytest + PWA typecheck/test/build 编排；可重复、无残留进程、失败透传非 0）
-- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP6 hash + 本段）
-
-### 9.2 六场景落实与证据
-
-| 场景 | 证据 |
-| --- | --- |
-| 1 家长创建今日任务 | `test_host_loop`：POST 家长创建 → `scheduled_date == server 今日`，状态 pending |
-| 2 合成设备 register→claim→challenge/auth→拉任务 | 同一测试：设备拉取 today 恰含该任务 |
-| 3 离线学习 Start/Pause/Resume/Complete 进 pending | **native C++ gate**（实际编译链接运行的 domain/outbox/coordinator 96 case）证明离线转换产生 pending 事件；Python 侧按领域事件语义提交同一序列（task.started→paused→resumed→study.session.completed→task.completed） |
-| 4 响应丢失→同 event_id 重发→duplicate+ACK 收敛 | 首次 6 事件 accepted ack=6；以旧 ack=0 整批重发 → 6 duplicate、0 accepted、ack 保持 6 |
-| 5 家长视图只出现一次完成 | study-sessions 中 `e2e-sess-1` 恰 1 条 completed、actual_seconds=1500、xp=25、finished_at ≥ started_at；dashboard focus_minutes=各 completed session 分钟和（无重复统计） |
-| 6 第二家庭隔离 | parent-2 读/改 child-1 的 tasks/today、patch task、study-sessions 均 403；parent-2 配对的设备拉 child-1 today 403；两家长设备列表无交集 |
-| 7 PWA 与后端同 schema | `test_schema_drift`：frontend client.ts 引用的全部 `/api/v1/...` 路径存在于 backend OpenAPI；frontend types 镜像 dashboard/session/device 关键字段；battery 保持 nullable |
-
-### 9.3 验证命令与结果（CP7）
-
-```powershell
-.\tools\dev\run-host-mvp-e2e.ps1 -CompilerPath "...\w64devkit-2.9.1\bin\g++.exe" -CrossCompilerPath "...\riscv32-esp-elf-g++.exe"
-# [1/3] C++ host gate   PASS (exit=0)
-# [2/3] backend pytest  PASS (exit=0; 62 collected)
-# [3/3] PWA typecheck/test/build PASS
-# E2E RESULT: PASS — 全部 127.0.0.1/in-process，无残留进程
-```
-
-### 9.4 范围声明（诚实边界）
-
-主机 MVP 闭环由 **Python in-process（FastAPI TestClient）与真实执行的 C++ host 测试** 共同证明。**不是** C++ HTTP/TLS 客户端、真机、浏览器 E2E 或设备网络已验证——脚本与报告均不将其写成已实现。
-
-### 9.5 CP7 结论
-
-CP7 完成，进入 CP8（全流稳定性收口：C++/Backend 5 轮、PWA 3 轮、E2E 5 轮 + HOST_MVP_ACCEPTANCE.md）。
-
-
-## 10. CP8：全流稳定性、证据与交付收口
-
-### 10.1 修改文件（CP8）
-
-- `backend/tests/conftest.py`（修改：改为每 pytest 会话独立临时 SQLite，避免删除仓库文件触发主机安全策略）
-- `frontend/vite.config.ts`（修改：`build.emptyOutDir=false`，避免 vite 清空 dist 触发主机安全策略）
-- `docs/HOST_MVP_ACCEPTANCE.md`（新建：HOST_VERIFIED / HARDWARE_VERIFY_REQUIRED / 未实现项三分清单）
-- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP7 hash + 本段）
-- 证据文件（out/，git 忽略，Codex 主机可复核）：`out/cp8/{cpp_5runs,backend_5runs,pwa_3runs,e2e_5runs,scan_evidence}.txt`
-
-### 10.2 稳定性轮次结果
-
-| 套件 | 轮次 | 结果 | 证据 |
-| --- | --- | --- | --- |
-| C++ 主机全量（96 case，4 程序） | 5 | ROUND1~5 EXIT=0 | `out/cp8/cpp_5runs.txt` |
-| Backend pytest（62 case） | 5 | ROUND1~5 EXIT=0 | `out/cp8/backend_5runs.txt` |
-| PWA typecheck/lint/test/build | 3 | 12/12 步骤 EXIT=0 | `out/cp8/pwa_3runs.txt` |
-| Host MVP E2E 编排 | 5 | ROUND1~5 EXIT=0 | `out/cp8/e2e_5runs.txt` |
-
-补充：`pip check` PASS；`npm audit --omit=dev` 0 vulnerabilities；P4 接口契约 exit=0（每轮 C++ gate 内含）。
-
-### 10.3 收口扫描（`out/cp8/scan_evidence.txt`）
-
-- 跟踪文件：无 node_modules/dist/`*.db`/__pycache__/.venv/pytest_cache（exit 1 干净）
-- `verify=false`/公网监听（0.0.0.0）：仅文档/任务包**禁止性说明**命中，无代码
-- 真实凭据形态（hex64/GH/sk- 前缀）：仅 DEVICE_LOG_REFERENCE 的历史证据 SHA-256 哈希，无凭据
-- 越界文件：本轮改动仅 backend/tests/conftest.py、frontend/vite.config.ts、docs/HOST_MVP_ACCEPTANCE.md（均属 CP0~CP8 已授权路径）
-
-### 10.4 验收标准逐项（任务包 §12）
-
-1. C++ 5 轮 0 失败 + P4 接口 PASS —— ✅
-2. Backend 5 轮 0 失败 + pip check PASS —— ✅
-3. PWA typecheck/lint/test/build 3 轮 0 失败 + audit 0 high/critical —— ✅
-4. Host MVP E2E 5 轮 0 失败，仅 127.0.0.1/in-process，结束后无残留进程 —— ✅
-5. 禁止依赖/秘密/构建产物/绝对用户路径/verify=false/公网监听/越界文件扫描 —— ✅（见 10.3；工具脚本内的 `E:\workbuddy\claw4-idf-tools` 探针为非唯一 fallback，已注释说明）
-6. `HOST_MVP_ACCEPTANCE.md` 区分 HOST_VERIFIED/HARDWARE_VERIFY_REQUIRED/未实现，未宣称真机闭环/Release —— ✅
-7. `git diff --check` PASS；报告链接与精确 hash 见状态表；远端同步与干净工作区 —— ✅（本提交后核对）
-
-### 10.5 CP8 结论与停止
-
-CP8 完成。停止扩项，进入最终回执（STREAM_REVIEW_READY），等待 Codex 一次性最终验收。
 
 
 ## 10. CP8：全流稳定性、证据与交付收口
