@@ -20,7 +20,7 @@
 | CP5 持久化后端 | `CHECKPOINT_READY` | `d238e1d8f96eb35ea6c0f7aef426cb6b84fe5210`（`feat(WB-STREAM-002): add persistent family backend`） | backend 58/58 PASS（旧 28 + 新 30）；pip check PASS；compose YAML 合法；接口契约 exit=0 |
 | CP6 家长 PWA | `CHECKPOINT_READY` | `07d4ab94f24b532141c13ebd4f2f605823773f3c`（`feat(WB-STREAM-002): add parent PWA`） | typecheck/lint PASS；vitest 30/30；vite build PASS；npm audit --omit=dev 0 漏洞 |
 | CP7 主机 E2E | `CHECKPOINT_READY` | `79900f41b244f1f0ba02ca401120b9b2fa66916e`（`test(WB-STREAM-002): verify host MVP loop`） | C++ gate PASS；backend pytest 62/62（含 e2e 4 + drift 2）；PWA typecheck/test/build PASS |
-| CP8 稳定性收口 | `CHECKPOINT_READY` | `test(WB-STREAM-002): stabilize host MVP evidence`（本提交自身） | C++ 5 轮 0 失败；Backend 5 轮 0 失败；PWA 3 轮 0 失败；E2E 5 轮 0 失败；扫描干净；`HOST_MVP_ACCEPTANCE.md` 交付 |
+| CP8 稳定性收口 | `CHECKPOINT_READY` | `36d2e13` + `028a544`（均 `test(WB-STREAM-002): stabilize host MVP evidence`；主机安全策略/工具重放导致同主题拆分为两提交，内容互补无冲突）+ `52481dd`（`docs(WB-STREAM-002): dedupe checkpoint sections in report`） | C++ 5 轮 0 失败；Backend 5 轮 0 失败；PWA 3 轮 0 失败；E2E 5 轮 0 失败；扫描干净；`HOST_MVP_ACCEPTANCE.md` 交付 |
 
 ## 2. CP0：建立本机 C++17"编译、链接、运行"门槛
 
