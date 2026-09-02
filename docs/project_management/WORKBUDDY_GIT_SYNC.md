@@ -6,12 +6,12 @@
 - 任务：`WB-002`
 - 状态：`CHANGES_REQUIRED`
 - 分支：`workbuddy/wb-002-architecture`
-- 最新复检：`docs/project_management/reports/CODEX_REVIEW_WB-002_2026-09-02.md`
+- 最新复检：`docs/project_management/reports/CODEX_REVIEW_WB-002_ROUND2_2026-09-02.md`
 - 允许修改：
   - `docs/ARCHITECTURE.md`
   - `docs/project_management/reports/WB-002_REPORT.md`
 
-本轮只修订架构契约。不得创建源码、构建配置、测试工程或额外文档，不得构建、下载依赖、操作硬件、串口、Flash、固件或外部服务。
+本轮只处理 CR-WB002-06～10。不得创建源码、构建配置、测试工程或额外文档，不得构建、下载依赖、操作硬件、串口、Flash、固件或外部服务。
 
 ## 一、同步原分支
 
@@ -41,19 +41,20 @@ git switch --track -c workbuddy/wb-002-architecture origin/workbuddy/wb-002-arch
 2. `项目总规划/AGENTS.md`
 3. `docs/project_management/TASK_BOARD.md`
 4. `docs/project_management/tasks/WB-002_ARCHITECTURE.md`
-5. `docs/project_management/reports/CODEX_REVIEW_WB-002_2026-09-02.md`
+5. `docs/project_management/reports/CODEX_REVIEW_WB-002_ROUND2_2026-09-02.md`
 6. 现有 `docs/ARCHITECTURE.md`
 7. 现有 `docs/project_management/reports/WB-002_REPORT.md`
 
 ## 三、唯一修订范围
 
-逐项完成复检报告的 CR-WB002-01～05：
+逐项完成复检报告的 CR-WB002-06～10：
 
-1. 增加领域状态快照与关键事件的 transactional outbox/等价原子持久化规则；队列满时不能先完成业务再丢事件。
-2. 重构 ACK/死信：ACK只能推进到最高连续成功序号；批响应含逐事件结果/缺口；关键4xx事件保持可修复重放；认证失败不把业务事件放入死信。
-3. 统一 Task、StudySession、重启恢复、timeout、auto_saved 语义；Timer 到时不能自动完成 Task。
-4. `/events/batch` 作为设备业务写入唯一权威入口；补齐注册、家长配对、认证、token中的 device-child绑定、nonce防重放及服务端归属校验。
-5. 更新报告，逐项列出修改位置与实际验证结果。
+1. 明确逐事件处理顺序：认证/归属校验后先按 `(device_id,event_id)` 查重；相同内容返回 `duplicate`，同 ID 不同内容拒绝；只对未见过的新事件执行连续 sequence 检查。
+2. 增加“服务端已接受 seq=42、响应丢失、设备用同 event_id 重发”的测试向量，确保返回 duplicate/当前连续 ACK，客户端可安全删除。
+3. 定义 nonce/challenge 获取调用或清晰的两阶段 auth；补齐 challenge JSON、过期、单次使用、签名绑定和重放失败规则。
+4. claim 必须由已认证家长调用；请求体删除 `parent_id`，服务端从认证上下文派生家长并校验 `child_id` 归属。
+5. 统一快照损坏只为 `aborted`；完整快照恢复后由用户结束/保存才可 `auto_saved`；两者均不自动完成 Task。
+6. 更新报告，逐项列出 CR-WB002-06～10 的修改位置、测试向量、验证结果与剩余风险。
 
 不得改变 MVP 范围、解除 G2/G3、决定 OTA/分区、添加产品功能或开始实现。
 
@@ -64,20 +65,21 @@ git status --short
 git diff --check
 git diff --name-only
 git diff -- docs/ARCHITECTURE.md docs/project_management/reports/WB-002_REPORT.md
-rg -n "transactional outbox|原子|关键事件|highest_contiguous|连续|rejected|dead.?letter|死信|same event_id|同一 event_id" docs/ARCHITECTURE.md
-rg -n "Task|StudySession|timeout|auto_saved|aborted|重启|显式|task.completed" docs/ARCHITECTURE.md
-rg -n "pair|配对|claim|device_id|child_id|nonce|重放|events/batch|study-sessions" docs/ARCHITECTURE.md
+rg -n "duplicate|event_id|sequence|last_acked|响应丢失|幂等|回退|冲突" docs/ARCHITECTURE.md
+rg -n "challenge|nonce|过期|单次|重放|签名" docs/ARCHITECTURE.md
+rg -n "claim|parent_id|child_id|认证家长|授权范围|通用错误" docs/ARCHITECTURE.md
+rg -n "快照损坏|auto_saved|aborted|显式|task.completed" docs/ARCHITECTURE.md
 ```
 
 必须满足：
 
 - 仅两个允许文件；
-- 关键状态转换与事件持久化具有明确原子顺序；
-- 队列满、4xx、401/403和ACK跳号均不能静默丢失关键事件；
-- 同一事件重试保留同一 `event_id`；
-- 重启与Timer到时都不会自动把 Task 标为完成；
-- token绑定的设备/儿童由服务端校验，不信任载荷自报身份；
-- 设备业务写入只有一个权威路径；
+- 同一事件重试保留同一 `event_id`，先幂等查重再对新事件做 sequence 连续性检查；
+- 响应丢失后的重复投递返回成功语义，不造成永久 pending；
+- nonce/challenge 有完整可调用流程、单次使用和过期/重放规则；
+- claim 不信任请求体自报 parent_id，儿童归属由已认证家长上下文校验；
+- 损坏快照只为 `aborted`，`auto_saved` 只用于完整快照恢复后的用户结束/保存；
+- 已通过的 outbox、连续 ACK、唯一写入口与 Task 显式完成规则不得回退；
 - 9个JSON示例或修订后全部JSON块均可解析，Markdown本地链接存在；
 - `git diff --check` 无输出。
 
@@ -87,7 +89,7 @@ rg -n "pair|配对|claim|device_id|child_id|nonce|重放|events/batch|study-sess
 git add -- docs/ARCHITECTURE.md docs/project_management/reports/WB-002_REPORT.md
 git diff --cached --check
 git diff --cached --name-only
-git commit -m "docs(WB-002): harden offline and auth contracts"
+git commit -m "docs(WB-002): close replay and claim contracts"
 git push -u origin HEAD:workbuddy/wb-002-architecture
 $workbuddyLocalCommit = git rev-parse HEAD
 $workbuddyRemoteRef = git ls-remote --heads origin workbuddy/wb-002-architecture
@@ -107,11 +109,12 @@ git status --short --branch
 初次提交：7902378dc844f1855f93708b14cb25c0c3b16fa4
 本地 HEAD：<修订提交>
 远端 HEAD：<ls-remote>
-CR-WB002-01：<修改位置、规则、验证>
-CR-WB002-02：<修改位置、ACK/死信验证>
-CR-WB002-03：<修改位置、状态转换验证>
-CR-WB002-04：<修改位置、授权绑定验证>
-CR-WB002-05：<报告与全量校验>
+修订基线：6251486ce88d841cfc40f23ef4f048ec751b7191
+CR-WB002-06：<幂等优先级、响应丢失测试向量、验证>
+CR-WB002-07：<challenge 获取、签名绑定、过期/重放验证>
+CR-WB002-08：<认证家长上下文、parent_id 派生、child 归属验证>
+CR-WB002-09：<aborted/auto_saved 唯一语义与残留扫描>
+CR-WB002-10：<报告与全量校验>
 实际修改文件：<列表>
 JSON检查：<块数与结果>
 Markdown链接检查：<数量与结果>
@@ -123,7 +126,7 @@ git diff --check：PASS/FAIL
 
 完成后停止。WorkBuddy不得自行标记 `ACCEPTED`、修改看板、合并main或开始实现。
 
-## 七、Codex Round 2 入口
+## 七、Codex Round 3 入口
 
 ```powershell
 git fetch --prune origin

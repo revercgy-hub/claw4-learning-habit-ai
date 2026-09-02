@@ -5,7 +5,7 @@
 - 负责人：WorkBuddy
 - 复检人：Codex
 - 优先级：P0
-- 当前状态：`CHANGES_REQUIRED`（初次提交 `7902378`；仅处理最新 Codex 复检项）
+- 当前状态：`CHANGES_REQUIRED`（Round 2 修订提交 `6251486`；仅处理最新 Codex 复检项）
 - 目标分支：`workbuddy/wb-002-architecture`
 - 前置：WB-001、WB-HW-001、WB-HW-002 已验收
 - 性质：开发前架构设计；**只写文档，不实现业务代码**
@@ -32,6 +32,25 @@
 12. `docs/BUILD.md`
 13. `docs/project_management/reports/CODEX_REVIEW_WB-HW-002_ROUND2_2026-09-01.md`
 14. 官方只读源码 `vendor/MetalioClaw4` 中与板级、应用入口、网络、协议、显示、存储相关的实际目录；只读检查，不修改
+
+Round 2 修订还必须读取：
+
+15. `docs/project_management/reports/CODEX_REVIEW_WB-002_ROUND2_2026-09-02.md`
+
+## Round 2 后唯一修订范围
+
+仅处理最新复检报告的 CR-WB002-06～10：
+
+1. 明确幂等查重先于“新事件 sequence 连续性”检查，并覆盖响应丢失后的同 event_id 重放。
+2. 补齐设备取得一次性 nonce/challenge 的可调用协议和 JSON 示例。
+3. claim 必须使用已认证家长上下文；parent_id 由服务端派生，并校验 child 归属。
+4. 统一损坏快照只为 `aborted`、完整快照由用户结束才可 `auto_saved` 的语义。
+5. 更新原报告并完成全量复验。
+
+仍只允许修改下列两个文件；其余原任务内容中已通过的契约不得无关改写：
+
+- `docs/ARCHITECTURE.md`
+- `docs/project_management/reports/WB-002_REPORT.md`
 
 ## 允许修改
 
