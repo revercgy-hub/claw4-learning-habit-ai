@@ -13,7 +13,8 @@
 | Checkpoint | 状态 | 提交 | 验证摘要 |
 | --- | --- | --- | --- |
 | CP0 本机 C++17 门槛 | `CHECKPOINT_READY` | `690d8488c7d42f4c92735c66dc4d6417f46fb15b`（`test(WB-STREAM-002): add native C++ test gate`） | 主机 g++ 16.2.0 compile/link/run PASS；P4 接口契约 exit=0 |
-| CP1 纯领域 Reducer | `CHECKPOINT_READY` | `feat(WB-STREAM-002): implement domain reducer`（本提交自身） | 领域单测 27/27 PASS（cases=27 failures=0）；依赖扫描 PASS；接口契约 exit=0 |
+| CP1 纯领域 Reducer | `CHECKPOINT_READY` | `09984477015f9bbbab2cf2f8766c32db28ce2158`（`feat(WB-STREAM-002): implement domain reducer`） | 领域单测 27/27 PASS（cases=27 failures=0）；依赖扫描 PASS；接口契约 exit=0 |
+| CP2 transactional Outbox | `CHECKPOINT_READY` | `feat(WB-STREAM-002): add transactional outbox core`（本提交自身） | outbox 21/21 + domain 27/27 PASS；连续 5 轮 EXIT=0；接口契约 exit=0 |
 | CP2 transactional Outbox | `QUEUED` | — | — |
 | CP3 应用协调器 | `QUEUED` | — | — |
 | CP4 UI Presenter | `QUEUED` | — | — |
@@ -129,4 +130,60 @@
 
 ### 3.5 CP1 结论
 
-CP1 完成并推送（精确 hash 由 CP2 报告回填）。立即进入 CP2（transactional outbox）。
+CP1 完成并推送（`09984477015f9bbbab2cf2f8766c32db28ce2158`）。立即进入 CP2（transactional outbox）。
+
+## 4. CP2：平台无关 Transactional Outbox 核心
+
+### 4.1 修改文件（CP2）
+
+- `firmware/main/sync/outbox_storage.h`（新建，可注入持久化接口：load/commit/commitDiagnostic/removeAcked/markDeadLetter）
+- `firmware/main/sync/outbox_core.h`（新建，核心接口 + `kMaxPending=200`）
+- `firmware/main/sync/outbox_core.cpp`（新建，实现）
+- `firmware/tests/fakes/fake_outbox_storage.h`（新建，确定性故障注入 + 共享 FakeDisk 重启模拟）
+- `firmware/tests/unit/sync/outbox_core_tests.cpp`（新建，21 个主机 case）
+- `tools/dev/verify-host-cpp-tests.ps1`（修改，unit 编译加 sync 实现源与 fakes include 路径）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP1 hash + 本段）
+
+**仅上述允许路径**。无 NVS/文件系统/网络实现；单线程确定性（API 注释明示所有权假设）。
+
+### 4.2 实现要点
+
+| 任务包要求 | 实现 |
+| --- | --- |
+| 原子持久化 | `OutboxCore::persistTransition`：空草稿转换只提交快照（不消耗 sequence）；有草稿时分配连续 sequence、物化 `PendingEvent`、`storage.commit(next_domain, rows, next_seq)` 单次原子提交；失败零可见变化 |
+| **Outbox 唯一 sequence 所有者** | sequence 从持久化 `next_sequence` 连续分配并随 commit 原子更新；reducer/UI/网络层无分配 API；失败不消耗、重启从已提交计数继续（无空洞） |
+| pending ≤200 / 关键事件不静默丢弃 | `kMaxPending=200`；超限 → 整次 `CapacityExceeded`（不裁剪、不静默丢弃关键事件）；`isCriticalEvent` 覆盖 Task/Session Started/Completed/Skipped 等 |
+| 诊断槽独立 | `setDiagnostic` 只写可合并 `DiagnosticSlot`（failed/recovered 最新状态），不进入业务队列、不占 200 容量 |
+| ACK 清理双条件 | `applyBatchResult`：仅 Accepted/Duplicate 且 `sequence <= last_acked_sequence`（连续前缀内）才 `removeAcked`；Conflict/Rejected/Gap 与 prefix 后行保留 |
+| 401/403/网络/5xx 不删 pending | 无 eligible in-prefix 结果 → 零删除；401/403 rejected 不标死信 |
+| 业务 4xx 死信 | `markDeadLetter` 保留原 event_id/原文 + 红色摘要 reason，可同 ID 修复重放 |
+| fake 故障注入/重启 | `FakeDisk.fail_next_commit` 确定性注入（commit 前失败=零写入）；新 `FakeOutboxStorage` 复用同一 FakeDisk = 进程重启；未宣称真实掉电安全/NVS |
+| 防重复 pending | drafts 的 event_id 已 pending → `InvalidTransition` 拒绝（响应丢失重发走 re-sync，不重复入队） |
+
+### 4.3 验证命令与结果（CP2）
+
+```powershell
+.\tools\dev\verify-host-cpp-tests.ps1 -CompilerPath "E:\workbuddy\toolchains\w64devkit-2.9.1\bin\g++.exe" -CrossCompilerPath "E:\workbuddy\claw4-idf-tools\tools\riscv32-esp-elf\esp-14.2.0_20260121\riscv32-esp-elf\bin\riscv32-esp-elf-g++.exe"
+# 结果（exit 0，out/host-tests/host_result.txt）：
+#   unit domain_reducer_tests : cases=27 failures=0 RUN PASS
+#   unit outbox_core_tests    : cases=21 failures=0 RUN PASS
+#   unit summary : 2 / 2 PASS
+#   interface exit=0（P4 交叉编译契约 PASS）
+# 连续运行 5 轮：ROUND1~5 EXIT=0（out/host-tests/stability_5runs.txt）
+```
+
+**必测场景覆盖（21 case）**：快照+多草稿+sequence 原子提交与各故障注入点回滚（`commit_failure_rolls_back_all/keeps_old_domain`）· 重启恢复 pending/ACK/next sequence（`restart_recovers_state`）· 响应丢失后重启 pending 保留（`restart_after_lost_response_keeps_pending`）· 200 边界（`capacity_exceeded_rejected_whole`）· 诊断槽不占容量/合并（`diagnostic_slot_outside_budget/merges_latest`）· Accepted/Duplicate 清理、gap 前缀、Conflict/Rejected/Gap/401 保留（ack 系列 6 case）· 业务 4xx 死信保留原文（`business_4xx_marks_dead_letter_keeps_row`）· 同 event_id 防重复/重放不生成新 ID（`duplicate_event_id_persist_rejected`、`dead_letter_replay_same_event_id`）· 非法空 event_id 拒绝零污染（`invalid_empty_event_id_rejected`）。
+
+### 4.4 CP2 验收自检
+
+| 验收标准 | 结果 |
+| --- | --- |
+| 主机全量测试 compile/link/run 0 失败 | PASS（domain 27 + outbox 21，均 exit 0） |
+| 连续运行 5 次稳定通过 | PASS（ROUND1~5 EXIT=0） |
+| P4 接口契约 PASS | PASS（interface exit=0） |
+| 禁止依赖扫描 PASS | PASS（4b scan） |
+| `git diff --check` | PASS |
+
+### 4.5 CP2 结论
+
+CP2 完成并推送（精确 hash 由 CP3 报告回填）。立即进入 CP3（设备应用协调器）。

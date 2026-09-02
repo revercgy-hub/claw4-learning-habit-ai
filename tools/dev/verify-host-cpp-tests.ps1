@@ -164,21 +164,29 @@ Write-Log "== 4c) native unit tests (firmware/tests/unit) =="
 $unitRoot = Join-Path $RepoRoot "firmware\tests\unit"
 if (Test-Path $unitRoot) {
     $testFiles = Get-ChildItem -Path $unitRoot -Filter *.cpp -Recurse
-    # Implementation sources: all domain cpp files (pure C++17, host-safe).
-    $implRoot = Join-Path $RepoRoot "firmware\main\learning_domain"
+    # Implementation sources: pure host-safe C++ under learning_domain / sync
+    # (extend this list as further host modules land in later checkpoints).
+    $implRoots = @(
+        (Join-Path $RepoRoot "firmware\main\learning_domain"),
+        (Join-Path $RepoRoot "firmware\main\sync")
+    )
     $implSrcs = @()
-    if (Test-Path $implRoot) {
-        $implSrcs = Get-ChildItem -Path $implRoot -Filter *.cpp -Recurse | ForEach-Object { $_.FullName }
+    foreach ($root in $implRoots) {
+        if (Test-Path $root) {
+            $implSrcs += Get-ChildItem -Path $root -Filter *.cpp -Recurse |
+                         ForEach-Object { $_.FullName }
+        }
     }
+    $includeArgs = @("-I", (Join-Path $RepoRoot "firmware\main"),
+                     "-I", (Join-Path $RepoRoot "firmware\tests"))
     $unitPass = 0
     foreach ($tf in $testFiles) {
         $name = $tf.BaseName
         $exe = Join-Path $OutDir "$name.exe"
         $errf = Join-Path $OutDir "$name.err.txt"
         Remove-Item $exe, $errf -ErrorAction SilentlyContinue
-        $args = @("-std=c++17", "-Wall", "-Wextra", "-Werror",
-                  "-I", (Join-Path $RepoRoot "firmware\main"),
-                  $tf.FullName) + $implSrcs + @("-o", $exe)
+        $args = @("-std=c++17", "-Wall", "-Wextra", "-Werror") + $includeArgs +
+                @($tf.FullName) + $implSrcs + @("-o", $exe)
         $cout = & $cc @args 2>&1
         $ccode = $LASTEXITCODE
         if ($ccode -ne 0 -or -not (Test-Path $exe)) {
