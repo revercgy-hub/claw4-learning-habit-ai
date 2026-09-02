@@ -1,13 +1,13 @@
 # WB-002 实施报告：Claw4 学习习惯终端 MVP 架构定义
 
 - 任务 ID：WB-002
-- 状态声明：REVIEW_READY（修订轮 CR-WB002-01~05）
-- 分支：`workbuddy/wb-002-architecture`
-- 任务包：`docs/project_management/tasks/WB-002_ARCHITECTURE.md`
+- 状态声明：REVIEW_READY（修订轮 CR-WB002-01~10；WB-STREAM-001 CP0 收口）
+- 分支：`workbuddy/wb-002-architecture` → `workbuddy/mvp-core-stream`（WB-STREAM-001）
+- 任务包：`docs/project_management/tasks/WB-002_ARCHITECTURE.md`、`docs/project_management/tasks/WB-STREAM-001_MVP_CORE.md`
 - 初次提交：`7902378dc844f1855f93708b14cb25c0c3b16fa4`（`docs(WB-002): define MVP architecture`）
-- 修订提交信息：`docs(WB-002): harden offline and auth contracts`
-- 修订基线：`bfa5f5e76270c2eed475faf0293ee3986c360007`（Codex 复检合并提交）
-- 本地/远端 HEAD：修订提交自身（推送后以 `git rev-parse HEAD` 与 `git ls-remote` 为准；报告文件位于该提交内，无法自引用其 hash，详见 §5）
+- 修订提交信息：`docs(WB-002): harden offline and auth contracts`（CR-01~05）、`docs(WB-002): close replay and claim contracts`（CR-06~10，WB-STREAM-001 CP0）
+- 修订基线：`bfa5f5e76270c2eed475faf0293ee3986c360007`（Codex 复检合并提交）；CP0 基线 `cd8d2707936d8842c142049b9cf3b4ae07d285b4`（WB-STREAM-001 起始）
+- 本地/远端 HEAD：CP0 修订提交自身（推送后以 `git rev-parse HEAD` 与 `git ls-remote` 为准；报告文件位于该提交内，无法自引用其 hash，详见 §5）
 - 日期：2026-09-02
 
 ## 1. 实际修改文件
@@ -45,7 +45,18 @@
 | 03 重启/完成语义 | §4.3 重启描述、§4.4 状态图与 `completion_type` 重写、§4.5 设备重启行 + 新增专注段到时行、§5.2 字段语义、§10.3 设备重启行 | Task 状态与 StudySession 状态分离，`completion_type` 不替代 `status`；重启恢复唯一流程（快照完整→恢复同一 session_id 用户选择继续/结束；损坏→`aborted`/`auto_saved`，Task 不自动 completed）；Timer 到时仅结束/暂停专注段，不得自动完成任务；`completion_type` 枚举移除 `timeout`（改为专注段语义） | "无 timeout 值"表述 2 处一致；旧值 `normal/manual/timeout` 零残留；状态图/异常矩阵/契约/不变量四处同步 |
 | 04 设备—儿童绑定与写入入口 | §6.2 端点表（`/events/batch` 唯一入口 + 新增 `/devices/claim` + finish 排除）、§6.3 注册/配对/认证 JSON 重写、§6.4 新增 6.4.1 绑定模型/6.4.2 配对/claim/6.4.3 nonce 防重放、§9.1 后端职责、§10.3 新增 3 行、§12.1 新增 D9/D10 | `/events/batch` 为设备业务写入唯一权威入口；`/study-sessions/{id}/finish` 不属于设备 MVP 接口；最小身份流程（注册→配对/claim→认证→短期 token），服务端签发 `device_id`；token 携带 device/child 绑定、逐请求/逐事件校验；nonce 一次性/短 TTL/防重放；注册/配对失败统一通用错误不泄露儿童存在；MVP 单家长最小授权边界 | 新 claim JSON `json.loads` PASS；配对 19/绑定 16/nonce 10/claim 7 处命中；旧"二选一"双写入路径零残留 |
 
-**修订范围**：仅修改两个原文件（`docs/ARCHITECTURE.md`、本报告）；未创建源码/新文档，未构建、未连接硬件、未触碰看板/任务包/Codex 文档。
+**修订范围**：仅修改两个原文件（`docs/ARCHITECTURE.md`、本报告）与工作流报告（`WB-STREAM-001_REPORT.md`，WB-STREAM-001 允许路径）；未创建源码/新文档，未构建、未连接硬件、未触碰看板/任务包/Codex 文档。
+
+### 2.2 修订轮 CR-WB002-06~09 落实表（WB-STREAM-001 CP0）
+
+| CR | 修订位置（`docs/ARCHITECTURE.md`） | 修订内容 | 测试向量（可转 Mock 用例） | 验证结果 |
+| --- | --- | --- | --- | --- |
+| 06 幂等先于 sequence | §5.4 表新增"逐事件处理顺序（MVP）"行 + 重写幂等/顺序/服务端事务/重复事件处理行 + 新增"可测试示例：响应丢失重发" | 逐事件固定顺序：① 认证/归属校验 → ② `(device_id, event_id)` 幂等查重 → ③ 仅新事件做 sequence 连续性；摘要一致重发 → `duplicate`+当前 ACK；同 ID 不同 sequence/type/载荷 → `conflict` 拒绝并告警；新事件 `sequence>期望` → `gap`，`≤ACK 且未见过` → `rejected` 回退不推进 ACK | seq=42 落库成功但响应丢失 → 同 event_id/同载荷重发返回 duplicate + last_acked_sequence=42；同 event_id 改 payload 返回 conflict | JSON 12/12；"响应丢失"示例文本命中；旧"先 sequence 后幂等"表述零残留 |
+| 07 challenge 获取 | §6.2 端点表新增 `POST /devices/challenge`、`/devices/auth` 改"两阶段"；§6.3 新增 challenge 请求/响应 JSON、auth 请求更新（challenge_id+nonce+签名绑定）；§6.4.3 重写为两阶段交互（获取→认证、单次使用、过期/重放 401、日志不记录 nonce/secret/签名原文）；§10.3 新增 challenge 过期/重放行；§12.1 新增 D12 | 两阶段：`POST /devices/challenge`（请求 device_id）→ `challenge_id+nonce+expires_at`；`POST /devices/auth` 提交 `challenge_signature=sign(device_secret, device_id|challenge_id|nonce)`；challenge 单次、过期/重放 401、认证成功后作废 | challenge 过期拒绝；同一 challenge 二次使用拒绝；跨设备用同一 nonce 拒绝；日志不含 nonce/签名原文 | challenge JSON `json.loads` PASS；challenge 10 处/nonce 11 处命中；可解析最小示例新增 2 个 |
+| 08 claim 家长授权链 | §6.3 claim JSON 删除 `parent_id`；§6.4.2 重写（claim 必须由已认证家长会话调用、parent_id 从认证上下文派生、child_id 必须属于家长授权范围、未授权儿童/无效配对码/不存在对象统一通用外部错误+服务端脱敏审计原因）；§10.3 新增 2 行；§12.1 新增 D11 | `/devices/claim` 由已认证家长 token 调用；`parent_id` 不接受请求体自报；校验 child 归属；失败统一通用错误不泄露儿童存在性 | claim 带 parent_id 被忽略；child 不属于该家长 → 通用外部错误；未授权儿童 → 同一错误信息 | claim JSON `json.loads` PASS；"认证家长"3 处/"授权范围"3 处命中；旧自报 parent_id 示例零残留 |
+| 09 损坏快照唯一语义 | §4.3 设备重启行、§4.4 状态图 ABORTED 分支与 `completion_type` 定义、§4.5 设备重启行（原有）、§10.3 设备重启行（原有） | 全文统一：快照损坏/不可恢复**只产生 `aborted`**；快照完整、恢复同一 session 后**由用户显式选择结束/保存**才可 `auto_saved`；两者均不得自动完成 Task（I2） | 损坏快照恢复 → session 标 aborted（无 auto_saved）；完整快照+用户显式结束 → auto_saved；两者 Task 均不自动 completed | "快照损坏→aborted"3 处一致、"auto_saved 需用户显式"2 处一致；旧"aborted/auto_saved 并列"零残留 |
+
+**CP0 复验数字**：JSON 12/12（新增 challenge 请求/响应）· Markdown 链接 21/21 · 章节 §0~§12 共 13 个 · 证据标签 157 处（ARCH_DECISION 87）· `git diff --check` PASS · 旧语义零残留。
 
 ## 3. 验收标准逐项自检
 
@@ -74,30 +85,32 @@ git diff --check
 git diff --name-status bfa5f5e76270c2eed475faf0293ee3986c360007
 # 结果：仅 M docs/ARCHITECTURE.md、M docs/project_management/reports/WB-002_REPORT.md
 
-# 证据标签检查（任务包 §验证要求，修订后重新扫描）
+# 证据标签检查（任务包 §验证要求，CP0 修订后重新扫描）
 rg -n "PRODUCT_REQUIRED|SOURCE_CONFIRMED|DEVICE_LOG_CONFIRMED|ARCH_DECISION|HARDWARE_VERIFY_REQUIRED|UNKNOWN" docs/ARCHITECTURE.md
-# 结果：命中 152 处，标签计数：
-#   ARCH_DECISION 82 / PRODUCT_REQUIRED 29 / UNKNOWN 16 / SOURCE_CONFIRMED 11 / HARDWARE_VERIFY_REQUIRED 9 / DEVICE_LOG_CONFIRMED 4 / USER_EVIDENCE_REQUIRED 1
+# 结果：命中 157 处，标签计数：
+#   ARCH_DECISION 87 / PRODUCT_REQUIRED 29 / UNKNOWN 16 / SOURCE_CONFIRMED 11 / HARDWARE_VERIFY_REQUIRED 9 / DEVICE_LOG_CONFIRMED 4 / USER_EVIDENCE_REQUIRED 1
 
-# 关键契约词检查（修订后含 CR 新契约词）
-rg -n "outbox|连续 ACK|last_acked_sequence|event_id|sequence|at-least-once|幂等|离线|死信|配对|claim|绑定|nonce|唯一入口|串行" docs/ARCHITECTURE.md
-# 结果：全部命中（配对 19 / 绑定 16 / 幂等 16 / sequence 16 / event_id 15 / last_acked_sequence 11 / nonce 10 / 离线 9 / 死信 8 / outbox 7 / claim 7 / at-least-once 5 / 唯一入口 3 / 串行 2 / 连续 ACK 1）
+# CP0 关键词检查（WORKBUDDY_GIT_SYNC.md §四 四组）
+rg -n "duplicate|event_id|sequence|last_acked|响应丢失|幂等|回退|conflict" docs/ARCHITECTURE.md   # 53 处
+rg -n "challenge|nonce|过期|单次|重放|签名" docs/ARCHITECTURE.md                                   # 33 处
+rg -n "claim|parent_id|child_id|认证家长|授权范围|通用错误" docs/ARCHITECTURE.md                     # 31 处
+rg -n "快照损坏|auto_saved|aborted|显式|task.completed" docs/ARCHITECTURE.md                        # 14 处
 
-# JSON 示例可解析性（修订后 10/10 PASS，含新增 /devices/claim 示例与 /events/batch 逐事件响应）
+# JSON 示例可解析性（CP0 修订后 12/12 PASS，含新增 /devices/challenge 请求/响应）
 # python 脚本提取全部 ```json 代码块并 json.loads 校验
 
 # 本地 Markdown 链接存在性（21/21 PASS）
 # python 脚本解析 [text](path) 并 os.path.exists 校验（含 ../../ 相对路径）
 
-# 章节完整性（12 必需章节全部在位）
-# grep -nE "^## [0-9]+" docs/ARCHITECTURE.md → 0~12 共 13 个章节标题
+# 章节完整性（§0~§12 共 13 个章节标题）
+# grep -nE "^## [0-9]+" docs/ARCHITECTURE.md
 ```
 
-**敏感表述扫描（修订后）**：对"重新点开始/隔离新业务事件/移入死信区/仍失败进死信/自动落账/最大成功序号/二选一"等 CR 前旧语义做残留扫描，唯一命中为 ACK 定义中的否定句（"不得以批次内最大成功序号代替"），属 CR-02 要求表述，无旧语义残留。
+**敏感表述扫描（CP0 修订后）**：对"aborted/auto_saved 并列、快照损坏→auto_saved、可含 auto_saved、自报 parent_id、先 sequence 后幂等、最大成功序号"等旧语义做残留扫描，命中均为新语义否定句或正确表述（§4.3 :206、§4.4 :214/:219、§4.5 :228、§10.3 :795 全部为"损坏→仅 aborted / 完整+用户显式→auto_saved"），无旧语义残留。
 
 ## 5. 关于提交号的说明（消除占位符）
 
-本报告文件与 `docs/ARCHITECTURE.md` 同属修订提交（`docs(WB-002): harden offline and auth contracts`）。Git 提交 hash 由提交内容决定，报告文本无法自引用自身 hash，故"本地/远端 HEAD"字段如实写为"修订提交自身"，推送后由 Codex 按 `WORKBUDDY_GIT_SYNC.md` §七 复检入口（`git rev-parse` + `git ls-remote`）验证。初次提交记录于头部：`7902378dc844f1855f93708b14cb25c0c3b16fa4`。本报告不含任何"提交后填"式占位符。
+本报告文件与 `docs/ARCHITECTURE.md` 同属 CP0 修订提交（`docs(WB-002): close replay and claim contracts`）。Git 提交 hash 由提交内容决定，报告文本无法自引用自身 hash，故"本地/远端 HEAD"字段如实写为"CP0 修订提交自身"，推送后由 Codex 按 `WORKBUDDY_GIT_SYNC.md` §七 复检入口（`git rev-parse` + `git ls-remote`）验证。此前提交记录：初次 `7902378`、CR-01~05 修订 `6251486`。本报告不含任何"提交后填"式占位符。
 
 ## 6. 未解决问题、风险与 HARDWARE_VERIFY_REQUIRED 项
 
@@ -122,6 +135,8 @@ rg -n "outbox|连续 ACK|last_acked_sequence|event_id|sequence|at-least-once|幂
 | MVP 串行批次吞吐 | 5.4 服务端事务采用单设备串行批次 + 设备级锁，极端大批量时后端单设备处理为串行；MVP 规模（单家庭设备量级）可接受，V1 若需并行再做乱序缓冲 |
 | 设备密钥存储 | 6.4 `device_secret` 的硬件安全存储依赖实机安全能力（Secure Boot/Flash Encryption 当前 `SOURCE_CONFIRMED` 未确认），MVP 先落 NVS 安全分区，正式版升级 |
 | 多家长模型 | 6.4.1 明确 MVP 单家长最小授权边界；多家长（P5）待定，扩展时需引入家长级权限模型 |
+| conflict 告警的人工补偿路径 | 5.4 对"同 event_id 不同载荷"返回 `conflict`，但设备端人工/自动修复路径未在契约级定义，需 Mock 测试时给出可测试的冲突处理动作（保留 pending + 告警 + 人工重放） |
+| challenge 签名算法实现 | 6.4.3 建议 HMAC-SHA256，但设备侧密钥管理与签名实现依赖实机安全能力；MVP 先按纯软件 HMAC 实现，正式版随 Secure Boot 升级 |
 
 ## 7. 范围偏差
 
@@ -130,45 +145,44 @@ rg -n "outbox|连续 ACK|last_acked_sequence|event_id|sequence|at-least-once|幂
 ## 8. 复检回执
 
 ```text
-任务 ID：WB-002
-状态声明：REVIEW_READY（修订轮 CR-WB002-01~05）
-分支：workbuddy/wb-002-architecture
+任务 ID：WB-002（WB-STREAM-001 CP0 收口）
+状态声明：REVIEW_READY（修订轮 CR-WB002-01~10）
+分支：workbuddy/mvp-core-stream
 初次提交：7902378dc844f1855f93708b14cb25c0c3b16fa4（docs(WB-002): define MVP architecture）
-修订基线：bfa5f5e76270c2eed475faf0293ee3986c360007（Codex 复检合并提交）
-本地 HEAD：修订提交自身（docs(WB-002): harden offline and auth contracts）
-远端 HEAD：以 git ls-remote --heads origin workbuddy/wb-002-architecture 为准
-实际修改文件：docs/ARCHITECTURE.md, docs/project_management/reports/WB-002_REPORT.md（修订仅这两个原文件）
-git diff --check：PASS（修订提交相对修订基线）
+CR-01~05 修订：6251486ce88d841cfc40f23ef4f048ec751b7191（docs(WB-002): harden offline and auth contracts）
+CP0 基线：cd8d2707936d8842c142049b9cf3b4ae07d285b4（WB-STREAM-001 起始）
+本地 HEAD：CP0 修订提交自身（docs(WB-002): close replay and claim contracts）
+远端 HEAD：以 git ls-remote --heads origin workbuddy/mvp-core-stream 为准
+实际修改文件：docs/ARCHITECTURE.md, docs/project_management/reports/WB-002_REPORT.md, docs/project_management/reports/WB-STREAM-001_REPORT.md（CP0 三个允许文件）
+git diff --check：PASS
 12个必需章节：逐项 PASS（§0 证据标签约定 + §1~§12）
-CR-WB002-01~04 修订：逐项落实并验证（见 §2.1 表）
-证据标签检查：152 处命中（ARCH_DECISION 82 / PRODUCT_REQUIRED 29 / UNKNOWN 16 / SOURCE_CONFIRMED 11 / HARDWARE_VERIFY_REQUIRED 9 / DEVICE_LOG_CONFIRMED 4 / USER_EVIDENCE_REQUIRED 1）
-JSON 示例检查：10/10 块 json.loads PASS（新增 /devices/claim、/events/batch 逐事件响应）
+CR-WB002-01~05 修订：已验收通过（Round 2 复检）
+CR-WB002-06~09 修订：逐项落实并验证（见 §2.2 表，含测试向量）
+证据标签检查：157 处命中（ARCH_DECISION 87 / PRODUCT_REQUIRED 29 / UNKNOWN 16 / SOURCE_CONFIRMED 11 / HARDWARE_VERIFY_REQUIRED 9 / DEVICE_LOG_CONFIRMED 4 / USER_EVIDENCE_REQUIRED 1）
+JSON 示例检查：12/12 块 json.loads PASS（新增 /devices/challenge 请求/响应）
 Markdown 链接检查：21/21 本地链接存在（含 ../../项目总规划/AGENTS.md）
 范围偏差：无（未创建源码/新文档；未构建；未连接硬件；未触碰看板/任务包/Codex 文档）
-CR 修订后剩余风险：见本报告 §6.3（outbox 存储实现 / MVP 串行批次吞吐 / 设备密钥存储 / 多家长模型）
+CR 修订后剩余风险：见本报告 §6.3（outbox 存储实现 / MVP 串行批次吞吐 / 设备密钥存储 / 多家长模型 / conflict 人工补偿路径 / challenge 签名算法）
 未决架构选择：后端技术栈最终确认（P1）、激励体系范围（P2）、WSS 是否进 MVP（P3）、OTA 策略（P4）、家长权限模型（P5）
 HARDWARE_VERIFY_REQUIRED：见 ARCHITECTURE.md §12.2（12 项：屏驱/触摸/Flash容量/PSRAM分配/C5/网络通道/分区布局/电池/音频/摄像头/SD/外观SKU）
-建议 Codex 复检重点：
-  1. outbox 原子顺序（7.3.1）与不变量 I8 是否可在 T7 测试中验证
-  2. ACK=连续前缀 + 逐事件结果（5.4/6.3/6.7/7.3）是否彻底消除"跳号被越"与死信误删
-  3. 重启/完成语义（4.3/4.4/4.5/5.2/10.3）是否只有一套可测试语义
-  4. 设备—儿童绑定（6.2/6.3/6.4.1-6.4.3/9.1/10.3）是否覆盖冒充、重放、枚举防护
-  5. /events/batch 唯一入口声明与后端落账路径是否一致（无双重写入）
-  6. §6.3 注册/配对/认证 JSON 是否与 6.4 规则自洽
+建议 Codex 复检重点（CP0）：
+  1. 逐事件处理顺序（5.4）"幂等先于 sequence"是否可唯一驱动 Mock Backend（CP2 必测向量：响应丢失重发→duplicate）
+  2. challenge 两阶段（6.3/6.4.3）请求/响应与防重放规则是否可实现、可测试
+  3. claim 家长信任链（6.4.2）——认证上下文派生 parent_id + child 授权校验 + 通用外部错误
+  4. 损坏快照唯一语义（4.3/4.4/4.5/10.3）——aborted 与 auto_saved 是否只剩一套可测试语义
+  5. §12.1 D11/D12 决策是否与 §5.4/§6.3 自洽
 ```
 
 ## 9. Codex 复检入口（供复核）
 
 ```powershell
-# 修订轮验证
+# CP0 验证（WB-STREAM-001 工作流分支）
 git fetch --prune origin
 git rev-parse origin/main
-git rev-parse origin/workbuddy/wb-002-architecture
-git log --oneline --decorate origin/main..origin/workbuddy/wb-002-architecture
-# 期望：7902378（初次提交）→ bfa5f5e（复检合并）→ <修订提交>
-git diff --check origin/main...origin/workbuddy/wb-002-architecture
-git diff --name-status origin/main...origin/workbuddy/wb-002-architecture
-# 期望：仅 M docs/ARCHITECTURE.md、M docs/project_management/reports/WB-002_REPORT.md
-# 注：修订基线为 bfa5f5e（含 Codex 复检），diff 相对 origin/main 会含复检提交自身的项目管理文件改动，
-#     该部分非本任务交付；本任务交付范围以 修订基线..修订提交 的 diff 为准（仅 2 个原文件）
+git rev-parse origin/workbuddy/mvp-core-stream
+git log --oneline --decorate origin/main..origin/workbuddy/mvp-core-stream
+# 期望：cd8d270（流起始）→ <CP0 提交>
+git diff --check cd8d2707936d8842c142049b9cf3b4ae07d285b4..<CP0 提交>
+git diff --name-status cd8d2707936d8842c142049b9cf3b4ae07d285b4..<CP0 提交>
+# 期望：仅 M docs/ARCHITECTURE.md、M docs/project_management/reports/WB-002_REPORT.md、A docs/project_management/reports/WB-STREAM-001_REPORT.md
 ```

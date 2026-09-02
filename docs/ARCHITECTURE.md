@@ -203,7 +203,7 @@ pending ──▶ ready ──▶ in_progress ──▶ completed
 ```
 
 - 转换规则：`pending→ready` 由后端调度（当日可开始）；`ready→in_progress` 由**用户触发 Start**；`in_progress→completed` 由**用户触发 Complete**（见不变量 I2；Timer 到时/重启恢复均不得自动 completed）。
-- 设备重启：走 4.4 的唯一恢复流程——快照完整 → 恢复同一 `session_id`，UI 提示用户选择"继续"或"结束"；快照损坏 → session 标 `aborted`/`auto_saved` 并生成对应事件，**Task 不得自动 `completed`**。
+- 设备重启：走 4.4 的唯一恢复流程——快照完整 → 恢复同一 `session_id`，UI 提示用户选择"继续"或"结束"（用户显式选择结束/保存时 `completion_type=auto_saved`）；快照损坏/不可恢复 → session **只标 `aborted`** 并生成对应事件。`auto_saved` 与 `aborted` 均**不得自动完成 Task**（不变量 I2）。
 
 ### 4.4 StudySession 生命周期（ARCH_DECISION）
 
@@ -211,12 +211,12 @@ pending ──▶ ready ──▶ in_progress ──▶ completed
 CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
    │                 │
    │                 └──▶ PAUSED ──▶ RUNNING（恢复，pause_count+1）
-   └──▶ ABORTED（快照损坏/不可恢复；可含 auto_saved 落账）
+   └──▶ ABORTED（快照损坏/不可恢复，仅 `aborted`；不产生 auto_saved）
 ```
 
 - **一个 Task 可产生多个 StudySession**（Task ≠ StudySession，不变量 I1）。
 - **状态与完成方式分离**：`status`（`created/running/paused/completed/aborted`）描述 session 生命周期；`completion_type` 描述 session **如何结束**，**不替代** `status`。
-- `completion_type`：`normal`（用户正常结束）/`manual`（用户手动结束）/`auto_saved`（快照完整但用户未显式结束，如重启恢复时保存已累计时长）/`aborted`（快照损坏，仅保留可恢复元数据）。**无 `timeout` 值**：专注段到时（Timer 到 0）仅结束/暂停当前**专注段**并提示用户（session 保持 `RUNNING`/`PAUSED` 待用户决策：继续新专注段或结束），**不得自动**把 session 或 Task 标为 `completed`（不变量 I2）。`parent_confirmed` 为 V1 家长确认，MVP 不实现。
+- `completion_type`：`normal`（用户正常结束）/`manual`（用户手动结束）/`auto_saved`（快照完整、重启恢复同一 session 后**由用户显式选择"保存/结束"**时保留已累计时长）/`aborted`（快照损坏，仅保留可恢复元数据）。**无 `timeout` 值**：专注段到时（Timer 到 0）仅结束/暂停当前**专注段**并提示用户（session 保持 `RUNNING`/`PAUSED` 待用户决策：继续新专注段或结束），**不得自动**把 session 或 Task 标为 `completed`（不变量 I2）。`parent_confirmed` 为 V1 家长确认，MVP 不实现。
 - **对 Task 的影响**：`task.completed` 只由显式孩子操作（未来可含家长）生成；任何 completion_type（含 `auto_saved`/`aborted`）都不自动完成 Task。
 
 ### 4.5 异常路径（ARCH_DECISION）
@@ -346,13 +346,25 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 | 策略 | 规则 |
 | --- | --- |
 | **ACK 定义** | `last_acked_sequence` = **最高连续、已持久化且业务处理成功的 sequence**；**不得**以批次内最大成功序号代替（若 seq 42 成功而 41 失败，ACK 停在 40 及之前的连续前缀） |
-| **幂等** | 后端按 `(device_id, event_id)` 去重；重复投递返回成功语义（逐事件标 `duplicate`），不重复落库 |
+| **逐事件处理顺序（MVP）** | 每个事件按固定顺序处理：① 认证与归属校验（6.4.1，失败 → `403`/`rejected`）→ ② **`(device_id, event_id)` 幂等查重**（已存在 → 走"重复事件处理"分支，**不再**检查 sequence 连续性）→ ③ 仅对**未见过的新事件**执行 `sequence` 连续性检查。此顺序保证"服务端已落库但响应丢失后重发"场景返回 `duplicate` 而非 `rejected` |
+| **幂等** | 后端按 `(device_id, event_id)` 去重：已存在且**关键不可变字段与载荷摘要一致** → 返回成功语义（逐事件标 `duplicate`）并返回**当前连续 ACK**，不重复落库；已存在但 sequence/type/载荷摘要**不同** → 返回 `conflict`（拒绝 + 告警），不得伪装成 `duplicate` |
 | **顺序** | 同设备按 `sequence` 升序处理；断点续传时设备只从 `last_acked_sequence+1` 开始补发（见 7.4） |
-| **服务端事务（MVP）** | MVP 采用**单设备串行批次**：同设备批次按序处理，逐事件校验 `sequence == last_acked+1`；跳号/重复/回退 → 该事件及之后事件返回 `rejected`/`gaps` 且**不推进 ACK**；多批并发由后端按设备串行化（设备级锁），避免交叉乱序 |
+| **服务端事务（MVP）** | MVP 采用**单设备串行批次**：同设备批次按序处理；新事件校验 `sequence == last_acked+1` 才可处理；`sequence` 大于期望值 → 返回 `gap`（不处理其后事件）；`sequence` ≤ ACK 且 `event_id` 未见过 → 返回 `rejected`（回退/冲突），**不推进 ACK**；多批并发由后端按设备串行化（设备级锁），避免交叉乱序 |
 | **投递语义** | at-least-once（`PRODUCT_REQUIRED`）；允许重复，靠幂等收敛 |
-| **重复事件处理** | 已存在 `event_id` → 幂等忽略并计入逐事件 `duplicate` 结果；`sequence` 跳号/回退 → 不自动接受，返回 `rejected`（gap），客户端保留 pending 不删除 |
+| **重复事件处理** | 已存在 `event_id` 且摘要一致 → `duplicate`（含当前连续 ACK）；摘要不一致 → `conflict` 拒绝并告警；新事件 `sequence` 跳号 → `gap`；`sequence` 回退 → `rejected`。客户端保留非 accepted/duplicate 的 pending 事件不删除 |
 | **冲突策略** | Task 采用 `version` 乐观锁：设备提交依赖 `updated_at`/`version` 的变更；版本不符 → `409`，设备丢弃本地编辑并重新拉取（MVP 设备不改 Task，冲突概率低） |
 | **状态覆盖禁令** | 设备不得用"整份服务器 JSON 覆盖本地状态"；Task 缓存更新按 `(task_id, version)` 增量合并，本地运行态（session/计时）不受远端快照影响 |
+
+**可测试示例：服务端落库成功但响应丢失后的重发**（`ARCH_DECISION`，CR-WB002-06）
+
+```text
+1. 设备提交 seq=42（event_id=E1，type=study.session.completed）→ 服务端已持久化并推进 ACK=42，
+   但响应在传输中丢失，设备端仍认为 E1 pending。
+2. 设备以同一 event_id=E1、同一载荷重发 seq=42 → 服务端先做幂等查重：命中已存在记录，
+   且关键字段/载荷摘要一致 → 返回 status=duplicate、last_acked_sequence=42。
+3. 设备按"两条件"规则（status∈{accepted,duplicate} 且 sequence<=ACK）删除 E1，不产生新落库。
+4. 若重发时 event_id=E1 但 payload 被篡改（摘要不同）→ 返回 conflict 并告警，设备保留 pending 待人工/修复处理。
+```
 
 **时间语义**：`timestamp_source=rtc` 才可用于统计；`local` 事件到达后端后由后端补 `server_received_at` 并标记；MVP 不要求设备时钟精确同步即可工作（`PRODUCT_REQUIRED`：断网/未同步也能开始学习）。
 
@@ -371,8 +383,9 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
 | POST | `/devices/register` | 设备注册（首次；服务端签发 device_id，见 6.4） |
-| POST | `/devices/claim` | **家长配对/绑定**：PWA 输入一次性配对码，建立 device ↔ parent/child 绑定（6.4.2） |
-| POST | `/devices/auth` | 设备凭据换取短期访问 token |
+| POST | `/devices/challenge` | **获取一次性 nonce/challenge**（认证第一步，见 6.4.3） |
+| POST | `/devices/claim` | **家长配对/绑定**：已认证家长会话调用，建立 device ↔ parent/child 绑定（6.4.2） |
+| POST | `/devices/auth` | 设备凭据 + challenge 签名换取短期访问 token（两阶段，见 6.4.3） |
 | GET | `/devices/{device_id}/config` | 设备配置（含功能开关） |
 | POST | `/devices/{device_id}/heartbeat` | 心跳 + 状态上报（在线/电量/固件） |
 | GET | `/children/{child_id}/tasks/today` | 今日任务（后端校验 device-token 与 child 绑定） |
@@ -384,7 +397,7 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 
 ### 6.3 最小 JSON 示例（不含真实凭据/儿童数据）
 
-**最小身份流程**（`ARCH_DECISION`，CR-WB002-04）：**注册 → 家长配对/claim → 设备认证 → 短期 token**。设备身份不得仅信任客户端自报字符串；`device_id` 由服务端签发。
+**最小身份流程**（`ARCH_DECISION`，CR-WB002-04/07/08）：**注册 → 家长配对/claim → 设备 challenge → 设备认证 → 短期 token**。设备身份不得仅信任客户端自报字符串；`device_id` 由服务端签发。
 
 **POST /devices/register** 请求（`ARCH_DECISION`；设备提供硬件安装标识，不自报 device_id）
 
@@ -407,27 +420,45 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 }
 ```
 
-**POST /devices/claim** 请求（`ARCH_DECISION`；家长 PWA，携带配对码与儿童）
+**POST /devices/challenge** 请求（`ARCH_DECISION`；设备发起认证第一步，用 device_id 定位）
+
+```json
+{
+  "device_id": "00000000-0000-0000-0000-000000000001"
+}
+```
+
+**POST /devices/challenge** 响应 `200`（`ARCH_DECISION`；一次性 challenge_id + nonce + 过期时间）
+
+```json
+{
+  "challenge_id": "cccccccc-1111-2222-3333-444455556666",
+  "nonce": "8f14e45fceea167a5a36dedd4bea2543",
+  "expires_at": 1756718590
+}
+```
+
+**POST /devices/claim** 请求（`ARCH_DECISION`；**由已认证家长会话/家长 token 调用**，`parent_id` 从服务端认证上下文派生，不接受请求体自报；携带配对码与目标儿童）
 
 ```json
 {
   "pairing_code": "A1B2C3",
-  "child_id": "00000000-0000-0000-0000-000000000003",
-  "parent_id": "00000000-0000-0000-0000-000000000004"
+  "child_id": "00000000-0000-0000-0000-000000000003"
 }
 ```
 
-**POST /devices/auth** 请求（`ARCH_DECISION`；设备用 device_secret 对服务端 nonce challenge 签名，一次性/防重放）
+**POST /devices/auth** 请求（`ARCH_DECISION`；设备用 device_secret 对 challenge 签名，签名绑定 device_id + challenge_id + nonce）
 
 ```json
 {
   "device_id": "00000000-0000-0000-0000-000000000001",
+  "challenge_id": "cccccccc-1111-2222-3333-444455556666",
   "nonce": "8f14e45fceea167a5a36dedd4bea2543",
-  "challenge_signature": "base64(ed25519-sig 或 hmac over nonce)"
+  "challenge_signature": "base64(hmac-sha256(device_secret, device_id|challenge_id|nonce))"
 }
 ```
 
-> nonce 规则见 6.4.3：一次性、短 TTL、服务端防重放；注册/配对失败统一返回通用错误，**不泄露儿童是否存在**。
+> challenge/nonce 规则见 6.4.3：一次性、短 TTL、单次使用、重放返回 401，签名原文/secret/nonce 不得记入日志；注册/配对失败统一返回通用错误，**不泄露儿童是否存在**。
 
 **GET /children/{child_id}/tasks/today**（响应）
 
@@ -520,15 +551,28 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 
 #### 6.4.2 配对/claim 规则（`ARCH_DECISION`）
 
-- 注册响应携带**一次性配对码**（短时效，建议 ≤ 15 分钟）；家长 PWA 在时效内输入配对码与目标儿童完成 `claim`。
+- **`/devices/claim` 必须由已认证家长会话/短期家长 token 调用**；`parent_id` 一律从服务端认证上下文派生，**不接受请求体自报**（CR-WB002-08）。
+- 服务端必须校验目标 `child_id` 属于当前已认证家长的授权范围，才可建立 device ↔ parent ↔ child 绑定；不属于 → 拒绝（通用外部错误，见下）。
+- 注册响应携带**一次性配对码**（短时效，建议 ≤ 15 分钟）；家长在时效内输入配对码与目标儿童完成 `claim`。
 - 配对码：单次有效、短 TTL、防暴力尝试（限速/退避）；`claim` 成功后作废；设备 `device_secret` 仅在注册响应返回一次，设备侧安全存储。
+- **未授权儿童、无效配对码与不存在对象统一返回通用外部错误**（不区分"儿童不存在"/"配对码错误"，**不泄露儿童是否存在**）；服务端内部保留脱敏审计原因。
 - 未配对设备的业务能力：仅可心跳/拉配置；**不得**拉取任务、提交事件（拒绝绑定缺失）。
 
-#### 6.4.3 nonce/challenge 防重放（`ARCH_DECISION`）
+#### 6.4.3 challenge/nonce 防重放（`ARCH_DECISION`，CR-WB002-07）
 
-- 设备认证使用服务端下发的一次性 nonce：单次有效、短 TTL（建议 5 分钟）、过期作废；服务端缓存已用 nonce，重放 → `401`。
-- 签名：`challenge_signature = sign(device_secret, nonce)`（HMAC 或设备私钥签名，MVP 建议 HMAC-SHA256，`ARCH_DECISION`）。
-- **注册/配对失败统一返回通用错误**（不区分"儿童不存在"/"配对码错误"），**不得泄露儿童是否存在**。
+设备认证为**两阶段交互**：
+
+1. **获取 challenge**：`POST /devices/challenge`（请求 `device_id`）→ 响应 `challenge_id` + 一次性 `nonce` + `expires_at`（短 TTL，建议 5 分钟）。
+2. **认证**：`POST /devices/auth` 携带 `device_id`、`challenge_id`、`nonce` 与 `challenge_signature`。
+
+规则：
+
+- **签名绑定**：`challenge_signature = sign(device_secret, device_id | challenge_id | nonce)`（MVP 建议 HMAC-SHA256，`ARCH_DECISION`）；绑定 device_id 与 challenge_id，避免跨设备/跨 challenge 复用。
+- **单次使用**：challenge 只能使用一次；`auth` 成功后**立即作废**；重复使用同一 challenge → `401`。
+- **过期**：`expires_at` 过后 → `401`；设备重新发起 challenge。
+- **防重放**：服务端缓存已用/已过期 challenge_id，重放 → `401`。
+- **日志脱敏**：**不得在日志中记录 nonce、device_secret、challenge_signature 原文**（10.2）。
+- **注册/配对/认证失败统一返回通用错误**（不区分"儿童不存在"/"配对码错误"/"设备不存在"），**不得泄露儿童是否存在**。
 
 ### 6.5 配置与心跳（ARCH_DECISION）
 
@@ -750,9 +794,11 @@ backend/
 | 时间同步失败 | 事件标 `timestamp_source=local`；功能继续；后端按到达时间处理 |
 | 设备重启 | 事件队列持久化恢复（outbox）；快照完整 → 恢复同一 `session_id` 由用户选择继续/结束（`auto_saved`），快照损坏 → `aborted`；**Task 不自动 completed**；启动事件入队 |
 | 后端重启 | 设备侧重试退避；`sync.failed`/`sync.recovered` 为本地可合并诊断（7.3.3），不入业务队列 |
-| 配对码无效/过期 | 返回通用错误（**不泄露儿童是否存在**）；家长重试新配对码；限速防暴力 |
+| 配对码无效/过期 | 已认证家长会话调用；返回通用错误（**不泄露儿童是否存在**）；家长重试新配对码；限速防暴力 |
+| child 不属于当前家长授权范围 | `403` 拒绝（通用外部错误，不泄露儿童存在性）；服务端保留脱敏审计原因（6.4.2） |
+| claim 请求体自报 parent_id | 忽略自报字段，一律以服务端认证上下文派生 parent_id（6.4.2） |
+| challenge 过期/重复使用/重放 | `401` 拒绝；设备重新发起 `POST /devices/challenge` 获取新 challenge（6.4.3） |
 | 事件 child_id 与设备绑定不符 | `403`/`rejected` 并记录；该事件保持 pending，不落库、不推进 ACK（6.4.1） |
-| nonce 重放/过期 | `401` 拒绝；设备重新发起 auth 获取新 nonce |
 
 ### 10.4 可观测性（ARCH_DECISION）
 
@@ -795,6 +841,8 @@ MVP：设备 `telemetry` 只写本地结构化日志（`PRODUCT_REQUIRED`）；�
 | D8 | 官方 DeviceState 枚举保留，学习状态机在其上扩展 | 不破坏官方 BSP 边界 | `SOURCE_CONFIRMED` + `ARCH_DECISION` | 双状态机桥接 | 可逆 |
 | D9 | **`/events/batch` 为设备业务写入唯一入口**；`/study-sessions/{id}/finish` 不属于设备 MVP 接口 | 单一写入路径，避免双重落账；配合 outbox/ACK 可验证（CR-WB002-02/04） | `ARCH_DECISION` | 后端落账收敛 | 可逆 |
 | D10 | **设备—儿童授权绑定**：服务端签发 device_id + 配对/claim + token 声明绑定 + 逐请求/逐事件校验 | 拒绝冒充设备/儿童；注册/配对失败不泄露儿童存在（CR-WB002-04） | `ARCH_DECISION` | 身份链路复杂度前置 | 可逆 |
+| D11 | **幂等查重先于 sequence 连续性检查**：认证/归属校验后先查 `(device_id, event_id)`，新事件才做连续性校验；摘要一致重发返回 `duplicate`+当前 ACK，摘要不一致返回 `conflict` | 消除"响应丢失后重发被误拒"的 at-least-once 反例（CR-WB002-06） | `ARCH_DECISION` | 服务端处理顺序唯一化 | 可逆 |
+| D12 | **设备认证采用两阶段 challenge**：`POST /devices/challenge` 获取一次性 challenge_id+nonce+expires_at，`/devices/auth` 提交绑定 device_id/challenge_id/nonce 的签名 | 提供可实现的 nonce 获取调用与防重放闭环（CR-WB002-07） | `ARCH_DECISION` | 认证链路多一步交互 | 可逆 |
 
 ### 12.2 `HARDWARE_VERIFY_REQUIRED` / `UNKNOWN` 清单（链接现有证据，不复制过期结论）
 
