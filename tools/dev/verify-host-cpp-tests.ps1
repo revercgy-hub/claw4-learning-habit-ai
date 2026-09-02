@@ -158,6 +158,37 @@ if ($violations.Count -eq 0) {
     $global:FAILED = $true
 }
 
+# ---- 4b2) dependency scan for ui presenters (no LVGL/network/hardware/BSP,
+#            no sync/application coupling; ui may only read domain snapshots)
+Write-Log ""
+Write-Log "== 4b2) ui forbidden-include scan =="
+$uiFiles = @()
+if (Test-Path (Join-Path $RepoRoot "firmware\main\ui")) {
+    $uiFiles += Get-ChildItem -Path (Join-Path $RepoRoot "firmware\main\ui") -Filter *.h -Recurse
+    $uiFiles += Get-ChildItem -Path (Join-Path $RepoRoot "firmware\main\ui") -Filter *.cpp -Recurse
+}
+$uiViol = @()
+$ForbiddenUi = @("lvgl", "esp_", "freertos", "driver/", "bsp", "wifi", "nvs", "hal",
+                 "sync", "application", "assistant/", "telemetry/")
+foreach ($f in $uiFiles) {
+    $content = Get-Content -Raw $f.FullName
+    foreach ($inc in [regex]::Matches($content, '#\s*include\s*[<"]([^>"]+)')) {
+        $header = $inc.Groups[1].Value.ToLowerInvariant()
+        foreach ($tok in $ForbiddenUi) {
+            if ($header -like "*$tok*") {
+                $uiViol += "$($f.Name): forbidden include <$($inc.Groups[1].Value)>"
+            }
+        }
+    }
+}
+if ($uiViol.Count -eq 0) {
+    Write-Log "ui scan : PASS (no forbidden includes in ui)"
+} else {
+    Write-Log "ui scan : FAIL"
+    $uiViol | ForEach-Object { Write-Log "  $_" }
+    $global:FAILED = $true
+}
+
 # ---- 4c) native unit tests under firmware/tests/unit (compile + link + run)
 Write-Log ""
 Write-Log "== 4c) native unit tests (firmware/tests/unit) =="
@@ -170,7 +201,8 @@ if (Test-Path $unitRoot) {
     $implRoots = @(
         (Join-Path $RepoRoot "firmware\main\learning_domain"),
         (Join-Path $RepoRoot "firmware\main\sync"),
-        (Join-Path $RepoRoot "firmware\main\application")
+        (Join-Path $RepoRoot "firmware\main\application"),
+        (Join-Path $RepoRoot "firmware\main\ui")
     )
     $implSrcs = @()
     foreach ($root in $implRoots) {
