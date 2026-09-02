@@ -5,10 +5,7 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
-
 #include "learning_domain/domain_state.h"
-#include "learning_domain/task.h"
 
 namespace claw4 {
 namespace ui {
@@ -26,8 +23,7 @@ enum class Screen : uint8_t {
 // mutate business truth.
 struct ViewState {
   Screen screen = Screen::Home;
-  claw4::domain::DomainState domain;       // read-only domain snapshot
-  std::vector<claw4::domain::Task> today_tasks;  // cached today tasks
+  claw4::domain::DomainState domain;  // includes the cached task snapshots
 };
 
 }  // namespace ui

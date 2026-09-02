@@ -15,12 +15,15 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
+import time
 
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app import security
+import app.main as main_mod
 
 client = TestClient(app)
 
@@ -183,6 +186,38 @@ def test_auth_wrong_signature_rejected():
         "challenge_signature": "YmFkIHNpZ25hdHVyZQ==",
     })
     assert resp.status_code == 401
+    # A bad signature must not consume the challenge. Architecture §6.4.3
+    # says it is invalidated after successful auth; a correct retry can win.
+    sig = security.sign_challenge(reg["device_secret"], reg["device_id"],
+                                  ch["challenge_id"], ch["nonce"])
+    retry = client.post("/api/v1/devices/auth", json={
+        "device_id": reg["device_id"],
+        "challenge_id": ch["challenge_id"],
+        "nonce": ch["nonce"],
+        "challenge_signature": sig,
+    })
+    assert retry.status_code == 200
+
+
+def test_concurrent_challenge_replay_has_exactly_one_winner():
+    reg = _register_device()
+    ch = _challenge(reg["device_id"])
+    sig = security.sign_challenge(reg["device_secret"], reg["device_id"],
+                                  ch["challenge_id"], ch["nonce"])
+    body = {
+        "device_id": reg["device_id"],
+        "challenge_id": ch["challenge_id"],
+        "nonce": ch["nonce"],
+        "challenge_signature": sig,
+    }
+
+    def authenticate(_: int) -> int:
+        local_client = TestClient(app)
+        return local_client.post("/api/v1/devices/auth", json=body).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        statuses = sorted(pool.map(authenticate, range(2)))
+    assert statuses == [200, 401]
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +306,41 @@ def test_event_child_not_bound_is_rejected_per_event():
     body = _batch(reg["device_id"], token, 0, events)
     assert body["results"][0]["status"] == "rejected"
     assert body["last_acked_sequence"] == 0
+
+
+def test_event_device_id_must_match_batch_and_token():
+    reg = _register_device()
+    _pair(reg["device_id"], reg["pairing_code"], CHILD1)
+    token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
+    ev = _event(1, "ev-wrong-device")
+    ev["device_id"] = "forged-device-id"
+    resp = client.post(
+        "/api/v1/events/batch",
+        json={"device_id": reg["device_id"], "last_acked_sequence": 0,
+              "events": [ev]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["results"][0]["status"] == "rejected"
+    assert body["results"][0]["http_status"] == 403
+    assert body["last_acked_sequence"] == 0
+
+
+def test_current_server_binding_is_revalidated_after_token_issue():
+    reg = _register_device()
+    _pair(reg["device_id"], reg["pairing_code"], CHILD1)
+    token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
+    assert main_mod.store.revoke_child_binding(reg["device_id"], CHILD1)
+
+    tasks = client.get(
+        f"/api/v1/children/{CHILD1}/tasks/today",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert tasks.status_code == 403
+    event = _batch(reg["device_id"], token, 0, [_event(1, "ev-revoked-child")])
+    assert event["results"][0]["status"] == "rejected"
+    assert event["last_acked_sequence"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -390,6 +460,68 @@ def test_batch_conflict_does_not_advance_past_conflict():
     # 3 > 1+1=2 -> gap.
     assert statuses[1] == "gap"
     assert body["last_acked_sequence"] == 1
+
+
+def test_invalid_event_semantics_do_not_advance_ack():
+    reg = _register_device()
+    _pair(reg["device_id"], reg["pairing_code"], CHILD1)
+    token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
+    ev = _event(1, "ev-invalid-type")
+    ev["type"] = "unrecognized.business.event"
+    body = _batch(reg["device_id"], token, 0, [ev])
+    assert body["results"][0]["status"] == "rejected"
+    assert body["results"][0]["http_status"] == 422
+    assert body["last_acked_sequence"] == 0
+
+
+def test_replay_with_changed_immutable_envelope_is_not_duplicate():
+    reg = _register_device()
+    _pair(reg["device_id"], reg["pairing_code"], CHILD1)
+    token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
+    original = _event(1, "ev-envelope-conflict")
+    assert _batch(reg["device_id"], token, 0, [original])["results"][0]["status"] == "accepted"
+
+    changed = _event(1, "ev-envelope-conflict")
+    changed["timestamp"] += 1
+    replay = _batch(reg["device_id"], token, 1, [changed])
+    assert replay["results"][0]["status"] == "conflict"
+    assert replay["last_acked_sequence"] == 1
+
+
+def test_concurrent_same_sequence_batches_are_serialized(monkeypatch):
+    reg = _register_device()
+    _pair(reg["device_id"], reg["pairing_code"], CHILD1)
+    token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
+
+    original_store_event = main_mod.store.store_event
+
+    def slow_store_event(*args, **kwargs):
+        # Opens a deterministic race window if the route loses the required
+        # per-device batch lock.
+        time.sleep(0.05)
+        return original_store_event(*args, **kwargs)
+
+    monkeypatch.setattr(main_mod.store, "store_event", slow_store_event)
+
+    def submit(event_id: str) -> dict:
+        local_client = TestClient(app)
+        event = _event(1, event_id)
+        event["device_id"] = reg["device_id"]
+        response = local_client.post(
+            "/api/v1/events/batch",
+            json={"device_id": reg["device_id"], "last_acked_sequence": 0,
+                  "events": [event]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        return response.json()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(submit, ["ev-race-a", "ev-race-b"]))
+
+    outcomes = sorted(body["results"][0]["status"] for body in responses)
+    assert outcomes == ["accepted", "rejected"]
+    assert all(body["last_acked_sequence"] == 1 for body in responses)
 
 
 # ---------------------------------------------------------------------------

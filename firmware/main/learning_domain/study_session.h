@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "learning_domain/ids.h"
 #include "learning_domain/task.h"
@@ -44,7 +45,9 @@ struct StudySession {
   int pause_count = 0;
   int64_t pause_seconds = 0;
   SessionStatus status = SessionStatus::Created;
-  CompletionType completion_type = CompletionType::Normal;
+  // Empty while the session is Created/Running/Paused; populated only when
+  // the session reaches Completed/Aborted.
+  std::optional<CompletionType> completion_type;
 };
 
 }  // namespace domain

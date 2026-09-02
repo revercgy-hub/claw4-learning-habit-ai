@@ -95,10 +95,7 @@ def decode_device_token(token: str) -> dict:
 
 def parent_token_ok(parent_token: str, store: Store) -> str | None:
     """Resolves a parent bearer token to a parent_id, or None (mock auth)."""
-    for parent in store.parents.values():
-        if hmac.compare_digest(parent.token, parent_token):
-            return parent.parent_id
-    return None
+    return store.parent_id_for_token(parent_token)
 
 
 def generate_nonce() -> str:

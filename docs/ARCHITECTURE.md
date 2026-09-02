@@ -313,7 +313,7 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 
 - `status`：`created/running/paused/completed/aborted`——描述 session 生命周期；`completion_type` 是另一维度（如何结束），**不替代** `status`。
 - `actual_seconds`：**由设备单调时钟累计**（不含暂停时间）；`pause_seconds` 由暂停段累计。
-- `completion_type`：`normal/manual/auto_saved/aborted`（**无 `timeout`**；专注段到时仅结束/暂停专注段并提示用户，见 4.4/4.5）；`parent_confirmed` 为 V1，MVP 不含。
+- `completion_type`：仅在 `status ∈ {completed, aborted}` 时设置；`created/running/paused` 阶段必须为 `null` 或省略。取值为 `normal/manual/auto_saved/aborted`（**无 `timeout`**；专注段到时仅结束/暂停专注段并提示用户，见 4.4/4.5）；`parent_confirmed` 为 V1，MVP 不含。
 
 ### 5.3 统一 Event envelope（`ARCH_DECISION`）
 
@@ -346,7 +346,7 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 | 策略 | 规则 |
 | --- | --- |
 | **ACK 定义** | `last_acked_sequence` = **最高连续、已持久化且业务处理成功的 sequence**；**不得**以批次内最大成功序号代替（若 seq 42 成功而 41 失败，ACK 停在 40 及之前的连续前缀） |
-| **逐事件处理顺序（MVP）** | 每个事件按固定顺序处理：① 认证与归属校验（6.4.1，失败 → `403`/`rejected`）→ ② **`(device_id, event_id)` 幂等查重**（已存在 → 走"重复事件处理"分支，**不再**检查 sequence 连续性）→ ③ 仅对**未见过的新事件**执行 `sequence` 连续性检查。此顺序保证"服务端已落库但响应丢失后重发"场景返回 `duplicate` 而非 `rejected` |
+| **逐事件处理顺序（MVP）** | 每个事件按固定顺序处理：① 认证、设备/儿童归属与事件 envelope 语义校验（6.4.1；`device_id/type/version/timestamp_source/sequence` 非法则拒绝，且不推进 ACK）→ ② **`(device_id, event_id)` 幂等查重**（已存在 → 走"重复事件处理"分支，**不再**检查 sequence 连续性）→ ③ 仅对**未见过的新事件**执行 `sequence` 连续性检查。此顺序保证"服务端已落库但响应丢失后重发"场景返回 `duplicate` 而非 `rejected` |
 | **幂等** | 后端按 `(device_id, event_id)` 去重：已存在且**关键不可变字段与载荷摘要一致** → 返回成功语义（逐事件标 `duplicate`）并返回**当前连续 ACK**，不重复落库；已存在但 sequence/type/载荷摘要**不同** → 返回 `conflict`（拒绝 + 告警），不得伪装成 `duplicate` |
 | **顺序** | 同设备按 `sequence` 升序处理；断点续传时设备只从 `last_acked_sequence+1` 开始补发（见 7.4） |
 | **服务端事务（MVP）** | MVP 采用**单设备串行批次**：同设备批次按序处理；新事件校验 `sequence == last_acked+1` 才可处理；`sequence` 大于期望值 → 返回 `gap`（不处理其后事件）；`sequence` ≤ ACK 且 `event_id` 未见过 → 返回 `rejected`（回退/冲突），**不推进 ACK**；多批并发由后端按设备串行化（设备级锁），避免交叉乱序 |
@@ -527,7 +527,7 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 }
 ```
 
-- `results[]`：**逐事件结果**（`accepted`/`duplicate`/`rejected`）；`rejected`/`gaps` 可并入 `results` 或独立列出。
+- `results[]`：**逐事件结果**（`accepted`/`duplicate`/`conflict`/`rejected`/`gap`）；`rejected`/`gaps` 可并入 `results` 或独立列出。
 - 客户端**只删除**同时满足 ① `status ∈ {accepted, duplicate}` 且 ② `sequence <= last_acked_sequence` 的 pending 事件；`rejected`、落在 gap 之后的事件一律保留，等待修复重放（同一 `event_id`）或人工补偿（7.3.3）。
 
 ### 6.4 安全传输与凭据（PRODUCT_REQUIRED + ARCH_DECISION）
@@ -544,8 +544,9 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 #### 6.4.1 设备—儿童绑定与逐请求校验（`ARCH_DECISION`）
 
 - 绑定关系：`device ↔ parent ↔ child`（MVP 单家长、单设备可绑定一个或多个儿童；多家长细节待定，见 12.3 P5）。
-- token/服务端会话**必须**携带允许的 `device_id` + `child_id` 集合；后端对**每个请求**（任务查询、事件、心跳）重新校验绑定：
-  - 请求路径/载荷中的 `child_id` 必须 ∈ token 绑定集合，否则 `403`（拒绝冒充其他设备/儿童）；
+- token/服务端会话**必须**携带允许的 `device_id` + `child_id` 集合；后端对**每个请求**（任务查询、事件、心跳）重新校验绑定。token 中的儿童集合只是签发时快照，必须与当前服务端绑定取交集；解绑后的旧 token 不得继续访问：
+  - 请求路径/批次载荷中的 `device_id` 必须等于 token 的 `device_id`；`/events/batch` 内**每个事件**的 `device_id` 也必须逐一相等，否则拒绝且不推进 ACK；
+  - 请求路径/载荷中的 `child_id` 必须同时属于 token 声明和当前服务端绑定，否则 `403`（拒绝冒充其他设备/儿童）；
   - `/events/batch` 中**每个事件**的 `child_id` 逐一校验；绑定不符的事件返回 `rejected` 且保持 pending（7.3.3）。
 - 设备缓存的最小儿童子集（`child_id` 等）只来自服务端下发的绑定结果，不接受客户端自报。
 
@@ -806,22 +807,22 @@ MVP：设备 `telemetry` 只写本地结构化日志（`PRODUCT_REQUIRED`）；�
 
 ---
 
-## 11. 分阶段实施图（HOLD 状态，等待 G2/G3）
+## 11. 分阶段实施图（主机侧条件开放，真机侧等待 G2/G3）
 
-> 以下任务全部 `HOLD`（`AGENTS.md` 门禁：Bring-up Stage 1 未验收前，学习业务代码保持 HOLD）。**本文档不自动授权编码**；每项需 Codex 单独任务包 + READY。
+> 根据 2026-09-02 用户授权与根 `AGENTS.md`，纯主机接口、领域契约、Mock Backend 和自动化测试可在隔离工作流分支提前实施；真机耦合、官方固件集成、设备 LVGL 页面和发布构建仍 `HOLD`。**本文档不自动授权编码**；每项仍需 Codex 工作流任务包明确授权。
 
 | # | 任务 | 输入 | 允许路径建议 | 测试类型 | 依赖 | 停止条件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T1 | 接口骨架 | 本文 §3/§4/§5 | `main/learning_domain`、`main/sync`、`main/ui`、`main/assistant`、`main/telemetry` 头文件 | 编译期接口契约检查 | G2/G3 门禁 | 任一接口承诺"已实现" |
+| T1 | 接口骨架 | 本文 §3/§4/§5 | `main/learning_domain`、`main/sync`、`main/ui`、`main/assistant`、`main/telemetry` 头文件 | 编译期接口契约检查 | 主机侧条件开放 | 任一接口承诺硬件已实现 |
 | T2 | 领域模型 | 本文 §4/§5 | `learning_domain` 实现 | 单元测试（状态机/不变量/异常路径） | T1 | 业务层出现 LVGL/Wi-Fi/GPIO 依赖 |
-| T3 | Mock Backend | 本文 §5/§6 | `backend/`（FastAPI 桩）+ 内存/文件存储 | API 契约测试 | T2（或并行） | 引入真实数据库迁移 |
+| T3 | Mock Backend | 本文 §5/§6 | `backend/`（FastAPI 桩）+ 内存/文件存储 | API 契约测试 | 可与 T2 并行 | 引入真实数据库迁移 |
 | T4 | Home 页面 | Mock 今日任务 | `ui/home` | 组件测试 + LVGL 人工检查 | T3 | UI 直接写服务器 |
 | T5 | Focus 页面 | 领域 Timer | `ui/focus` | 状态驱动测试 | T2 | UI 绕过状态机 |
 | T6 | 事件链路 | 本文 §5.3 | `sync` + `ui` intent | 事件/幂等/顺序测试 | T2 | 事件可丢 |
 | T7 | 离线队列 | 本文 §7 | `sync/offline_store` | 掉电恢复/容量/死信测试 | T2+T3 | 队列违背 at-least-once |
 | T8 | 真机接入（G2 后） | WB-BRINGUP-S1 证据 | 官方 BSP 集成点 | 实机验证 | G2/G3 | 未经用户授权的刷写 |
 
-每项输入均需 Codex 任务包明确 `READY` 才可开始；完成顺序可并行化部分（T3 与 T2 可并行，`ARCH_DECISION`）。
+每项输入均需 Codex 工作流任务包明确授权才可开始；已完成 checkpoint 仍须 Codex 复检后方可进入 `main`。T3 与 T2 可并行（`ARCH_DECISION`）。
 
 ---
 

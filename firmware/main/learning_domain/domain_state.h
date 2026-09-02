@@ -6,9 +6,11 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "learning_domain/ids.h"
 #include "learning_domain/study_session.h"
+#include "learning_domain/task.h"
 
 namespace claw4 {
 namespace domain {
@@ -33,6 +35,9 @@ enum class DeviceState : uint8_t {
 // (ARCHITECTURE.md §3.5 / I4).
 struct DomainState {
   DeviceState device_state = DeviceState::Booting;
+  // Device-side cache whose status changes participate in the same outbox
+  // transition as the emitted business events.
+  std::vector<Task> tasks;
   // Present when a session is active or was recovered after reboot.
   std::optional<StudySession> active_session;
   int pending_event_count = 0;  // events waiting for sync

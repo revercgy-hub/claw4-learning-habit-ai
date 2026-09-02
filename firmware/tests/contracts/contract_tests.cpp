@@ -41,6 +41,8 @@ static_assert(static_cast<int>(CompletionType::AutoSaved) == 2);
 static_assert(static_cast<int>(CompletionType::Aborted) == 3);
 // No Timeout in completion_type (CR-WB002-03/09): the enum has exactly 4 values.
 static_assert(static_cast<int>(CompletionType::Aborted) + 1 == 4);
+static_assert(std::is_same_v<decltype(StudySession::completion_type),
+                             std::optional<CompletionType>>);
 
 static_assert(static_cast<int>(EventType::StudySessionCompleted) == 9);
 static_assert(static_cast<int>(EventType::SyncFailed) == 10);
@@ -105,7 +107,7 @@ class MockTimerService final : public TimerService {
 
 class MockEventSink final : public EventSink {
  public:
-  bool persist(const DeviceEvent&) override { return true; }
+  bool persistTransition(const PendingTransition&) override { return true; }
 };
 
 class MockSyncClient final : public SyncClient {

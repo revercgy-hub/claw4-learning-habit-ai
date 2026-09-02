@@ -70,6 +70,19 @@ store.seed(
 
 API_V1 = "/api/v1"
 
+MVP_EVENT_TYPES = {
+    "device.booted",
+    "device.online",
+    "device.offline",
+    "task.started",
+    "task.paused",
+    "task.resumed",
+    "task.completed",
+    "task.skipped",
+    "study.session.started",
+    "study.session.completed",
+}
+
 
 def _now() -> int:
     return int(time.time())
@@ -144,15 +157,17 @@ def auth(req: AuthRequest) -> AuthResponse:
     dev = store.get_device(req.device_id)
     if dev is None:
         raise HTTPException(status_code=401, detail="unauthorized")
-    ch = store.consume_challenge(req.challenge_id)
-    if ch is None or ch.device_id != req.device_id:
+    ch = store.get_active_challenge(req.challenge_id, req.device_id, req.nonce)
+    if ch is None:
         # Expired / already used / not for this device.
-        raise HTTPException(status_code=401, detail="unauthorized")
-    if req.nonce != ch.nonce:
         raise HTTPException(status_code=401, detail="unauthorized")
     if not security.verify_challenge_signature(
             dev.device_secret, req.device_id, req.challenge_id, req.nonce,
             req.challenge_signature):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    # Consume only after signature verification. The atomic consume makes two
+    # concurrent valid replays race safely: exactly one succeeds.
+    if store.consume_challenge(req.challenge_id, req.device_id, req.nonce) is None:
         raise HTTPException(status_code=401, detail="unauthorized")
     token = security.issue_device_token(dev.device_id, store.child_ids_of(dev.device_id))
     logger.info("device authed: device_id=%s", dev.device_id)
@@ -190,9 +205,11 @@ def tasks_today(child_id: str,
                 authorization: str | None = Header(default=None)) -> TodayTasksResponse:
     """Today's tasks. The token's device/child binding is enforced (CR-WB002-04)."""
     claims = _auth_device(authorization)
-    if child_id not in claims.get("child_ids", []):
+    device_id = claims.get("sub")
+    current_bindings = set(store.child_ids_of(device_id))
+    if child_id not in claims.get("child_ids", []) or child_id not in current_bindings:
         raise HTTPException(status_code=403, detail="forbidden")
-    tasks = store.tasks_by_child.get(child_id, [])
+    tasks = store.tasks_for_child(child_id)
     return TodayTasksResponse(
         date="2026-09-02",
         tasks=[TaskOut(**t) for t in tasks],
@@ -218,75 +235,100 @@ def events_batch(req: EventsBatchRequest,
     if claims.get("sub") != req.device_id:
         # Token belongs to a different device: impersonation attempt.
         raise HTTPException(status_code=403, detail="forbidden")
-    dev = store.get_device(req.device_id)
-    if dev is None:
-        raise HTTPException(status_code=404, detail="not_found")
+    # The architecture requires complete batches for one device to be
+    # serialized. FastAPI sync handlers run in a thread pool, so an explicit
+    # per-device lock is required even for this in-memory mock.
+    with store.device_batch_lock(req.device_id):
+        dev = store.get_device(req.device_id)
+        if dev is None:
+            raise HTTPException(status_code=404, detail="not_found")
 
-    allowed_children = set(claims.get("child_ids", []))
-    results: list[EventResult] = []
-    rejected_meta: list[dict] = []
-    gap_meta: list[dict] = []
-    accepted = 0
-    duplicates = 0
+        # Token claims are a signed snapshot, but current server-side bindings
+        # remain authoritative and are revalidated on every request/event.
+        allowed_children = set(claims.get("child_ids", [])) & set(
+            store.child_ids_of(req.device_id)
+        )
+        results: list[EventResult] = []
+        rejected_meta: list[dict] = []
+        gap_meta: list[dict] = []
+        accepted = 0
+        duplicates = 0
 
-    for ev in req.events:
-        # (a) binding check per event (CR-WB002-04).
-        if ev.child_id not in allowed_children:
-            rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
-                                  "status": "rejected", "reason": "child_not_bound"})
-            results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
-                                       status="rejected", http_status=403))
-            continue
-        digest = store.compute_digest(req.device_id, ev.event_id, ev.sequence,
-                                      ev.type, ev.payload)
-        existing = store.lookup_event(req.device_id, ev.event_id)
-        if existing is not None:
-            # (b) idempotency first (CR-WB002-06).
-            if existing.payload_digest == digest and existing.sequence == ev.sequence \
-                    and existing.type == ev.type:
-                duplicates += 1
-                results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
-                                           status="duplicate",
-                                           http_status=200))
-            else:
-                # Same event_id, different sequence/type/payload -> conflict.
+        for ev in req.events:
+            # (a) binding check per event (CR-WB002-04). Both envelope device_id
+            # and child_id are untrusted input and must match current bindings.
+            if ev.device_id != req.device_id:
                 rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
-                                      "status": "conflict",
-                                      "reason": "event_id_reused_with_different_payload"})
+                                      "status": "rejected", "reason": "device_not_bound"})
                 results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
-                                           status="conflict", http_status=409))
-            continue
-        # (c) sequence continuity for new events only.
-        expected = dev.last_acked_sequence + 1
-        if ev.sequence == expected:
-            store.store_event(dev, ev.event_id, ev.child_id, ev.sequence, ev.type, digest)
-            dev.last_acked_sequence = ev.sequence
-            accepted += 1
-            results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
-                                       status="accepted", http_status=200))
-        elif ev.sequence > expected:
-            gap_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
-                             "status": "gap", "expected": expected})
-            results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
-                                       status="gap", http_status=409))
-        else:  # ev.sequence <= dev.last_acked_sequence and never seen
-            rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
-                                  "status": "rejected", "reason": "sequence_regression"})
-            results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
-                                       status="rejected", http_status=409))
+                                           status="rejected", http_status=403))
+                continue
+            if ev.child_id not in allowed_children:
+                rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
+                                      "status": "rejected", "reason": "child_not_bound"})
+                results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                           status="rejected", http_status=403))
+                continue
+            # (b) reject malformed new/replayed envelopes before idempotency
+            # success can be granted. An invalid replay never advances ACK.
+            if ev.type not in MVP_EVENT_TYPES or ev.version != 1 \
+                    or ev.timestamp_source not in {"rtc", "local"} or ev.sequence <= 0:
+                rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
+                                      "status": "rejected", "reason": "invalid_event"})
+                results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                           status="rejected", http_status=422))
+                continue
+            digest = store.compute_digest(
+                req.device_id, ev.event_id, ev.child_id, ev.sequence, ev.timestamp,
+                ev.timestamp_source, ev.type, ev.version, ev.payload
+            )
+            existing = store.lookup_event(req.device_id, ev.event_id)
+            if existing is not None:
+                # (c) idempotency before sequence continuity (CR-WB002-06).
+                if existing.payload_digest == digest and existing.sequence == ev.sequence \
+                        and existing.type == ev.type:
+                    duplicates += 1
+                    results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                               status="duplicate", http_status=200))
+                else:
+                    # Same event_id, different sequence/type/payload -> conflict.
+                    rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
+                                          "status": "conflict",
+                                          "reason": "event_id_reused_with_different_payload"})
+                    results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                               status="conflict", http_status=409))
+                continue
+            # (d) sequence continuity for new, semantically valid events only.
+            expected = dev.last_acked_sequence + 1
+            if ev.sequence == expected:
+                store.store_event(dev, ev.event_id, ev.child_id, ev.sequence, ev.type, digest)
+                dev.last_acked_sequence = ev.sequence
+                accepted += 1
+                results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                           status="accepted", http_status=200))
+            elif ev.sequence > expected:
+                gap_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
+                                 "status": "gap", "expected": expected})
+                results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                           status="gap", http_status=409))
+            else:  # ev.sequence <= dev.last_acked_sequence and never seen
+                rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
+                                      "status": "rejected", "reason": "sequence_regression"})
+                results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                           status="rejected", http_status=409))
 
-    logger.info("batch: device_id=%s accepted=%d duplicates=%d rejected=%d gaps=%d ack=%d",
-                req.device_id, accepted, duplicates, len(rejected_meta), len(gap_meta),
-                dev.last_acked_sequence)
-    return EventsBatchResponse(
-        last_acked_sequence=dev.last_acked_sequence,
-        server_time=_now(),
-        results=results,
-        accepted=accepted,
-        duplicates=duplicates,
-        rejected=rejected_meta,
-        gaps=gap_meta,
-    )
+        logger.info("batch: device_id=%s accepted=%d duplicates=%d rejected=%d gaps=%d ack=%d",
+                    req.device_id, accepted, duplicates, len(rejected_meta), len(gap_meta),
+                    dev.last_acked_sequence)
+        return EventsBatchResponse(
+            last_acked_sequence=dev.last_acked_sequence,
+            server_time=_now(),
+            results=results,
+            accepted=accepted,
+            duplicates=duplicates,
+            rejected=rejected_meta,
+            gaps=gap_meta,
+        )
 
 
 @app.exception_handler(Exception)
