@@ -13,8 +13,8 @@
 | Checkpoint | 状态 | 提交 | 验证摘要 |
 | --- | --- | --- | --- |
 | CP0 架构契约收口（CR-WB002-06~10） | `CHECKPOINT_READY` | `72b77ee9cd328bccf27fecbdf32194ab12505e00`（`docs(WB-002): close replay and claim contracts`） | JSON 12/12、链接 21/21、章节 13、标签 157、旧语义零残留、`git diff --check` PASS |
-| CP1 设备侧接口骨架 | `CHECKPOINT_READY` | `feat(WB-STREAM-001): add MVP interface contracts`（本提交自身） | 依赖扫描 7 头零硬件依赖、16/16 头 `-fsyntax-only` PASS、契约测试 1/1 PASS（P4 交叉编译器） |
-| CP2 FastAPI Mock Backend | `QUEUED` | — | — |
+| CP1 设备侧接口骨架 | `CHECKPOINT_READY` | `a38dfad3b5d307e734af0b82999151c7878092ef`（`feat(WB-STREAM-001): add MVP interface contracts`） | 依赖扫描 7 头零硬件依赖、16/16 头 `-fsyntax-only` PASS、契约测试 1/1 PASS（P4 交叉编译器） |
+| CP2 FastAPI Mock Backend | `CHECKPOINT_READY` | `feat(WB-STREAM-001): add contract mock backend`（本提交自身） | **pytest 22/22 PASS**、`git diff --check` PASS、仅绑定 127.0.0.1 |
 
 ## 2. CP0：架构契约收口（CR-WB002-06~10）
 
@@ -145,7 +145,7 @@ git diff --name-status  # 仅允许路径
 
 ### 3.5 CP1 结论
 
-CP1 完成并推送，进入 CP2。CP1 精确 hash 将在 CP2 报告更新时回填（本提交自身无法自引用）。
+CP1 完成并推送（`a38dfad3b5d307e734af0b82999151c7878092ef`），进入 CP2。
 
 ## 4. 建议 Codex 复检重点（CP1）
 
@@ -153,3 +153,75 @@ CP1 完成并推送，进入 CP2。CP1 精确 hash 将在 CP2 报告更新时回
 2. sync 契约（BatchSyncResult 连续 ACK + 逐事件结果）是否与 ARCHITECTURE.md §5.4/§6.3 一致，可供 CP2 Mock 直接实现。
 3. contract_tests.cpp 的契约锚点（枚举值/接口抽象性）是否覆盖足够。
 4. verify-interface-contracts.ps1 的 `-CompilerPath` 参数化与 `out/` 输出是否符合后续 CI/其他主机复用。
+
+## 5. CP2：FastAPI Mock Backend
+
+### 5.1 修改文件（CP2）
+
+- `backend/requirements.txt`（新建，锁定依赖）
+- `backend/app/__init__.py`、`backend/app/main.py`（FastAPI 路由 + 逐事件处理）、`backend/app/schemas.py`（Pydantic 契约）、`backend/app/security.py`（HMAC/签名 token/两阶段 challenge）、`backend/app/store.py`（内存存储）
+- `backend/tests/__init__.py`、`backend/tests/test_mock_backend.py`（22 项 pytest 契约测试）
+- `docs/project_management/reports/WB-STREAM-001_REPORT.md`（修改，回填 CP1 hash + 本段）
+
+**仅上述允许路径**。`.venv`、`__pycache__`、`.pytest_cache` 均由 `.gitignore` 忽略，未提交。
+
+### 5.2 端点与实现要点
+
+| 端点 | 行为 |
+| --- | --- |
+| `POST /api/v1/devices/register` | **服务端签发** device_id + device_secret + 一次性 pairing_code；日志只记 device_id/model/fw，**不记 secret** |
+| `POST /api/v1/devices/challenge` | 两阶段认证第一步：一次性 challenge_id + nonce + expires_at（CR-WB002-07） |
+| `POST /api/v1/devices/auth` | 第二步：HMAC-SHA256 签名绑定 device_id/challenge_id/nonce；challenge 单次使用/过期/跨设备 → 401；签发含 device/child 绑定的短期 token |
+| `POST /api/v1/devices/claim` | 已认证家长 token 调用；**parent_id 由认证上下文派生**（请求体无此字段，自报被忽略）；child 必须属于家长授权范围，否则通用错误（CR-WB002-08） |
+| `GET /api/v1/children/{child_id}/tasks/today` | token 的 device/child 绑定校验；未绑定 child → 403 |
+| `POST /api/v1/events/batch` | 设备写入唯一入口；**逐事件顺序：认证/归属 → 幂等查重 → 连续性**（CR-WB002-06）：摘要一致重发→duplicate+当前 ACK；同 ID 不同载荷→conflict；新事件 seq==ACK+1→accepted；>期望→gap；≤ACK 未见过→rejected；gap/失败不推进 ACK |
+| `GET /health` | 状态探针 |
+
+**测试与运行只绑定 `127.0.0.1`**：TestClient 进程内；手工运行 `uvicorn app.main:app --host 127.0.0.1`（不启动公网监听）。
+
+### 5.3 验证命令与结果（CP2）
+
+```bash
+# 项目局部 venv（不污染 ESP-IDF/系统 Python）
+python -m venv backend/.venv
+backend/.venv/Scripts/pip install -r backend/requirements.txt
+
+# 全部契约测试
+cd backend && ./.venv/Scripts/python.exe -m pytest tests/ -v
+# 结果：22 passed in 0.90s（22/22 PASS）
+```
+
+**测试覆盖（任务包 §6 必测场景 8 项全映射）**：
+
+| 必测场景 | 对应测试 | 结果 |
+| --- | --- | --- |
+| 1 register 签发 device_id、日志不泄露 secret | `test_register_issues_device_id_and_secret_not_logged` / `test_register_installation_id_is_unique_each_time` | PASS |
+| 2 challenge 过期/复用/跨设备被拒 | `test_challenge_expired_rejected` / `test_challenge_reuse_rejected` / `test_challenge_cross_device_rejected` / `test_auth_wrong_signature_rejected` | PASS |
+| 3 claim 不自报 parent_id、child 越权通用错误 | `test_claim_ignores_self_reported_parent_id` / `test_claim_child_not_in_parent_scope_generic_error` / `test_claim_invalid_pairing_code_generic_error` / `test_claim_without_parent_session_unauthorized` | PASS |
+| 4 token device/child 绑定对任务与逐事件生效 | `test_tasks_today_enforces_token_child_binding` / `test_tasks_today_requires_token` / `test_event_child_not_bound_is_rejected_per_event` | PASS |
+| 5 seq 42 成功响应丢失后同 event_id 重发 → duplicate+ACK | `test_duplicate_after_lost_response` | PASS |
+| 6 同 event_id 不同载荷被拒且不重复落账 | `test_conflict_same_event_id_different_payload` / `test_conflict_same_event_id_different_sequence` | PASS |
+| 7 gap/回退/批内失败不越过连续 ACK | `test_gap_does_not_advance_ack` / `test_sequence_regression_rejected` / `test_in_batch_failure_does_not_advance_past_failure` / `test_batch_conflict_does_not_advance_past_conflict` | PASS |
+| 8 401/403 不删除 pending；业务 4xx 逐事件可修复拒绝 | `test_invalid_token_returns_401_and_state_unchanged` / `test_token_impersonating_other_device_rejected` | PASS |
+
+**过程中修复**：① challenge 端点 `device_id` 误作 query 参数 → 改 Pydantic body（`ChallengeRequest`）；② 过期测试的 monkeypatch 破坏 `store.time` 模块引用 → 改用 `create_challenge(ttl=-10)` 直接构造过期 challenge；③ 回退测试断言修正（回退事件本身 rejected 且不推进 ACK，后续合法新事件仍可推进）。
+
+### 5.4 CP2 范围偏差与门禁
+
+- 范围偏差：无。
+- 硬件/串口/Flash 操作：0。
+- 真实凭据/儿童数据/外部服务：0（seed 均为 mock 家长/儿童/任务，无真实账号）。
+- 未连真实数据库/NAS/公网；测试与手工服务仅绑定 127.0.0.1。
+- 未开发 Voice/Camera/AI/4G/GPS/OTA。
+
+### 5.5 CP2 结论
+
+CP2 完成并推送，工作流 WB-STREAM-001 收口为 `STREAM_CHECKPOINT_READY`。CP2 精确 hash 见最终回执（本提交自身无法自引用）。停止扩项，通知 Codex 异步复检。
+
+## 6. 建议 Codex 复检重点（CP2）
+
+1. `/events/batch` 逐事件处理顺序（幂等先于 sequence）是否与 ARCHITECTURE.md §5.4/CR-WB002-06 完全一致；`duplicate` 是否返回当前连续 ACK。
+2. 两阶段 challenge（§6.3/§6.4.3）的过期/单次/跨设备拒绝与日志脱敏是否可接受。
+3. claim 家长信任链（§6.4.2）：认证上下文派生 parent_id、child 授权范围、通用外部错误（不泄露儿童存在）。
+4. 内存 Mock 的并发模型（单进程串行）是否符合 MVP 预期；V1 真实后端时哪些逻辑需迁移。
+5. 依赖锁定（requirements.txt）与 `.venv`/缓存未提交的边界是否满足要求。
