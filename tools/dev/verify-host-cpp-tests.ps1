@@ -131,6 +131,78 @@ if ($global:FAILED) {
     }
 }
 
+# ---- 4b) dependency scan for learning_domain (forbidden hardware/OS headers)
+Write-Log ""
+Write-Log "== 4b) learning_domain forbidden-include scan =="
+$Forbidden = @("lvgl", "esp_", "freertos", "driver/", "bsp", "wifi", "nvs", "hal",
+               "sync", "application", "ui/", "assistant/", "telemetry/")
+$domainFiles = Get-ChildItem -Path (Join-Path $RepoRoot "firmware\main\learning_domain") -Filter *.h -Recurse
+$domainSrcs = Get-ChildItem -Path (Join-Path $RepoRoot "firmware\main\learning_domain") -Filter *.cpp -Recurse
+$violations = @()
+foreach ($f in @($domainFiles) + @($domainSrcs)) {
+    $content = Get-Content -Raw $f.FullName
+    foreach ($inc in [regex]::Matches($content, '#\s*include\s*[<"]([^>"]+)')) {
+        $header = $inc.Groups[1].Value.ToLowerInvariant()
+        foreach ($tok in $Forbidden) {
+            if ($header -like "*$tok*") {
+                $violations += "$($f.Name): forbidden include <$($inc.Groups[1].Value)>"
+            }
+        }
+    }
+}
+if ($violations.Count -eq 0) {
+    Write-Log "scan    : PASS (no forbidden includes in learning_domain)"
+} else {
+    Write-Log "scan    : FAIL"
+    $violations | ForEach-Object { Write-Log "  $_" }
+    $global:FAILED = $true
+}
+
+# ---- 4c) native unit tests under firmware/tests/unit (compile + link + run)
+Write-Log ""
+Write-Log "== 4c) native unit tests (firmware/tests/unit) =="
+$unitRoot = Join-Path $RepoRoot "firmware\tests\unit"
+if (Test-Path $unitRoot) {
+    $testFiles = Get-ChildItem -Path $unitRoot -Filter *.cpp -Recurse
+    # Implementation sources: all domain cpp files (pure C++17, host-safe).
+    $implRoot = Join-Path $RepoRoot "firmware\main\learning_domain"
+    $implSrcs = @()
+    if (Test-Path $implRoot) {
+        $implSrcs = Get-ChildItem -Path $implRoot -Filter *.cpp -Recurse | ForEach-Object { $_.FullName }
+    }
+    $unitPass = 0
+    foreach ($tf in $testFiles) {
+        $name = $tf.BaseName
+        $exe = Join-Path $OutDir "$name.exe"
+        $errf = Join-Path $OutDir "$name.err.txt"
+        Remove-Item $exe, $errf -ErrorAction SilentlyContinue
+        $args = @("-std=c++17", "-Wall", "-Wextra", "-Werror",
+                  "-I", (Join-Path $RepoRoot "firmware\main"),
+                  $tf.FullName) + $implSrcs + @("-o", $exe)
+        $cout = & $cc @args 2>&1
+        $ccode = $LASTEXITCODE
+        if ($ccode -ne 0 -or -not (Test-Path $exe)) {
+            if ($cout) { $cout | Out-File -Append -Encoding utf8 $Log }
+            Write-Log "unit $name : COMPILE/LINK FAIL (exit=$ccode)"
+            $global:FAILED = $true
+            continue
+        }
+        $rout = & $exe 2>&1
+        $rcode = $LASTEXITCODE
+        if ($rout) { $rout | Out-File -Append -Encoding utf8 $Log }
+        if ($rcode -eq 0) {
+            $unitPass++
+            Write-Log "unit $name : RUN PASS (exit=0)"
+        } else {
+            Write-Log "unit $name : RUN FAIL (exit=$rcode)"
+            $global:FAILED = $true
+        }
+    }
+    Write-Log "unit summary : $unitPass / $($testFiles.Count) PASS"
+} else {
+    Write-Log "unit summary : SKIPPED (no firmware/tests/unit yet)"
+}
+
 # ---- 5) interface cross-compile contract (no regression) ----
 Write-Log ""
 Write-Log "== 5) verify-interface-contracts.ps1 (P4 cross compile) =="

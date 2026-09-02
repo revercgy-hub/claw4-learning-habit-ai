@@ -48,6 +48,11 @@ struct StudySession {
   // Empty while the session is Created/Running/Paused; populated only when
   // the session reaches Completed/Aborted.
   std::optional<CompletionType> completion_type;
+  // Focus-segment bookkeeping (persisted in the domain snapshot). The reducer
+  // accumulates `actual_seconds` from the injected monotonic clock; these two
+  // fields are zero whenever the corresponding segment is not active.
+  int64_t segment_start_monotonic_ms = 0;  // set when a Running segment starts
+  int64_t paused_at_monotonic_ms = 0;      // set when the session enters Paused
 };
 
 }  // namespace domain

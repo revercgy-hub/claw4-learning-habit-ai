@@ -12,8 +12,8 @@
 
 | Checkpoint | 状态 | 提交 | 验证摘要 |
 | --- | --- | --- | --- |
-| CP0 本机 C++17 门槛 | `CHECKPOINT_READY` | `test(WB-STREAM-002): add native C++ test gate`（本提交自身） | 主机 g++ 16.2.0 compile/link/run PASS；P4 接口契约 exit=0 |
-| CP1 纯领域 Reducer | `QUEUED` | — | — |
+| CP0 本机 C++17 门槛 | `CHECKPOINT_READY` | `690d8488c7d42f4c92735c66dc4d6417f46fb15b`（`test(WB-STREAM-002): add native C++ test gate`） | 主机 g++ 16.2.0 compile/link/run PASS；P4 接口契约 exit=0 |
+| CP1 纯领域 Reducer | `CHECKPOINT_READY` | `feat(WB-STREAM-002): implement domain reducer`（本提交自身） | 领域单测 27/27 PASS（cases=27 failures=0）；依赖扫描 PASS；接口契约 exit=0 |
 | CP2 transactional Outbox | `QUEUED` | — | — |
 | CP3 应用协调器 | `QUEUED` | — | — |
 | CP4 UI Presenter | `QUEUED` | — | — |
@@ -71,8 +71,62 @@
 | 工具链未提权/未关闭校验/未提交 | PASS（winget/7zr 均用户范围或便携解压，SHA256 记录） |
 | 路径含空格/中文正常 | PASS（脚本基于 `$RepoRoot` 动态拼接） |
 
-## 3. 建议 Codex 复检重点（CP0）
+### 2.5 建议 Codex 复检重点（CP0）
 
 1. 主机编译器选择偏离任务包点名的 LLVM.LLVM（MSVC-target 无 VS 不可用 → 采用 w64devkit MinGW-w64）——见 §2.1 完整证据，请确认可否接受或指定替代官方途径。
 2. `verify-host-cpp-tests.ps1` 自动将编译器 bin 目录加入 PATH（MinGW 找 as/ld 依赖）的实现是否可接受、是否影响非 MinGW 编译器。
 3. 工具链安装记录（包/版本/来源/路径/SHA256）是否满足 Codex 审计要求。
+
+## 3. CP1：纯领域 Reducer 与状态机
+
+### 3.1 修改文件（CP1）
+
+- `firmware/main/learning_domain/reducer.h`（新建，纯 reducer 接口）
+- `firmware/main/learning_domain/reducer.cpp`（新建，实现）
+- `firmware/main/learning_domain/study_session.h`（修改，加单调时间簿记字段）
+- `firmware/tests/unit/domain/domain_reducer_tests.cpp`（新建，27 个主机 case）
+- `tools/dev/verify-host-cpp-tests.ps1`（修改，增加 unit 测试编译运行与依赖扫描）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP0 hash + 本段）
+
+**仅上述允许路径**。未引入 sync/LVGL/Wi-Fi/GPIO/ESP-IDF/FreeRTOS/BSP 依赖（依赖扫描 PASS）；未实现持久化/网络/UI。
+
+### 3.2 实现要点
+
+| 项 | 内容 |
+| --- | --- |
+| 纯 reducer | `DomainReducer::reduce(state, intent, ctx)` → `TransitionResult{ok, reason, intent_result, next, drafts}`；输入不可变，失败返回空 next + 空 drafts |
+| 上下文注入 | `ReducerContext{device_id, child_id, now_epoch, monotonic_ms, make_event_id, make_session_id}`；reducer 内不访问系统时钟/RNG/I/O；缺 id 源 → `MissingIdSource` 拒绝 |
+| **无 sequence** | reducer 只产出 `EventDraft`（无 sequence 字段）；sequence 由 CP2 outbox 唯一分配（预检契约） |
+| Task 转换 | Ready→InProgress（Start）→Paused↔InProgress；Complete→Completed；Skip 仅 Ready；Completed/Skipped 拒绝再 Start；重复 Complete/Skip → `Idempotent` 且零草稿 |
+| Session 转换 | Created→Running→Paused↔Running→Completed(Manual)；`completion_type` 在 Created/Running/Paused 为空、Completed/Aborted 时必填（保持 optional 语义） |
+| 时间累计 | `actual_seconds`/`pause_seconds` 由单调时钟累计（`segment_start/paused_at` 簿记字段持久化于快照）；负数/倒退 → `ClockWentBackwards` 拒绝 |
+| Timer 语义 | `onSegmentTimeout` 只自动暂停专注段（Task/Session→Paused）并**零草稿**，绝不自动完成（I2） |
+| 重启恢复 | `recoverSession(Intact)` 保持同一 session 零变更（上层 UI 决策）；`recoverSession(Corrupt)` → session `Aborted`+事件，Task 不自动 Completed（回 Paused）；`endRecoveredSession` → `AutoSaved`+事件，Task 不自动 Completed |
+| 事件顺序 | Start 生成 `[task.started, study.session.started]`；Complete 生成 `[task.completed, study.session.completed]`（payload 含 completion_type/actual_seconds） |
+| 事件 payload | 完成事件 payload 携带 `completion_type=manual/auto_saved/aborted` 供后端 read-model 投影 |
+
+### 3.3 验证命令与结果（CP1）
+
+```powershell
+.\tools\dev\verify-host-cpp-tests.ps1 -CompilerPath "E:\workbuddy\toolchains\w64devkit-2.9.1\bin\g++.exe" -CrossCompilerPath "E:\workbuddy\claw4-idf-tools\tools\riscv32-esp-elf\esp-14.2.0_20260121\riscv32-esp-elf\bin\riscv32-esp-elf-g++.exe"
+# 结果（脚本 exit 0，out/host-tests/host_result.txt）：
+#   compile/link/run : PASS（smoke）
+#   4b scan          : PASS（learning_domain 无 forbidden include）
+#   unit domain_reducer_tests : RUN PASS  cases=27 failures=0
+#   interface        : exit=0（P4 交叉编译契约 PASS）
+```
+
+### 3.4 CP1 验收自检
+
+| 验收标准 | 结果 |
+| --- | --- |
+| 本机编译、链接并实际运行领域单测，0 失败 | PASS（g++ 16.2.0，27/27） |
+| 独立 case ≥20 且 runner 显式统计 | PASS（27 cases，`cases=27 failures=0`，失败返回非 0，非 assert/NDEBUG 依赖） |
+| 合法/非法转换、事件顺序、多轮 pause/resume、时钟倒退、Timer 到 0、重复完成、Skip、第二 session、完整/损坏快照、失败保持原状态+空草稿 | PASS（对应 case 全绿，见测试文件） |
+| 领域层无 sequence 分配 API | PASS（reducer 只产 EventDraft，无 sequence 字段/API） |
+| P4 接口契约 PASS；禁止依赖扫描 0 头 | PASS |
+| `git diff --check` | PASS |
+
+### 3.5 CP1 结论
+
+CP1 完成并推送（精确 hash 由 CP2 报告回填）。立即进入 CP2（transactional outbox）。
