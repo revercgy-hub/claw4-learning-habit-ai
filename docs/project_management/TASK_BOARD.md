@@ -2,13 +2,13 @@
 
 - 更新时间：2026-09-02
 - 维护者：Codex
-- 当前阶段：G0/G1 已通过；WB-HW-002 已验收；WB-002 Round 2 复检未通过，窄范围契约修订中
-- 调度规则：任意时刻只允许一个 WorkBuddy 任务为 `READY` 或 `IN_PROGRESS`
+- 当前阶段：G0/G1 已通过；启动 WB-STREAM-001 连续开发流，Codex 异步复检并后续修复
+- 调度规则：任意时刻只允许一个活动 WorkBuddy 工作流；流内 checkpoint 按任务包顺序连续执行
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
-## 当前唯一指令
+## 当前活动工作流
 
-`WB-002` 当前为 `CHANGES_REQUIRED`。WorkBuddy 只允许在 `workbuddy/wb-002-architecture` 原分支处理 `CODEX_REVIEW_WB-002_ROUND2_2026-09-02.md` 的 CR-WB002-06～10；仍只修改两个原交付文件，不得开始代码实现、构建或硬件操作。
+`WB-STREAM-001` 为唯一活动工作流。WorkBuddy 在 `workbuddy/mvp-core-stream` 按 `WB-STREAM-001_MVP_CORE.md` 连续执行 CP0（架构修订）→ CP1（接口骨架）→ CP2（Mock Backend），每个 checkpoint 提交并 push 后不等待 Codex，直接继续下一项。不得越出任务包路径或进入真机/Flash/非 MVP 功能。
 
 ## 看板
 
@@ -28,15 +28,16 @@
 | 4.8 | WB-HW-002 | WorkBuddy | `ACCEPTED` | USER-HW-EVIDENCE-001 | 初次提交 `63281b2`、修订提交 `9fe38c3`；一次受控启动采集与照片证据已验收 |
 | 4.9 | CR-HW-002 | Codex | `ACCEPTED` | WB-HW-002 初次 `REVIEW_READY` | `CODEX_REVIEW_WB-HW-002_2026-09-01.md`；结论 `CHANGES_REQUIRED`，禁止新增硬件操作 |
 | 4.10 | CR-HW-002-R2 | Codex | `ACCEPTED` | WB-HW-002 修订提交 `9fe38c3` | `CODEX_REVIEW_WB-HW-002_ROUND2_2026-09-01.md`；技术内容通过，保留原采集脚本未留档的过程限制 |
-| 5 | WB-002 | WorkBuddy | `CHANGES_REQUIRED` | WB-HW-002 `ACCEPTED` | 修订提交 `6251486`；outbox/连续ACK主体通过，需收敛重复重放优先级、challenge 获取、claim 家长授权链与损坏快照语义 |
+| 5 | WB-002 / STREAM CP0 | WorkBuddy | `QUEUED` | WB-HW-002 `ACCEPTED` | 基于 `6251486` 收敛重复重放优先级、challenge 获取、claim 家长授权链与损坏快照语义 |
 | 6 | CR-002 | Codex | `ACCEPTED` | WB-002 初次 `REVIEW_READY` | `CODEX_REVIEW_WB-002_2026-09-02.md`；结论 `CHANGES_REQUIRED` |
 | 6.1 | CR-002-R2 | Codex | `ACCEPTED` | WB-002 修订提交 `6251486` | `CODEX_REVIEW_WB-002_ROUND2_2026-09-02.md`；结论 `CHANGES_REQUIRED` |
 | 6.2 | CR-002-R3 | Codex | `BACKLOG` | WB-002 下一修订 `REVIEW_READY` | 架构 Round 3 验收报告 |
+| 6.5 | WB-STREAM-001 | WorkBuddy | `READY` | 用户连续开发授权；远端工作流分支 | CP0→CP1→CP2 连续开发；`WB-STREAM-001_REPORT.md` |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
-| 9 | WB-MVP-INTERFACES | WorkBuddy | `HOLD` | G2/G3 门禁 | `learning_domain`、`sync`、`ui`、`assistant`、`telemetry` 接口骨架 |
+| 9 | WB-MVP-INTERFACES / STREAM CP1 | WorkBuddy | `QUEUED` | CP0 checkpoint | `learning_domain`、`sync`、`ui`、`assistant`、`telemetry` 纯接口骨架与交叉编译检查 |
 | 10 | WB-MVP-DOMAIN | WorkBuddy | `HOLD` | 接口骨架验收 | Task、StudySession、DeviceEvent、DomainState 与单元测试 |
-| 11 | WB-MVP-MOCK | WorkBuddy | `HOLD` | Domain 验收 | Mock Backend：today tasks、events、session |
+| 11 | WB-MVP-MOCK / STREAM CP2 | WorkBuddy | `QUEUED` | CP1 checkpoint；CP0 契约 | FastAPI 内存 Mock：身份、today tasks、events 与自动化契约测试 |
 | 12 | WB-MVP-UI-HOME | WorkBuddy | `HOLD` | Mock Backend 验收 | Home 页面与 Mock Tasks |
 | 13 | WB-MVP-UI-FOCUS | WorkBuddy | `HOLD` | Home 验收 | Focus 页面与本地倒计时 |
 | 14 | WB-MVP-EVENTS | WorkBuddy | `HOLD` | Focus 验收 | task.start、task.complete |

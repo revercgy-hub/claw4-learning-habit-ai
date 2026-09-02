@@ -11,6 +11,10 @@
 **/.cache/
 **/__pycache__/
 *.pyc
+**/.venv/
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
 
 # 设备日志和本地运行状态可能包含设备标识，不提交。
 /docs/logs/
