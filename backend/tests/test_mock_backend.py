@@ -143,12 +143,15 @@ def test_challenge_reuse_rejected():
 
 
 def test_challenge_expired_rejected():
-    import app.main as main_mod
+    from app.db import SessionLocal
+    from app.store import Store
 
     reg = _register_device()
     # Insert an already-expired challenge directly into the store (ttl=-10
     # puts expires_at in the past without touching the process clock).
-    expired = main_mod.store.create_challenge(reg["device_id"], ttl=-10)
+    with SessionLocal() as s:
+        expired = Store(s).create_challenge(reg["device_id"], ttl=-10)
+        s.commit()
     sig = security.sign_challenge(reg["device_secret"], reg["device_id"],
                                   expired.challenge_id, expired.nonce)
     resp = client.post("/api/v1/devices/auth", json={
@@ -328,10 +331,15 @@ def test_event_device_id_must_match_batch_and_token():
 
 
 def test_current_server_binding_is_revalidated_after_token_issue():
+    from app.db import SessionLocal
+    from app.store import Store
+
     reg = _register_device()
     _pair(reg["device_id"], reg["pairing_code"], CHILD1)
     token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
-    assert main_mod.store.revoke_child_binding(reg["device_id"], CHILD1)
+    with SessionLocal() as s:
+        assert Store(s).revoke_child_binding(reg["device_id"], CHILD1)
+        s.commit()
 
     tasks = client.get(
         f"/api/v1/children/{CHILD1}/tasks/today",
@@ -489,19 +497,21 @@ def test_replay_with_changed_immutable_envelope_is_not_duplicate():
 
 
 def test_concurrent_same_sequence_batches_are_serialized(monkeypatch):
+    from app.store import Store as StoreCls
+
     reg = _register_device()
     _pair(reg["device_id"], reg["pairing_code"], CHILD1)
     token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
 
-    original_store_event = main_mod.store.store_event
+    original_store_event = StoreCls.store_event
 
-    def slow_store_event(*args, **kwargs):
+    def slow_store_event(self, *args, **kwargs):
         # Opens a deterministic race window if the route loses the required
         # per-device batch lock.
         time.sleep(0.05)
-        return original_store_event(*args, **kwargs)
+        return original_store_event(self, *args, **kwargs)
 
-    monkeypatch.setattr(main_mod.store, "store_event", slow_store_event)
+    monkeypatch.setattr(StoreCls, "store_event", slow_store_event)
 
     def submit(event_id: str) -> dict:
         local_client = TestClient(app)

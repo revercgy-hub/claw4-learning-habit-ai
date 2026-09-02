@@ -1,0 +1,3 @@
+# Host-MVP SQLite database & runtime artifacts
+.claw4_*.db
+*.db

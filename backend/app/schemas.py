@@ -107,7 +107,76 @@ class TodayTasksResponse(BaseModel):
     tasks: List[TaskOut]
 
 
+# ---------------------------------------------------------------------------
+# parent API (CP5)
+# ---------------------------------------------------------------------------
+class ParentMeResponse(BaseModel):
+    parent_id: str
+    stub: str  # "dev-session-single-family" — explicitly NOT production auth
+    child_ids: List[str]
+
+
+class TaskCreateRequest(BaseModel):
+    subject: str = "other"
+    title: str
+    estimated_minutes: int = Field(ge=1, le=600)
+    priority: str = "medium"  # high/medium/low
+    scheduled_date: Optional[str] = None  # defaults to server-local today
+
+
+class TaskUpdateRequest(BaseModel):
+    subject: Optional[str] = None
+    title: Optional[str] = None
+    estimated_minutes: Optional[int] = Field(default=None, ge=1, le=600)
+    priority: Optional[str] = None
+
+
+class DashboardResponse(BaseModel):
+    date: str
+    planned_tasks: int
+    completed_tasks: int
+    completion_rate: int  # 0-100
+    focus_minutes: int
+    current_activity: Optional[str] = None
+
+
+class StudySessionOut(BaseModel):
+    session_id: str
+    task_id: str
+    task_title: str
+    status: str
+    completion_type: Optional[str] = None
+    actual_seconds: int
+    pause_count: int
+    pause_seconds: int
+    xp: int
+    started_at: float
+    finished_at: Optional[float] = None
+
+
+class DeviceOut(BaseModel):
+    device_id: str
+    model: str
+    fw_version: str
+    online: bool
+    battery_percent: Optional[int] = None  # None == unknown (never fabricated)
+    last_seen_at: Optional[float] = None
+    last_sync_at: Optional[float] = None
+    last_acked_sequence: int
+
+
+class HeartbeatRequest(BaseModel):
+    battery_percent: Optional[int] = Field(default=None, ge=0, le=100)
+    fw_version: Optional[str] = None
+
+
+class DeviceConfigResponse(BaseModel):
+    device_id: str
+    fw_version: str
+    features: Dict[str, bool]
+
+
 class HealthResponse(BaseModel):
     status: str
-    service: str = "claw4-contract-mock"
+    service: str = "claw4-family-backend"
     bind: str = "127.0.0.1"

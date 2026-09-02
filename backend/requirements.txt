@@ -8,6 +8,8 @@
 # --- runtime ---
 fastapi==0.141.1
 uvicorn[standard]==0.52.4
+sqlalchemy==2.0.52
+tzdata==2026.3
 
 # --- test ---
 pytest==9.1.1

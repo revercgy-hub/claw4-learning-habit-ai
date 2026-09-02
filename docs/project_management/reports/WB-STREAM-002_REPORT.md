@@ -16,8 +16,8 @@
 | CP1 纯领域 Reducer | `CHECKPOINT_READY` | `09984477015f9bbbab2cf2f8766c32db28ce2158`（`feat(WB-STREAM-002): implement domain reducer`） | 领域单测 27/27 PASS（cases=27 failures=0）；依赖扫描 PASS；接口契约 exit=0 |
 | CP2 transactional Outbox | `CHECKPOINT_READY` | `b16b739bef02d10f4ce3c34158bd5395b1971a5e`（`feat(WB-STREAM-002): add transactional outbox core`） | outbox 21/21 + domain 27/27 PASS；连续 5 轮 EXIT=0；接口契约 exit=0 |
 | CP3 应用协调器 | `CHECKPOINT_READY` | `179fd6c95cc7ddc8c5d3fbdbba7d500ce5201690`（`feat(WB-STREAM-002): integrate host application coordinator`） | coordinator 20/20 PASS；全量 68 case；接口契约 exit=0 |
-| CP4 UI Presenter | `CHECKPOINT_READY` | `feat(WB-STREAM-002): add host UI presenters`（本提交自身，精确 hash 由 CP5 回填） | presenter 28/28 PASS；全量 96 case（20+27+21+28）；ui 依赖扫描 PASS；接口契约 exit=0 |
-| CP5 持久化后端 | `QUEUED` | — | — |
+| CP4 UI Presenter | `CHECKPOINT_READY` | `9220f38f7086ee3182409bbbbe7901abb03dfbcb`（`feat(WB-STREAM-002): add host UI presenters`） | presenter 28/28 PASS；全量 96 case（20+27+21+28）；ui 依赖扫描 PASS；接口契约 exit=0 |
+| CP5 持久化后端 | `CHECKPOINT_READY` | `feat(WB-STREAM-002): add persistent family backend`（本提交自身，精确 hash 由 CP6 回填） | backend 58/58 PASS（旧 28 + 新 30）；pip check PASS；compose YAML 合法；接口契约 exit=0 |
 | CP6 家长 PWA | `QUEUED` | — | — |
 | CP7 主机 E2E | `QUEUED` | — | — |
 | CP8 稳定性收口 | `QUEUED` | — | — |
@@ -333,3 +333,55 @@ CP3 完成并推送（精确 hash 由 CP4 报告回填）。立即进入 CP4（H
 ### 6.6 CP4 结论
 
 CP4 完成，进入 CP5（持久化家庭后端与家长 API）。
+
+
+## 7. CP5：持久化家庭后端与家长 API
+
+### 7.1 修改文件（CP5）
+
+- `backend/app/db.py`（新建：engine/SessionLocal/get_db；SQLite 文件默认、`CLAW4_DATABASE_URL` 覆盖指向 PostgreSQL；每请求单事务，响应后 commit、异常 rollback）
+- `backend/app/models.py`（新建：parents/children/parent_child/devices/device_children/device_configs/challenges/tasks/study_sessions/events ORM；rewards 仅 `xp` 单字段）
+- `backend/app/clock.py`（新建：可注入时钟 + `CLAW4_TZ` 时区；业务零硬编码日期）
+- `backend/app/store.py`（重写：内存 Mock → SQLAlchemy 仓储；dataclass 值对象与方法名保留，旧契约零破坏）
+- `backend/app/main.py`（重写：bootstrap seed、Depends 注入 Store、设备端点迁移 + 家长 API 新增）
+- `backend/app/schemas.py`（扩展：TaskCreate/Update、Dashboard、StudySessionOut、DeviceOut、Heartbeat、ParentMe 等）
+- `backend/tests/test_family_backend.py`（新建 30 case）、`backend/tests/conftest.py`（新建：pytest 会话级清理本地 SQLite）
+- `backend/tests/test_mock_backend.py`（适配 3 处：直连 store 改 `SessionLocal+Store`；并发 monkeypatch 目标改 `Store` 类方法）
+- `backend/requirements.txt`（+sqlalchemy==2.0.52、tzdata==2026.3）、`backend/.gitignore`（新建：本地 `*.db`）
+- `.env.example`、`docker-compose.yml`、`deploy/backend.Dockerfile`、`deploy/README.md`（新建：PostgreSQL 部署配置，静态验证未运行容器）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP4 hash + 本段）
+
+### 7.2 实现要点（任务包 8 项）
+
+| 要求 | 实现 |
+| --- | --- |
+| 1 持久化模型 | parents+token(开发桩)/children/parent_child/devices/device_children/challenges/tasks/study_sessions/events/device_configs；rewards 仅 `xp` |
+| 2 保留设备契约 | register/challenge/claim/auth/today/events 语义与响应形状不变；旧 28 测试全部保留并转 DB 通过 |
+| 3 家长 API | /parents/me（stub 标识）、dashboard、children/{id}/tasks（GET 今日/POST/PATCH）、study-sessions、devices；**每个 child/device 查询逐请求校验 `child_owned_by(parent_id, child_id)`** |
+| 4 batch 单事务+投影 | 同一请求 session：事件落库+ACK+Task/StudySession read-model 投影一次 commit（per-device 锁内显式 commit 使 ACK 对下一串行请求可见）；重复重发 duplicate 不重复投影/统计 |
+| 5 heartbeat/config | MVP 字段；battery 未上报保持 `NULL`（unknown），不伪造真机值 |
+| 6 时钟/时区 | `app/clock.py`：`utc_now_epoch`/`local_today` 可 monkeypatch；`CLAW4_TZ` IANA；seed/today/dashboard 日期全部经 clock；删除 `2026-09-02` 硬编码 |
+| 7 部署配置 | `.env.example`（无密钥）+ `docker-compose.yml` + `deploy/backend.Dockerfile`；PyYAML 静态解析校验通过，**未运行容器**（本机无 Docker） |
+| 8 家长身份桩 | Bearer dev-session token（单家庭），明确标注非生产登录；日志仅非敏感标识，测试断言 secret/pairing_code 不出现在日志 |
+
+### 7.3 验证命令与结果（CP5）
+
+```powershell
+cd backend
+.\venv\Scripts\python.exe -m pytest tests/          # 58 passed（旧 28 + 新 30）
+.\venv\Scripts\pip.exe check                        # No broken requirements found
+.\venv\Scripts\python.exe -c "import yaml;yaml.safe_load(open('..\docker-compose.yml'))"  # OK
+```
+
+新 30 case 覆盖：权限隔离 9（parent-2 不可读/改 parent-1 的 child/device/task/session）、任务 CRUD 8（默认今天/显式日期/版本递增/404/越权 403/今日过滤）、投影与统计 7（session 生命周期投影/XP/dashboard 计数/丢失响应重发不重复统计/投影异常整批回滚/gap-conflict 不推进 ACK）、重启持久性 2（新 session 读 ACK；重发 duplicate）、heartbeat/config 4（online/battery/unknown NULL/401）、时钟边界 2、日志卫生 1、排序 1。
+
+### 7.4 演进要点（记录供 Codex 审计）
+
+- SQLite 文件 DB 使并发 batch 需**锁内显式 commit**（否则第二请求读不到第一请求未提交的 ACK → 双 accepted）；`advance_ack` 同步镜像 dev 值对象使批内多事件 expected 正确。
+- `consume_challenge` 改**原子条件 UPDATE**（used=0 AND 未过期），并发重放恰一成功。
+- `autoflush=False` 的 session 内查询前需 flush（seed_parent/parent_child_ids/child_ids_of 已补）。
+- Windows 无系统 tzdata → 依赖锁定的 `tzdata` pip 包；`conftest.py` 每 pytest 会话删除本地 DB 保证可重复。
+
+### 7.5 CP5 结论
+
+CP5 完成，进入 CP6（家长 PWA）。

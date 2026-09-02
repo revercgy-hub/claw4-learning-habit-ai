@@ -1,0 +1,44 @@
+# Claw4 Host-MVP compose file (CP5).
+#
+# Static deployment configuration ONLY — the current host has no Docker, so
+# this file is validated structurally (YAML) but the containers are NOT run
+# by this repository's tests, and the report must never claim containers were
+# executed. All services bind to 127.0.0.1 only.
+#
+# The backend image builds the FastAPI family backend with a PostgreSQL
+# driver; the application itself stays dialect-agnostic (SQLAlchemy ORM) so
+# tests keep running on SQLite while this compose targets PostgreSQL.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: claw4
+      POSTGRES_USER: claw4
+      POSTGRES_PASSWORD: change-me  # dev only; never commit a real secret
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - claw4_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claw4 -d claw4"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      CLAW4_DATABASE_URL: postgresql+psycopg://claw4:change-me@db:5432/claw4
+      CLAW4_TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+volumes:
+  claw4_pgdata:
