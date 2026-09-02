@@ -1,0 +1,153 @@
+/* Claw4 parent PWA — lightweight responsive styling (no UI framework).
+   Keyboard focus, labels and contrast are kept testable and WCAG-minded. */
+
+:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --line: #e2e8f0;
+  --primary: #1d4ed8;
+  --primary-text: #ffffff;
+  --danger: #b91c1c;
+  --ok: #15803d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+button { font: inherit; cursor: pointer; }
+
+button.primary {
+  background: var(--primary);
+  color: var(--primary-text);
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+}
+button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+button.link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  text-decoration: underline;
+  padding: 0.25rem;
+}
+
+input, select {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  width: 100%;
+  max-width: 26rem;
+}
+
+:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.shell { max-width: 960px; margin: 0 auto; padding: 0 1rem 3rem; }
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1rem;
+}
+.brand { font-weight: 700; }
+nav[aria-label] { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+.tab {
+  background: none;
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  color: var(--muted);
+}
+.tab.active { background: var(--primary); color: var(--primary-text); }
+
+.page h1 { font-size: 1.3rem; margin: 0.5rem 0 1rem; }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.date { color: var(--muted); font-size: 0.9rem; font-weight: 400; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+}
+.stat-value { font-size: 1.5rem; font-weight: 700; }
+.stat-label { color: var(--muted); font-size: 0.85rem; }
+.current-activity {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+
+.login { max-width: 420px; margin: 3rem auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 1.5rem; }
+.hint { color: var(--muted); font-size: 0.9rem; }
+
+.field { margin-bottom: 0.9rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.field label { font-size: 0.9rem; color: var(--muted); }
+.error-text { color: var(--danger); font-size: 0.9rem; margin: 0.25rem 0; }
+.empty-hint { color: var(--muted); }
+
+.form-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+.task-list, .record-list, .device-list { list-style: none; margin: 0; padding: 0; }
+.task-row, .record-row, .device-row {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.6rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.task-main { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.subject-chip { background: #dbeafe; color: #1e40af; border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.8rem; }
+.task-meta, .task-side { color: var(--muted); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+.task-status[data-status="completed"] { color: var(--ok); }
+.task-status[data-status="in_progress"], .task-status[data-status="paused"] { color: var(--primary); }
+
+.record-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; }
+.record-task { font-weight: 600; }
+.record-status[data-status="completed"] { color: var(--ok); }
+.record-xp { color: var(--ok); font-weight: 600; }
+.record-time, .record-duration, .record-pauses { color: var(--muted); font-size: 0.9rem; }
+
+.device-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; align-items: center; }
+.device-online[data-online="true"] { color: var(--ok); font-weight: 600; }
+.device-online[data-online="false"] { color: var(--muted); }
+.device-name { font-weight: 600; }
+.device-battery, .device-fw, .device-sync { color: var(--muted); font-size: 0.9rem; }
+
+/* accessibility: reduced-motion friendly */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

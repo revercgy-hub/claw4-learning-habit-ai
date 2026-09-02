@@ -1,0 +1,8 @@
+# frontend build & dependency artifacts
+node_modules/
+dist/
+coverage/
+*.local
+.env
+.env.*
+!.env.example

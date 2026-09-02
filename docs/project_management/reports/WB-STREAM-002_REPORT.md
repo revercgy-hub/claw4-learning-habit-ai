@@ -17,8 +17,8 @@
 | CP2 transactional Outbox | `CHECKPOINT_READY` | `b16b739bef02d10f4ce3c34158bd5395b1971a5e`（`feat(WB-STREAM-002): add transactional outbox core`） | outbox 21/21 + domain 27/27 PASS；连续 5 轮 EXIT=0；接口契约 exit=0 |
 | CP3 应用协调器 | `CHECKPOINT_READY` | `179fd6c95cc7ddc8c5d3fbdbba7d500ce5201690`（`feat(WB-STREAM-002): integrate host application coordinator`） | coordinator 20/20 PASS；全量 68 case；接口契约 exit=0 |
 | CP4 UI Presenter | `CHECKPOINT_READY` | `9220f38f7086ee3182409bbbbe7901abb03dfbcb`（`feat(WB-STREAM-002): add host UI presenters`） | presenter 28/28 PASS；全量 96 case（20+27+21+28）；ui 依赖扫描 PASS；接口契约 exit=0 |
-| CP5 持久化后端 | `CHECKPOINT_READY` | `feat(WB-STREAM-002): add persistent family backend`（本提交自身，精确 hash 由 CP6 回填） | backend 58/58 PASS（旧 28 + 新 30）；pip check PASS；compose YAML 合法；接口契约 exit=0 |
-| CP6 家长 PWA | `QUEUED` | — | — |
+| CP5 持久化后端 | `CHECKPOINT_READY` | `d238e1d8f96eb35ea6c0f7aef426cb6b84fe5210`（`feat(WB-STREAM-002): add persistent family backend`） | backend 58/58 PASS（旧 28 + 新 30）；pip check PASS；compose YAML 合法；接口契约 exit=0 |
+| CP6 家长 PWA | `CHECKPOINT_READY` | `feat(WB-STREAM-002): add parent PWA`（本提交自身，精确 hash 由 CP7 回填） | typecheck/lint PASS；vitest 30/30；vite build PASS；npm audit --omit=dev 0 漏洞 |
 | CP7 主机 E2E | `QUEUED` | — | — |
 | CP8 稳定性收口 | `QUEUED` | — | — |
 
@@ -385,3 +385,103 @@ cd backend
 ### 7.5 CP5 结论
 
 CP5 完成，进入 CP6（家长 PWA）。
+
+
+## 8. CP6：家长 Responsive PWA（React + TypeScript + Vite）
+
+### 8.1 修改文件（CP6，全部位于 `frontend/**` + 报告）
+
+- `frontend/package.json` / `package-lock.json`（React 18 + Vite 6 + Vitest 3 + TS 5.8 + ESLint 9 flat + Testing Library；`package-lock.json` 锁定）
+- `frontend/tsconfig.json`、`vite.config.ts`（server/preview 仅绑 127.0.0.1；dev proxy /api → 8000）、`eslint.config.js`（flat）
+- `frontend/index.html`、`public/manifest.webmanifest`、`public/icon.svg`、`public/sw.js`（PWA：SW 只 precache 静态壳，`/api/*` 一律 network-only，绝不缓存认证/儿童数据/secret）
+- `frontend/.env.example`（`VITE_API_BASE_URL=http://127.0.0.1:8000`）、`frontend/.gitignore`
+- `frontend/src/api/types.ts`、`client.ts`（fetch wrapper：token 由登录页输入存 sessionStorage，不写死源码；注入式 `fetchImpl` 便于测试与 CP7）
+- `frontend/src/lib/format.ts`（纯格式化/校验，可测）+ `format.test.ts`
+- `frontend/src/components/`（TaskForm/TaskList/Login/display + 测试）
+- `frontend/src/pages/`（Dashboard/Tasks/Records/Devices 四页）、`App.tsx`（tab 导航+登录态）、`main.tsx`（SW 注册仅 PROD）、`style.css`（响应式、focus-visible、reduced-motion、对比度）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP5 hash + 本段）
+
+### 8.2 实现要点（任务包 8 项）
+
+| 要求 | 实现 |
+| --- | --- |
+| 1 Dashboard | 计划数/完成数/完成率/专注分钟/当前学习状态（`DashboardCards`），日期取自后端（服务端时钟） |
+| 2 今日任务 | 列表 + 创建/编辑表单：科目/任务内容/预计分钟/优先级；loading/empty/error 三态齐备；编辑复用同表单（initial 预填、版本号后端自增） |
+| 3 学习记录 | 时间/任务/实际时长（分秒格式化）/暂停次数/完成状态/+XP |
+| 4 设备 | 在线状态/电量（null → “未知”，不伪造）/固件版本/最近同步时间 |
+| 5 配置 | `VITE_API_BASE_URL` 环境注入（`frontend/.env.example`）；token 用户登录输入（sessionStorage），源码零写死；无直连设备、无 AI Provider |
+| 6 PWA | manifest + SW：precache 仅静态壳（index/manifest/icon）；`/api/*` 请求不落缓存 → 认证响应/儿童 JSON/secret 零缓存 |
+| 7 可访问性/响应式 | label/aria-label/focus-visible/键盘（Enter 提交实测）、reduced-motion；grid auto-fit 手机/桌面 |
+| 8 依赖锁定 | `package-lock.json` 提交；无重量级图表/UI 框架 |
+
+### 8.3 验证命令与结果（CP6）
+
+```powershell
+cd frontend
+npm run typecheck   # tsc --noEmit -p tsconfig.json  PASS (exit 0)
+npm run lint        # eslint .                          PASS (exit 0)
+npm run test        # vitest run  →  30 passed (4 files)  PASS
+npm run build       # tsc && vite build → dist 生成     PASS (exit 0)
+npm audit --omit=dev # found 0 vulnerabilities           PASS
+```
+
+30 case 分布：format 12（时长/电量/表单校验）、api client 6（baseURL/token/JSON 体/ApiError/环境）、TaskForm 5（label/校验拦截/提交 payload/编辑预填/键盘 Enter）、展示组件 7（TaskList empty/rows/edit、StatCard、DashboardCards、RecordRow、DeviceRow 未知电量）。
+
+### 8.4 环境注意（记录供 Codex 审计）
+
+- 依赖安装 7 分钟（311 包）；`@types/node` 为 vite.config 的 `process.env` 补充；ESLint 忽略 `public/sw.js`（worker 全局）；上游 deprecation 警告（whatwg-encoding/glob/eslint 9.39.5 支持周期）不阻断且非本仓库缺陷。
+- Node 24.14.1 / npm 11.11.0（预检版本一致）。
+
+### 8.5 CP6 结论
+
+CP6 完成，进入 CP7（主机端 MVP 闭环集成验证）。
+
+
+## 8. CP6：家长 Responsive PWA（React + TypeScript + Vite）
+
+### 8.1 修改文件（CP6，全部位于 `frontend/**` + 报告）
+
+- `frontend/package.json` / `package-lock.json`（React 18 + Vite 6 + Vitest 3 + TS 5.8 + ESLint 9 flat + Testing Library；`package-lock.json` 锁定）
+- `frontend/tsconfig.json`、`vite.config.ts`（server/preview 仅绑 127.0.0.1；dev proxy /api → 8000）、`eslint.config.js`（flat）
+- `frontend/index.html`、`public/manifest.webmanifest`、`public/icon.svg`、`public/sw.js`（PWA：SW 只 precache 静态壳，`/api/*` 一律 network-only，绝不缓存认证/儿童数据/secret）
+- `frontend/.env.example`（`VITE_API_BASE_URL=http://127.0.0.1:8000`）、`frontend/.gitignore`
+- `frontend/src/api/types.ts`、`client.ts`（fetch wrapper：token 由登录页输入存 sessionStorage，不写死源码；注入式 `fetchImpl` 便于测试与 CP7）
+- `frontend/src/lib/format.ts`（纯格式化/校验，可测）+ `format.test.ts`
+- `frontend/src/components/`（TaskForm/TaskList/Login/display + 测试）
+- `frontend/src/pages/`（Dashboard/Tasks/Records/Devices 四页）、`App.tsx`（tab 导航+登录态）、`main.tsx`（SW 注册仅 PROD）、`style.css`（响应式、focus-visible、reduced-motion、对比度）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP5 hash + 本段）
+
+### 8.2 实现要点（任务包 8 项）
+
+| 要求 | 实现 |
+| --- | --- |
+| 1 Dashboard | 计划数/完成数/完成率/专注分钟/当前学习状态（`DashboardCards`），日期取自后端（服务端时钟） |
+| 2 今日任务 | 列表 + 创建/编辑表单：科目/任务内容/预计分钟/优先级；loading/empty/error 三态齐备；编辑复用同表单（initial 预填、版本号后端自增） |
+| 3 学习记录 | 时间/任务/实际时长（分秒格式化）/暂停次数/完成状态/+XP |
+| 4 设备 | 在线状态/电量（null → “未知”，不伪造）/固件版本/最近同步时间 |
+| 5 配置 | `VITE_API_BASE_URL` 环境注入（`frontend/.env.example`）；token 用户登录输入（sessionStorage），源码零写死；无直连设备、无 AI Provider |
+| 6 PWA | manifest + SW：precache 仅静态壳（index/manifest/icon）；`/api/*` 请求不落缓存 → 认证响应/儿童 JSON/secret 零缓存 |
+| 7 可访问性/响应式 | label/aria-label/focus-visible/键盘（Enter 提交实测）、reduced-motion；grid auto-fit 手机/桌面 |
+| 8 依赖锁定 | `package-lock.json` 提交；无重量级图表/UI 框架 |
+
+### 8.3 验证命令与结果（CP6）
+
+```powershell
+cd frontend
+npm run typecheck   # tsc --noEmit -p tsconfig.json  PASS (exit 0)
+npm run lint        # eslint .                          PASS (exit 0)
+npm run test        # vitest run  →  30 passed (4 files)  PASS
+npm run build       # tsc && vite build → dist 生成     PASS (exit 0)
+npm audit --omit=dev # found 0 vulnerabilities           PASS
+```
+
+30 case 分布：format 12（时长/电量/表单校验）、api client 6（baseURL/token/JSON 体/ApiError/环境）、TaskForm 5（label/校验拦截/提交 payload/编辑预填/键盘 Enter）、展示组件 7（TaskList empty/rows/edit、StatCard、DashboardCards、RecordRow、DeviceRow 未知电量）。
+
+### 8.4 环境注意（记录供 Codex 审计）
+
+- 依赖安装 7 分钟（311 包）；`@types/node` 为 vite.config 的 `process.env` 补充；ESLint 忽略 `public/sw.js`（worker 全局）；上游 deprecation 警告（whatwg-encoding/glob/eslint 9.39.5 支持周期）不阻断且非本仓库缺陷。
+- Node 24.14.1 / npm 11.11.0（预检版本一致）。
+
+### 8.5 CP6 结论
+
+CP6 完成，进入 CP7（主机端 MVP 闭环集成验证）。
