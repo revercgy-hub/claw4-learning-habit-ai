@@ -18,8 +18,8 @@
 | CP3 应用协调器 | `CHECKPOINT_READY` | `179fd6c95cc7ddc8c5d3fbdbba7d500ce5201690`（`feat(WB-STREAM-002): integrate host application coordinator`） | coordinator 20/20 PASS；全量 68 case；接口契约 exit=0 |
 | CP4 UI Presenter | `CHECKPOINT_READY` | `9220f38f7086ee3182409bbbbe7901abb03dfbcb`（`feat(WB-STREAM-002): add host UI presenters`） | presenter 28/28 PASS；全量 96 case（20+27+21+28）；ui 依赖扫描 PASS；接口契约 exit=0 |
 | CP5 持久化后端 | `CHECKPOINT_READY` | `d238e1d8f96eb35ea6c0f7aef426cb6b84fe5210`（`feat(WB-STREAM-002): add persistent family backend`） | backend 58/58 PASS（旧 28 + 新 30）；pip check PASS；compose YAML 合法；接口契约 exit=0 |
-| CP6 家长 PWA | `CHECKPOINT_READY` | `feat(WB-STREAM-002): add parent PWA`（本提交自身，精确 hash 由 CP7 回填） | typecheck/lint PASS；vitest 30/30；vite build PASS；npm audit --omit=dev 0 漏洞 |
-| CP7 主机 E2E | `QUEUED` | — | — |
+| CP6 家长 PWA | `CHECKPOINT_READY` | `07d4ab94f24b532141c13ebd4f2f605823773f3c`（`feat(WB-STREAM-002): add parent PWA`） | typecheck/lint PASS；vitest 30/30；vite build PASS；npm audit --omit=dev 0 漏洞 |
+| CP7 主机 E2E | `CHECKPOINT_READY` | `test(WB-STREAM-002): verify host MVP loop`（本提交自身，精确 hash 由 CP8 回填） | C++ gate PASS；backend pytest 62/62（含 e2e 4 + drift 2）；PWA typecheck/test/build PASS |
 | CP8 稳定性收口 | `QUEUED` | — | — |
 
 ## 2. CP0：建立本机 C++17"编译、链接、运行"门槛
@@ -485,3 +485,83 @@ npm audit --omit=dev # found 0 vulnerabilities           PASS
 ### 8.5 CP6 结论
 
 CP6 完成，进入 CP7（主机端 MVP 闭环集成验证）。
+
+
+## 9. CP7：主机端 MVP 闭环集成验证
+
+### 9.1 修改文件（CP7）
+
+- `backend/tests/e2e/__init__.py`、`backend/tests/e2e/test_host_loop.py`（新建：全链路 6 场景 2 测试）
+- `backend/tests/e2e/test_schema_drift.py`（新建：PWA/后端 schema 漂移自动门禁 2 测试）
+- `tools/dev/run-host-mvp-e2e.ps1`（新建：C++ gate + backend pytest + PWA typecheck/test/build 编排；可重复、无残留进程、失败透传非 0）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP6 hash + 本段）
+
+### 9.2 六场景落实与证据
+
+| 场景 | 证据 |
+| --- | --- |
+| 1 家长创建今日任务 | `test_host_loop`：POST 家长创建 → `scheduled_date == server 今日`，状态 pending |
+| 2 合成设备 register→claim→challenge/auth→拉任务 | 同一测试：设备拉取 today 恰含该任务 |
+| 3 离线学习 Start/Pause/Resume/Complete 进 pending | **native C++ gate**（实际编译链接运行的 domain/outbox/coordinator 96 case）证明离线转换产生 pending 事件；Python 侧按领域事件语义提交同一序列（task.started→paused→resumed→study.session.completed→task.completed） |
+| 4 响应丢失→同 event_id 重发→duplicate+ACK 收敛 | 首次 6 事件 accepted ack=6；以旧 ack=0 整批重发 → 6 duplicate、0 accepted、ack 保持 6 |
+| 5 家长视图只出现一次完成 | study-sessions 中 `e2e-sess-1` 恰 1 条 completed、actual_seconds=1500、xp=25、finished_at ≥ started_at；dashboard focus_minutes=各 completed session 分钟和（无重复统计） |
+| 6 第二家庭隔离 | parent-2 读/改 child-1 的 tasks/today、patch task、study-sessions 均 403；parent-2 配对的设备拉 child-1 today 403；两家长设备列表无交集 |
+| 7 PWA 与后端同 schema | `test_schema_drift`：frontend client.ts 引用的全部 `/api/v1/...` 路径存在于 backend OpenAPI；frontend types 镜像 dashboard/session/device 关键字段；battery 保持 nullable |
+
+### 9.3 验证命令与结果（CP7）
+
+```powershell
+.\tools\dev\run-host-mvp-e2e.ps1 -CompilerPath "...\w64devkit-2.9.1\bin\g++.exe" -CrossCompilerPath "...\riscv32-esp-elf-g++.exe"
+# [1/3] C++ host gate   PASS (exit=0)
+# [2/3] backend pytest  PASS (exit=0; 62 collected)
+# [3/3] PWA typecheck/test/build PASS
+# E2E RESULT: PASS — 全部 127.0.0.1/in-process，无残留进程
+```
+
+### 9.4 范围声明（诚实边界）
+
+主机 MVP 闭环由 **Python in-process（FastAPI TestClient）与真实执行的 C++ host 测试** 共同证明。**不是** C++ HTTP/TLS 客户端、真机、浏览器 E2E 或设备网络已验证——脚本与报告均不将其写成已实现。
+
+### 9.5 CP7 结论
+
+CP7 完成，进入 CP8（全流稳定性收口：C++/Backend 5 轮、PWA 3 轮、E2E 5 轮 + HOST_MVP_ACCEPTANCE.md）。
+
+
+## 9. CP7：主机端 MVP 闭环集成验证
+
+### 9.1 修改文件（CP7）
+
+- `backend/tests/e2e/__init__.py`、`backend/tests/e2e/test_host_loop.py`（新建：全链路 6 场景 2 测试）
+- `backend/tests/e2e/test_schema_drift.py`（新建：PWA/后端 schema 漂移自动门禁 2 测试）
+- `tools/dev/run-host-mvp-e2e.ps1`（新建：C++ gate + backend pytest + PWA typecheck/test/build 编排；可重复、无残留进程、失败透传非 0）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP6 hash + 本段）
+
+### 9.2 六场景落实与证据
+
+| 场景 | 证据 |
+| --- | --- |
+| 1 家长创建今日任务 | `test_host_loop`：POST 家长创建 → `scheduled_date == server 今日`，状态 pending |
+| 2 合成设备 register→claim→challenge/auth→拉任务 | 同一测试：设备拉取 today 恰含该任务 |
+| 3 离线学习 Start/Pause/Resume/Complete 进 pending | **native C++ gate**（实际编译链接运行的 domain/outbox/coordinator 96 case）证明离线转换产生 pending 事件；Python 侧按领域事件语义提交同一序列（task.started→paused→resumed→study.session.completed→task.completed） |
+| 4 响应丢失→同 event_id 重发→duplicate+ACK 收敛 | 首次 6 事件 accepted ack=6；以旧 ack=0 整批重发 → 6 duplicate、0 accepted、ack 保持 6 |
+| 5 家长视图只出现一次完成 | study-sessions 中 `e2e-sess-1` 恰 1 条 completed、actual_seconds=1500、xp=25、finished_at ≥ started_at；dashboard focus_minutes=各 completed session 分钟和（无重复统计） |
+| 6 第二家庭隔离 | parent-2 读/改 child-1 的 tasks/today、patch task、study-sessions 均 403；parent-2 配对的设备拉 child-1 today 403；两家长设备列表无交集 |
+| 7 PWA 与后端同 schema | `test_schema_drift`：frontend client.ts 引用的全部 `/api/v1/...` 路径存在于 backend OpenAPI；frontend types 镜像 dashboard/session/device 关键字段；battery 保持 nullable |
+
+### 9.3 验证命令与结果（CP7）
+
+```powershell
+.\tools\dev\run-host-mvp-e2e.ps1 -CompilerPath "...\w64devkit-2.9.1\bin\g++.exe" -CrossCompilerPath "...\riscv32-esp-elf-g++.exe"
+# [1/3] C++ host gate   PASS (exit=0)
+# [2/3] backend pytest  PASS (exit=0; 62 collected)
+# [3/3] PWA typecheck/test/build PASS
+# E2E RESULT: PASS — 全部 127.0.0.1/in-process，无残留进程
+```
+
+### 9.4 范围声明（诚实边界）
+
+主机 MVP 闭环由 **Python in-process（FastAPI TestClient）与真实执行的 C++ host 测试** 共同证明。**不是** C++ HTTP/TLS 客户端、真机、浏览器 E2E 或设备网络已验证——脚本与报告均不将其写成已实现。
+
+### 9.5 CP7 结论
+
+CP7 完成，进入 CP8（全流稳定性收口：C++/Backend 5 轮、PWA 3 轮、E2E 5 轮 + HOST_MVP_ACCEPTANCE.md）。
