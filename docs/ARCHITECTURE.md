@@ -628,8 +628,9 @@ CREATED(开始) ──▶ RUNNING ──▶ COMPLETED(显式结束)
 每次业务变更按以下顺序执行，任何一步失败都不得进入下一步：
 
 1. **验证 intent**：领域层校验状态机允许该转换（如 `Complete` 仅在 `in_progress`/`paused` 有效）。
-2. **持久化快照 + 事件**：在同一原子写序列（NVS 日志式提交/等价事务）内写入"新领域快照"与"对应事件"（含 `event_id`、`sequence`）。
-3. **提交成功后确认**：两步都持久化成功，才向 UI 发布状态变更；UI 才显示完成/继续等反馈。
+2. **形成事件草稿**：纯领域 reducer 输出"下一领域快照 + 事件草稿"；草稿已含稳定 `event_id`、类型、载荷和调用方注入时间，但**不含已提交 sequence**。领域层、UI 和网络层均不得预先消耗 sequence。
+3. **Outbox 原子物化并持久化**：outbox 是 sequence 唯一分配者；在同一事务内读取持久化计数器，为草稿分配连续 sequence，物化完整事件，并一起写入"新领域快照 + 对应事件 + 下一 sequence 计数器"。
+4. **提交成功后确认**：全部持久化成功，才向 UI 发布状态变更；UI 才显示完成/继续等反馈。任一步失败均不得提交快照、事件或计数器，重试复用原 `event_id`，且 sequence 不被消耗。
 
 - 关键事件（`task.completed`、`study.session.completed`、`task.started` 等）无法持久化 → 领域状态**不提交** `completed`；UI 显示可恢复错误（重试按钮）；重试**复用原 `event_id`**，绝不生成新 `event_id`。
 - 由此保证不变量 I3/I8：完成事实要么已持久化（可重放），要么未提交（不算完成），不存在"状态完成但事件丢失"的中间态。
@@ -809,7 +810,7 @@ MVP：设备 `telemetry` 只写本地结构化日志（`PRODUCT_REQUIRED`）；�
 
 ## 11. 分阶段实施图（主机侧条件开放，真机侧等待 G2/G3）
 
-> 根据 2026-09-02 用户授权与根 `AGENTS.md`，纯主机接口、领域契约、Mock Backend 和自动化测试可在隔离工作流分支提前实施；真机耦合、官方固件集成、设备 LVGL 页面和发布构建仍 `HOLD`。**本文档不自动授权编码**；每项仍需 Codex 工作流任务包明确授权。
+> 根据 2026-09-02 用户授权与根 `AGENTS.md`，`WB-STREAM-002` 可在隔离分支连续实施 host-only 领域/离线/协调逻辑、UI presenter、家庭后端、家长 PWA 和合成 E2E；真机耦合、官方固件集成、设备网络/TLS、真实 NVS、设备 LVGL 页面和发布构建仍 `HOLD`。**本文档不自动授权编码**；每项仍需 Codex 工作流任务包明确授权。
 
 | # | 任务 | 输入 | 允许路径建议 | 测试类型 | 依赖 | 停止条件 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -820,7 +821,11 @@ MVP：设备 `telemetry` 只写本地结构化日志（`PRODUCT_REQUIRED`）；�
 | T5 | Focus 页面 | 领域 Timer | `ui/focus` | 状态驱动测试 | T2 | UI 绕过状态机 |
 | T6 | 事件链路 | 本文 §5.3 | `sync` + `ui` intent | 事件/幂等/顺序测试 | T2 | 事件可丢 |
 | T7 | 离线队列 | 本文 §7 | `sync/offline_store` | 掉电恢复/容量/死信测试 | T2+T3 | 队列违背 at-least-once |
-| T8 | 真机接入（G2 后） | WB-BRINGUP-S1 证据 | 官方 BSP 集成点 | 实机验证 | G2/G3 | 未经用户授权的刷写 |
+| T8 | 主机应用协调器与 UI presenter | 本文 §3/§8 | `application`、`ui`（无 LVGL） | 状态驱动/快速切换/离线测试 | T2+T7 | 引入硬件或把 presenter 写成真机 UI |
+| T9 | 持久化家庭后端 | 本文 §6/§9 | `backend`、`deploy` | 仓储/API/权限/事务测试 | T3 | 使用真实家庭数据或伪装生产认证 |
+| T10 | 家长 PWA | 本文 §9.3 | `frontend` | typecheck/lint/component/build | T9 | 直连设备或缓存儿童 API 数据 |
+| T11 | 主机 MVP E2E | 本文 §1/§10 | host fixtures/scripts | 创建任务→设备同步→家长可见 | T8+T9+T10 | 将模拟结果写成真机/TLS 已验证 |
+| T12 | 真机接入（G2 后） | WB-BRINGUP-S1 证据 | 官方 BSP 集成点 | 实机验证 | G2/G3+T11 | 未经用户授权的刷写 |
 
 每项输入均需 Codex 工作流任务包明确授权才可开始；已完成 checkpoint 仍须 Codex 复检后方可进入 `main`。T3 与 T2 可并行（`ARCH_DECISION`）。
 

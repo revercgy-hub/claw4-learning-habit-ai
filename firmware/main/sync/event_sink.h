@@ -4,6 +4,7 @@
 // Contract source: ARCHITECTURE.md §3.4 / §7.3.
 #pragma once
 
+#include <cstdint>
 #include <vector>
 
 #include "learning_domain/domain_state.h"
@@ -18,17 +19,35 @@ namespace sync {
 // fixes the interface.
 struct PendingTransition {
   claw4::domain::DomainState next_state;
-  std::vector<claw4::domain::DeviceEvent> events;
+  std::vector<claw4::domain::EventDraft> event_drafts;
+};
+
+enum class PersistStatus : uint8_t {
+  Committed = 0,
+  InvalidTransition,
+  CapacityExceeded,
+  StorageError,
+};
+
+struct PersistResult {
+  PersistStatus status = PersistStatus::StorageError;
+  // Fully materialized envelopes, including the sequences allocated by the
+  // outbox transaction. Empty for every non-committed result.
+  std::vector<claw4::domain::DeviceEvent> committed_events;
+
+  bool committed() const noexcept { return status == PersistStatus::Committed; }
 };
 
 class EventSink {
  public:
   virtual ~EventSink() = default;
 
-  // Atomically persists the complete next domain snapshot and all events
-  // produced by the transition. Returns false without committing either side
-  // when persistence fails. UI publication happens only after true (I8).
-  virtual bool persistTransition(const PendingTransition& transition) = 0;
+  // Atomically allocates consecutive sequences, materializes the drafts, and
+  // persists the complete next domain snapshot + events + next-sequence
+  // counter. Failure commits nothing and consumes no sequence. The caller
+  // retries with the same event_id values; UI publication happens only after
+  // PersistResult::committed() (I7/I8).
+  virtual PersistResult persistTransition(const PendingTransition& transition) = 0;
 };
 
 }  // namespace sync

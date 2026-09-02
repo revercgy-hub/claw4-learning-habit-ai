@@ -51,5 +51,20 @@ struct DeviceEvent {
   std::map<std::string, std::string> payload;
 };
 
+// Pure-domain output before transactional persistence. The reducer receives
+// event_id and time from its caller so retries can reuse the same idempotency
+// key, but it never allocates the persisted per-device sequence. The outbox is
+// the single sequence owner and materializes DeviceEvent during atomic commit.
+struct EventDraft {
+  EventId event_id;
+  DeviceId device_id;
+  ChildId child_id;
+  int64_t timestamp = 0;
+  TimestampSource timestamp_source = TimestampSource::Local;
+  EventType type = EventType::DeviceBooted;
+  int version = 1;
+  std::map<std::string, std::string> payload;
+};
+
 }  // namespace domain
 }  // namespace claw4

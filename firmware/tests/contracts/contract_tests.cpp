@@ -55,6 +55,10 @@ static_assert(static_cast<int>(EventOutcome::Rejected) == 3);
 static_assert(static_cast<int>(EventOutcome::Gap) == 4);
 
 static_assert(static_cast<int>(SyncErrorClass::Auth) == 1);
+static_assert(static_cast<int>(PersistStatus::Committed) == 0);
+static_assert(static_cast<int>(PersistStatus::StorageError) == 3);
+static_assert(std::is_same_v<decltype(PendingTransition::event_drafts),
+                             std::vector<EventDraft>>);
 
 // --- ID types are default-constructible value types ---
 static_assert(std::is_default_constructible_v<TaskId>);
@@ -67,6 +71,7 @@ static_assert(std::is_default_constructible_v<EventId>);
 static_assert(std::is_copy_constructible_v<Task>);
 static_assert(std::is_copy_constructible_v<StudySession>);
 static_assert(std::is_copy_constructible_v<DeviceEvent>);
+static_assert(std::is_copy_constructible_v<EventDraft>);
 static_assert(std::is_copy_constructible_v<DomainState>);
 static_assert(std::is_copy_constructible_v<BatchSyncResult>);
 static_assert(std::is_copy_constructible_v<SyncClient::Request>);
@@ -107,7 +112,11 @@ class MockTimerService final : public TimerService {
 
 class MockEventSink final : public EventSink {
  public:
-  bool persistTransition(const PendingTransition&) override { return true; }
+  PersistResult persistTransition(const PendingTransition&) override {
+    PersistResult result;
+    result.status = PersistStatus::Committed;
+    return result;
+  }
 };
 
 class MockSyncClient final : public SyncClient {
