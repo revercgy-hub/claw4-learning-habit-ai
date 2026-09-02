@@ -164,11 +164,13 @@ Write-Log "== 4c) native unit tests (firmware/tests/unit) =="
 $unitRoot = Join-Path $RepoRoot "firmware\tests\unit"
 if (Test-Path $unitRoot) {
     $testFiles = Get-ChildItem -Path $unitRoot -Filter *.cpp -Recurse
-    # Implementation sources: pure host-safe C++ under learning_domain / sync
-    # (extend this list as further host modules land in later checkpoints).
+    # Implementation sources: pure host-safe C++ under learning_domain /
+    # sync / application (extend this list as further host modules land in
+    # later checkpoints).
     $implRoots = @(
         (Join-Path $RepoRoot "firmware\main\learning_domain"),
-        (Join-Path $RepoRoot "firmware\main\sync")
+        (Join-Path $RepoRoot "firmware\main\sync"),
+        (Join-Path $RepoRoot "firmware\main\application")
     )
     $implSrcs = @()
     foreach ($root in $implRoots) {

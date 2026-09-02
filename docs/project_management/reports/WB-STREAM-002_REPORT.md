@@ -14,7 +14,8 @@
 | --- | --- | --- | --- |
 | CP0 本机 C++17 门槛 | `CHECKPOINT_READY` | `690d8488c7d42f4c92735c66dc4d6417f46fb15b`（`test(WB-STREAM-002): add native C++ test gate`） | 主机 g++ 16.2.0 compile/link/run PASS；P4 接口契约 exit=0 |
 | CP1 纯领域 Reducer | `CHECKPOINT_READY` | `09984477015f9bbbab2cf2f8766c32db28ce2158`（`feat(WB-STREAM-002): implement domain reducer`） | 领域单测 27/27 PASS（cases=27 failures=0）；依赖扫描 PASS；接口契约 exit=0 |
-| CP2 transactional Outbox | `CHECKPOINT_READY` | `feat(WB-STREAM-002): add transactional outbox core`（本提交自身） | outbox 21/21 + domain 27/27 PASS；连续 5 轮 EXIT=0；接口契约 exit=0 |
+| CP2 transactional Outbox | `CHECKPOINT_READY` | `b16b739bef02d10f4ce3c34158bd5395b1971a5e`（`feat(WB-STREAM-002): add transactional outbox core`） | outbox 21/21 + domain 27/27 PASS；连续 5 轮 EXIT=0；接口契约 exit=0 |
+| CP3 应用协调器 | `CHECKPOINT_READY` | `feat(WB-STREAM-002): integrate host application coordinator`（本提交自身） | coordinator 20/20 PASS；全量 68 case；接口契约 exit=0 |
 | CP2 transactional Outbox | `QUEUED` | — | — |
 | CP3 应用协调器 | `QUEUED` | — | — |
 | CP4 UI Presenter | `QUEUED` | — | — |
@@ -187,3 +188,99 @@ CP1 完成并推送（`09984477015f9bbbab2cf2f8766c32db28ce2158`）。立即进�
 ### 4.5 CP2 结论
 
 CP2 完成并推送（精确 hash 由 CP3 报告回填）。立即进入 CP3（设备应用协调器）。
+
+
+## 5. CP3：设备应用协调器、同步策略与离线任务缓存
+
+### 5.1 修改文件（CP3）
+
+- `firmware/main/application/coordinator.h`（新建，AppCoordinator 接口）
+- `firmware/main/application/coordinator.cpp`（新建，实现）
+- `firmware/tests/unit/application/coordinator_tests.cpp`（新建，20 个主机 case）
+- `firmware/tests/fakes/fake_sync_transport.h`（新建，可编程 transport）
+- `tools/dev/verify-host-cpp-tests.ps1`（修改，实现源加入 application）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP2 hash + 本段）
+
+### 5.2 实现要点（任务包 6 项）
+
+| 要求 | 实现 |
+| --- | --- |
+| 1 Intent→reducer→outbox→仅 commit 后发布 | `dispatchIntent`/`dispatchSegmentTimeout`/`retryLastFailed` 共用 `commitAndPublish`；reducer 拒绝或 outbox 失败均不发布；**失败转换缓存**，`retryLastFailed` 复用同一 event_id（7.3.1） |
+| 2 今日任务缓存 (task_id, version) 增量合并 | `mergeTodayTasks`：版本更高才更新；运行中 active session 的 task status 不被服务器覆盖；空列表正常；合并经 outbox 快照-only 提交持久化（重启可恢复） |
+| 3 同步只发 pending 连续前缀 | `runSyncOnce` 从 `last_acked+1` 起发连续段，遇断口停止 |
+| 4 Auth 一次 re-auth / 退避上限 60s | Auth(401/403)→注入 reauth 至多一次→ReauthOk/PausedAuth（pending 不动）；Network/5xx→确定性退避（base 倍增、`backoff_max_ms=60000` 封顶、种子抖动、绝不 sleep） |
+| 5 Conflict/Rejected/Gap/4xx/响应丢失收敛；诊断不递归 | 逐事件经 `OutboxCore.applyBatchResult`（死信/保留/prefix 清理）；`setDiagnostic` 只进合并诊断槽 |
+| 6 全注入 / 无 sleep / 无联网 | transport/reauth/id/时间均注入；测试用 FakeSyncTransport 编程响应 + 假时钟，无网络无 sleep 无 RNG |
+
+### 5.3 验证命令与结果（CP3）
+
+```powershell
+# 主机全量测试（w64devkit g++ 16.2.0 + P4 riscv32 交叉编译器）
+# 结果（exit 0）：
+#   unit coordinator_tests     : cases=20 failures=0 RUN PASS
+#   unit domain_reducer_tests  : cases=27 failures=0 RUN PASS
+#   unit outbox_core_tests     : cases=21 failures=0 RUN PASS
+#   unit summary : 3 / 3 PASS（全量 68 case）
+#   interface exit=0（P4 交叉编译契约 PASS）
+```
+
+### 5.4 CP3 验收自检
+
+| 验收标准 | 结果 |
+| --- | --- |
+| ≥18 独立 case 覆盖任务包 6 项 | PASS（20 case：commit-then-publish/reject/outbox 失败/timer、缓存 version/运行态/持久化/空任务、前缀批/成功清理/duplicate 收敛/auth 单次 re-auth/退避封顶/4xx 死信/conflict 保留/丢失响应收敛/诊断槽/端到端/重试同 ID） |
+| 主机全量 C++ 测试 PASS | PASS（68 case，3/3 测试程序 exit 0） |
+| 接口交叉编译 PASS | PASS（interface exit=0） |
+| `git diff --check` | PASS |
+
+### 5.5 CP3 结论
+
+CP3 完成并推送（精确 hash 由 CP4 报告回填）。立即进入 CP4（Home/Focus/Done/Offline 纯 UI Presenter）。
+
+
+## 5. CP3：设备应用协调器、同步策略与离线任务缓存
+
+### 5.1 修改文件（CP3）
+
+- `firmware/main/application/coordinator.h`（新建，AppCoordinator 接口）
+- `firmware/main/application/coordinator.cpp`（新建，实现）
+- `firmware/tests/unit/application/coordinator_tests.cpp`（新建，20 个主机 case）
+- `firmware/tests/fakes/fake_sync_transport.h`（新建，可编程 transport）
+- `tools/dev/verify-host-cpp-tests.ps1`（修改，实现源加入 application）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP2 hash + 本段）
+
+### 5.2 实现要点（任务包 6 项）
+
+| 要求 | 实现 |
+| --- | --- |
+| 1 Intent→reducer→outbox→仅 commit 后发布 | `dispatchIntent`/`dispatchSegmentTimeout`/`retryLastFailed` 共用 `commitAndPublish`；reducer 拒绝或 outbox 失败均不发布；**失败转换缓存**，`retryLastFailed` 复用同一 event_id（7.3.1） |
+| 2 今日任务缓存 (task_id, version) 增量合并 | `mergeTodayTasks`：版本更高才更新；运行中 active session 的 task status 不被服务器覆盖；空列表正常；合并经 outbox 快照-only 提交持久化（重启可恢复） |
+| 3 同步只发 pending 连续前缀 | `runSyncOnce` 从 `last_acked+1` 起发连续段，遇断口停止 |
+| 4 Auth 一次 re-auth / 退避上限 60s | Auth(401/403)→注入 reauth 至多一次→ReauthOk/PausedAuth（pending 不动）；Network/5xx→确定性退避（base 倍增、`backoff_max_ms=60000` 封顶、种子抖动、绝不 sleep） |
+| 5 Conflict/Rejected/Gap/4xx/响应丢失收敛；诊断不递归 | 逐事件经 `OutboxCore.applyBatchResult`（死信/保留/prefix 清理）；`setDiagnostic` 只进合并诊断槽 |
+| 6 全注入 / 无 sleep / 无联网 | transport/reauth/id/时间均注入；测试用 FakeSyncTransport 编程响应 + 假时钟，无网络无 sleep 无 RNG |
+
+### 5.3 验证命令与结果（CP3）
+
+```powershell
+# 主机全量测试（w64devkit g++ 16.2.0 + P4 riscv32 交叉编译器）
+# 结果（exit 0）：
+#   unit coordinator_tests     : cases=20 failures=0 RUN PASS
+#   unit domain_reducer_tests  : cases=27 failures=0 RUN PASS
+#   unit outbox_core_tests     : cases=21 failures=0 RUN PASS
+#   unit summary : 3 / 3 PASS（全量 68 case）
+#   interface exit=0（P4 交叉编译契约 PASS）
+```
+
+### 5.4 CP3 验收自检
+
+| 验收标准 | 结果 |
+| --- | --- |
+| ≥18 独立 case 覆盖任务包 6 项 | PASS（20 case：commit-then-publish/reject/outbox 失败/timer、缓存 version/运行态/持久化/空任务、前缀批/成功清理/duplicate 收敛/auth 单次 re-auth/退避封顶/4xx 死信/conflict 保留/丢失响应收敛/诊断槽/端到端/重试同 ID） |
+| 主机全量 C++ 测试 PASS | PASS（68 case，3/3 测试程序 exit 0） |
+| 接口交叉编译 PASS | PASS（interface exit=0） |
+| `git diff --check` | PASS |
+
+### 5.5 CP3 结论
+
+CP3 完成并推送（精确 hash 由 CP4 报告回填）。立即进入 CP4（Home/Focus/Done/Offline 纯 UI Presenter）。
