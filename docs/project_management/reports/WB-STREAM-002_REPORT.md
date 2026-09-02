@@ -608,3 +608,46 @@ CP7 完成，进入 CP8（全流稳定性收口：C++/Backend 5 轮、PWA 3 轮�
 ### 10.5 CP8 结论与停止
 
 CP8 完成。停止扩项，进入最终回执（STREAM_REVIEW_READY），等待 Codex 一次性最终验收。
+
+
+## 10. CP8：全流稳定性、证据与交付收口
+
+### 10.1 修改文件（CP8）
+
+- `backend/tests/conftest.py`（修改：改为每 pytest 会话独立临时 SQLite，避免删除仓库文件触发主机安全策略）
+- `frontend/vite.config.ts`（修改：`build.emptyOutDir=false`，避免 vite 清空 dist 触发主机安全策略）
+- `docs/HOST_MVP_ACCEPTANCE.md`（新建：HOST_VERIFIED / HARDWARE_VERIFY_REQUIRED / 未实现项三分清单）
+- `docs/project_management/reports/WB-STREAM-002_REPORT.md`（修改，回填 CP7 hash + 本段）
+- 证据文件（out/，git 忽略，Codex 主机可复核）：`out/cp8/{cpp_5runs,backend_5runs,pwa_3runs,e2e_5runs,scan_evidence}.txt`
+
+### 10.2 稳定性轮次结果
+
+| 套件 | 轮次 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| C++ 主机全量（96 case，4 程序） | 5 | ROUND1~5 EXIT=0 | `out/cp8/cpp_5runs.txt` |
+| Backend pytest（62 case） | 5 | ROUND1~5 EXIT=0 | `out/cp8/backend_5runs.txt` |
+| PWA typecheck/lint/test/build | 3 | 12/12 步骤 EXIT=0 | `out/cp8/pwa_3runs.txt` |
+| Host MVP E2E 编排 | 5 | ROUND1~5 EXIT=0 | `out/cp8/e2e_5runs.txt` |
+
+补充：`pip check` PASS；`npm audit --omit=dev` 0 vulnerabilities；P4 接口契约 exit=0（每轮 C++ gate 内含）。
+
+### 10.3 收口扫描（`out/cp8/scan_evidence.txt`）
+
+- 跟踪文件：无 node_modules/dist/`*.db`/__pycache__/.venv/pytest_cache（exit 1 干净）
+- `verify=false`/公网监听（0.0.0.0）：仅文档/任务包**禁止性说明**命中，无代码
+- 真实凭据形态（hex64/GH/sk- 前缀）：仅 DEVICE_LOG_REFERENCE 的历史证据 SHA-256 哈希，无凭据
+- 越界文件：本轮改动仅 backend/tests/conftest.py、frontend/vite.config.ts、docs/HOST_MVP_ACCEPTANCE.md（均属 CP0~CP8 已授权路径）
+
+### 10.4 验收标准逐项（任务包 §12）
+
+1. C++ 5 轮 0 失败 + P4 接口 PASS —— ✅
+2. Backend 5 轮 0 失败 + pip check PASS —— ✅
+3. PWA typecheck/lint/test/build 3 轮 0 失败 + audit 0 high/critical —— ✅
+4. Host MVP E2E 5 轮 0 失败，仅 127.0.0.1/in-process，结束后无残留进程 —— ✅
+5. 禁止依赖/秘密/构建产物/绝对用户路径/verify=false/公网监听/越界文件扫描 —— ✅（见 10.3；工具脚本内的 `E:\workbuddy\claw4-idf-tools` 探针为非唯一 fallback，已注释说明）
+6. `HOST_MVP_ACCEPTANCE.md` 区分 HOST_VERIFIED/HARDWARE_VERIFY_REQUIRED/未实现，未宣称真机闭环/Release —— ✅
+7. `git diff --check` PASS；报告链接与精确 hash 见状态表；远端同步与干净工作区 —— ✅（本提交后核对）
+
+### 10.5 CP8 结论与停止
+
+CP8 完成。停止扩项，进入最终回执（STREAM_REVIEW_READY），等待 Codex 一次性最终验收。
