@@ -44,7 +44,7 @@ codex/<stream>-review-fixes       Codex 从已审查 checkpoint 建立修复分�
 - 未经用户明确授权，不读取、擦除或刷写 Flash，不修改 partition table、Bootloader、Secure Boot、Flash Encryption 或 OTA 策略。
 - 不向真实外部服务发送儿童数据，不引入真实密钥、付费账号或生产凭据。
 - 不修改 `vendor/MetalioClaw4` 官方基线；需要集成时另发任务。
-- 未完成 Stage 1 前，不把屏幕、触摸、音频、摄像头、存储、电源等写成真机已通过。
+- 未完成 Stage 1 前，不把屏幕、触摸、音频、摄像头、存储、电源等写成真机已通过。用户已授权 `WB-STREAM-002` 连续完成 CP0～CP8 的 host-only 领域/离线/协调、UI presenter、家庭后端、家长 PWA 与合成 E2E；该授权不延伸到 LVGL、设备网络/TLS、真实 NVS、官方固件或发布构建。
 - 持续摄像、情绪/人脸识别、本地大模型、4G/GPS 等非 MVP 功能继续禁止。
 
 ## 6. 工作流报告

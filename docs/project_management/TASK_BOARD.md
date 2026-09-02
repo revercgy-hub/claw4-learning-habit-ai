@@ -2,13 +2,15 @@
 
 - 更新时间：2026-09-02
 - 维护者：Codex
-- 当前阶段：G0/G1 已通过；WB-STREAM-001 已复检并由 Codex 修复，启动 WB-STREAM-002 主机侧领域与离线核心流
+- 当前阶段：G0/G1 已通过；WB-STREAM-002 已完成 Codex 开工预检，等待 WorkBuddy 从 CP0 开始实施
 - 调度规则：任意时刻只允许一个活动 WorkBuddy 工作流；流内 checkpoint 按任务包顺序连续执行
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前活动工作流
 
-`WB-STREAM-002` 为唯一活动工作流。WorkBuddy 在 `workbuddy/domain-offline-stream` 按 `WB-STREAM-002_DOMAIN_OFFLINE.md` 连续执行 CP0（本机 C++ 运行门槛）→ CP1（纯领域 reducer）→ CP2（平台无关 transactional outbox），每个 checkpoint 提交并 push 后不等待 Codex，直接继续下一项。不得越出任务包路径或进入真机、NVS 适配、Flash、UI 或非 MVP 功能。
+`WB-STREAM-002` 为唯一活动工作流。WorkBuddy 在 `workbuddy/domain-offline-stream` 按 `WB-STREAM-002_DOMAIN_OFFLINE.md` 连续执行 CP0～CP8：本机 C++ 门槛 → 领域 reducer → transactional outbox → 应用协调器 → 纯 UI presenter → 持久化家庭后端 → 家长 PWA → 主机 E2E → 稳定性证据。每个 checkpoint 提交并 push 后不等待 Codex，直接继续；CP8 后由 Codex 一次性最终验收。不得进入真机、LVGL、真实 NVS/网络适配、Flash 或非 MVP 功能。
+
+Codex 预检确认截至 2026-09-02 本流尚无 WorkBuddy 实施提交；`READY` 表示可以从 CP0 开工，不表示 CP0 已完成。sequence 所有权已收敛为“领域输出 EventDraft，outbox 原子分配已提交 sequence”，见 `CODEX_PREFLIGHT_WB-STREAM-002_2026-09-02.md`。
 
 ## 看板
 
@@ -34,18 +36,28 @@
 | 6.2 | CR-002-R3 / CR-WB-STREAM-001 | Codex | `ACCEPTED` | WB-STREAM-001 checkpoint `bc41ff3` | `CODEX_REVIEW_WB-STREAM-001_2026-09-02.md`；`ACCEPTED_WITH_CODEX_FIXES` |
 | 6.5 | WB-STREAM-001 | WorkBuddy | `ACCEPTED` | 用户连续开发授权；远端工作流分支 | CP0 `72b77ee`、CP1 `a38dfad`、CP2 `bc41ff3` |
 | 6.6 | CR-WB-STREAM-001-FIX | Codex | `ACCEPTED` | WB-STREAM-001 checkpoint 冻结 | `f021233`；身份/绑定、设备级并发、challenge 原子消费、event envelope、outbox 接口修复，pytest 28/28×5 |
-| 6.7 | WB-STREAM-002 / CP0 | WorkBuddy | `READY` | `f021233`；本任务发布基线 | 本机 C++17 compile/link/run 门槛；`WB-STREAM-002_REPORT.md` |
+| 6.65 | CR-WB-STREAM-002-PREFLIGHT | Codex | `ACCEPTED` | WB-STREAM-002 未开始 | sequence 单一所有者、LLVM 来源/SHA 与空分支状态预检；`CODEX_PREFLIGHT_WB-STREAM-002_2026-09-02.md` |
+| 6.7 | WB-STREAM-002 / CP0 | WorkBuddy | `READY` | 最新调度基线（历史包含 `f021233`） | 本机 C++17 compile/link/run 门槛；`WB-STREAM-002_REPORT.md` |
 | 6.8 | WB-STREAM-002 / CP1 | WorkBuddy | `QUEUED` | CP0 checkpoint | 纯领域 reducer、状态机与主机单测 |
 | 6.9 | WB-STREAM-002 / CP2 | WorkBuddy | `QUEUED` | CP1 checkpoint | 平台无关 transactional outbox、故障注入与恢复单测 |
+| 6.10 | WB-STREAM-002 / CP3 | WorkBuddy | `QUEUED` | CP2 checkpoint | 设备应用协调器、同步策略、离线任务缓存（全为 host fake） |
+| 6.11 | WB-STREAM-002 / CP4 | WorkBuddy | `QUEUED` | CP3 checkpoint | Home/Focus/Done/Offline 纯 presenter；不含 LVGL |
+| 6.12 | WB-STREAM-002 / CP5 | WorkBuddy | `QUEUED` | CP4 checkpoint；Mock Backend | SQLAlchemy 持久化家庭后端、家长 API、事件投影 |
+| 6.13 | WB-STREAM-002 / CP6 | WorkBuddy | `QUEUED` | CP5 checkpoint | React/TypeScript/Vite 家长 PWA 四页 |
+| 6.14 | WB-STREAM-002 / CP7 | WorkBuddy | `QUEUED` | CP6 checkpoint | 合成数据主机 MVP E2E 闭环 |
+| 6.15 | WB-STREAM-002 / CP8 | WorkBuddy | `QUEUED` | CP7 checkpoint | 全流重复验证、HOST_MVP_ACCEPTANCE 证据与最终回执 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |
 | 10 | WB-MVP-DOMAIN / STREAM-002 CP1 | WorkBuddy | `QUEUED` | STREAM-002 CP0 | Task、StudySession、DeviceEvent、DomainState reducer 与主机单元测试 |
 | 11 | WB-MVP-MOCK / STREAM-001 CP2 | WorkBuddy | `ACCEPTED` | CP1 checkpoint；CP0 契约 | 提交 `bc41ff3`，Codex 回归修复 `f021233`；pytest 28/28×5 |
-| 12 | WB-MVP-UI-HOME | WorkBuddy | `HOLD` | Mock Backend 验收 | Home 页面与 Mock Tasks |
-| 13 | WB-MVP-UI-FOCUS | WorkBuddy | `HOLD` | Home 验收 | Focus 页面与本地倒计时 |
+| 12 | WB-MVP-UI-PRESENTER / STREAM-002 CP4 | WorkBuddy | `QUEUED` | STREAM-002 CP3 | Home/Focus/Done/Offline 主机 presenter；LVGL 页面仍 `HOLD` |
+| 13 | WB-MVP-DEVICE-UI | WorkBuddy | `HOLD` | Bring-up G2/G3 + host presenter 验收 | LVGL Home/Focus/Done/Offline 与真机交互 |
 | 14 | WB-MVP-EVENTS | WorkBuddy | `HOLD` | Focus 验收 | task.start、task.complete |
 | 15 | WB-MVP-QUEUE / STREAM-002 CP2 | WorkBuddy | `QUEUED` | STREAM-002 CP1 | 平台无关 outbox 核心；真实 NVS/掉电/真机适配仍 `HOLD` |
+| 16 | WB-MVP-BACKEND / STREAM-002 CP5 | WorkBuddy | `QUEUED` | STREAM-002 CP4 | 持久化家庭后端；SQLite 测试 + PostgreSQL 部署配置 |
+| 17 | WB-MVP-PWA / STREAM-002 CP6 | WorkBuddy | `QUEUED` | STREAM-002 CP5 | 家长 Dashboard/今日任务/学习记录/设备四页 |
+| 18 | CR-WB-STREAM-002-FINAL | Codex | `BACKLOG` | CP8 `STREAM_REVIEW_READY` | 一次性复检全部 checkpoint、直接修复普通缺陷、决定 HOST MVP 验收 |
 
 ## 当前阻塞
 
