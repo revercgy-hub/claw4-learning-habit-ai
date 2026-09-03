@@ -18,7 +18,7 @@
 6. §8 Learning MCP Host（P15）：8 个 `learning.*` 工具，AI 禁止直接 Complete（`1467527`）；
 7. §9 Platform Ports（P16）：8 抽象 Port + 确定性 fakes，Learning Domain 零 Metalio/IDF 头（`e10a7e1`）。
 
-截至 2026-09-03：**阶段 1（§3~§6）与阶段 2（§7~§9/P14–P16）均已完成并推送**（阶段 1：`f8513f1` → `ef5d22d` → `cbdd5ba` → `3e72cd8`；阶段 2：`a862cb0` 任务包 → `35e3d45`(P14) → `1467527`(P15) → `e10a7e1`(P16) → 收口 docs；远端 `workbuddy/learning-v4-host-sync`；host gate 7/7、135 case 0 失败；流报告 `reports/WB-LEARNING-V4_REPORT.md` §11）。§6 已源码级核实 `openclaw_screen`（Metalio 云 Agent 对话 App，**非**学习宿主；Learning 与 chat/openclaw 等为 Home 网格并列 App）。**下一步候选：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter）与 P17 设备边界适配——起涉设备侧，待真机连接授权后入队。**
+截至 2026-09-03：**阶段 1（§3~§6）与阶段 2（§7~§9/P14–P16）均已完成并推送**（阶段 1：`f8513f1` → `ef5d22d` → `cbdd5ba` → `3e72cd8`；阶段 2：`a862cb0` 任务包 → `35e3d45`(P14) → `1467527`(P15) → `e10a7e1`(P16) → `49cf136`/`86e0f22` 收口 → `a4d35a` host funnel 集成；远端 `workbuddy/learning-v4-host-sync`；host gate 8/8、141 case 0 失败；流报告 `reports/WB-LEARNING-V4_REPORT.md` §11）。§6 已源码级核实 `openclaw_screen`（Metalio 云 Agent 对话 App，**非**学习宿主；Learning 与 chat/openclaw 等为 Home 网格并列 App）。**下一步候选：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter）与 P17 设备边界适配——起涉设备侧，待真机连接授权后入队。**
 
 本工作流不触碰真机、LVGL、真实 NVS/网络适配、Flash/分区或发布固件；Device MVP（Bring-up、App Shell、L0~L6）保持 `HOLD` 直至用户另行授权。
 
@@ -63,7 +63,7 @@
 | 6.15 | WB-STREAM-002 / CP8 | WorkBuddy | `CHECKPOINT_READY` | CP7 checkpoint | 提交 `36d2e13`+`028a544`+`52481dd`；C++/Backend 5 轮、PWA 3 轮、E2E 5 轮 0 失败；`HOST_MVP_ACCEPTANCE.md` 交付 |
 | 6.16 | WB-STREAM-002 / Review 修复 | WorkBuddy | `CHECKPOINT_READY` | CP8 checkpoint | 提交 `7e7fa07`+`c4a3bed`+`2787fb9`；FIX-03/08/10 + TaskNotReady；C++ 28/28、backend 70/70、E2E PASS；报告 §11 |
 | 6.17 | WB-LEARNING-V4-HOST / §3~§6 | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | planning-v4 `1310ca3d` | 提交 `f8513f1`（§3 PASS 标志 + §4 Fact Sync）+`ef5d22d`（§5 tracking）+`cbdd5ba`（§6 integration map）推送 `workbuddy/learning-v4-host-sync`；`WB-LEARNING-V4_REPORT.md`；openclaw 源码级核实 |
-| 6.18 | WB-LEARNING-V4-HOST / §7~§9（P14–P16） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `3e72cd8`（阶段 2 任务包基线） | 任务包 `WB-LEARNING-V4_INTERACTION_MCP_PORTS.md`（`a862cb0`）；P14 interaction `35e3d45`（含 mapFocusTap task_id 修正 P14.1）；P15 learning mcp host `1467527`；P16 platform ports `e10a7e1`；host gate 7/7、135 case 0 失败、4b3 include 扫描 PASS；报告 §11 |
+| 6.18 | WB-LEARNING-V4-HOST / §7~§9（P14–P16） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `3e72cd8`（阶段 2 任务包基线） | 任务包 `WB-LEARNING-V4_INTERACTION_MCP_PORTS.md`（`a862cb0`）；P14 interaction `35e3d45`（含 mapFocusTap task_id 修正 P14.1）；P15 learning mcp host `1467527`；P16 platform ports `e10a7e1`；host funnel 集成测试 `a4d35a`（learning.* → 真实 coordinator 全链 6 case）；host gate 8/8、141 case 0 失败、4b3 include 扫描 PASS、target-ISA impl 语法 3/3；报告 §11 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |

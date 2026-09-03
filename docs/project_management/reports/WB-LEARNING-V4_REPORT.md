@@ -7,8 +7,8 @@
 | 任务 ID | WB-LEARNING-V4-HOST（V4 主机侧先行：阶段 1 §3~§6 + 阶段 2 §7~§9/P14–P16） |
 | 分支 | `workbuddy/learning-v4-host-sync`（基线 planning-v4 `1310ca3d`） |
 | 阶段 1 提交 | `f8513f1`（§3/§4 Fact Sync）→ `ef5d22d`（§5 tracking）→ `cbdd5ba`（§6 integration map）→ `3e72cd8`（报告 + openclaw 补核 + 看板 6.17） |
-| 阶段 2 提交 | `a862cb0`（C5 任务包）→ `35e3d45`（C6 P14 interaction）→ `1467527`（C7 P15 MCP host）→ `e10a7e1`（C8 P16 ports）→ 本轮 C9 docs 收口（见 §11） |
-| 远端头 | `e10a7e1…` 后接本收口提交（普通快进，无 force） |
+| 阶段 2 提交 | `a862cb0`（C5 任务包）→ `35e3d45`（C6 P14 interaction）→ `1467527`（C7 P15 MCP host）→ `e10a7e1`（C8 P16 ports）→ `49cf136`/`86e0f22`（C9/C10 收口）→ `a4d35a`（C11 host funnel 集成测试 + target-ISA 实现语法）→ 本轮 C12 docs 复核补记 |
+| 远端头 | `a4d35a…` 后接本收口提交（普通快进，无 force） |
 | 日期 | 2026-09-03 |
 | 范围 | 纯主机侧 + 文档侧：V4 §3 Final Fix 正式标志、§4 Fact Sync、§5 Upstream Tracking、§6 Integration Recheck（阶段 1）；V4 §7 Interaction Router、§8 Learning MCP Host、§9 Platform Ports 抽象 + fakes（阶段 2，主机可验证） |
 | 授权 | 用户三项决策：主机侧先行 / 真机未连接（本轮不做真机与 flash）/ 基线基于 planning-v4；阶段 2（§7~§9）按看板候选入队、纯主机+fake 路径与 WB-STREAM-002 同模式 |
@@ -94,8 +94,8 @@
 
 | CP | V4 范围 | 提交 | 状态 |
 | --- | --- | --- | --- |
-| P14 | §7 Interaction Router / Dispatcher + STT mapper（含 P14.1 集成修正） | `35e3d45` | `CHECKPOINT_READY`（host gate 15/15 + 非回归） |
-| P15 | §8 Learning MCP Host（8 个 `learning.*` 工具） | `1467527` | `CHECKPOINT_READY`（15/15 + 非回归） |
+| P14 | §7 Interaction Router / Dispatcher + STT mapper（含 P14.1 集成修正） | `35e3d45` | `CHECKPOINT_READY`（host gate 15/15 + 非回归；host funnel 6/6 见 C11） |
+| P15 | §8 Learning MCP Host（8 个 `learning.*` 工具） | `1467527` | `CHECKPOINT_READY`（15/15 + 非回归；host funnel 6/6 见 C11） |
 | P16 | §9 Platform Ports（8 抽象 + 确定性 fakes） | `e10a7e1` | `CHECKPOINT_READY`（8/8 + 非回归） |
 
 ### 11.2 实际修改文件（C5→C8，相对 `3e72cd8`）
@@ -110,9 +110,10 @@
 | `firmware/main/mcp/learning_mcp_host.h/.cpp` | **新增**：LearningBackend + 8 工具宿主；查询走快照只读投影（remaining 复用 `ui::buildFocus`），变更经 dispatcher(Mcp) |
 | `firmware/main/ports/*.h`（8 文件） | **新增**：Clock/Storage/Network/Ui/VoiceSession/Stt/McpRegistration/Power 抽象 Port（纯接口，无 Metalio/IDF 头） |
 | `firmware/tests/fakes/fake_command_sink.h` 等 3 个 fakes | **新增**：确定性 fake（sink / learning backend / 8 ports） |
-| `firmware/tests/unit/interaction|mcp|ports/*.cpp`（3 测试） | **新增**：P14 15 case / P15 15 case / P16 8 case |
+| `firmware/tests/unit/interaction|mcp|ports/*.cpp`（4 测试） | **新增**：P14 dispatcher 15 case / P15 mcp host 15 case / P16 ports 8 case / **host funnel 6 case（C11：learning.* 经 dispatcher → 真实 AppCoordinator + reducer + outbox 全链）** |
 | `firmware/tests/unit/ui/presenter_tests.cpp` | P14.1：两处 mapFocusTap case 增加 task_id 断言 |
 | `tools/dev/verify-host-cpp-tests.ps1` | implRoots 增 interaction/mcp/ports；新增 §4b3 禁止 include 扫描（lvgl/esp_/freertos/driver/bsp/wifi/nvs/hal/metalio） |
+| `tools/dev/verify-interface-contracts.ps1` | C11：新增 §2.5 对 interaction/mcp 实现源做 riscv32 target ISA `-fsyntax-only`（implsrcs 3/3 PASS） |
 
 ### 11.3 实现摘要
 
@@ -120,6 +121,7 @@
 2. **P14.1 集成修正（发现并修复）**：`mapFocusTap` 只填 `session_id`，而 reducer 入口强制 `task_id` 存在（`reducer.cpp` `if (!request.task_id) return TaskNotFound`），直连 coordinator 会恒被拒。补 `task_id`（FocusView 已携带），原 28 个 presenter case 无回归。
 3. **P15 MCP Host**：`learning.get_today_tasks/current_task/remaining_time/today_progress` 为只读投影；`start/pause/resume/request_complete_task` 经 dispatcher(Mcp) 进入域。`request_complete_task` 响应 `{"confirmation":"pending"}`，**AI 绝不直接 Complete**（V4 §8）。remaining 复用 `buildFocus` 数学避免公式漂移；today_progress 规则（排除 Pending、含 skipped 分母）写入代码注释并测例锁定。
 4. **P16 Platform Ports**：8 个抽象接口 + 确定性 fake；Learning Domain/interaction/mcp/ports 零硬件头（4b3 扫描门禁证明）。UiPort 只表达语义动作与确认回调，LVGL 归 P17；NetworkPort 只留连接状态 + JSON POST 边界。
+5. **C11 host funnel 集成（补强验收）**：新增 `host_funnel_tests.cpp`，让 `learning.*` MCP 工具经 CommandDispatcher 走**真实 AppCoordinator（domain reducer + transactional outbox + FakeDisk 持久化）**，替代脚本化 fake sink/backend——验证了 start→InProgress/2 事件提交、pause/resume 状态机迁移、`request_complete_task` 不触碰 domain、物理确认后 Completed 且 active_session 清空（Done 语义）、busy/Pending 任务的 domain 拒绝路径。
 
 ### 11.4 验收标准逐项自检
 
@@ -128,15 +130,16 @@
 | P14 dispatcher 门禁与映射 15 测例 | ✅ 15/15，含 Voice/MCP 完成零 emit、confirm 单发、Query 零变更 |
 | P15 8 工具 + AI 禁止直接 Complete | ✅ 15/15；`request_complete_task` 后 sink 零 Complete 调用，confirm 后恰一次 |
 | P16 8 接口 + fakes 往返 | ✅ 8/8（含失败注入、重复注册拒绝、回调触发） |
+| P14/P15 对真实 domain 的 host funnel（C11） | ✅ 6/6（真实 coordinator 提交/迁移/门禁/拒绝路径，非脚本化 fake） |
 | 新增目录无硬件/OS/Metalio include | ✅ §4b3 扫描 PASS |
-| 全量非回归 | ✅ host gate 7/7 二进制 RUN PASS，总计 135 case 0 失败；P4 交叉契约 exit=0 |
+| 全量非回归 | ✅ host gate 8/8 二进制 RUN PASS，总计 141 case 0 失败；P4 交叉契约 exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1） |
 | 不触碰真机 / 不改 domain/sync 语义 / 无越界 | ✅（见 11.8） |
 
 ### 11.5 验证命令与结果
 
 | 验证 | 命令 | 结果 |
 | --- | --- | --- |
-| 全量 host 门槛 | `tools/dev/verify-host-cpp-tests.ps1 -CompilerPath w64devkit-2.9.1\bin\g++.exe -CrossCompilerPath riscv32-esp-elf-g++.exe` | `RESULT: NATIVE CPP TEST GATE PASS`；smoke compile/link/run PASS；4b/4b2/4b3 扫描 PASS；unit 7/7（coordinator 20 + domain 28 + dispatcher 15 + mcp 15 + ports 8 + outbox 21 + presenter 28 = **135 cases, 0 failures**）；interface exit=0 |
+| 全量 host 门槛 | `tools/dev/verify-host-cpp-tests.ps1 -CompilerPath w64devkit-2.9.1\bin\g++.exe -CrossCompilerPath riscv32-esp-elf-g++.exe` | `RESULT: NATIVE CPP TEST GATE PASS`；smoke compile/link/run PASS；4b/4b2/4b3 扫描 PASS；unit 8/8（coordinator 20 + domain 28 + dispatcher 15 + mcp 15 + host_funnel 6 + ports 8 + outbox 21 + presenter 28 = **141 cases, 0 failures**）；interface exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1，riscv32 target ISA `-fsyntax-only`） |
 | 变更无越界 | 隔离 index + `git diff <parent> <tree> --stat` | C5 +1 文件；C6 10 文件 +746/−5；C7 4 文件 +684；C8 10 文件 +580；均仅目标路径 |
 | 提交链完整性 | `git cat-file -p` 逐提交核验 parent | `3e72cd8 → a862cb0 → 35e3d45 → 1467527 → e10a7e1` 父链正确 |
 | 远端推送 | 代理 51846 后台长窗口普通 push | 每 CP `old..new -> workbuddy/learning-v4-host-sync`（8s~54s，快进） |
