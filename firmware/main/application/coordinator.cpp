@@ -137,40 +137,63 @@ domain::TransitionResult AppCoordinator::persistOrFail(sync::PendingTransition t
   return ok;
 }
 
-bool AppCoordinator::mergeTodayTasks(const std::vector<domain::Task>& server_tasks) {
+bool AppCoordinator::applyTodaySnapshot(
+    const std::vector<domain::Task>& server_tasks) {
   sync::OutboxState os = loadFrom(storage_);
   domain::DomainState next = os.domain;
 
-  const bool has_active =
-      next.active_session.has_value() &&
+  // The task owning a live Running/Paused session is the ONLY row protected
+  // from snapshot membership: it is kept (until the session ends) even when
+  // the server does not list it, and its live status is never reset.
+  const domain::TaskId* active_id = nullptr;
+  if (next.active_session.has_value() &&
       (next.active_session->status == domain::SessionStatus::Running ||
-       next.active_session->status == domain::SessionStatus::Paused);
+       next.active_session->status == domain::SessionStatus::Paused)) {
+    active_id = &next.active_session->task_id;
+  }
 
-  for (const auto& st : server_tasks) {
-    bool found = false;
-    for (auto& local : next.tasks) {
-      if (local.task_id == st.task_id) {
-        found = true;
-        if (st.version >= local.version) {
-          // Incremental merge by (task_id, version). Never overwrite the
-          // status of the task owning the running/paused active session.
-          const bool running_task =
-              has_active && next.active_session->task_id == st.task_id;
-          const domain::TaskStatus old_status = local.status;
-          local = st;
-          if (running_task) {
-            local.status = old_status;  // keep live status
-          }
+  std::vector<domain::Task> out_tasks;
+  out_tasks.reserve(next.tasks.size() + server_tasks.size());
+
+  for (auto& local : next.tasks) {
+    if (active_id && *active_id == local.task_id) {
+      // Active task: keep it; apply newer descriptive fields only, never the
+      // server's status (the reducer owns the live status).
+      for (const auto& sv : server_tasks) {
+        if (sv.task_id == local.task_id && sv.version >= local.version) {
+          const domain::TaskStatus live_status = local.status;
+          local = sv;
+          local.status = live_status;  // keep InProgress/Paused
         }
+      }
+      out_tasks.push_back(local);
+      continue;
+    }
+    // Non-active task: authoritative membership — drop when absent from the
+    // server snapshot; keep when present (honouring the version guard).
+    for (const auto& sv : server_tasks) {
+      if (sv.task_id == local.task_id) {
+        out_tasks.push_back(sv.version >= local.version ? sv : local);
         break;
       }
     }
-    if (!found) {
-      next.tasks.push_back(st);
-    }
+    // absent from the server -> removed (cache row no longer authoritative)
   }
 
-  // Persist the merged cache through the outbox (empty drafts: snapshot-only
+  // New tasks (present on the server, unknown locally).
+  for (const auto& sv : server_tasks) {
+    bool exists = false;
+    for (const auto& t : out_tasks) {
+      if (t.task_id == sv.task_id) {
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) out_tasks.push_back(sv);
+  }
+  next.tasks = std::move(out_tasks);
+
+  // Persist the snapshot through the outbox (empty drafts: snapshot-only
   // commit) so it survives reboot.
   sync::PendingTransition t;
   t.next_state = next;
@@ -182,6 +205,12 @@ bool AppCoordinator::mergeTodayTasks(const std::vector<domain::Task>& server_tas
 
 SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
                                         const ReauthFn& reauth) {
+  // FIX-V4-01 auth-pause gate: while paused the transport is short-circuited —
+  // no send, no re-auth, pending untouched. Only resetAuthPause() resumes.
+  if (auth_paused_) {
+    return SyncOutcome::PausedAuth;
+  }
+
   const sync::OutboxState os = loadFrom(storage_);
   if (os.pending.empty()) {
     pending_backoff_ms_ = 0;
@@ -222,7 +251,8 @@ SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
       reauth_attempted_ = true;
       return SyncOutcome::ReauthOk;
     }
-    reauth_attempted_ = true;  // pause sync until an external reset
+    reauth_attempted_ = true;  // pause sync until resetAuthPause()
+    auth_paused_ = true;       // FIX-V4-01: transport short-circuits now
     outbox_.setDiagnostic(true, false);
     return SyncOutcome::PausedAuth;
   }
@@ -257,9 +287,15 @@ SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
   retry_count_ = 0;
   pending_backoff_ms_ = 0;
   reauth_attempted_ = false;
+  auth_paused_ = false;
   outbox_.setDiagnostic(false, true);
   reloadState();
   return SyncOutcome::Synced;
+}
+
+void AppCoordinator::resetAuthPause() {
+  auth_paused_ = false;
+  reauth_attempted_ = false;
 }
 
 }  // namespace application

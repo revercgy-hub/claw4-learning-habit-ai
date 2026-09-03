@@ -100,7 +100,7 @@ IntentRequest startOf(const std::string& tid = "task-1") {
 // Seed one ready task into the committed domain.
 bool seedTask(Env& env, const Task& t) {
   auto c = env.make();
-  return c.mergeTodayTasks({t});
+  return c.applyTodaySnapshot({t});
 }
 
 // ---------------------------------------------------------------------------
@@ -160,23 +160,36 @@ static bool run_case_dispatch_timer_timeout_snapshot_commit() {
   return true;
 }
 
-static bool run_case_merge_tasks_incremental_version() {
+static bool run_case_snapshot_version_guard_and_append() {
   Env env;
-  CHECK(seedTask(env, readyTask("task-1", 1)));
+  CHECK(seedTask(env, readyTask("task-1", 5)));
   auto c = env.make();
-  // Older version ignored.
-  CHECK(c.mergeTodayTasks({readyTask("task-1", 0)}));
-  CHECK(c.state().tasks[0].version == 1);
-  // Newer version applied.
-  CHECK(c.mergeTodayTasks({readyTask("task-1", 5)}));
+  // Older server version (stale replica) must not regress the local row.
+  CHECK(c.applyTodaySnapshot({readyTask("task-1", 3)}));
+  CHECK(c.state().tasks.size() == 1);
   CHECK(c.state().tasks[0].version == 5);
-  // New task appended.
-  CHECK(c.mergeTodayTasks({readyTask("task-2", 1)}));
+  // Newer version applied.
+  CHECK(c.applyTodaySnapshot({readyTask("task-1", 7)}));
+  CHECK(c.state().tasks[0].version == 7);
+  // Server always sends the full today list: adding a new task appends.
+  CHECK(c.applyTodaySnapshot({readyTask("task-1", 7), readyTask("task-2", 1)}));
   CHECK(c.state().tasks.size() == 2);
   return true;
 }
 
-static bool run_case_merge_keeps_running_task_status() {
+static bool run_case_snapshot_a_b_to_a_removes_b() {
+  Env env;
+  auto c = env.make();
+  CHECK(c.applyTodaySnapshot({readyTask("task-a", 1), readyTask("task-b", 1)}));
+  CHECK(c.state().tasks.size() == 2);
+  // Next authoritative snapshot no longer lists B -> B is removed.
+  CHECK(c.applyTodaySnapshot({readyTask("task-a", 1)}));
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.state().tasks[0].task_id == TaskId{"task-a"});
+  return true;
+}
+
+static bool run_case_snapshot_keeps_running_task_status() {
   Env env;
   CHECK(seedTask(env, readyTask("task-1", 3)));
   auto c = env.make();
@@ -186,27 +199,60 @@ static bool run_case_merge_keeps_running_task_status() {
   // the local live status must NOT be overwritten.
   Task updated = readyTask("task-1", 9);
   updated.status = TaskStatus::Ready;
-  CHECK(c.mergeTodayTasks({updated}));
+  CHECK(c.applyTodaySnapshot({updated}));
   CHECK(c.state().tasks[0].version == 9);
   CHECK(c.state().tasks[0].status == TaskStatus::InProgress);  // live status kept
   CHECK(c.state().active_session.has_value());                 // session intact
   return true;
 }
 
-static bool run_case_merge_empty_tasks_ok() {
+static bool run_case_snapshot_active_retained_when_server_empty() {
   Env env;
   CHECK(seedTask(env, readyTask("task-1", 3)));
   auto c = env.make();
-  CHECK(c.mergeTodayTasks({}));  // empty list is a normal state
-  CHECK(c.state().tasks.size() == 1);  // merge does not wipe the local cache
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // Running
+  // server=[]: the live task/session must NOT be destroyed by the snapshot.
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.state().tasks[0].status == TaskStatus::InProgress);
+  CHECK(c.state().active_session.has_value());
+  CHECK(c.pendingCount() == 2);  // session events intact
   return true;
 }
 
-static bool run_case_merge_persists_across_reboot() {
+static bool run_case_snapshot_empty_removes_non_active_tasks() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  // server=[] is an authoritative "no tasks today": non-active rows removed.
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.empty());
+  return true;
+}
+
+static bool run_case_snapshot_cleans_completed_after_session_ends() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // Running
+  env.ctx.advance(60'000);
+  IntentRequest comp;
+  comp.intent = Intent::Complete;
+  comp.task_id = TaskId{"task-1"};
+  CHECK(c.dispatchIntent(comp, env.ctx.make()).ok);  // Completed, session cleared
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);
+  // Next authoritative snapshot (server no longer lists it) may remove it.
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.empty());
+  return true;
+}
+
+static bool run_case_snapshot_persists_across_reboot() {
   Env env;
   {
     auto c = env.make();
-    CHECK(c.mergeTodayTasks({readyTask("task-1", 3)}));
+    CHECK(c.applyTodaySnapshot({readyTask("task-1", 3)}));
   }
   auto c2 = env.make();  // "reboot"
   CHECK(c2.state().tasks.size() == 1);
@@ -301,6 +347,21 @@ static bool run_case_sync_auth_reauth_ok_once() {
   CHECK(oc == SyncOutcome::ReauthOk);
   CHECK(reauth_calls == 1);
   CHECK(c.pendingCount() == 2);  // pending untouched by auth failure
+  CHECK(!c.authPaused());        // re-auth succeeded: not paused yet
+  // Once the credential is valid the very next attempt sends normally.
+  tr.on_send = []() -> SyncClient::Response {
+    SyncClient::Response r;
+    r.error_class = SyncErrorClass::None;
+    r.http_status = 200;
+    return r;
+  };
+  CHECK(c.runSyncOnce(tr, [&] { ++reauth_calls; return true; }) ==
+        SyncOutcome::Synced);
+  CHECK(reauth_calls == 1);      // no further re-auth on success
+  CHECK(tr.requests.size() == 2);
+  CHECK(c.pendingCount() == 0);
+  CHECK(c.lastAcked() == 2);
+  CHECK(!c.authPaused());
   return true;
 }
 
@@ -321,10 +382,57 @@ static bool run_case_sync_auth_reauth_fail_pauses() {
         SyncOutcome::PausedAuth);
   CHECK(reauth_calls == 1);
   CHECK(c.pendingCount() == 2);  // pending untouched
-  // Second attempt: re-auth already attempted -> paused without calling again.
+  CHECK(c.authPaused());
+  // Second attempt: auth-pause gate short-circuits — no send, no re-auth.
   CHECK(c.runSyncOnce(tr, [&] { ++reauth_calls; return false; }) ==
         SyncOutcome::PausedAuth);
-  CHECK(reauth_calls == 1);  // no second re-auth attempt
+  CHECK(reauth_calls == 1);        // no second re-auth attempt
+  CHECK(tr.requests.size() == 1);  // FIX-V4-01: transport NOT contacted again
+  return true;
+}
+
+static bool run_case_sync_auth_pause_stops_sending_until_reset() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  FakeSyncTransport tr;
+  tr.on_send = []() -> SyncClient::Response {
+    SyncClient::Response r;
+    r.error_class = SyncErrorClass::Auth;
+    r.http_status = 401;
+    return r;
+  };
+  int reauth_calls = 0;
+  CHECK(c.runSyncOnce(tr, [&] { ++reauth_calls; return false; }) ==
+        SyncOutcome::PausedAuth);
+  CHECK(c.authPaused());
+  const int sends_at_pause = static_cast<int>(tr.requests.size());
+  CHECK(sends_at_pause == 1);
+  // While paused: 3 more attempts must not touch the transport, re-auth or
+  // pending at all (FIX-V4-01).
+  for (int i = 0; i < 3; ++i) {
+    CHECK(c.runSyncOnce(tr, [&] { ++reauth_calls; return false; }) ==
+          SyncOutcome::PausedAuth);
+  }
+  CHECK(tr.requests.size() == 1);  // send count unchanged
+  CHECK(reauth_calls == 1);        // re-auth not called again
+  CHECK(c.pendingCount() == 2);    // pending untouched
+  CHECK(c.lastAcked() == 0);
+  // Explicit recovery resumes sending.
+  c.resetAuthPause();
+  CHECK(!c.authPaused());
+  tr.on_send = []() -> SyncClient::Response {
+    SyncClient::Response r;
+    r.error_class = SyncErrorClass::None;
+    r.http_status = 200;
+    return r;
+  };
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  CHECK(tr.requests.size() == 2);
+  CHECK(c.pendingCount() == 0);  // events were never lost across the pause
+  CHECK(c.lastAcked() == 2);
+  CHECK(!c.authPaused());
   return true;
 }
 
@@ -388,6 +496,45 @@ static bool run_case_sync_business_4xx_deadletter_keeps_pending() {
   return true;
 }
 
+static bool run_case_sync_deadletter_storage_failure_blocks_cleanup() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  FakeSyncTransport tr;
+  tr.on_send = [&tr]() -> SyncClient::Response {
+    SyncClient::Response r;
+    r.error_class = SyncErrorClass::None;
+    r.http_status = 200;
+    const auto& req = tr.requests.back();
+    r.batch.last_acked_sequence = req.last_acked_sequence;
+    for (const auto& e : req.events) {
+      PerEventResult per;
+      per.event_id = e.event_id;
+      per.sequence = e.sequence;
+      per.outcome = EventOutcome::Rejected;  // business rejection
+      per.http_status = 422;
+      r.batch.results.push_back(per);
+    }
+    return r;
+  };
+  // Dead-letter persistence fails: whole batch application must abort
+  // (FIX-V4-03) -> Backoff; pending kept; ACK not advanced; no cleanup.
+  env.disk->fail_next_mark_deadletter = true;
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Backoff);
+  CHECK(c.pendingCount() == 2);
+  CHECK(c.lastAcked() == 0);
+  CHECK(env.disk->ack_calls == 0);  // removeAcked never called
+  CHECK(!env.disk->state.pending[0].dead_letter_reason.has_value());
+  // Storage recovers: the same business 422s now dead-letter cleanly.
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  CHECK(c.pendingCount() == 2);  // dead-lettered rows stay replayable
+  CHECK(env.disk->state.pending[0].dead_letter_reason.has_value());
+  // 1 failed attempt (storage error) + 2 successful markers after recovery.
+  CHECK(env.disk->deadletter_calls == 3);
+  return true;
+}
+
 static bool run_case_sync_conflict_keeps_pending_no_cleanup() {
   Env env;
   CHECK(seedTask(env, readyTask("task-1", 3)));
@@ -421,7 +568,7 @@ static bool run_case_lost_response_then_duplicate_converges() {
   Task t = readyTask("task-1", 3);
   {
     auto c = env.make();
-    CHECK(c.mergeTodayTasks({t}));
+    CHECK(c.applyTodaySnapshot({t}));
     // Commit the events but "lose" the response: never sync.
     CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
   }
@@ -511,17 +658,22 @@ static bool run_case_all() {
   CASE(dispatch_reducer_reject_not_published);
   CASE(dispatch_outbox_failure_not_published);
   CASE(dispatch_timer_timeout_snapshot_commit);
-  CASE(merge_tasks_incremental_version);
-  CASE(merge_keeps_running_task_status);
-  CASE(merge_empty_tasks_ok);
-  CASE(merge_persists_across_reboot);
+  CASE(snapshot_version_guard_and_append);
+  CASE(snapshot_a_b_to_a_removes_b);
+  CASE(snapshot_keeps_running_task_status);
+  CASE(snapshot_active_retained_when_server_empty);
+  CASE(snapshot_empty_removes_non_active_tasks);
+  CASE(snapshot_cleans_completed_after_session_ends);
+  CASE(snapshot_persists_across_reboot);
   CASE(sync_sends_consecutive_prefix_only);
   CASE(sync_cleans_pending_on_success);
   CASE(sync_duplicate_response_converges);
   CASE(sync_auth_reauth_ok_once);
   CASE(sync_auth_reauth_fail_pauses);
+  CASE(sync_auth_pause_stops_sending_until_reset);
   CASE(sync_network_backoff_grows_to_cap);
   CASE(sync_business_4xx_deadletter_keeps_pending);
+  CASE(sync_deadletter_storage_failure_blocks_cleanup);
   CASE(sync_conflict_keeps_pending_no_cleanup);
   CASE(lost_response_then_duplicate_converges);
   CASE(sync_diagnostic_slot_set_on_success);

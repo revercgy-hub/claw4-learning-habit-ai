@@ -17,6 +17,7 @@ namespace sync {
 struct FakeDisk {
   OutboxState state;
   bool fail_next_commit = false;   // injection: next commit fails (nothing written)
+  bool fail_next_mark_deadletter = false;  // injection: next dead-letter persist fails
   int commit_calls = 0;
   int diagnostic_calls = 0;
   int ack_calls = 0;
@@ -80,6 +81,10 @@ class FakeOutboxStorage final : public OutboxStorage {
   CommitStatus markDeadLetter(const claw4::domain::EventId& event_id,
                               const std::string& reason) override {
     ++disk_->deadletter_calls;
+    if (disk_->fail_next_mark_deadletter) {
+      disk_->fail_next_mark_deadletter = false;
+      return CommitStatus::StorageError;  // marker NOT applied, rows retained
+    }
     if (disk_->fail_next_commit) {
       disk_->fail_next_commit = false;
       return CommitStatus::StorageError;

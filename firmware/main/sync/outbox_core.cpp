@@ -140,12 +140,18 @@ PersistResult OutboxCore::applyBatchResult(const BatchSyncResult& result) {
   if (!storage_) return makeFailure(PersistStatus::StorageError);
 
   // (1) Dead-letter business 4xx rows first (keep original row + redacted
-  //     reason; replayable with the same event_id).
+  //     reason; replayable with the same event_id). A persistence failure
+  //     ABORTS the whole batch application (FIX-V4-03): no ACK cleanup, no
+  //     pending deletion, no last_acked advance — the coordinator maps the
+  //     StorageError to a Backoff so the events stay retryable after reboot.
   for (const auto& r : result.results) {
     if (r.outcome == EventOutcome::Rejected && r.http_status >= 400 &&
         r.http_status < 500 && r.http_status != 401 && r.http_status != 403) {
-      storage_->markDeadLetter(r.event_id,
-                               "business_4xx_http=" + std::to_string(r.http_status));
+      const CommitStatus cs = storage_->markDeadLetter(
+          r.event_id, "business_4xx_http=" + std::to_string(r.http_status));
+      if (cs != CommitStatus::Committed) {
+        return makeFailure(PersistStatus::StorageError);
+      }
     }
   }
 

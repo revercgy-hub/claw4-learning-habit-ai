@@ -5,15 +5,21 @@
 // Wires the pure reducer, the transactional outbox and the SyncClient boundary
 // into a single deterministic application flow:
 //   intent -> reducer drafts -> outbox commit -> publish (only after commit)
-//   today-task cache merged by (task_id, version) without touching a running
-//     active session
+//   today-task cache is an AUTHORITATIVE server snapshot (applyTodaySnapshot):
+//     tasks the server no longer lists are removed unless they own the live
+//     Running/Paused session (kept until the session ends); status of a live
+//     session task is never reset by the snapshot; versions never regress
 //   sync batches only the pending consecutive prefix and applies per-event
 //     Accepted/Duplicate + consecutive ACK cleanup
-//   auth failures trigger at most one injected re-auth, then pause sync with
-//     pending untouched; network/5xx use an injected deterministic backoff
-//     capped at 60 s (never sleeps)
+//   auth failures trigger at most one injected re-auth; on failure sync pauses
+//     (PausedAuth) and the transport is SHORT-CIRCUITED — no further send and
+//     no further re-auth until resetAuthPause() is called; pending untouched
+//   network/5xx use an injected deterministic backoff capped at 60 s (never
+//     sleeps)
 //   conflict/rejected/gap / business 4xx / lost & duplicate responses follow
-//     the architecture; diagnostics never re-enter the business queue
+//     the architecture; dead-letter persistence failure aborts the whole ACK
+//     cleanup (StorageError -> Backoff) so events stay replayable
+//   diagnostics never re-enter the business queue
 #pragma once
 
 #include <cstdint>
@@ -79,15 +85,23 @@ class AppCoordinator {
   // event_id values (ARCHITECTURE.md §7.3.1: retry never generates new ids).
   domain::TransitionResult retryLastFailed();
 
-  // --- today-task cache -------------------------------------------------
-  // Incremental merge by (task_id, version). Never overwrites the status of a
-  // task that owns the running active session; an empty list is a normal
-  // "no tasks today" state. The merged cache is committed through the outbox
-  // so it survives reboot.
-  bool mergeTodayTasks(const std::vector<domain::Task>& server_tasks);
+  // --- today-task snapshot (V4 authoritative semantics) ------------------
+  // Applies the server's today list as an AUTHORITATIVE snapshot:
+  //   * a local non-active task the server no longer lists is removed;
+  //   * the task owning a live Running/Paused session is retained even when
+  //     temporarily absent, and its live status is never reset by the server;
+  //   * a stale (older-version) server row never overwrites a newer local one;
+  //   * new tasks are appended; version/descriptive fields update from the
+  //     server when it is not older.
+  // The result is committed through the outbox (snapshot-only commit) so it
+  // survives reboot.
+  bool applyTodaySnapshot(const std::vector<domain::Task>& server_tasks);
 
   // --- sync -------------------------------------------------------------
   // Sends only the pending consecutive prefix (sequence == last_acked+1 ...).
+  // When sync is auth-paused (PausedAuth after a failed re-auth) the transport
+  // is NOT contacted at all: returns PausedAuth with pending untouched until
+  // resetAuthPause() grants a fresh send/re-auth attempt.
   // Never sleeps; returns an outcome and (when Backoff) the suggested delay.
   SyncOutcome runSyncOnce(SyncTransport& transport, const ReauthFn& reauth);
 
@@ -97,6 +111,10 @@ class AppCoordinator {
   int retryCount() const { return retry_count_; }
   int pendingCount() const;
   int64_t lastAcked() const;
+  // Whether sync is paused after a failed re-auth (transport short-circuited).
+  bool authPaused() const { return auth_paused_; }
+  // Explicit recovery: only after this may runSyncOnce send again.
+  void resetAuthPause();
 
  private:
   // Shared commit-then-publish pipeline used by both entry points.
@@ -113,6 +131,7 @@ class AppCoordinator {
   int retry_count_ = 0;
   int64_t pending_backoff_ms_ = 0;
   bool reauth_attempted_ = false;  // one re-auth attempt per sync pause
+  bool auth_paused_ = false;       // FIX-V4-01: transport short-circuit gate
   sync::SyncClient::Response last_sync_response_;
 };
 

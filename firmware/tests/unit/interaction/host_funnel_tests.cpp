@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "application/coordinator.h"
 #include "fakes/fake_outbox_storage.h"
@@ -106,8 +107,9 @@ class CoordBackend final : public LearningBackend {
 };
 
 // One funnel per case: coordinator is constructed FIRST, then every addTask()
-// merges one task straight into its live committed state (mergeTodayTasks),
-// then the MCP host is exercised through the dispatcher.
+// applies the FULL today list as one authoritative snapshot (server semantics
+// always send the complete list), then the MCP host is exercised through the
+// dispatcher.
 struct Funnel {
   std::shared_ptr<FakeDisk> disk = std::make_shared<FakeDisk>();
   FakeOutboxStorage storage{disk};
@@ -129,8 +131,10 @@ struct Funnel {
     t.estimated_minutes = minutes;
     t.status = status;
     t.version = 1;
-    coordinator.mergeTodayTasks({t});  // commits the today cache (no events)
+    today_.push_back(t);
+    coordinator.applyTodaySnapshot(today_);  // authoritative full-list snapshot
   }
+  std::vector<Task> today_;
 };
 
 McpRequest mcp(const char* tool, const char* task_id = nullptr) {
