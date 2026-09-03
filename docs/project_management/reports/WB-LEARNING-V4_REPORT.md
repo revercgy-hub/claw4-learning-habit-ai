@@ -98,7 +98,7 @@
 | P15 | §8 Learning MCP Host（8 个 `learning.*` 工具） | `1467527` | `CHECKPOINT_READY`（15/15 + 非回归；host funnel 6/6 见 C11） |
 | P16 | §9 Platform Ports（8 抽象 + 确定性 fakes） | `e10a7e1` | `CHECKPOINT_READY`（8/8 + 非回归） |
 
-### 11.2 实际修改文件（C5→C8，相对 `3e72cd8`）
+### 11.2 实际修改文件（C5→C13 主要变更，相对 `3e72cd8`）
 
 | 文件 | 变更 |
 | --- | --- |
@@ -114,6 +114,7 @@
 | `firmware/tests/unit/ui/presenter_tests.cpp` | P14.1：两处 mapFocusTap case 增加 task_id 断言 |
 | `tools/dev/verify-host-cpp-tests.ps1` | implRoots 增 interaction/mcp/ports；新增 §4b3 禁止 include 扫描（lvgl/esp_/freertos/driver/bsp/wifi/nvs/hal/metalio） |
 | `tools/dev/verify-interface-contracts.ps1` | C11：新增 §2.5 对 interaction/mcp 实现源做 riscv32 target ISA `-fsyntax-only`（implsrcs 3/3 PASS） |
+| `.gitignore` | C13：补 `**/node_modules/`、`**/dist/`（重建本地 frontend 工具链所需，防误提交） |
 
 ### 11.3 实现摘要
 
@@ -131,6 +132,7 @@
 | P15 8 工具 + AI 禁止直接 Complete | ✅ 15/15；`request_complete_task` 后 sink 零 Complete 调用，confirm 后恰一次 |
 | P16 8 接口 + fakes 往返 | ✅ 8/8（含失败注入、重复注册拒绝、回调触发） |
 | P14/P15 对真实 domain 的 host funnel（C11） | ✅ 6/6（真实 coordinator 提交/迁移/门禁/拒绝路径，非脚本化 fake） |
+| 跨语言 host MVP E2E 复跑（阶段 2 后，C13） | ✅ `E2E RESULT: PASS`：C++ host gate exit=0（141 case）+ backend pytest **70 passed** + PWA typecheck/vitest **30/30**/build PASS |
 | 新增目录无硬件/OS/Metalio include | ✅ §4b3 扫描 PASS |
 | 全量非回归 | ✅ host gate 8/8 二进制 RUN PASS，总计 141 case 0 失败；P4 交叉契约 exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1） |
 | 不触碰真机 / 不改 domain/sync 语义 / 无越界 | ✅（见 11.8） |
@@ -140,6 +142,7 @@
 | 验证 | 命令 | 结果 |
 | --- | --- | --- |
 | 全量 host 门槛 | `tools/dev/verify-host-cpp-tests.ps1 -CompilerPath w64devkit-2.9.1\bin\g++.exe -CrossCompilerPath riscv32-esp-elf-g++.exe` | `RESULT: NATIVE CPP TEST GATE PASS`；smoke compile/link/run PASS；4b/4b2/4b3 扫描 PASS；unit 8/8（coordinator 20 + domain 28 + dispatcher 15 + mcp 15 + host_funnel 6 + ports 8 + outbox 21 + presenter 28 = **141 cases, 0 failures**）；interface exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1，riscv32 target ISA `-fsyntax-only`） |
+| 跨语言 E2E 编排 | `tools/dev/run-host-mvp-e2e.ps1 -LogDir out\e2e_stage2`（backend/.venv 重建 + `npm ci` 313 包，均 git-ignored） | `E2E RESULT: PASS`（16:43:47→16:45:54）；C++ host gate exit=0、backend **70 passed**、PWA typecheck PASS + vitest **30/30** + `built in 779ms`；log `out/e2e_stage2/e2e_result.txt` |
 | 变更无越界 | 隔离 index + `git diff <parent> <tree> --stat` | C5 +1 文件；C6 10 文件 +746/−5；C7 4 文件 +684；C8 10 文件 +580；均仅目标路径 |
 | 提交链完整性 | `git cat-file -p` 逐提交核验 parent | `3e72cd8 → a862cb0 → 35e3d45 → 1467527 → e10a7e1` 父链正确 |
 | 远端推送 | 代理 51846 后台长窗口普通 push | 每 CP `old..new -> workbuddy/learning-v4-host-sync`（8s~54s，快进） |
