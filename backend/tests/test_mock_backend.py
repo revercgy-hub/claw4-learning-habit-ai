@@ -430,10 +430,12 @@ def test_sequence_regression_rejected():
     token = _auth_device(reg["device_id"], reg["device_secret"], _challenge(reg["device_id"]))
 
     assert _batch(reg["device_id"], token, 0, [_event(1, "ev-reg-1")])["last_acked_sequence"] == 1
-    # Never-seen event with sequence <= ACK -> rejected (regression) and ACK
-    # must NOT advance because of the regression itself.
+    # Never-seen event with sequence <= ACK -> its slot is already occupied by
+    # a DIFFERENT event_id, so FIX-08 answers a per-event conflict (not a bare
+    # regression rejection) and the ACK must NOT advance.
     body = _batch(reg["device_id"], token, 1, [_event(1, "ev-reg-b")])
-    assert body["results"][0]["status"] == "rejected"
+    assert body["results"][0]["status"] == "conflict"
+    assert body["rejected"][0]["reason"] == "sequence_already_used_by_other_event"
     assert body["last_acked_sequence"] == 1
 
 
@@ -530,7 +532,9 @@ def test_concurrent_same_sequence_batches_are_serialized(monkeypatch):
         responses = list(pool.map(submit, ["ev-race-a", "ev-race-b"]))
 
     outcomes = sorted(body["results"][0]["status"] for body in responses)
-    assert outcomes == ["accepted", "rejected"]
+    # The serialized loser now collides on the already-used sequence slot and
+    # is answered per-event conflict (FIX-08), not a bare rejection.
+    assert outcomes == ["accepted", "conflict"]
     assert all(body["last_acked_sequence"] == 1 for body in responses)
 
 

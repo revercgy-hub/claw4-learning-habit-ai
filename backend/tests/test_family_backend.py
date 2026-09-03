@@ -66,13 +66,21 @@ def _auth(reg: dict) -> str:
 
 
 def _event(seq: int, event_id: str, type_: str, payload: dict,
-           child: str = C1, device_id: str = "") -> dict:
+           child: str = C1, device_id: str = "", ts: float | None = None) -> dict:
+    # Default timestamps land INSIDE today's local day (FIX-03): the dashboard
+    # attributes a completed session to the local day of its started_at, so
+    # sessions dated 2027 would never be aggregated into the "today" board and
+    # the aggregation tests below would be asserting against zero. Explicit
+    # `ts` overrides for cross-day boundary cases.
+    if ts is None:
+        day_start, _ = clock.local_day_epoch_bounds(clock.local_today())
+        ts = day_start + seq
     return {
         "event_id": event_id,
         "device_id": device_id,
         "child_id": child,
         "sequence": seq,
-        "timestamp": 1_800_000_000 + seq,
+        "timestamp": ts,
         "timestamp_source": "rtc",
         "type": type_,
         "version": 1,
@@ -176,7 +184,9 @@ def test_parent2_dashboard_empty_children():
 def test_create_task_defaults_to_server_today():
     created = _seed_task("今日任务A")
     assert created["scheduled_date"] == clock.local_today()
-    assert created["status"] == "pending"
+    # Today's task is immediately runnable -> domain vocabulary status
+    # `ready` (task.h TaskStatus), never the future-task default `pending`.
+    assert created["status"] == "ready"
     assert created["version"] == 1
     assert created["priority"] == "medium"
 
@@ -187,7 +197,11 @@ def test_create_task_explicit_scheduled_date():
                              "scheduled_date": "2099-12-31"},
                        headers=_headers(P1))
     assert resp.status_code == 201
-    assert resp.json()["scheduled_date"] == "2099-12-31"
+    body = resp.json()
+    assert body["scheduled_date"] == "2099-12-31"
+    # A task scheduled for a FUTURE date is `pending` (planned, not runnable
+    # today) — it must never surface as runnable on the device.
+    assert body["status"] == "pending"
 
 
 def test_create_task_priority_normalized():
@@ -526,3 +540,121 @@ def test_study_sessions_order_newest_first():
     times = [r["started_at"] for r in recs if r["session_id"].startswith("sess-ord-")]
     assert len(times) == 2
     assert times == sorted(times, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# H. review-fix regressions (FIX-08 / FIX-10 / FIX-03)
+# ---------------------------------------------------------------------------
+def test_sequence_slot_reuse_by_other_event_conflicts():
+    # FIX-08: (device_id, sequence) is globally unique per device. A DIFFERENT
+    # event_id that retries an already-used sequence slot answers a per-event
+    # conflict — inside the same batch and across batches — and the ACK never
+    # advances because of the collision. The UNIQUE(device_id, sequence) DB
+    # constraint stays the cross-process authority behind this pre-check.
+    reg, token = _fresh_device_pair()
+    task = _seed_task("seq-占用")
+    same_batch = _batch(reg, token, 0, [
+        _event(1, f"e-{uuid.uuid4().hex}", "task.started",
+               {"task_id": task["task_id"]}, device_id=reg["device_id"]),
+        _event(1, f"e-{uuid.uuid4().hex}", "task.started",
+               {"task_id": task["task_id"]}, device_id=reg["device_id"]),
+    ])
+    assert [r["status"] for r in same_batch["results"]] == ["accepted", "conflict"]
+    assert same_batch["last_acked_sequence"] == 1
+    # Cross-batch: a brand-new event id reusing slot 1 -> conflict.
+    again = _batch(reg, token, 1, [
+        _event(1, f"e-{uuid.uuid4().hex}", "task.started",
+               {"task_id": task["task_id"]}, device_id=reg["device_id"]),
+    ])
+    assert again["results"][0]["status"] == "conflict"
+    assert again["rejected"][0]["reason"] == "sequence_already_used_by_other_event"
+    assert again["last_acked_sequence"] == 1
+
+
+def test_completed_session_without_task_id_is_ignored():
+    # FIX-10: a study.session.completed WITHOUT a task_id cannot be attributed
+    # to any Task (FK integrity), so the backend safely ignores its projection.
+    # The session row created by its started event stays running; a follow-up
+    # completed event that DOES carry the task_id completes it normally.
+    reg, token = _fresh_device_pair()
+    task = _seed_task("无task-id")
+    _batch(reg, token, 0, [
+        _event(1, f"e-{uuid.uuid4().hex}", "task.started",
+               {"task_id": task["task_id"]}, device_id=reg["device_id"]),
+        _event(2, f"e-{uuid.uuid4().hex}", "study.session.started",
+               {"task_id": task["task_id"], "session_id": "sess-no-tid"},
+               device_id=reg["device_id"]),
+    ])
+    miss = _batch(reg, token, 2, [
+        _event(3, f"e-{uuid.uuid4().hex}", "study.session.completed",
+               {"session_id": "sess-no-tid", "actual_seconds": 300,
+                "completion_type": "manual"},
+               device_id=reg["device_id"]),
+    ])
+    assert miss["accepted"] == 1  # event stored, projection skipped
+    recs = client.get(f"/api/v1/parents/me/children/{C1}/study-sessions",
+                      headers=_headers(P1)).json()
+    assert next(r for r in recs if r["session_id"] == "sess-no-tid")["status"] == "running"
+    # The same session completed WITH its task_id projects normally.
+    with_tid = _batch(reg, token, 3, [
+        _event(4, f"e-{uuid.uuid4().hex}", "study.session.completed",
+               {"task_id": task["task_id"], "session_id": "sess-no-tid",
+                "actual_seconds": 300, "completion_type": "manual"},
+               device_id=reg["device_id"]),
+        _event(5, f"e-{uuid.uuid4().hex}", "task.completed",
+               {"task_id": task["task_id"]}, device_id=reg["device_id"]),
+    ])
+    assert with_tid["accepted"] == 2
+    recs2 = client.get(f"/api/v1/parents/me/children/{C1}/study-sessions",
+                       headers=_headers(P1)).json()
+    row = next(r for r in recs2 if r["session_id"] == "sess-no-tid")
+    assert row["status"] == "completed"
+    assert row["actual_seconds"] == 300
+
+
+def test_dashboard_session_attributed_to_started_local_day(monkeypatch):
+    # FIX-03: a StudySession belongs to the dashboard day of its started_at in
+    # the family local timezone — never to the day its completion event was
+    # received. The today board must not aggregate a session that began on
+    # another day; the "yesterday" board must not count today's session.
+    # Runs under parent-2/child-2 so the focus_minutes numbers are exact.
+    reg = _register()
+    _pair(reg, C2, P2)
+    token = _auth(reg)
+    created = client.post(f"/api/v1/parents/me/children/{C2}/tasks",
+                          json={"title": "跨日会话", "estimated_minutes": 15},
+                          headers=_headers(P2)).json()
+    task_id = created["task_id"]
+    today_start, _ = clock.local_day_epoch_bounds(clock.local_today())
+    yesterday_ts = today_start - 3600  # 23:00 local yesterday
+    today_ts = today_start + 7200      # 02:00 local today
+
+    def lifecycle(seq: int, session_id: str, ts: float, actual: int) -> list[dict]:
+        return [
+            _event(seq, f"e-{uuid.uuid4().hex}", "task.started",
+                   {"task_id": task_id}, child=C2, device_id=reg["device_id"], ts=ts),
+            _event(seq + 1, f"e-{uuid.uuid4().hex}", "study.session.started",
+                   {"task_id": task_id, "session_id": session_id},
+                   child=C2, device_id=reg["device_id"], ts=ts),
+            _event(seq + 2, f"e-{uuid.uuid4().hex}", "study.session.completed",
+                   {"task_id": task_id, "session_id": session_id,
+                    "actual_seconds": actual, "completion_type": "manual"},
+                   child=C2, device_id=reg["device_id"], ts=ts),
+        ]
+
+    events = lifecycle(1, "sess-yday", yesterday_ts, 300) \
+        + lifecycle(4, "sess-today", today_ts, 600) + [
+            _event(7, f"e-{uuid.uuid4().hex}", "task.completed",
+                   {"task_id": task_id}, child=C2,
+                   device_id=reg["device_id"], ts=today_ts),
+        ]
+    batch = _batch(reg, token, 0, events)
+    assert batch["accepted"] == 7
+    hdr = _headers(P2)
+    dash_today = client.get("/api/v1/parents/me/dashboard", headers=hdr).json()
+    assert dash_today["focus_minutes"] == 10  # only today's 600s session
+    yesterday = clock.local_date_of(yesterday_ts)
+    monkeypatch.setattr(clock, "local_today", lambda: yesterday)
+    dash_yday = client.get("/api/v1/parents/me/dashboard", headers=hdr).json()
+    assert dash_yday["date"] == yesterday
+    assert dash_yday["focus_minutes"] == 5  # only yesterday's 300s session

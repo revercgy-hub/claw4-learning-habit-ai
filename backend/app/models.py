@@ -127,7 +127,9 @@ class TaskRow(Base):
     task_type = Column(String(32), nullable=False, default="practice")
     estimated_minutes = Column(Integer, nullable=False, default=0)
     priority = Column(String(16), nullable=False, default="medium")
-    status = Column(String(16), nullable=False, default="pending")  # domain words
+    # Domain words (task.h TaskStatus): 'ready' = today's runnable task;
+    # 'pending' = future planned task (never the default for today's tasks).
+    status = Column(String(16), nullable=False, default="pending")
     scheduled_date = Column(String(10), nullable=False, default="")
     version = Column(Integer, nullable=False, default=0)
     created_at = Column(Float, nullable=False, default=0.0)
@@ -159,6 +161,12 @@ class EventRow(Base):
     __tablename__ = "events"
     __table_args__ = (
         UniqueConstraint("device_id", "event_id", name="uq_device_event"),
+        # FIX-08: per-device sequence uniqueness is a database-level defense in
+        # depth. The in-process RLock serializes batches only inside ONE Python
+        # process; a multi-worker / multi-instance deployment relies on this
+        # constraint (plus row locks / SELECT FOR UPDATE on PostgreSQL) so the
+        # same device+sequence can never carry two different events.
+        UniqueConstraint("device_id", "sequence", name="uq_device_sequence"),
         Index("ix_events_device_seq", "device_id", "sequence"),
     )
 

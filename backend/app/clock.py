@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 __all__ = [
@@ -18,6 +18,7 @@ __all__ = [
     "utc_now_iso",
     "local_today",
     "local_date_of",
+    "local_day_epoch_bounds",
     "tz_name",
 ]
 
@@ -54,3 +55,22 @@ def local_date_of(epoch: float | None = None) -> str:
 
 def local_today() -> str:
     return local_date_of()
+
+
+def local_day_epoch_bounds(local_date: str) -> tuple[float, float]:
+    """UTC epoch bounds [start, end) of one LOCAL calendar day.
+
+    Accepts an ISO date 'YYYY-MM-DD' (the same format the dashboard / task
+    scheduled_date use) and returns the inclusive start and exclusive end of
+    that day in the configured family timezone, expressed as unix epoch
+    seconds. It is the ONLY sanctioned way to convert a local date into a UTC
+    time range — business code must never hand-roll 86400-second math, which
+    breaks across DST and non-UTC deployments.
+    """
+    try:
+        day = datetime.strptime(local_date, "%Y-%m-%d").replace(tzinfo=_zone())
+    except ValueError as exc:
+        raise ValueError(f"invalid local date: {local_date!r}") from exc
+    # Add one calendar day in the local zone (timedelta arithmetic on an
+    # aware datetime keeps DST transitions correct), then convert to epoch.
+    return day.timestamp(), (day + timedelta(days=1)).timestamp()

@@ -66,8 +66,11 @@ def _auth(reg: dict) -> str:
 
 def _ev(seq: int, eid: str, type_: str, payload: dict,
         child: str, device_id: str) -> dict:
+    # FIX-03: timestamps land INSIDE today's local day so the completed
+    # session is attributed to the "today" board the E2E asserts on.
+    day_start, _ = clock.local_day_epoch_bounds(clock.local_today())
     return {"event_id": eid, "device_id": device_id, "child_id": child,
-            "sequence": seq, "timestamp": 1_720_000_000 + seq,
+            "sequence": seq, "timestamp": day_start + seq,
             "timestamp_source": "rtc", "type": type_, "version": 1,
             "payload": payload}
 
@@ -88,7 +91,10 @@ def test_host_mvp_loop_end_to_end():
     today = client.get(f"/api/v1/children/{C1}/tasks/today",
                        headers=_h(token)).json()
     pulled = [t for t in today["tasks"] if t["task_id"] == task_id]
-    assert len(pulled) == 1 and pulled[0]["status"] == "pending"
+    # A task scheduled for TODAY is served as `ready` (domain vocabulary:
+    # task.h TaskStatus) — it may start immediately; only future tasks are
+    # `pending`.
+    assert len(pulled) == 1 and pulled[0]["status"] == "ready"
 
     # --- (3)+(4) device reconnects after offline learning; one response
     # is lost (client does not update its ACK) then the SAME event_ids are

@@ -326,6 +326,19 @@ def _process_batch(req: EventsBatchRequest, store: Store, claims: dict,
                 results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
                                            status="conflict", http_status=409))
             continue
+        # FIX-08: (device_id, sequence) must be globally unique per device.
+        # If this sequence slot is already taken by a DIFFERENT event_id (same
+        # batch or earlier), answer per-event conflict — the UNIQUE DB
+        # constraint stays the cross-process authority and this pre-check keeps
+        # the answer clean and deterministic inside the serialized batch.
+        occupied = store.lookup_sequence(req.device_id, ev.sequence)
+        if occupied is not None and occupied.event_id != ev.event_id:
+            rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
+                                  "status": "conflict",
+                                  "reason": "sequence_already_used_by_other_event"})
+            results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,
+                                       status="conflict", http_status=409))
+            continue
         expected = dev.last_acked_sequence + 1
         if ev.sequence == expected:
             store.store_event(dev, ev.event_id, ev.child_id, ev.sequence,

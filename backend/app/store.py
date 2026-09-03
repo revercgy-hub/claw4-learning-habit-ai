@@ -364,6 +364,27 @@ class Store:
                            type=row.type, payload_digest=row.payload_digest,
                            received_at=row.received_at)
 
+    def lookup_sequence(self, device_id: str,
+                        sequence: int) -> Optional[StoredEvent]:
+        """Finds which event_id already occupies a (device_id, sequence) slot.
+
+        FIX-08 pre-check companion of the UNIQUE(device_id, sequence) DB
+        constraint: lets the batch handler answer a sequence collision with a
+        per-event `conflict` instead of surfacing a raw integrity error. The
+        unique constraint remains the authoritative cross-process guard.
+        """
+        row = self._s.execute(
+            select(m.EventRow).where(
+                m.EventRow.device_id == device_id,
+                m.EventRow.sequence == sequence)
+        ).scalars().first()
+        if row is None:
+            return None
+        return StoredEvent(event_id=row.event_id, device_id=row.device_id,
+                           child_id=row.child_id, sequence=row.sequence,
+                           type=row.type, payload_digest=row.payload_digest,
+                           received_at=row.received_at)
+
     def store_event(self, dev: Device, event_id: str, child_id: str,
                     sequence: int, type_: str, digest: str,
                     payload: Optional[dict] = None,
@@ -441,7 +462,14 @@ class Store:
 
         if etype == "study.session.completed":
             session_id = payload.get("session_id")
+            task_id = payload.get("task_id", "")
             if not session_id:
+                return
+            # FIX-10: every completed/aborted/auto_saved session must carry its
+            # task_id (the device reducer always includes it). A completed
+            # event WITHOUT one cannot be attributed to a Task — it is safely
+            # ignored instead of landing a task_id="" row (FK integrity).
+            if not task_id:
                 return
             row = self._s.get(m.StudySessionRow, session_id)
             actual = max(0, int(payload.get("actual_seconds", 0) or 0))
@@ -453,7 +481,7 @@ class Store:
                     session_id=session_id,
                     device_id=dev.device_id,
                     child_id=ev.child_id,
-                    task_id=payload.get("task_id", ""),
+                    task_id=task_id,
                     status="completed",
                     completion_type=completion,
                     actual_seconds=actual,
@@ -510,12 +538,18 @@ class Store:
             return None
         now = clock.utc_now_epoch()
         task_id = str(uuid.uuid4())
+        # Task status follows the domain vocabulary (task.h TaskStatus):
+        #   ready   = scheduled for TODAY's local date -> may start now
+        #   pending = scheduled for a FUTURE date (planned task, not yet runnable)
+        # A task the device pulls via /tasks/today is therefore always `ready`.
+        default_status = ("ready" if scheduled_date == clock.local_today()
+                          else "pending")
         self._s.add(m.TaskRow(
             task_id=task_id, child_id=child_id, subject=subject, title=title,
             description="", task_type="practice",
             estimated_minutes=max(1, int(estimated_minutes)),
             priority=priority if priority in {"high", "medium", "low"} else "medium",
-            status="pending", scheduled_date=scheduled_date, version=1,
+            status=default_status, scheduled_date=scheduled_date, version=1,
             created_at=now, updated_at=now,
         ))
         self._s.flush()
@@ -551,6 +585,11 @@ class Store:
         completed = 0
         focus_minutes = 0
         active_label: Optional[str] = None
+        # A StudySession belongs to the dashboard day of its `started_at` in
+        # the configured family local timezone (FIX-03). Deriving the day from
+        # started_at means a session that crossed midnight is credited to the
+        # day it began, and sessions from other days are never aggregated.
+        day_start, day_end = clock.local_day_epoch_bounds(date)
         for child_id in children:
             tasks = self.tasks_for_child(child_id, scheduled_date=date)
             planned += len(tasks)
@@ -558,7 +597,9 @@ class Store:
             sess_rows = self._s.execute(
                 select(m.StudySessionRow)
                 .where(m.StudySessionRow.child_id == child_id,
-                       m.StudySessionRow.status == "completed")
+                       m.StudySessionRow.status == "completed",
+                       m.StudySessionRow.started_at >= day_start,
+                       m.StudySessionRow.started_at < day_end)
             ).scalars().all()
             for s in sess_rows:
                 focus_minutes += s.actual_seconds // 60
