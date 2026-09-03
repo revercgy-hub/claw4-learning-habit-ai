@@ -18,7 +18,7 @@
 6. §8 Learning MCP Host（P15）：8 个 `learning.*` 工具，AI 禁止直接 Complete（`1467527`）；
 7. §9 Platform Ports（P16）：8 抽象 Port + 确定性 fakes，Learning Domain 零 Metalio/IDF 头（`e10a7e1`）。
 
-截至 2026-09-03：**阶段 1（§3~§6）与阶段 2（§7~§9/P14–P16）均已完成并推送**（阶段 1：`f8513f1` → `ef5d22d` → `cbdd5ba` → `3e72cd8`；阶段 2：`a862cb0` 任务包 → `35e3d45`(P14) → `1467527`(P15) → `e10a7e1`(P16) → `49cf136`/`86e0f22` 收口 → `a4d35a` host funnel 集成；远端 `workbuddy/learning-v4-host-sync`；host gate 8/8、141 case 0 失败；流报告 `reports/WB-LEARNING-V4_REPORT.md` §11）。§6 已源码级核实 `openclaw_screen`（Metalio 云 Agent 对话 App，**非**学习宿主；Learning 与 chat/openclaw 等为 Home 网格并列 App）。**下一步候选：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter）与 P17 设备边界适配——起涉设备侧，待真机连接授权后入队。**
+截至 2026-09-03：**阶段 1（§3~§6）与阶段 2（§7~§9/P14–P16）均已完成并推送**（阶段 1：`f8513f1` → `ef5d22d` → `cbdd5ba` → `3e72cd8`；阶段 2：`a862cb0` 任务包 → `35e3d45`(P14) → `1467527`(P15) → `e10a7e1`(P16) → `49cf136`/`86e0f22` 收口 → `a4d35a` host funnel 集成；远端 `workbuddy/learning-v4-host-sync`；host gate 8/8、141 case 0 失败；流报告 `reports/WB-LEARNING-V4_REPORT.md` §11）。§6 已源码级核实 `openclaw_screen`（Metalio 云 Agent 对话 App，**非**学习宿主；Learning 与 chat/openclaw 等为 Home 网格并列 App）。**下一步候选：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter）与 P17 设备边界适配——起涉设备侧，待真机连接授权后入队（决策材料：`docs/METALIO_ADAPTER_BRIDGE_PLAN_P17.md`，DRAFT）。**
 
 本工作流不触碰真机、LVGL、真实 NVS/网络适配、Flash/分区或发布固件；Device MVP（Bring-up、App Shell、L0~L6）保持 `HOLD` 直至用户另行授权。
 
