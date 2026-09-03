@@ -86,6 +86,28 @@ Write-Log "headers  : $ok / $($headers.Count) PASS"
 
 # 3) Compile-time contract tests.
 Write-Log ""
+Write-Log "== 2.5) -fsyntax-only over host implementation sources (interaction/mcp) =="
+$hostCppDirs = @("interaction", "mcp")
+$cppOk = 0
+$cppTotal = 0
+foreach ($sub in $hostCppDirs) {
+    $dir = Join-Path $MainDir $sub
+    if (-not (Test-Path $dir)) { continue }
+    $cppFiles = Get-ChildItem -Path $dir -Filter *.cpp -Recurse
+    foreach ($cpp in $cppFiles) {
+        $cppTotal++
+        $outCpp = & $CompilerPath -std=c++17 -fsyntax-only -Wall -Wextra -I $MainDir $cpp.FullName 2>&1
+        $codeCpp = $LASTEXITCODE
+        if ($outCpp) { $outCpp | Out-File -Append -Encoding utf8 $ContractErr }
+        if ($codeCpp -eq 0) { $cppOk++ } else {
+            $global:FAILED = $true
+            Write-Log "FAIL impl source: $($cpp.FullName)"
+        }
+    }
+}
+Write-Log "implsrcs : $cppOk / $cppTotal PASS (interaction/mcp on target ISA)"
+
+Write-Log ""
 Write-Log "== 3) -fsyntax-only over contract tests =="
 $testCpp = Join-Path $TestsDir "contract_tests.cpp"
 $out2 = & $CompilerPath -std=c++17 -fsyntax-only -Wall -Wextra -I $MainDir $testCpp 2>&1
