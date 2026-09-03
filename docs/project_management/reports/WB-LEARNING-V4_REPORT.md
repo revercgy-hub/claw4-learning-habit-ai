@@ -248,3 +248,18 @@
   3. OnStartClick 保留日志行（`button start -> running/done (mock)`）供 monitor 区分事件层/显示层。
 - 验证：增量 build exit=0；`xiaozhi.bin` 9,025,520 → **9,026,000 B（+480 B）**；重刷 ota_0（Hash verified）；monitor 捕获用户实测：`button start -> running`（t=10214）→ `button start -> done`（t=11191），load/unload 往返完整，无 panic。**交互 PASS**。
 - 期间设备 USB 短暂掉线（COM7 变 CM_PROB_PHANTOM）→ 用户重插后恢复，重刷成功。
+
+## 15. WB-LEARNING-V4-NEXT 全任务收口（2026-09-03）
+
+| 阶段 | 内容 | 提交 | 状态 |
+| --- | --- | --- | --- |
+| A | FIX-V4-01~03（auth 短路 / 权威快照 / deadletter 传播） | C19 `bba9356` | ✅ |
+| B | 全量重验 + `HOST_MVP_FINAL_FIX_V4=PASS` 重声明 | C20 `9f62c12` | ✅（152 case / backend 70 / PWA 30 / E2E / cold clone） |
+| C | 事实同步（current_remote_head 制） | C21 `8e0fdb3` | ✅ |
+| D | P17 集成策略（底层少动上层深做 + 严格禁止清单 + manifest 制） | C22 `911e5c2` | ✅ |
+| E | P17a LearningApp glue（host 可测）+ glue 测试 + harness | C23 `31cb6b8` / C24 docs | ✅（host gate 9/9、156 case） |
+| F | P18 Learning L0 App Shell BUILD ONLY → 首刷 → Start 交互修复 | C25 `f8b801b` / C26 / C27 `117c31b` | ✅（见 §14/§14.2/§14.3） |
+
+- 任务书授权范围（阶段 A–F，纯主机修正 + P17/P18 代码与编译 + 用户批次的 ota_0 app-flash/monitor）**全部完成**；本收口不含任何 erase/partition/ota_1/C5 触碰。
+- 端到端状态：host gate 9/9、**156 case 0 fail**；L0 固件 9,026,000 B（delta vs 基线 +2,096 B +480 B 交互修复）；sdkconfig diff=0；真机首刷 + Start 交互日志级 PASS；无 panic。
+- 剩余 `HARDWARE_VERIFY_REQUIRED`（非本任务书范围）：屏幕视觉观感确认（用户屏侧）、NVS/Wi-Fi/TLS/音频/真实 backend（L1+，需新授权）。

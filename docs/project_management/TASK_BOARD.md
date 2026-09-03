@@ -2,7 +2,7 @@
 
 - 更新时间：2026-09-03（V4 复核）
 - 维护者：Codex（协作分工）；2026-09-03 起用户决定不再安排 Codex 复检，实施状态由 WorkBuddy 记录、验收决策归用户
-- 当前阶段：V4 主机侧工作流 `WB-LEARNING-V4-HOST`（分支 `workbuddy/learning-v4-host-sync`）为当前唯一活动工作流；`current_remote_head=9f62c12`（C20，2026-09-03 重新 fetch 核实；每 checkpoint 更新，历史提交保留，不再用旧 head 表述）
+- 当前阶段：V4 主机侧工作流 `WB-LEARNING-V4-HOST`（分支 `workbuddy/learning-v4-host-sync`）为当前唯一活动工作流；`current_remote_head=117c31b`（C27，2026-09-03；每 checkpoint 更新，不再用旧 head 表述）
 - 调度规则：任意时刻只允许一个活动 WorkBuddy 工作流；流内 checkpoint 按任务包顺序连续执行
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
@@ -67,6 +67,7 @@
 | 6.19 | WB-V4-HOST-CORRECTION（FIX-V4-01~03，阶段 A/B） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19 `bba9356`：FIX-V4-01 auth_pause 短路+`resetAuthPause`、FIX-V4-02 权威快照 `applyTodaySnapshot`、FIX-V4-03 deadletter 持久化失败中止 ACK cleanup；C20 `9f62c12`：`HOST_MVP_FINAL_FIX_V4=PASS`（§0.1 三项证据）；host gate 8/8、152 case 0 失败、backend 70、PWA 30、E2E PASS、cold clone PASS；报告 §12 |
 | 6.20 | P17a LearningApp glue（阶段 E cp1） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `911e5c2` | C23 `31cb6b8`：`integration/metalio_claw4/host_glue/`（ContextBuilder/CommandSinkGlue/BackendGlue/LearningApp）+ glue 测试 4 case + `integration_manifest.md`（0 官方改动）+ harness 纳入 host_glue；host gate 9/9、**156 case 0 失败**；报告 §13 |
 | 6.21 | P18 Learning L0 App Shell BUILD（阶段 F） | WorkBuddy | `LEARNING_V4_L0_BUILD_READY` → 批次授权已获 → **首刷 PASS + Start 交互 PASS（C26/C27）** | `911e5c2` | C25：`integration/metalio_claw4/device/learning_screen/`（权威副本）+ manifest 两条 APPLIED；`E:/b/xiaozhi.bin` = **9,025,520 B（delta +2,096 B）**、sdkconfig diff=0（调优基线未动）、idf.py build exit=0、learning 源入固件；ota_0 余量 ≈0.39 MiB；报告 §14/§14.2/§14.3 |
+| 6.22 | WB-LEARNING-V4-NEXT 全任务收口（阶段 A–F） | WorkBuddy | `CHECKPOINT_READY`（任务书授权范围全部完成；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19–C27 链：FIX-V4-01~03 → `HOST_MVP_FINAL_FIX_V4=PASS` → Fact Sync → P17 集成策略 → P17a glue（host gate 9/9、156 case）→ P18 L0 BUILD（+2,096 B、sdkconfig diff=0）→ 首刷 PASS → Start 交互修复复测 PASS（9,026,000 B）；报告 §12–§15 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |
@@ -84,7 +85,7 @@
 
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
-| BLK-FLASH-AUTH-001 | 任何固件刷写、Flash 读取/擦除、分区或 OTA 操作 | 用户尚未明确授权；恢复路径、当前 boot partition 和 SKU 尚未确认 | 向用户说明目标、风险和恢复方案后取得明确授权（Codex 复检已取消，不再以之为前置）；P17a/P18 起始门禁 |
+| BLK-FLASH-AUTH-001 | 固件刷写/Flash 擦除/分区/OTA 操作 | **2026-09-03 已按批次解除（仅 ota_0 application app-flash + monitor，已执行 L0 首刷与复测）**；erase_flash、bootloader、partition、ota_1、C5、eFuse、Secure Boot、Flash Encryption 仍禁 | 新范围（erase/其它分区/ota_1/C5 等）需再次向用户说明目标与风险后取得明确授权 |
 
 ## 已解除阻塞
 
@@ -102,4 +103,4 @@
 - 历史 `docs/系统检查报告_2026-09-01.md` 已被后续主机准备报告取代，不得继续据其重新安装工具链。
 - 本地 git refs 竞争：4 worktree 共享对象库、外部进程抢占 refs，本地 HEAD 无法解析；全程隔离 index + 裸 SHA push，产物以远端 `workbuddy/learning-v4-host-sync` 为准（`current_remote_head=9f62c12`，每次 fetch 核实，不用过时 head 表述）。
 - 本地测试环境为易失 scratch：backend/.venv 与 frontend/node_modules 随时可能被清理，复跑 E2E 需先重建（pip ~2m / `npm ci` ~4m，经代理 51846；`.gitignore` 已含 `**/node_modules/`、`**/dist/`）。
-- 真机未连接：屏幕/触摸/LVGL 实机、NVS、Wi-Fi/TLS、音频（含 mic/唤醒词互斥）、电源状态均 `HARDWARE_VERIFY_REQUIRED`；P17a 起的 adapter 阶段全部以此为前置。
+- 真机已连接（COM7 = Espressif USB JTAG/serial）并完成 L0 首刷 + Start 交互复测（日志级 PASS）；屏幕视觉细节（图标格观感、按压反馈观感）仍待用户在屏侧确认。NVS、Wi-Fi/TLS、音频（mic/唤醒词互斥）、真实 backend 等 L1+ 项继续 `HARDWARE_VERIFY_REQUIRED`，且需新授权后接入。
