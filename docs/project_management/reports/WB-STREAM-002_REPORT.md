@@ -5,8 +5,9 @@
 - 任务包：`docs/project_management/tasks/WB-STREAM-002_DOMAIN_OFFLINE.md`（CP0~CP8 扩展版）
 - 起始提交（远端任务分支 HEAD）：`03383dbda702e95f69e5e59eab0332526a2915bd`（= origin/main，含 Codex 预检完善 `ae74ab2` 与修复 `f021233`）
 - 执行方式：CP0 → CP1 → … → CP8 连续执行，checkpoint 之间不等待 Codex
-- 状态：`CHECKPOINT_READY`（按 checkpoint 更新）
-- 更新日期：2026-09-02
+- 状态：`CHECKPOINT_READY`（CP0~CP8 完成；Codex Review 修复已推送，见 §11）
+- 复检安排：用户于 2026-09-03 决定**不再安排 Codex 复检**；本流收口以本报告 + `docs/HOST_MVP_ACCEPTANCE.md` 证据为准，由用户最终决策
+- 更新日期：2026-09-03
 
 ## 1. 工作流状态表
 
@@ -21,6 +22,7 @@
 | CP6 家长 PWA | `CHECKPOINT_READY` | `07d4ab94f24b532141c13ebd4f2f605823773f3c`（`feat(WB-STREAM-002): add parent PWA`） | typecheck/lint PASS；vitest 30/30；vite build PASS；npm audit --omit=dev 0 漏洞 |
 | CP7 主机 E2E | `CHECKPOINT_READY` | `79900f41b244f1f0ba02ca401120b9b2fa66916e`（`test(WB-STREAM-002): verify host MVP loop`） | C++ gate PASS；backend pytest 62/62（含 e2e 4 + drift 2）；PWA typecheck/test/build PASS |
 | CP8 稳定性收口 | `CHECKPOINT_READY` | `36d2e13` + `028a544`（均 `test(WB-STREAM-002): stabilize host MVP evidence`；主机安全策略/工具重放导致同主题拆分为两提交，内容互补无冲突）+ `52481dd`（`docs(WB-STREAM-002): dedupe checkpoint sections in report`） | C++ 5 轮 0 失败；Backend 5 轮 0 失败；PWA 3 轮 0 失败；E2E 5 轮 0 失败；扫描干净；`HOST_MVP_ACCEPTANCE.md` 交付 |
+| Review 修复（FIX-03/08/10 + TaskNotReady） | `CHECKPOINT_READY` | `7e7fa07f4090f756f159c10ff7d79c00969bd5d7`（`fix(WB-STREAM-002): reject pending starts and tag recovery completions`）+ `c4a3bedc3b91ad33d2919240998eba0285e06942`（`fix(WB-STREAM-002): conflict/seq handling, session task_id guard, local-day dashboard`） | C++ domain 28/28 PASS；backend pytest 70/70 PASS；Host MVP E2E 整链 PASS；详见 §11 |
 
 ## 2. CP0：建立本机 C++17"编译、链接、运行"门槛
 
@@ -470,3 +472,37 @@ CP7 完成，进入 CP8（全流稳定性收口：C++/Backend 5 轮、PWA 3 轮�
 ### 10.5 CP8 结论与停止
 
 CP8 完成。停止扩项，进入最终回执（STREAM_REVIEW_READY），等待 Codex 一次性最终验收。
+
+
+## 11. Codex Review 修复收口（2026-09-03）
+
+> 复检安排变更：用户 2026-09-03 决定不再安排 Codex 复检。本节记录 Codex 复检遗留修复项的实施、验证与推送，作为流收口证据由用户最终决策。
+
+### 11.1 修复提交（均推送至 `workbuddy/domain-offline-stream`，快进 `bcb2d5d..c4a3bed`）
+
+| 提交 | 主题 | 范围 |
+| --- | --- | --- |
+| `7e7fa07f4090f756f159c10ff7d79c00969bd5d7` | `fix(WB-STREAM-002): reject pending starts and tag recovery completions` | `firmware/main/learning_domain/reducer.{h,cpp}`、`firmware/tests/unit/domain/domain_reducer_tests.cpp` |
+| `c4a3bedc3b91ad33d2919240998eba0285e06942` | `fix(WB-STREAM-002): conflict/seq handling, session task_id guard, local-day dashboard` | `backend/app/{clock,main,models,store}.py`、`backend/tests/{test_clock.py 新增,test_family_backend.py,test_mock_backend.py}`、`backend/tests/e2e/test_host_loop.py` |
+
+### 11.2 修复项对照
+
+| 编号 | 内容 | 落实位置 |
+| --- | --- | --- |
+| FIX-08 | `(device_id, sequence)` 全局唯一冲突处理：DB 层 `UniqueConstraint(device_id, sequence, name="uq_device_sequence")`；批内 `Store.lookup_sequence` 预检，槽位被其它 event_id 占用时返回逐事件 `conflict`（`reason=sequence_already_used_by_other_event`），而非裸完整性错误/回退回归；`advance_ack` 同步 `last_acked_sequence` | `backend/app/models.py`、`backend/app/store.py`、`backend/app/main.py`（`_process_batch`） |
+| FIX-10 | `study.session.completed` 必须携带 `task_id`：无 `task_id` 时投影安全忽略（避免 `task_id=""` 违约外键行）；aborted / auto_saved / manual 三种完成草稿均带 `task_id` | `backend/app/store.py`（`project_event`）、`firmware/main/learning_domain/reducer.cpp`（恢复路径完成草稿） |
+| FIX-03 | dashboard 会话按 `started_at` 的本地日历日归属：经 `clock.local_day_epoch_bounds`（DST 安全）换算 UTC epoch 界过滤，替代 `86400` 秒手算 | `backend/app/clock.py`、`backend/app/store.py`（dashboard 会话查询） |
+| TaskNotReady | 设备端拒绝启动 `Pending`（未来排期）任务，返回 `RejectReason::TaskNotReady`，状态不被污染 | `firmware/main/learning_domain/reducer.{h,cpp}`（`Intent::StartTask`） |
+
+### 11.3 验证证据
+
+- C++ domain 单测：28/28 PASS（新增 `start_on_pending_rejected_task_not_ready` 用例 + 三条完成路径 `task_id` 断言）
+- Backend pytest：70/70 PASS（新增 `test_clock.py` 4 例；`test_family_backend.py` 增 sequence 槽位复用冲突、缺 `task_id` 完成忽略、dashboard 跨本地日归属回归；`test_mock_backend.py` 冲突期望对齐；e2e 时间戳/状态对齐）
+- Host MVP E2E 整链 PASS（C++ host gate → backend pytest → PWA typecheck/test/build，1m7s）
+- 前端核对：PWA 状态词表已含 `ready`/`pending` 标签，无需改动
+
+### 11.4 范围与风险声明
+
+- 本轮改动全部落在纯主机侧领域 reducer / backend / host 测试路径，未触碰真机、LVGL、NVS/Flash/分区、TLS 或发布固件；`HOST_MVP_ACCEPTANCE.md` 的 `HARDWARE_VERIFY_REQUIRED` 边界不变。
+- 修复提交创建期间遭遇多 worktree 共享对象库的 index/ref 竞争与 GitHub 网络超时；最终以隔离临时索引生成不可变提交并经代理推送成功（证据：push 输出 `bcb2d5d..c4a3bed`）。
+- 已知限制：CP0~CP8 阶段报告记录的 `pulled status=pending`、aggregation 恒等等旧断言已被本流新语义（今日任务 `ready`、dashboard 本地日归属）取代，测试期望已同步；Codex 复检报告未落盘于本仓库，修复编号沿用复检消息中的 FIX-03/08/10 标识。
