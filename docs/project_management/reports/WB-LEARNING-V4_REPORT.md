@@ -263,3 +263,19 @@
 - 任务书授权范围（阶段 A–F，纯主机修正 + P17/P18 代码与编译 + 用户批次的 ota_0 app-flash/monitor）**全部完成**；本收口不含任何 erase/partition/ota_1/C5 触碰。
 - 端到端状态：host gate 9/9、**156 case 0 fail**；L0 固件 9,026,000 B（delta vs 基线 +2,096 B +480 B 交互修复）；sdkconfig diff=0；真机首刷 + Start 交互日志级 PASS；无 panic。
 - 剩余 `HARDWARE_VERIFY_REQUIRED`（非本任务书范围）：屏幕视觉观感确认（用户屏侧）、NVS/Wi-Fi/TLS/音频/真实 backend（L1+，需新授权）。
+
+## 16. WB-LEARNING-V4-L1a — 设备核心编入（2026-09-03）
+
+| 项 | 值 |
+| --- | --- |
+| Task ID | L1a（任务包 `tasks/WB-LEARNING-V4_L1_APP_BASICS.md`，看板 6.23） |
+| Base / New | C29 `d34c4b7` → C30 |
+| Device core | `integration/metalio_claw4/device/core/`：`outbox_codec.{h,cpp}`（OutboxState↔blob 文本 codec，纯 C++17，magic+长度前缀行+字段转义+map 分隔，16 KiB 上限）；`demo_seed.h`（首启演示今日任务 2 条，L2 server 快照替换） |
+| Device ports（P17d 最小） | `device/ports/learning_clock.{h,cpp}`（ClockPort←esp_timer：monotonicMs/epochSeconds(boot 相对)/isTimeSynced=false）；`device/ports/nvs_outbox_storage.{h,cpp}`（OutboxStorage←NVS namespace `learning`/key `st`，codec blob，commit 失败不落盘=旧快照保留；语义镜像 host fake；`eraseAll/hasState` 供 seed） |
+| 镜像/编入 | repo 权威 → `E:/c/main/learning/`（fw 核心 7 组件目录 + metalio_claw4/{host_glue,device}）；manifest #3：`main/CMakeLists.txt` INCLUDE_DIRS +learning、SOURCES +10 行（reducer/outbox_core/coordinator/dispatcher/stt_mapper/learning_mcp_host/presenters/outbox_codec/learning_clock/nvs_outbox_storage） |
+| Host tests | `firmware/tests/unit/metalio/outbox_codec_tests.cpp`：full roundtrip（含中文/转义字符、会话、deadletter）/empty/idempotent(bit-identical)/corruption 负例全 PASS；harness implRoots + device/core（NVS/clock 含 IDF 头不 host 编译） |
+| Host gate | **10/10 二进制 PASS**（+outbox_codec） |
+| Device build | `idf.py build` **exit=0（8m25s）**；`xiaozhi.bin`=9,026,080 B（+80 vs L0——屏仍 L0 mock，新核心未被引用故增量极小）；learning obj 全部生成；**sdkconfig diff=0**；partition/ota 零改动 |
+| Known Risks | 屏仍为 L0 UI mock（真实状态机接线在 L1b）；NVS 单 key blob 上限 16 KiB（>200 pending 极端时 commit 返 StorageError→coordinator Backoff，不丢旧态，语义安全） |
+| Hardware Verify | 无（本轮纯编入/build）；NVS 真机读写行为待 L1c 上机 |
+| Next | **L1b**：Learning 屏接真实 LearningApp（NVS 存储 + clock），seed 首启注入，Start/Pause/Resume/Complete(Touch 门禁) 真实驱动，1 s LVGL timer 渲染 state 投影；重启恢复 |
