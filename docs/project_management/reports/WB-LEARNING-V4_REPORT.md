@@ -159,4 +159,3 @@
 1. 阶段 2 三个 checkpoint（P14/P15/P16）是否 ACCEPT；
 2. 是否授权下一步：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter，起涉设备侧）与 P17 设备边界——建议等真机连接授权后再入队；
 3. host 门槛新增的 4b3 include 扫描与 P14.1 presenter 修正是否认可（有界改动，28 case 无回归）。
-
