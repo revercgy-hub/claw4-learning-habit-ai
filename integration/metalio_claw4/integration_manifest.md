@@ -8,7 +8,10 @@
 
 | 序号 | upstream commit | file | lines/functions | reason | rollback | risk | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| （暂无——尚未触碰任何 Metalio 官方文件） | | | | | | | |
+| 1 | `ca3aa3fa` | `main/display/screen/home_screen/home_screen.cc` | ① 顶部新增 `#include "learning_screen/learning_screen.h"`；② `kApps[]` 前新增 `LaunchLearning()` + `learning_lifecycle_cb()`（参照 LaunchVibrate 模式：Create→screen_attach_lifecycle→lv_screen_load）；③ `kApps[]` 在 settings 行后新增 `{"learning","学习",LaunchLearning,learning_lifecycle_cb,false}`（无图标资源，格子图标留空但可点） | Home App Registry 极小集成补丁：Home 网格增加 Learning 入口（保留原厂 Home/Chat/OpenClaw/Settings/Test，不改默认 Boot Home/不隐藏原厂 App） | 单文件最小 diff：`git -C E:/c checkout -- main/display/screen/home_screen/home_screen.cc` | 低：仅新增条目；若 Learning 缺失不影响其余 App；原厂 Chat 等路径零改动 | **APPLIED**（P18 build PASS，`xiaozhi.bin` 0x89B7F0） |
+| 2 | `ca3aa3fa` | `main/CMakeLists.txt` | `SOURCES` 列表新增一行 `"display/screen/learning_screen/learning_screen.cc"` | 把 Learning L0 screen 源纳入官方 main 组件编译 | 同文件 checkout 还原该行 | 低：源列表仅追加，不影响其他源 | **APPLIED**（P18 build PASS） |
+
+> 新增学习屏源码本身（`learning_screen.{h,cc}`）是 **repo 侧新代码**（放入 E://c 构建树），按 P18 范围仅 UI mock（无 backend/NVS/voice/STT/MCP/AI），非官方文件改动、不在本表登记范围（与官方文件区分记录于 `METALIO_ADAPTER_BRIDGE_PLAN_P17.md`/报告 §13 后段）。
 
 - 正式 pin（复核于 2026-09-03）：`ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950`（vendor/MetalioClaw4 HEAD 与此一致，无上游漂移）。
 - 新增 repo 侧（非官方文件，无需登记）：`integration/metalio_claw4/host_glue/*`（P17a，host 可测）、`firmware/tests/unit/metalio/learning_app_glue_tests.cpp`。

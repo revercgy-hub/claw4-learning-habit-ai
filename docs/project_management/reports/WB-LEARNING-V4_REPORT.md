@@ -210,3 +210,25 @@
 | Hardware Verify Required | 无（纯 host glue）；UI/Home 注册待 P17b/c |
 | Scope Deviations | 无 |
 | Next Checkpoint | P17b UI Adapter（LearningScreen/Home/Focus/Paused/Done/Offline/Recovery/ConfirmOverlay，懒加载）→ P17c Home 注册（`home_screen.cc/kApps[]` 极小补丁+manifest）→ P17d Clock/Ui/CommandSink/LearningBackend 最小 Port 适配 → P18 `idf.py build` + 尺寸 gate → 停 `FLASH_AUTH_REQUIRED` |
+
+## 14. P18 — Learning L0 App Shell BUILD（WB-LEARNING-V4-NEXT 阶段 F；P17b–P17d 最小实现并入）
+
+| 项 | 值 |
+| --- | --- |
+| Task ID | P18 Learning App Shell — BUILD ONLY（Home→Learning→Mock Task→Start→Back） |
+| Base / New | 阶段 E 头（见 §13）；本 checkpoint 产物 `E:/b/xiaozhi.bin`（构建树，不提交 git） |
+| Changed（Metalio 官方文件，登记于 `integration_manifest.md`） | `home_screen.cc`（include+Launch+lifecycle cb+kApps 行）、`main/CMakeLists.txt`（SOURCES +1 行）——两条均 **APPLIED**、单文件可回滚 |
+| Changed（repo 新增） | `integration/metalio_claw4/device/learning_screen/{learning_screen.h,learning_screen.cc,README.md}`（权威副本；构建时同步至 `E:/c/main/display/screen/learning_screen/`） |
+| Implementation Summary | L0 screen：LVGL 最小屏（标题/Mock 任务卡/开始按钮/状态行/返回按钮→`HomeScreen::Create()`，参照计算器返回模式）；`LaunchLearning`/`learning_lifecycle_cb` 沿用 LaunchVibrate 模式；**懒加载**（进屏才 Create）；无 backend/NVS/voice/STT/MCP/AI，状态为 UI 本地 mock |
+| Build | `idf.py -C E:/c -B E:/b build`（IDF 5.5.4 / esp32p4 / 原 sdkconfig）；**exit=0**，`Project build complete`；`learning_screen.cc.obj` 已编译入 `main` |
+| Size Gate | baseline（同 tuned sdkconfig、无 Learning）= **9,023,424 B (0x89AFC0)**；Learning L0 = **9,025,520 B (0x89B7F0)**；**delta +2,096 B**；app 地址 0x200000；ota_0 余量 = 0x900000 − 0x89B7F0 = **0x64810 ≈ 411,664 B（≈0.39 MiB）**；ota_1 overflow 为基线已知（4M 槽，禁占）；最大段（elf）：.flash.rodata ≈ 4.89 MB、.flash_rodata_dummy ≈ 3.80 MB、.flash.text ≈ 3.76 MB |
+| Diff Gates | **sdkconfig diff = 0**（与 vendor 调优基线逐字节一致，未改；构建环境曾因 IDF 无 git 重配置漂移过，已恢复并复核）；partition CSV/bootloader 源零改动；bootloader 策略 0 变化；无 eFuse/Secure Boot/Flash Encryption 触碰 |
+| Warnings | 基线既有告警（pkg-config 缺失、git 版本提示、`llgok__cpp_bus_driver` SRC_DIRS 空目录提示）；无新增 Learning 相关告警 |
+| Host Regression | host gate **9/9、156 case 0 fail** 保持（本 checkpoint 仅设备侧代码，host 面零改动） |
+| Known Risks / Notes | ① **sdkconfig 保护**：用户明确「非必要勿改 sdkconfig（已按 Claw4 硬件调优）；自定义用 sdkconfig.defaults / 板级 config.json 的 sdkconfig_append 增量覆盖」——本 checkpoint 未做任何自定义，恢复并复核 diff=0；② 构建环境 recipe：剥离 `CODEBUDDY_SAFE_DELETE_*`/`PYTHONPATH`（防 safe-delete 拦截资产生成）、PATH 前置 venv/cmake/ninja/riscv32、`ESP_IDF_VERSION=5.5`+`IDF_VERSION=5.5.4`、`E:/i/version.txt=v5.5.4`（IDF 非 git 时让 idf_tag 变体生效）——已记入 `.workbuddy/memory`；③ E:/c/E:/i/E:/b 均为本地镜像/构建树，不入 repo git |
+| Hardware Verify Required | 全部：屏幕/触摸渲染、Home 入口点按、返回、Start 交互、串口（COM7）——`FLASH_AUTH_REQUIRED` |
+| Scope Deviations | 无（任务书授权到代码+编译；未刷写、未动 partition/ota_1/eFuse 等） |
+| Next | **停 `FLASH_AUTH_REQUIRED`**：等待用户对真机调试批次授权的明确确认后，方可 `idf.py -p COM7 flash`（仅 ota_0 app-flash）+ monitor |
+
+### 14.1 上机前提（批次授权语句，待用户确认）
+> 「授权一个 Claw4 V4 真机调试批次：仅允许 **ota_0 application app-flash + monitor**；允许在该批次内重复 build → app-flash → monitor → fix → app-flash。禁止 erase_flash、bootloader、partition、ota_1、C5 firmware、eFuse、Secure Boot、Flash Encryption。」
