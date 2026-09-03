@@ -36,6 +36,7 @@ struct ReducerContext {
 enum class RejectReason : uint8_t {
   None = 0,
   TaskNotFound,
+  TaskNotReady,          // Pending task: not schedulable today / not runnable
   TaskAlreadyStarted,
   TaskAlreadyCompleted,
   TaskAlreadySkipped,

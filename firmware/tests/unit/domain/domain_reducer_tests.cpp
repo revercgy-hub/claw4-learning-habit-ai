@@ -176,6 +176,19 @@ static bool run_case_start_on_skipped_rejected() {
   return failurePreservesState(r);
 }
 
+static bool run_case_start_on_pending_rejected_task_not_ready() {
+  // A task planned for a future date (TaskStatus::Pending) is not runnable
+  // today: StartTask must be rejected with TaskNotReady, no state change and
+  // no drafts. The server only serves today's tasks as Ready.
+  CtxBuilder b;
+  DomainState s0 = makeState(TaskStatus::Pending);
+  auto r = DomainReducer{}.reduce(s0, intentOf(Intent::StartTask), b.make());
+  CHECK(!r.ok);
+  CHECK(r.reason == RejectReason::TaskNotReady);
+  CHECK(r.intent_result == IntentResult::RejectedInvalidState);
+  return failurePreservesState(r);
+}
+
 static bool run_case_start_missing_id_source_rejected() {
   CtxBuilder b;
   DomainState s0 = makeState();
@@ -348,6 +361,8 @@ static bool run_case_complete_from_running_manual() {
   CHECK(r.drafts[0].type == EventType::TaskCompleted);
   CHECK(r.drafts[1].type == EventType::StudySessionCompleted);
   CHECK(r.drafts[1].payload.at("completion_type") == "manual");
+  // FIX-10 invariant: the manual completion draft carries its task_id.
+  CHECK(r.drafts[1].payload.at("task_id") == "task-1");
   CHECK(r.next->tasks[0].status == TaskStatus::Completed);
   CHECK(r.next->active_session.has_value() == false);
   return true;
@@ -474,6 +489,9 @@ static bool run_case_recover_corrupt_marks_aborted_task_not_completed() {
   CHECK(r.drafts.size() == 1);
   CHECK(r.drafts[0].type == EventType::StudySessionCompleted);
   CHECK(r.drafts[0].payload.at("completion_type") == "aborted");
+  // Every completion draft carries its task_id (FIX-10 invariant) so the
+  // backend can project/attribute the aborted session.
+  CHECK(r.drafts[0].payload.at("task_id") == "task-1");
   CHECK(r.next->tasks[0].status != TaskStatus::Completed);  // never auto-completed
   CHECK(r.next->tasks[0].status == TaskStatus::Paused);     // interrupted, restartable
   return true;
@@ -492,6 +510,8 @@ static bool run_case_end_recovered_session_auto_saved() {
   CHECK(r.drafts[0].type == EventType::StudySessionCompleted);
   CHECK(r.drafts[0].payload.at("completion_type") == "auto_saved");
   CHECK(r.drafts[0].payload.at("actual_seconds") == "300");
+  // FIX-10 invariant: the auto_saved draft carries its task_id.
+  CHECK(r.drafts[0].payload.at("task_id") == "task-1");
   CHECK(!r.next->active_session.has_value());
   // Task is NOT auto-completed; back to Paused for a later start.
   CHECK(r.next->tasks[0].status != TaskStatus::Completed);
@@ -518,6 +538,7 @@ static bool run_case_all() {
   CASE(start_on_in_progress_rejected);
   CASE(start_with_active_session_rejected);
   CASE(start_on_skipped_rejected);
+  CASE(start_on_pending_rejected_task_not_ready);
   CASE(start_missing_id_source_rejected);
   CASE(pause_accumulates_and_marks_paused);
   CASE(pause_requires_running);

@@ -74,6 +74,13 @@ TransitionResult DomainReducer::reduce(const DomainState& state,
         return {false, RejectReason::TaskAlreadySkipped,
                 IntentResult::RejectedInvalidState, std::nullopt, {}};
       }
+      // Pending = planned for a FUTURE local date; not schedulable/runable
+      // today, so it must not be startable from the device (task.h
+      // TaskStatus vocabulary). The server only serves today's tasks as Ready.
+      if (task.status == TaskStatus::Pending) {
+        return {false, RejectReason::TaskNotReady,
+                IntentResult::RejectedInvalidState, std::nullopt, {}};
+      }
       if (task.status == TaskStatus::InProgress || next.active_session.has_value()) {
         return {false, RejectReason::TaskAlreadyStarted,
                 IntentResult::RejectedInvalidState, std::nullopt, {}};
@@ -264,9 +271,13 @@ TransitionResult DomainReducer::recoverSession(const DomainState& state,
   }
   next.active_session = std::nullopt;
   std::vector<EventDraft> drafts;
+  // Every completion draft carries its task_id (FIX-10 invariant): the
+  // backend attributes/ignores study.session.completed by it, so aborted
+  // sessions must be projectable too.
   drafts.push_back(makeDraft(
       ctx, EventType::StudySessionCompleted,
       {{"session_id", aborted.session_id.value},
+       {"task_id", aborted.task_id.value},
        {"completion_type", "aborted"},
        {"actual_seconds", std::to_string(aborted.actual_seconds)}}));
   return {true, RejectReason::None, IntentResult::Accepted, next, std::move(drafts)};
@@ -298,6 +309,7 @@ TransitionResult DomainReducer::endRecoveredSession(const DomainState& state,
   drafts.push_back(makeDraft(
       ctx, EventType::StudySessionCompleted,
       {{"session_id", saved.session_id.value},
+       {"task_id", saved.task_id.value},
        {"completion_type", "auto_saved"},
        {"actual_seconds", std::to_string(saved.actual_seconds)}}));
   return {true, RejectReason::None, IntentResult::Accepted, next, std::move(drafts)};
