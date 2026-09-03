@@ -130,6 +130,10 @@ std::optional<claw4::domain::IntentRequest> mapFocusTap(const FocusView& v,
                                                         const FocusTap tap) {
   claw4::domain::IntentRequest r;
   r.session_id = v.session_id;
+  // The reducer keys every transition on the task that owns the active
+  // session (learning_domain/reducer.cpp): Focus intents must carry the task
+  // id or the domain rejects them with TaskNotFound. WB-LEARNING-V4 P14.1.
+  r.task_id = v.task_id;
   switch (tap) {
     case FocusTap::Pause:
       if (!v.pause_enabled) return std::nullopt;

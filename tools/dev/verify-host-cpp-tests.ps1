@@ -189,6 +189,41 @@ if ($uiViol.Count -eq 0) {
     $global:FAILED = $true
 }
 
+# ---- 4b3) dependency scan for interaction/mcp/ports (host-safe V4 §7~§9:
+#            Learning Domain / interaction / MCP / ports must never include
+#            LVGL / ESP-IDF / FreeRTOS / BSP / Metalio)
+Write-Log ""
+Write-Log "== 4b3) interaction/mcp/ports forbidden-include scan =="
+$hostSafeDirs = @("interaction", "mcp", "ports")
+$ForbiddenHost = @("lvgl", "esp_", "freertos", "driver/", "bsp", "wifi", "nvs",
+                   "hal", "metalio")
+$hostViol = @()
+foreach ($sub in $hostSafeDirs) {
+    $dir = Join-Path $RepoRoot ("firmware\main\" + $sub)
+    if (-not (Test-Path $dir)) { continue }
+    $files = @()
+    $files += Get-ChildItem -Path $dir -Filter *.h -Recurse
+    $files += Get-ChildItem -Path $dir -Filter *.cpp -Recurse
+    foreach ($f in $files) {
+        $content = Get-Content -Raw $f.FullName
+        foreach ($inc in [regex]::Matches($content, '#\s*include\s*[<"]([^>"]+)')) {
+            $header = $inc.Groups[1].Value.ToLowerInvariant()
+            foreach ($tok in $ForbiddenHost) {
+                if ($header -like "*$tok*") {
+                    $hostViol += "$($f.Name): forbidden include <$($inc.Groups[1].Value)>"
+                }
+            }
+        }
+    }
+}
+if ($hostViol.Count -eq 0) {
+    Write-Log "scan    : PASS (no forbidden includes in interaction/mcp/ports)"
+} else {
+    Write-Log "scan    : FAIL"
+    $hostViol | ForEach-Object { Write-Log "  $_" }
+    $global:FAILED = $true
+}
+
 # ---- 4c) native unit tests under firmware/tests/unit (compile + link + run)
 Write-Log ""
 Write-Log "== 4c) native unit tests (firmware/tests/unit) =="
@@ -196,13 +231,16 @@ $unitRoot = Join-Path $RepoRoot "firmware\tests\unit"
 if (Test-Path $unitRoot) {
     $testFiles = Get-ChildItem -Path $unitRoot -Filter *.cpp -Recurse
     # Implementation sources: pure host-safe C++ under learning_domain /
-    # sync / application (extend this list as further host modules land in
-    # later checkpoints).
+    # sync / application / ui / interaction / mcp / ports (extend this list
+    # as further host modules land in later checkpoints).
     $implRoots = @(
         (Join-Path $RepoRoot "firmware\main\learning_domain"),
         (Join-Path $RepoRoot "firmware\main\sync"),
         (Join-Path $RepoRoot "firmware\main\application"),
-        (Join-Path $RepoRoot "firmware\main\ui")
+        (Join-Path $RepoRoot "firmware\main\ui"),
+        (Join-Path $RepoRoot "firmware\main\interaction"),
+        (Join-Path $RepoRoot "firmware\main\mcp"),
+        (Join-Path $RepoRoot "firmware\main\ports")
     )
     $implSrcs = @()
     foreach ($root in $implRoots) {

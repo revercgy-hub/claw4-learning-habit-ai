@@ -236,9 +236,10 @@ static bool run_case_focus_tap_mappings() {
   FocusView v = buildFocus(vs, 2000);
   auto p = mapFocusTap(v, FocusTap::Pause);
   CHECK(p.has_value() && p->intent == Intent::Pause && p->session_id == SessionId{"s1"});
+  CHECK(p->task_id == TaskId{"t1"});  // reducer keys transitions on task_id (P14.1)
   CHECK(mapFocusTap(v, FocusTap::Resume) == std::nullopt);
   auto c = mapFocusTap(v, FocusTap::Complete);
-  CHECK(c.has_value() && c->intent == Intent::Complete);
+  CHECK(c.has_value() && c->intent == Intent::Complete && c->task_id == TaskId{"t1"});
   return true;
 }
 
@@ -249,7 +250,7 @@ static bool run_case_focus_resume_mapping_when_paused() {
   FocusView v = buildFocus(vs, 9000);
   CHECK(!v.pause_enabled);
   auto r = mapFocusTap(v, FocusTap::Resume);
-  CHECK(r.has_value() && r->intent == Intent::Resume);
+  CHECK(r.has_value() && r->intent == Intent::Resume && r->task_id == TaskId{"t1"});
   CHECK(mapFocusTap(v, FocusTap::Pause) == std::nullopt);
   return true;
 }
