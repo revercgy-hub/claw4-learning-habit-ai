@@ -143,6 +143,7 @@
 | --- | --- | --- |
 | 全量 host 门槛 | `tools/dev/verify-host-cpp-tests.ps1 -CompilerPath w64devkit-2.9.1\bin\g++.exe -CrossCompilerPath riscv32-esp-elf-g++.exe` | `RESULT: NATIVE CPP TEST GATE PASS`；smoke compile/link/run PASS；4b/4b2/4b3 扫描 PASS；unit 8/8（coordinator 20 + domain 28 + dispatcher 18 + mcp 16 + host_funnel 8 + ports 8 + outbox 21 + presenter 28 = **147 cases, 0 failures**）；interface exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1，riscv32 target ISA `-fsyntax-only`） |
 | 跨语言 E2E 编排 | `tools/dev/run-host-mvp-e2e.ps1 -LogDir out\e2e_stage2`（backend/.venv 重建 + `npm ci` 313 包，均 git-ignored） | `E2E RESULT: PASS`（16:43:47→16:45:54）；C++ host gate exit=0、backend **70 passed**、PWA typecheck PASS + vitest **30/30** + `built in 779ms`；log `out/e2e_stage2/e2e_result.txt` |
+| 远端冷克隆自足性（C17 后，C18 记录） | `git clone --depth 1 --branch workbuddy/learning-v4-host-sync` 到系统 Temp，在克隆内独立跑 `verify-host-cpp-tests.ps1`（不携带任何本地未提交文件） | `NATIVE CPP TEST GATE PASS`：8/8 单测二进制、**147 case 0 fail**、4b3 扫描 PASS；契约 headers 33/33 + implsrcs 3/3 + contract 1/1 —— 证明远端分支自足完整（克隆头 = C17 `d0466bb`，验证后已清理） |
 | 变更无越界 | 隔离 index + `git diff <parent> <tree> --stat` | C5 +1 文件；C6 10 文件 +746/−5；C7 4 文件 +684；C8 10 文件 +580；均仅目标路径 |
 | 提交链完整性 | `git cat-file -p` 逐提交核验 parent | `3e72cd8 → a862cb0 → 35e3d45 → 1467527 → e10a7e1` 父链正确 |
 | 远端推送 | 代理 51846 后台长窗口普通 push | 每 CP `old..new -> workbuddy/learning-v4-host-sync`（8s~54s，快进） |
