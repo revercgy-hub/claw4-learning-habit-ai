@@ -500,6 +500,7 @@ CP8 完成。停止扩项，进入最终回执（STREAM_REVIEW_READY），等待
 - Backend pytest：70/70 PASS（新增 `test_clock.py` 4 例；`test_family_backend.py` 增 sequence 槽位复用冲突、缺 `task_id` 完成忽略、dashboard 跨本地日归属回归；`test_mock_backend.py` 冲突期望对齐；e2e 时间戳/状态对齐）
 - Host MVP E2E 整链 PASS（C++ host gate → backend pytest → PWA typecheck/test/build，1m7s）
 - 前端核对：PWA 状态词表已含 `ready`/`pending` 标签，无需改动
+- **2026-09-03 收口复核（第二轮，分支头 `fd199bc` 内容）**：Host MVP E2E 整链重跑 PASS（59s；C++ host gate PASS → backend pytest PASS → PWA typecheck/test/build PASS；`E2E RESULT: PASS`；证据 `out/e2e_recheck_20260903/e2e_result.txt`，目录 git 忽略）
 
 ### 11.4 范围与风险声明
 
