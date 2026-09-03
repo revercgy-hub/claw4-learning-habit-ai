@@ -32,6 +32,22 @@
 | 11 | cross-layer contract fixture | `firmware/tests/contracts/contract_tests.cpp`（跨层接口契约 fixture）；`verify-interface-contracts.ps1` P4 交叉编译 -fsyntax-only | interface exit=0（每轮 C++ gate 内含） | ✅ PASS |
 | 12 | full regression / E2E 多轮稳定性 | — | REPORT §10.2：C++/backend 5 轮、PWA 3 轮、E2E 5 轮 0 失败；§11.3：FIX 后收口复核 E2E 整链 PASS（59s） | ✅ PASS |
 
+> **2026-09-03 修正声明**：上表第 2 行原描述（`mergeTodayTasks` 增量合并）与第 5 行原描述（以 UI presenter 透传代表 transport 已停发）已被 §0.1 取代为正确契约实现与直接证据；历史行保留不删除。
+
+## 0.1 V4 Host 契约修正 — 重新声明（2026-09-03）
+
+> 依据：`WB-LEARNING-V4-NEXT` 验收报告 阶段 A（FIX-V4-01~03）；基线分支 `workbuddy/learning-v4-host-sync` @ 重新 fetch 后核实。
+> 结论：**`HOST_MVP_FINAL_FIX_V4=PASS`** —— 三项独立复核发现的契约缺陷已按契约修复并有直接测试证据；全量回归（C++ host gate / backend / PWA / E2E / cold clone）通过。
+> 边界：与旧标志相同，仅覆盖主机侧业务核心；真机项仍 `HARDWARE_VERIFY_REQUIRED`。
+
+| FIX | 缺陷（复核发现） | 修复（代码位置） | 直接测试证据 | 结论 |
+| --- | --- | --- | --- | --- |
+| FIX-V4-01 | auth_paused 后 `runSyncOnce()` 仍先调 `transport.send()`（只是不重调 reauth） | `application/coordinator.{h,cpp}`：新增 `auth_paused_` 门——`runSyncOnce` 入口短路（不 send、不 reauth、pending 不变、返回 `PausedAuth`）；新增 `resetAuthPause()`（含清 `reauth_attempted_`）为唯一恢复入口；成功路径清 `auth_paused_`；`authPaused()` 访问器 | `coordinator_tests`：`sync_auth_reauth_fail_pauses`（第 2 次 send 不增加 `tr.requests.size()==1`）、`sync_auth_pause_stops_sending_until_reset`（暂停后连续 3 次 send 计数不变、reauth 不再调用、pending 保留；`resetAuthPause()` 后恢复发送并收敛） | ✅ PASS |
+| FIX-V4-02 | 今日任务被实现为 incremental merge，`server=[]` 旧任务保留，与 V4「权威今日快照」不符 | `coordinator.{h,cpp}`：`mergeTodayTasks` 更名并实现为权威快照 `applyTodaySnapshot`——server 缺席的非 active 任务移除；Running/Paused 会话持有任务临时保留且 status 不被重置；version 不倒退；新任务追加；经 outbox 提交可重启复原 | `coordinator_tests` 7 项快照用例（version guard/append、`{A,B}→{A}` 移除 B、active+server={} 保留、active+newer Ready 保活 status、`{}` 清非 active、完成后清理、重启一致）；host funnel 改全量快照语义后 8/8 | ✅ PASS |
+| FIX-V4-03 | `applyBatchResult` 忽略 `storage_->markDeadLetter(...)` 返回值，死信持久化失败仍继续 ACK cleanup | `sync/outbox_core.cpp`：`markDeadLetter()!=Committed` 立即返回 `PersistStatus::StorageError`（不 ACK cleanup、不删 pending、不推进 last_acked）；coordinator 现成映射为 Backoff；`fakes/fake_outbox_storage.h` 增 `fail_next_mark_deadletter` 注入 | `coordinator_tests`：`sync_deadletter_storage_failure_blocks_cleanup`（注入失败 → Backoff、pending 2 保留、lastAcked=0、`ack_calls==0`；存储恢复后再处理正常死信 2 行） | ✅ PASS |
+
+**V4 重新验证（2026-09-03，基线与分支头见上）：** C++ host gate **8/8 二进制、152 case 0 failures**（coordinator 25 + domain 28 + dispatcher 18 + host_funnel 8 + mcp 16 + ports 8 + outbox 21 + presenter 28）；backend pytest **70 passed**；PWA typecheck PASS + vitest **30/30** + build PASS；跨语言 E2E `E2E RESULT: PASS`；`git diff --check` clean；cold clone（无本地未提交文件）host gate PASS。
+
 ## 1. 验收总览
 
 | 层 | 结论 | 证据 |
