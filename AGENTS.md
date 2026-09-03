@@ -19,6 +19,8 @@ Codex 负责：
 
 用户又于 2026-09-02 明确要求把后续安全范围内的任务一次性排入 WorkBuddy 连续流、由 Codex 在流末统一验收。因此 `WB-STREAM-002` 可连续覆盖 CP0～CP8 的主机 C++ 业务核心、host UI presenter、持久化家庭后端、家长 PWA 与合成数据 E2E；该授权不包含真机耦合、LVGL、设备网络/TLS、真实 NVS、Flash/分区或发布固件。
 
+2026-09-03 状态变更（用户决定不再安排 Codex 复检）：`WB-STREAM-002` 流收口（CP0~CP8 + Review 修复 FIX-03/08/10 + TaskNotReady），证据以 `docs/project_management/reports/WB-STREAM-002_REPORT.md` §10/§11 与 `docs/HOST_MVP_ACCEPTANCE.md`（已打 `HOST_MVP_FINAL_FIX=PASS`）为准，验收决策归用户；规划基线推进至 planning-v4 `1310ca3d`。V4 主机侧工作流 `WB-LEARNING-V4-HOST` 按 `项目总规划/WORKBUDDY_CLAW4_学习伙伴_完整开发提示词_V4.md` §3~§6 执行（Final Fix 标志 → Project Fact Sync → XiaoZhi Upstream Tracking → Metalio Integration Recheck），同样不包含真机耦合、LVGL、真实 NVS/网络适配、Flash/分区或发布固件；Device MVP（Bring-up、Learning App Shell、L0~L6）保持 `HOLD`。
+
 ### WorkBuddy：实施
 
 WorkBuddy 负责：
@@ -50,8 +52,10 @@ WorkBuddy 负责：
 3. `docs/project_management/TASK_BOARD.md`；
 4. 当前任务包；
 5. 最新的 Codex 验收/复检报告；
-6. 产品总规划和 Bring-up 手册；
+6. 产品总规划和 Bring-up 手册（含 `项目总规划/` 下 V4 三件套：任务规划 V4、总体设计架构 V4、完整开发提示词 V4，及按 V4 §5/§6 产出的 tracking / integration map 事实文档）；
 7. 历史报告与 WorkBuddy memory。
+
+2026-09-03 起 Codex 复检环节取消：原第 5 项（最新 Codex 复检报告）不再作为流收口前提；已收口工作流以工作流报告 + `HOST_MVP_ACCEPTANCE.md` 为准，验收决策归用户。
 
 历史报告与新实测冲突时，不删除历史证据，但必须标记 `SUPERSEDED`，并链接到替代报告。`.workbuddy/memory/` 仅供参考，不得作为当前状态的唯一依据。
 

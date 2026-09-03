@@ -1,5 +1,12 @@
 # Claw4 学习习惯终端 MVP 架构基线（WB-002）
 
+> **状态同步（2026-09-03，V4 §4 Project Fact Sync）**：本文件为 WB-002 开发前架构设计基线（2026-09-01）。
+> 其中已被实现并验证的**主机侧（Host MVP）**决策——领域 reducer / transactional outbox / 应用协调器 / 纯 UI presenter / 持久化家庭后端 / 家长 PWA / 主机 E2E——现以
+> `docs/HOST_MVP_ACCEPTANCE.md`（§0 已正式标志 `HOST_MVP_FINAL_FIX=PASS`）与 `docs/project_management/reports/WB-STREAM-002_REPORT.md` 为当前事实源；
+> 本文与其实测不符处按冲突规则视为过时（历史内容保留）。
+> **设备侧（Device MVP）与真机集成规划**以 `项目总规划/CLAW4_学习伙伴_总体设计架构_V4.md` + `WORKBUDDY_CLAW4_学习伙伴_完整开发提示词_V4.md` 为准，仍属设计层；
+> Bring-up / Learning App Shell / L0~L6 均 `HOLD`，未授权实现。
+
 - 任务：WB-002 MVP 架构定义
 - 分支：`workbuddy/wb-002-architecture`
 - 日期：2026-09-01
