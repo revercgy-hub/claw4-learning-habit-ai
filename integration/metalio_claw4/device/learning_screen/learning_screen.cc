@@ -39,9 +39,11 @@ void OnStartClick(lv_event_t* /*event*/) {
   if (s_ui.status_label == nullptr) return;
   if (!s_ui.running) {
     s_ui.running = true;
+    ESP_LOGI(TAG, "button start -> running (mock)");
     lv_label_set_text(s_ui.status_label, "专注中（L0 Mock，UI 状态）");
   } else if (!s_ui.done) {
     s_ui.done = true;
+    ESP_LOGI(TAG, "button start -> done (mock)");
     lv_label_set_text(s_ui.status_label, "已完成（L0 Mock）");
   }
 }
@@ -49,14 +51,24 @@ void OnStartClick(lv_event_t* /*event*/) {
 lv_obj_t* MakeButton(lv_obj_t* parent, int x, int y, int w, int h,
                      const char* text,
                      lv_event_cb_t handler) {
-  lv_obj_t* btn = lv_obj_create(parent);
-  screen_strip_obj_chrome(btn);
+  // Official apps use lv_button_create + explicit text color. The screen
+  // background here is dark (0x0E1116), so give the button a dark surface,
+  // white text and a pressed-state highlight for visible click feedback.
+  lv_obj_t* btn = lv_button_create(parent);
   lv_obj_set_pos(btn, x, y);
   lv_obj_set_size(btn, w, h);
   lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(0x1F2733), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(0x34415A),
+                            LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_radius(btn, 16, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
+  lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
+  lv_obj_set_style_border_color(btn, lv_color_hex(0x3A4657), LV_PART_MAIN);
   lv_obj_add_event_cb(btn, handler, LV_EVENT_CLICKED, nullptr);
   lv_obj_t* label = lv_label_create(btn);
   lv_label_set_text(label, text);
+  lv_obj_set_style_text_color(label, lv_color_white(), 0);
   lv_obj_set_style_text_font(label, &font_puhui_30_4, 0);
   lv_obj_center(label);
   return btn;
@@ -90,6 +102,7 @@ lv_obj_t* LearningScreen::Create() {
   lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_t* title = lv_label_create(header);
   lv_label_set_text(title, "学习  (L0 App Shell)");
+  lv_obj_set_style_text_color(title, lv_color_white(), 0);
   lv_obj_set_style_text_font(title, &font_puhui_30_4, 0);
   lv_obj_center(title);
 
@@ -101,15 +114,19 @@ lv_obj_t* LearningScreen::Create() {
   lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_t* mock = lv_label_create(card);
   lv_label_set_text(mock, "今日任务（Mock）\n口算练习  约 20 分钟");
+  lv_obj_set_style_text_color(mock, lv_color_white(), 0);
   lv_obj_set_style_text_font(mock, &font_puhui_30_4, 0);
   lv_obj_center(mock);
 
   // Start toggle.
   MakeButton(scr, 220, 360, 280, 110, "开始", OnStartClick);
 
-  // Status line.
+  // Status line. White on the dark screen background so state changes are
+  // visible (initial text "未开始" would otherwise inherit the theme's dark
+  // default text color and be invisible on 0x0E1116).
   s_ui.status_label = lv_label_create(scr);
   lv_label_set_text(s_ui.status_label, "未开始");
+  lv_obj_set_style_text_color(s_ui.status_label, lv_color_white(), 0);
   lv_obj_set_style_text_font(s_ui.status_label, &font_puhui_20_4, 0);
   lv_obj_set_pos(s_ui.status_label, 40, 540);
 

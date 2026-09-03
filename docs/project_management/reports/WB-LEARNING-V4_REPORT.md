@@ -238,3 +238,13 @@
 - `idf.py -C E:/c -B E:/b -p COM7 monitor`（约 90 s）：设备正常启动 L0（app 2.0.51，ELF SHA 816cd529d…，ESP-IDF v5.5.4）；Home 渲染（icon paths built for theme1）；**观测到 `HomeScreen/learning_screen load → LearningScreen load` 与随后 `unload`（Learning 进入与返回）**；系统监控健康（CPU 1–3%、内存余量 ~246 KB / 历史最低 189 KB、电池 86% @4081 mV、芯片 42 ℃）；无 panic / Guru / 复位循环。
 - 基线告警沿用（gpio isr already installed、i2s bclk 提示等均非本改动引入）；monitor 停止时的 `ClearCommError` 为主机侧释放串口提示。
 - 结论：**L0 上机可运行**；Home 入口→Learning 屏往返成立。Start 按钮交互与图标显示需用户在屏幕侧确认（视觉项）。
+
+### 14.3 Start 交互修复与复测（2026-09-03，用户反馈驱动）
+- 用户反馈：「看到学习入口，点击开始没有反应，返回正常」。
+- 根因（代码审计，对照官方屏实现）：L0 屏背景为深色 0x0E1116，但标题/任务卡/状态行/按钮文字均未显式设文字色 → 继承主题默认深色 → 状态行「未开始/专注中/已完成」深字深底**不可见**；按钮文字落在按钮浅底上可见、可点，点击事件实际一直在触发（返回切屏直观所以「正常」）。
+- 修复（`learning_screen.cc`，设备构建树 + repo 权威副本同步）：
+  1. 所有 label 显式 `lv_color_white()`（与官方 vibrate 深底白字一致）；
+  2. 按钮由 `lv_obj_create` 改为官方同款 `lv_button_create`，深色底+白字+圆角+**按下高亮反馈**（0x1F2733 → pressed 0x34415A）；
+  3. OnStartClick 保留日志行（`button start -> running/done (mock)`）供 monitor 区分事件层/显示层。
+- 验证：增量 build exit=0；`xiaozhi.bin` 9,025,520 → **9,026,000 B（+480 B）**；重刷 ota_0（Hash verified）；monitor 捕获用户实测：`button start -> running`（t=10214）→ `button start -> done`（t=11191），load/unload 往返完整，无 panic。**交互 PASS**。
+- 期间设备 USB 短暂掉线（COM7 变 CM_PROB_PHANTOM）→ 用户重插后恢复，重刷成功。
