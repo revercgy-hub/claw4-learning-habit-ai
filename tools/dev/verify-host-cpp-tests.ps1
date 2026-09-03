@@ -216,8 +216,26 @@ foreach ($sub in $hostSafeDirs) {
         }
     }
 }
+# P17a host glue lives under integration/ but is host-safe by contract.
+$glueDir = Join-Path $RepoRoot "integration\metalio_claw4\host_glue"
+if (Test-Path $glueDir) {
+    $files = @()
+    $files += Get-ChildItem -Path $glueDir -Filter *.h -Recurse
+    $files += Get-ChildItem -Path $glueDir -Filter *.cpp -Recurse
+    foreach ($f in $files) {
+        $content = Get-Content -Raw $f.FullName
+        foreach ($inc in [regex]::Matches($content, '#\s*include\s*[<"]([^>"]+)')) {
+            $header = $inc.Groups[1].Value.ToLowerInvariant()
+            foreach ($tok in $ForbiddenHost) {
+                if ($header -like "*$tok*") {
+                    $hostViol += "$($f.Name): forbidden include <$($inc.Groups[1].Value)>"
+                }
+            }
+        }
+    }
+}
 if ($hostViol.Count -eq 0) {
-    Write-Log "scan    : PASS (no forbidden includes in interaction/mcp/ports)"
+    Write-Log "scan    : PASS (no forbidden includes in interaction/mcp/ports/host_glue)"
 } else {
     Write-Log "scan    : FAIL"
     $hostViol | ForEach-Object { Write-Log "  $_" }
@@ -231,8 +249,8 @@ $unitRoot = Join-Path $RepoRoot "firmware\tests\unit"
 if (Test-Path $unitRoot) {
     $testFiles = Get-ChildItem -Path $unitRoot -Filter *.cpp -Recurse
     # Implementation sources: pure host-safe C++ under learning_domain /
-    # sync / application / ui / interaction / mcp / ports (extend this list
-    # as further host modules land in later checkpoints).
+    # sync / application / ui / interaction / mcp / ports / metalio host_glue
+    # (extend this list as further host modules land in later checkpoints).
     $implRoots = @(
         (Join-Path $RepoRoot "firmware\main\learning_domain"),
         (Join-Path $RepoRoot "firmware\main\sync"),
@@ -240,7 +258,8 @@ if (Test-Path $unitRoot) {
         (Join-Path $RepoRoot "firmware\main\ui"),
         (Join-Path $RepoRoot "firmware\main\interaction"),
         (Join-Path $RepoRoot "firmware\main\mcp"),
-        (Join-Path $RepoRoot "firmware\main\ports")
+        (Join-Path $RepoRoot "firmware\main\ports"),
+        (Join-Path $RepoRoot "integration\metalio_claw4\host_glue")
     )
     $implSrcs = @()
     foreach ($root in $implRoots) {
@@ -250,7 +269,8 @@ if (Test-Path $unitRoot) {
         }
     }
     $includeArgs = @("-I", (Join-Path $RepoRoot "firmware\main"),
-                     "-I", (Join-Path $RepoRoot "firmware\tests"))
+                     "-I", (Join-Path $RepoRoot "firmware\tests"),
+                     "-I", (Join-Path $RepoRoot "integration"))
     $unitPass = 0
     foreach ($tf in $testFiles) {
         $name = $tf.BaseName
