@@ -81,7 +81,7 @@
 
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
-| BLK-FLASH-AUTH-001 | 任何固件刷写、Flash 读取/擦除、分区或 OTA 操作 | 用户尚未明确授权；恢复路径、当前 boot partition 和 SKU 尚未确认 | Codex 完成只读接收复检后，另行向用户说明目标、风险和恢复方案并取得明确授权 |
+| BLK-FLASH-AUTH-001 | 任何固件刷写、Flash 读取/擦除、分区或 OTA 操作 | 用户尚未明确授权；恢复路径、当前 boot partition 和 SKU 尚未确认 | 向用户说明目标、风险和恢复方案后取得明确授权（Codex 复检已取消，不再以之为前置）；P17a/P18 起始门禁 |
 
 ## 已解除阻塞
 
@@ -97,3 +97,6 @@
 - 官方 `sdkconfig` 中 Flash mode 选择项与字符串值存在不一致迹象，WorkBuddy 只能记录，不能擅自修正。
 - 真机 SKU、屏驱、PSRAM、Flash、C5、触摸等均需实机确认。
 - 历史 `docs/系统检查报告_2026-09-01.md` 已被后续主机准备报告取代，不得继续据其重新安装工具链。
+- 本地 git refs 竞争：4 worktree 共享对象库、外部进程抢占 refs，本地 HEAD 无法解析；阶段 2 全程隔离 index + 裸 SHA push，产物以远端 `workbuddy/learning-v4-host-sync`（头 `6603240`）为准。
+- 本地测试环境为易失 scratch：backend/.venv 与 frontend/node_modules 随时可能被清理，复跑 E2E 需先重建（pip ~2m / `npm ci` ~4m，经代理 51846；`.gitignore` 已含 `**/node_modules/`、`**/dist/`）。
+- 真机未连接：屏幕/触摸/LVGL 实机、NVS、Wi-Fi/TLS、音频（含 mic/唤醒词互斥）、电源状态均 `HARDWARE_VERIFY_REQUIRED`；P17a 起的 adapter 阶段全部以此为前置。

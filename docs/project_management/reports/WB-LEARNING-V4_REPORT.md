@@ -165,3 +165,10 @@
 1. 阶段 2 三个 checkpoint（P14/P15/P16）是否 ACCEPT；
 2. 是否授权下一步：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter，起涉设备侧）与 P17 设备边界——建议等真机连接授权后再入队；
 3. host 门槛新增的 4b3 include 扫描与 P14.1 presenter 修正是否认可（有界改动，28 case 无回归）。
+
+### 11.9 独立复核记录（C15 复核轮）
+
+- 复核方式：以 reviewer 视角逐提交读取最终提交版（`dispatcher.cpp` / `learning_mcp_host.cpp` / `stt_mapper.*` / 8 个 ports 头），对照任务包语义决策与必测场景逐项核对。
+- 结论：**未发现缺陷**。以下行为经确认为「域权威设计」内预期并记录（供 P17 设备适配参考）：① 重复 Voice/MCP 完成请求覆盖 pending（不重复 emit，最新请求胜出）；② Touch 直接 CompleteTask 消费并清除 pending AI 请求；③ start 已运行/Completed/Skipped/Pending 任务由 reducer 拒绝或幂等，MCP host 原样透传 domain 结论；④ 变更工具无 task_id 且有活动会话时解析到会话任务（domain 仍按状态机裁决）。
+- 复核驱动补充用例（C15，全部通过）：dispatcher 15→18（Voice 非完成变更直发 / Mcp Skip·Pause / pending cancel→重请求循环）；mcp host 15→16（无会话无 task_id → `missing_arg:task_id`）；host funnel 6→8（Completed 任务 start **幂等且零重复 outbox 事件** / Skipped 任务 start 拒绝）。
+- 复核后全量：host gate 8/8 二进制、**147 case 0 失败**；契约 implsrcs 3/3 + headers 33/33；跨语言 E2E PASS（backend 70 + PWA 30/build）；`git diff --check` clean。
