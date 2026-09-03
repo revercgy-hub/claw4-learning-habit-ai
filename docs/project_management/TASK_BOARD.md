@@ -2,7 +2,7 @@
 
 - 更新时间：2026-09-03（V4 复核）
 - 维护者：Codex（协作分工）；2026-09-03 起用户决定不再安排 Codex 复检，实施状态由 WorkBuddy 记录、验收决策归用户
-- 当前阶段：WB-STREAM-002（CP0~CP8 + Review 修复）已收口（不再活动）；规划基线推进至 planning-v4 `1310ca3d`（= domain 收口代码全量 + 6 份 V3/V4 规划文档）；V4 主机侧工作流 `WB-LEARNING-V4-HOST` 为当前唯一活动工作流（纯主机/文档侧）
+- 当前阶段：V4 主机侧工作流 `WB-LEARNING-V4-HOST`（分支 `workbuddy/learning-v4-host-sync`）为当前唯一活动工作流；`current_remote_head=9f62c12`（C20，2026-09-03 重新 fetch 核实；每 checkpoint 更新，历史提交保留，不再用旧 head 表述）
 - 调度规则：任意时刻只允许一个活动 WorkBuddy 工作流；流内 checkpoint 按任务包顺序连续执行
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
@@ -18,7 +18,7 @@
 6. §8 Learning MCP Host（P15）：8 个 `learning.*` 工具，AI 禁止直接 Complete（`1467527`）；
 7. §9 Platform Ports（P16）：8 抽象 Port + 确定性 fakes，Learning Domain 零 Metalio/IDF 头（`e10a7e1`）。
 
-截至 2026-09-03：**阶段 1（§3~§6）与阶段 2（§7~§9/P14–P16）均已完成并推送**（阶段 1：`f8513f1` → `ef5d22d` → `cbdd5ba` → `3e72cd8`；阶段 2：`a862cb0` 任务包 → `35e3d45`(P14) → `1467527`(P15) → `e10a7e1`(P16) → `49cf136`/`86e0f22` 收口 → `a4d35a` host funnel 集成；远端 `workbuddy/learning-v4-host-sync`；host gate 8/8、147 case 0 失败；流报告 `reports/WB-LEARNING-V4_REPORT.md` §11）。§6 已源码级核实 `openclaw_screen`（Metalio 云 Agent 对话 App，**非**学习宿主；Learning 与 chat/openclaw 等为 Home 网格并列 App）。**下一步候选：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter）与 P17 设备边界适配——起涉设备侧，待真机连接授权后入队（决策材料：`docs/METALIO_ADAPTER_BRIDGE_PLAN_P17.md`，DRAFT）。**
+截至 2026-09-03：**阶段 1（§3~§6）+ 阶段 2（§7~§9/P14–P16）+ Host 契约修正（WB-V4-HOST-CORRECTION，FIX-V4-01~03）均已完成并推送**（阶段 1 `f8513f1`→`3e72cd8`；阶段 2 `a862cb0`→`6b787d1`；修正 C19 `bba9356` FIX-V4-01/02/03 + C20 `9f62c12` 验收重声明 `HOST_MVP_FINAL_FIX_V4=PASS`；远端 `workbuddy/learning-v4-host-sync`，`current_remote_head=9f62c12`）。host gate 8/8、**152 case 0 失败**；backend 70/70；PWA 30/30；E2E PASS；cold clone PASS（见 `HOST_MVP_ACCEPTANCE.md` §0.1 与 `WB-LEARNING-V4_REPORT.md` §12）。§6 已源码级核实 `openclaw_screen` 非学习宿主。**下一步（已由 `WB-LEARNING-V4-NEXT` 授权到代码+编译）：P17 Metalio Adapter（`integration/metalio_claw4/`，P17a→P17d）+ P18 Learning App Shell BUILD ONLY；真机 app-flash 仍需单独批次授权（`FLASH_AUTH_REQUIRED`；决策/边界材料：`docs/METALIO_ADAPTER_BRIDGE_PLAN_P17.md`）。**
 
 本工作流不触碰真机、LVGL、真实 NVS/网络适配、Flash/分区或发布固件；Device MVP（Bring-up、App Shell、L0~L6）保持 `HOLD` 直至用户另行授权。
 
@@ -64,6 +64,7 @@
 | 6.16 | WB-STREAM-002 / Review 修复 | WorkBuddy | `CHECKPOINT_READY` | CP8 checkpoint | 提交 `7e7fa07`+`c4a3bed`+`2787fb9`；FIX-03/08/10 + TaskNotReady；C++ 28/28、backend 70/70、E2E PASS；报告 §11 |
 | 6.17 | WB-LEARNING-V4-HOST / §3~§6 | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | planning-v4 `1310ca3d` | 提交 `f8513f1`（§3 PASS 标志 + §4 Fact Sync）+`ef5d22d`（§5 tracking）+`cbdd5ba`（§6 integration map）推送 `workbuddy/learning-v4-host-sync`；`WB-LEARNING-V4_REPORT.md`；openclaw 源码级核实 |
 | 6.18 | WB-LEARNING-V4-HOST / §7~§9（P14–P16） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `3e72cd8`（阶段 2 任务包基线） | 任务包 `WB-LEARNING-V4_INTERACTION_MCP_PORTS.md`（`a862cb0`）；P14 interaction `35e3d45`（含 mapFocusTap task_id 修正 P14.1）；P15 learning mcp host `1467527`；P16 platform ports `e10a7e1`；host funnel 集成测试 `a4d35a`（learning.* → 真实 coordinator 全链 6 case）；host gate 8/8、**147 case 0 失败**（C15 边缘用例：18/16/8）、4b3 include 扫描 PASS、target-ISA impl 语法 3/3；跨语言 E2E 复跑 `E2E RESULT: PASS`（backend 70 + PWA 30 + build，`a04900c` 后补记）；报告 §11 |
+| 6.19 | WB-V4-HOST-CORRECTION（FIX-V4-01~03，阶段 A/B） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19 `bba9356`：FIX-V4-01 auth_pause 短路+`resetAuthPause`、FIX-V4-02 权威快照 `applyTodaySnapshot`、FIX-V4-03 deadletter 持久化失败中止 ACK cleanup；C20 `9f62c12`：`HOST_MVP_FINAL_FIX_V4=PASS`（§0.1 三项证据）；host gate 8/8、152 case 0 失败、backend 70、PWA 30、E2E PASS、cold clone PASS；报告 §12 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |
@@ -97,6 +98,6 @@
 - 官方 `sdkconfig` 中 Flash mode 选择项与字符串值存在不一致迹象，WorkBuddy 只能记录，不能擅自修正。
 - 真机 SKU、屏驱、PSRAM、Flash、C5、触摸等均需实机确认。
 - 历史 `docs/系统检查报告_2026-09-01.md` 已被后续主机准备报告取代，不得继续据其重新安装工具链。
-- 本地 git refs 竞争：4 worktree 共享对象库、外部进程抢占 refs，本地 HEAD 无法解析；阶段 2 全程隔离 index + 裸 SHA push，产物以远端 `workbuddy/learning-v4-host-sync`（头 `6603240`）为准。
+- 本地 git refs 竞争：4 worktree 共享对象库、外部进程抢占 refs，本地 HEAD 无法解析；全程隔离 index + 裸 SHA push，产物以远端 `workbuddy/learning-v4-host-sync` 为准（`current_remote_head=9f62c12`，每次 fetch 核实，不用过时 head 表述）。
 - 本地测试环境为易失 scratch：backend/.venv 与 frontend/node_modules 随时可能被清理，复跑 E2E 需先重建（pip ~2m / `npm ci` ~4m，经代理 51846；`.gitignore` 已含 `**/node_modules/`、`**/dist/`）。
 - 真机未连接：屏幕/触摸/LVGL 实机、NVS、Wi-Fi/TLS、音频（含 mic/唤醒词互斥）、电源状态均 `HARDWARE_VERIFY_REQUIRED`；P17a 起的 adapter 阶段全部以此为前置。

@@ -1,5 +1,6 @@
 # Claw4 学习习惯终端 MVP 架构基线（WB-002）
 
+> **状态同步（2026-09-03 晚，V4 Fact Sync + HOST-CORRECTION）**：主机侧已含 V4 §7~§9 层（`interaction/` CommandDispatcher、`mcp/` learning host、`ports/` 8 抽象 + fakes，147→152 case 全绿）与三项契约修正（FIX-V4-01~03，`HOST_MVP_ACCEPTANCE.md` §0.1 `HOST_MVP_FINAL_FIX_V4=PASS`）；P17 Metalio Adapter（`integration/metalio_claw4/` 薄适配）+ P18 Learning App Shell 处于**代码+编译**授权范围（禁 Flash），真机 app-flash 待批次授权。current_remote_head 以 TASK_BOARD 为准。
 > **状态同步（2026-09-03，V4 §4 Project Fact Sync）**：本文件为 WB-002 开发前架构设计基线（2026-09-01）。
 > 其中已被实现并验证的**主机侧（Host MVP）**决策——领域 reducer / transactional outbox / 应用协调器 / 纯 UI presenter / 持久化家庭后端 / 家长 PWA / 主机 E2E——现以
 > `docs/HOST_MVP_ACCEPTANCE.md`（§0 已正式标志 `HOST_MVP_FINAL_FIX=PASS`）与 `docs/project_management/reports/WB-STREAM-002_REPORT.md` 为当前事实源；

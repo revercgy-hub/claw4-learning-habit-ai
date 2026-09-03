@@ -21,6 +21,8 @@ Codex 负责：
 
 2026-09-03 状态变更（用户决定不再安排 Codex 复检）：`WB-STREAM-002` 流收口（CP0~CP8 + Review 修复 FIX-03/08/10 + TaskNotReady），证据以 `docs/project_management/reports/WB-STREAM-002_REPORT.md` §10/§11 与 `docs/HOST_MVP_ACCEPTANCE.md`（已打 `HOST_MVP_FINAL_FIX=PASS`）为准，验收决策归用户；规划基线推进至 planning-v4 `1310ca3d`。V4 主机侧工作流 `WB-LEARNING-V4-HOST` 按 `项目总规划/WORKBUDDY_CLAW4_学习伙伴_完整开发提示词_V4.md` §3~§6 执行（Final Fix 标志 → Project Fact Sync → XiaoZhi Upstream Tracking → Metalio Integration Recheck），同样不包含真机耦合、LVGL、真实 NVS/网络适配、Flash/分区或发布固件；Device MVP（Bring-up、Learning App Shell、L0~L6）保持 `HOLD`。
 
+2026-09-03（晚）更新：`WB-LEARNING-V4-NEXT` 任务书授权推进——① Host 契约修正（FIX-V4-01 auth_pause 短路、FIX-V4-02 权威今日快照 `applyTodaySnapshot`、FIX-V4-03 deadletter 持久化失败传播）已完成（C19 `bba9356`），验收重声明 **`HOST_MVP_FINAL_FIX_V4=PASS`**（C20 `9f62c12`，`HOST_MVP_ACCEPTANCE.md` §0.1）；② P17 Metalio Adapter 与 P18 Learning App Shell **代码 + 编译**阶段已授权（`integration/metalio_claw4/` 薄适配；允许 Home Registry/CMake 极小集成补丁并记录 `integration_manifest.md`；禁改 BSP/driver/sdkconfig/partition/bootloader/ota_1/eFuse 等）；③ 真机 app-flash 仍未授权——编译成功即停 `FLASH_AUTH_REQUIRED`，需单独批次授权（仅 ota_0 app-flash+monitor）。current_remote_head=见 TASK_BOARD（每次 fetch 核实）。
+
 ### WorkBuddy：实施
 
 WorkBuddy 负责：

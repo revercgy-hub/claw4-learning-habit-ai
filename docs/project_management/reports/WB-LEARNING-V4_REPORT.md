@@ -8,7 +8,7 @@
 | 分支 | `workbuddy/learning-v4-host-sync`（基线 planning-v4 `1310ca3d`） |
 | 阶段 1 提交 | `f8513f1`（§3/§4 Fact Sync）→ `ef5d22d`（§5 tracking）→ `cbdd5ba`（§6 integration map）→ `3e72cd8`（报告 + openclaw 补核 + 看板 6.17） |
 | 阶段 2 提交 | `a862cb0`（C5 任务包）→ `35e3d45`（C6 P14 interaction）→ `1467527`（C7 P15 MCP host）→ `e10a7e1`（C8 P16 ports）→ `49cf136`/`86e0f22`（C9/C10 收口）→ `a4d35a`（C11 host funnel 集成测试 + target-ISA 实现语法）→ 本轮 C12 docs 复核补记 |
-| 远端头 | `a4d35a…` 后接本收口提交（普通快进，无 force） |
+| 远端头 | `current_remote_head=9f62c12`（C20，2026-09-03 重新 fetch 核实；后续 commit 见 §12，历史 head 表述不再作为当前） |
 | 日期 | 2026-09-03 |
 | 范围 | 纯主机侧 + 文档侧：V4 §3 Final Fix 正式标志、§4 Fact Sync、§5 Upstream Tracking、§6 Integration Recheck（阶段 1）；V4 §7 Interaction Router、§8 Learning MCP Host、§9 Platform Ports 抽象 + fakes（阶段 2，主机可验证） |
 | 授权 | 用户三项决策：主机侧先行 / 真机未连接（本轮不做真机与 flash）/ 基线基于 planning-v4；阶段 2（§7~§9）按看板候选入队、纯主机+fake 路径与 WB-STREAM-002 同模式 |
@@ -173,3 +173,24 @@
 - 结论：**未发现缺陷**。以下行为经确认为「域权威设计」内预期并记录（供 P17 设备适配参考）：① 重复 Voice/MCP 完成请求覆盖 pending（不重复 emit，最新请求胜出）；② Touch 直接 CompleteTask 消费并清除 pending AI 请求；③ start 已运行/Completed/Skipped/Pending 任务由 reducer 拒绝或幂等，MCP host 原样透传 domain 结论；④ 变更工具无 task_id 且有活动会话时解析到会话任务（domain 仍按状态机裁决）。
 - 复核驱动补充用例（C15，全部通过）：dispatcher 15→18（Voice 非完成变更直发 / Mcp Skip·Pause / pending cancel→重请求循环）；mcp host 15→16（无会话无 task_id → `missing_arg:task_id`）；host funnel 6→8（Completed 任务 start **幂等且零重复 outbox 事件** / Skipped 任务 start 拒绝）。
 - 复核后全量：host gate 8/8 二进制、**147 case 0 失败**；契约 implsrcs 3/3 + headers 33/33；跨语言 E2E PASS（backend 70 + PWA 30/build）；`git diff --check` clean。
+
+## 12. WB-V4-HOST-CORRECTION（阶段 A/B checkpoint，2026-09-03）
+
+| 项 | 值 |
+| --- | --- |
+| Task ID | WB-V4-HOST-CORRECTION（FIX-V4-01~03，来自 `WB-LEARNING-V4-NEXT` 验收报告 阶段 A/B） |
+| Base SHA | `6b787d1`（重新 fetch 核实的远端头） |
+| New SHA | C19 `bba9356`（代码修正）→ C20 `9f62c12`（验收重声明） |
+| Changed Files | C19：`application/coordinator.{h,cpp}`、`sync/outbox_core.cpp`、`tests/fakes/fake_outbox_storage.h`、`tests/unit/application/coordinator_tests.cpp`、`tests/unit/interaction/host_funnel_tests.cpp`；C20：`docs/HOST_MVP_ACCEPTANCE.md`（§0.1） |
+| Implementation Summary | FIX-V4-01 auth_paused 后 runSyncOnce 入口短路（不 send/不 reauth/pending 不变/返 PausedAuth）+ `resetAuthPause()` 恢复 + `authPaused()`；FIX-V4-02 `mergeTodayTasks` → 权威快照 `applyTodaySnapshot`（server 缺席非 active 移除、live 会话任务保留且 status 不重置、version 不倒退、新任务追加、经 outbox 重启复原）；FIX-V4-03 `markDeadLetter()!=Committed` → StorageError 中止整个 ACK cleanup |
+| Tests | coordinator_tests 20→25（+快照 7 项改写/新增、auth 停发 1、deadletter 失败 1；修正 2 项旧锁定用例）；host_funnel 改全量快照语义后 8/8；fakes 增 `fail_next_mark_deadletter` |
+| Case Counts | C++ host gate 8/8 二进制、**152 case 0 failures**（coordinator 25 / domain 28 / dispatcher 18 / host_funnel 8 / mcp 16 / ports 8 / outbox 21 / presenter 28） |
+| Cross-layer | backend pytest **70 passed**；PWA typecheck PASS + vitest **30/30** + build PASS；E2E `E2E RESULT: PASS`；`git diff --check` clean；cold clone（head `bba9356`）host gate PASS |
+| Known Risks | 无新增；沿用 §11.6（真机/refs 竞争/scratch 环境） |
+| Hardware Verify Required | 无（纯主机契约修正）；真机项保持 §11.6/§3 |
+| Scope Deviations | 无：按 `WB-LEARNING-V4-NEXT` 阶段 A/B 执行，未触碰 vendor/设备 |
+| Next Checkpoint | 阶段 C 事实同步（本文 + TASK_BOARD + AGENTS + ARCHITECTURE + acceptance）→ 阶段 D P17 策略修正 → 阶段 E/F P17+P18（build only，停 `FLASH_AUTH_REQUIRED`） |
+
+### 12.1 契约修正说明（防再犯）
+- 测试不得把错误行为固化为 PASS：`merge_empty_tasks_ok`（旧：`server=[]` 保留任务）与「以 UI 透传宣称 transport 停发」两处旧锁定已被改/弃，改为按契约的直接断言（send 计数、pending 保留、ACK 不推进等）。
+- 代码行为先满足契约，测试证明契约（`HOST_MVP_ACCEPTANCE.md` §0.1 按此记录）。
