@@ -232,3 +232,9 @@
 
 ### 14.1 上机前提（批次授权语句，待用户确认）
 > 「授权一个 Claw4 V4 真机调试批次：仅允许 **ota_0 application app-flash + monitor**；允许在该批次内重复 build → app-flash → monitor → fix → app-flash。禁止 erase_flash、bootloader、partition、ota_1、C5 firmware、eFuse、Secure Boot、Flash Encryption。」
+
+### 14.2 真机首刷验证（批次内，2026-09-03）
+- 授权批次确认（用户，仅 ota_0 application app-flash + monitor）→ 执行 `esptool --chip esp32p4 -p COM7 write_flash 0x200000 xiaozhi.bin`：**Wrote 9,025,520 B，Hash verified**，hard reset。
+- `idf.py -C E:/c -B E:/b -p COM7 monitor`（约 90 s）：设备正常启动 L0（app 2.0.51，ELF SHA 816cd529d…，ESP-IDF v5.5.4）；Home 渲染（icon paths built for theme1）；**观测到 `HomeScreen/learning_screen load → LearningScreen load` 与随后 `unload`（Learning 进入与返回）**；系统监控健康（CPU 1–3%、内存余量 ~246 KB / 历史最低 189 KB、电池 86% @4081 mV、芯片 42 ℃）；无 panic / Guru / 复位循环。
+- 基线告警沿用（gpio isr already installed、i2s bclk 提示等均非本改动引入）；monitor 停止时的 `ClearCommError` 为主机侧释放串口提示。
+- 结论：**L0 上机可运行**；Home 入口→Learning 屏往返成立。Start 按钮交互与图标显示需用户在屏幕侧确认（视觉项）。
