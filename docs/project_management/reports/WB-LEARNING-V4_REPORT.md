@@ -194,3 +194,19 @@
 ### 12.1 契约修正说明（防再犯）
 - 测试不得把错误行为固化为 PASS：`merge_empty_tasks_ok`（旧：`server=[]` 保留任务）与「以 UI 透传宣称 transport 停发」两处旧锁定已被改/弃，改为按契约的直接断言（send 计数、pending 保留、ACK 不推进等）。
 - 代码行为先满足契约，测试证明契约（`HOST_MVP_ACCEPTANCE.md` §0.1 按此记录）。
+
+## 13. P17a — LearningApp glue（WB-LEARNING-V4-NEXT 阶段 E checkpoint 1，2026-09-03）
+
+| 项 | 值 |
+| --- | --- |
+| Task ID | P17a — App/Coordinator Glue |
+| Base SHA | `911e5c2`（阶段 A–D 收口头） |
+| New SHA | C23 `31cb6b8` |
+| Changed Files | 新增 `integration/metalio_claw4/host_glue/coordinator_glue.h`（ContextBuilder / CommandSinkGlue / BackendGlue）、`host_glue/learning_app.h`（LearningApp 生命周期 + 统一漏斗/coordinator/快照/同步透出）；新增 `firmware/tests/unit/metalio/learning_app_glue_tests.cpp`；新增 `integration/metalio_claw4/integration_manifest.md`（政策 §2B 登记表，0 条改动）；harness：implRoots/include/4b3 扫描纳入 host_glue |
+| Implementation Summary | 生产级 glue 替代测试内联 CoordSink/CoordBackend：LearningApp 组合 DomainReducer+AppCoordinator+ContextBuilder(ClockPort)+CommandSinkGlue+CommandDispatcher+BackendGlue+LearningMcpHost，device shell 直接复用；identity/id 工厂可注入（设备后续用真 UUID/时钟）；生命周期 start/stop/running；透出 applyTodaySnapshot/runSyncOnce/authPaused/resetAuthPause/pendingCount |
+| Tests | `learning_app_glue_tests` 4 case：lifecycle+start 提交（pending 2）、权威快照+跨实例重启一致、MCP request_complete 门禁→confirm 完成、auth pause 透出 |
+| Case Counts | host gate **9/9 二进制、156 case 0 failures**（coordinator25/domain28/dispatcher18/funnel8/mcp16/glue4/ports8/outbox21/presenter28）；backend/PWA 未触碰 |
+| Known Risks | P17b–P17d 为 Metalio/LVGL 侧（E://c 构建树内编写，禁改动官方底层，补丁逐条入 manifest）；E://c/E://i/E://b 镜像在位（`xiaozhi.bin` 8.62 MiB 基线） |
+| Hardware Verify Required | 无（纯 host glue）；UI/Home 注册待 P17b/c |
+| Scope Deviations | 无 |
+| Next Checkpoint | P17b UI Adapter（LearningScreen/Home/Focus/Paused/Done/Offline/Recovery/ConfirmOverlay，懒加载）→ P17c Home 注册（`home_screen.cc/kApps[]` 极小补丁+manifest）→ P17d Clock/Ui/CommandSink/LearningBackend 最小 Port 适配 → P18 `idf.py build` + 尺寸 gate → 停 `FLASH_AUTH_REQUIRED` |
