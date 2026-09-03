@@ -279,6 +279,17 @@ static bool run_case_unknown_tool_rejected() {
   return true;
 }
 
+static bool run_case_pause_without_session_or_arg_error() {
+  // No active session and no task_id -> the host cannot resolve a target.
+  Harness h;
+  h.addTask("t1", "数学口算", "math", 20, TaskStatus::InProgress);  // task exists
+  const auto resp = h.host.invoke(h.req(LearningMcpHost::kToolPauseTask));
+  CHECK(!resp.ok);
+  CHECK(resp.error.find("missing_arg:task_id") != std::string::npos);
+  CHECK(h.sink.emit_count() == 0);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(get_today_tasks_lists_snapshot);
   CASE(get_today_tasks_empty);
@@ -295,6 +306,7 @@ static bool run_case_all() {
   CASE(missing_task_id_rejected);
   CASE(unknown_task_rejected);
   CASE(unknown_tool_rejected);
+  CASE(pause_without_session_or_arg_error);
   return g_fail == 0;
 }
 

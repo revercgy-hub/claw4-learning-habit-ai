@@ -248,6 +248,29 @@ static bool run_case_pending_task_not_startable_rejected() {
   return true;
 }
 
+static bool run_case_completed_task_start_is_idempotent() {
+  Funnel f;
+  f.addTask("t1", "已完成任务", 20, TaskStatus::Completed);
+  const auto resp = f.host.invoke(mcp(LearningMcpHost::kToolStartTask, "t1"));
+  CHECK(resp.ok);
+  CHECK(resp.payload.find("\"intent_result\":\"idempotent\"") != std::string::npos);
+  CHECK(f.coordinator.state().tasks[0].status == TaskStatus::Completed);
+  CHECK(!f.coordinator.state().active_session.has_value());
+  CHECK(f.coordinator.pendingCount() == 0);  // no duplicate events
+  return true;
+}
+
+static bool run_case_skipped_task_start_rejected() {
+  Funnel f;
+  f.addTask("t1", "已跳过任务", 20, TaskStatus::Skipped);
+  const auto resp = f.host.invoke(mcp(LearningMcpHost::kToolStartTask, "t1"));
+  CHECK(resp.ok);
+  CHECK(resp.payload.find("\"intent_result\":\"rejected\"") != std::string::npos);
+  CHECK(f.coordinator.state().tasks[0].status == TaskStatus::Skipped);
+  CHECK(f.coordinator.pendingCount() == 0);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(start_task_commits_through_coordinator);
   CASE(current_task_and_remaining_read_live_state);
@@ -255,6 +278,8 @@ static bool run_case_all() {
   CASE(mcp_complete_gated_then_confirmed_via_domain);
   CASE(start_busy_task_domain_rejects);
   CASE(pending_task_not_startable_rejected);
+  CASE(completed_task_start_is_idempotent);
+  CASE(skipped_task_start_rejected);
   return g_fail == 0;
 }
 

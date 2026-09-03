@@ -84,7 +84,7 @@ foreach ($h in $headers) {
 }
 Write-Log "headers  : $ok / $($headers.Count) PASS"
 
-# 3) Compile-time contract tests.
+# 2.5) Host implementation sources under interaction/mcp; 3) contract tests.
 Write-Log ""
 Write-Log "== 2.5) -fsyntax-only over host implementation sources (interaction/mcp) =="
 $hostCppDirs = @("interaction", "mcp")

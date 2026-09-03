@@ -199,6 +199,46 @@ static bool run_case_unknown_kind_rejected() {
   return true;
 }
 
+static bool run_case_voice_start_emits_direct() {
+  // Non-complete mutations are allowed from every source (only CompleteTask is
+  // Touch-gated); a Voice "开始学习" maps straight to Intent::StartTask.
+  FakeCommandSink sink;
+  CommandDispatcher d(sink);
+  const auto r = d.dispatch(CommandSource::Voice,
+                            payload(CommandKind::StartTask, "t-1"));
+  CHECK(r.status == DispatchStatus::Emitted);
+  CHECK(sink.emit_count() == 1);
+  CHECK(sink.emitted().front().intent == Intent::StartTask);
+  CHECK(!d.hasPendingComplete());  // completion gate untouched
+  return true;
+}
+
+static bool run_case_mcp_skip_and_pause_flow() {
+  FakeCommandSink sink;
+  CommandDispatcher d(sink);
+  const auto rs = d.dispatch(CommandSource::Mcp, payload(CommandKind::SkipTask, "t-2"));
+  CHECK(rs.status == DispatchStatus::Emitted);
+  CHECK(sink.emitted().back().intent == Intent::Skip);
+  const auto rp = d.dispatch(CommandSource::Mcp, payload(CommandKind::PauseTask, "t-1"));
+  CHECK(rp.status == DispatchStatus::Emitted);
+  CHECK(sink.emitted().back().intent == Intent::Pause);
+  CHECK(sink.emit_count() == 2);
+  return true;
+}
+
+static bool run_case_pending_cycle_cancel_then_rerequest() {
+  FakeCommandSink sink;
+  CommandDispatcher d(sink);
+  d.dispatch(CommandSource::Mcp, payload(CommandKind::CompleteTask, "t-1"));
+  d.cancelPendingComplete();
+  d.dispatch(CommandSource::Mcp, payload(CommandKind::CompleteTask, "t-1"));
+  CHECK(d.hasPendingComplete());
+  const auto r = d.confirmPendingComplete();
+  CHECK(r.status == DispatchStatus::Emitted);
+  CHECK(sink.emit_count() == 1);
+  return true;
+}
+
 static bool run_case_touch_complete_consumes_pending_ai_request() {
   FakeCommandSink sink;
   CommandDispatcher d(sink);
@@ -275,6 +315,9 @@ static bool run_case_all() {
   CASE(cancel_clears_pending);
   CASE(query_kinds_never_mutate);
   CASE(unknown_kind_rejected);
+  CASE(voice_start_emits_direct);
+  CASE(mcp_skip_and_pause_flow);
+  CASE(pending_cycle_cancel_then_rerequest);
   CASE(touch_complete_consumes_pending_ai_request);
   CASE(stt_exact_phrases);
   CASE(stt_complete_not_hijacked_by_query_keyword);
