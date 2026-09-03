@@ -1,17 +1,19 @@
-# WB-LEARNING-V4 工作流报告：V4 主机侧先行（§3~§6）
+# WB-LEARNING-V4 工作流报告：V4 主机侧先行（§3~§9 / P14–P16）
 
 ## 1. 工作流状态表
 
 | 项 | 值 |
 | --- | --- |
-| 任务 ID | WB-LEARNING-V4-HOST（V4 主机侧先行，阶段 1：§3~§6） |
+| 任务 ID | WB-LEARNING-V4-HOST（V4 主机侧先行：阶段 1 §3~§6 + 阶段 2 §7~§9/P14–P16） |
 | 分支 | `workbuddy/learning-v4-host-sync`（基线 planning-v4 `1310ca3d`） |
-| 提交 | `f8513f1`（§3/§4 Fact Sync）→ `ef5d22d`（§5 tracking）→ `cbdd5ba`（§6 integration map）→ 本轮 §3 补核 + 报告提交（见 §10） |
+| 阶段 1 提交 | `f8513f1`（§3/§4 Fact Sync）→ `ef5d22d`（§5 tracking）→ `cbdd5ba`（§6 integration map）→ `3e72cd8`（报告 + openclaw 补核 + 看板 6.17） |
+| 阶段 2 提交 | `a862cb0`（C5 任务包）→ `35e3d45`（C6 P14 interaction）→ `1467527`（C7 P15 MCP host）→ `e10a7e1`（C8 P16 ports）→ 本轮 C9 docs 收口（见 §11） |
+| 远端头 | `e10a7e1…` 后接本收口提交（普通快进，无 force） |
 | 日期 | 2026-09-03 |
-| 范围 | 纯主机侧 + 文档侧：V4 §3 Final Fix 正式标志、§4 Project Fact Sync、§5 XiaoZhi Upstream Tracking、§6 Metalio Integration Recheck |
-| 授权 | 用户三项决策：主机侧先行 / 真机未连接（本轮不做真机与 flash）/ 基线基于 planning-v4 |
+| 范围 | 纯主机侧 + 文档侧：V4 §3 Final Fix 正式标志、§4 Fact Sync、§5 Upstream Tracking、§6 Integration Recheck（阶段 1）；V4 §7 Interaction Router、§8 Learning MCP Host、§9 Platform Ports 抽象 + fakes（阶段 2，主机可验证） |
+| 授权 | 用户三项决策：主机侧先行 / 真机未连接（本轮不做真机与 flash）/ 基线基于 planning-v4；阶段 2（§7~§9）按看板候选入队、纯主机+fake 路径与 WB-STREAM-002 同模式 |
 
-## 2. 实际修改文件（相对 `1310ca3d`，6 文件 +189/−13 已核验无越界）
+## 2. 实际修改文件（相对 `1310ca3d`，阶段 1 六文件 +189/−13 已核验无越界）
 
 | 文件 | 变更 |
 | --- | --- |
@@ -81,3 +83,80 @@
 ## 10. 本报告提交
 
 - 本报告 + §6 integration map 的 openclaw 源码级补核（UNKNOWN → SOURCE_CONFIRMED、ESPClaw/ota_1 约束、4 条可复用参考模式）作为后续提交（见状态表）。
+
+---
+
+## 11. 阶段 2 收口：V4 §7 Interaction / §8 Learning MCP Host / §9 Platform Ports（P14–P16）
+
+### 11.1 任务包与 checkpoint 状态
+
+任务包：`docs/project_management/tasks/WB-LEARNING-V4_INTERACTION_MCP_PORTS.md`（C5 新增；基线 `3e72cd8`）。
+
+| CP | V4 范围 | 提交 | 状态 |
+| --- | --- | --- | --- |
+| P14 | §7 Interaction Router / Dispatcher + STT mapper（含 P14.1 集成修正） | `35e3d45` | `CHECKPOINT_READY`（host gate 15/15 + 非回归） |
+| P15 | §8 Learning MCP Host（8 个 `learning.*` 工具） | `1467527` | `CHECKPOINT_READY`（15/15 + 非回归） |
+| P16 | §9 Platform Ports（8 抽象 + 确定性 fakes） | `e10a7e1` | `CHECKPOINT_READY`（8/8 + 非回归） |
+
+### 11.2 实际修改文件（C5→C8，相对 `3e72cd8`）
+
+| 文件 | 变更 |
+| --- | --- |
+| `docs/project_management/tasks/WB-LEARNING-V4_INTERACTION_MCP_PORTS.md` | **新增**（C5）：P14–P16 任务包（调度/禁项/语义决策/必测场景/验收/范围边界） |
+| `firmware/main/interaction/command.h` | **新增**：输入无关 CommandKind + CommandPayload |
+| `firmware/main/interaction/stt_mapper.h/.cpp` | **新增**：纯查表短语→Command 映射（无 ASR/LLM） |
+| `firmware/main/interaction/dispatcher.h/.cpp` | **新增**：CommandSink + CommandDispatcher（统一漏斗 + 完成确认门禁：Voice/MCP 的 CompleteTask 只登记 pending，`confirmPendingComplete()` 才发 `Intent::Complete`） |
+| `firmware/main/ui/presenters.cpp` | P14.1：`mapFocusTap` 补 `r.task_id = v.task_id`（reducer 强制 task_id 键） |
+| `firmware/main/mcp/learning_mcp_host.h/.cpp` | **新增**：LearningBackend + 8 工具宿主；查询走快照只读投影（remaining 复用 `ui::buildFocus`），变更经 dispatcher(Mcp) |
+| `firmware/main/ports/*.h`（8 文件） | **新增**：Clock/Storage/Network/Ui/VoiceSession/Stt/McpRegistration/Power 抽象 Port（纯接口，无 Metalio/IDF 头） |
+| `firmware/tests/fakes/fake_command_sink.h` 等 3 个 fakes | **新增**：确定性 fake（sink / learning backend / 8 ports） |
+| `firmware/tests/unit/interaction|mcp|ports/*.cpp`（3 测试） | **新增**：P14 15 case / P15 15 case / P16 8 case |
+| `firmware/tests/unit/ui/presenter_tests.cpp` | P14.1：两处 mapFocusTap case 增加 task_id 断言 |
+| `tools/dev/verify-host-cpp-tests.ps1` | implRoots 增 interaction/mcp/ports；新增 §4b3 禁止 include 扫描（lvgl/esp_/freertos/driver/bsp/wifi/nvs/hal/metalio） |
+
+### 11.3 实现摘要
+
+1. **P14 统一交互漏斗**：所有 Touch/STT/MCP 变更汇入同一 `CommandDispatcher`（V4 §7）；完成门禁内建——Touch 可直发 `Intent::Complete` 并消费 pending AI 请求，Voice/MCP 只登记待确认（重复请求不重复 emit），物理确认后才真正完成；4 个 Query 载荷不产生任何 sink 调用（只读）。
+2. **P14.1 集成修正（发现并修复）**：`mapFocusTap` 只填 `session_id`，而 reducer 入口强制 `task_id` 存在（`reducer.cpp` `if (!request.task_id) return TaskNotFound`），直连 coordinator 会恒被拒。补 `task_id`（FocusView 已携带），原 28 个 presenter case 无回归。
+3. **P15 MCP Host**：`learning.get_today_tasks/current_task/remaining_time/today_progress` 为只读投影；`start/pause/resume/request_complete_task` 经 dispatcher(Mcp) 进入域。`request_complete_task` 响应 `{"confirmation":"pending"}`，**AI 绝不直接 Complete**（V4 §8）。remaining 复用 `buildFocus` 数学避免公式漂移；today_progress 规则（排除 Pending、含 skipped 分母）写入代码注释并测例锁定。
+4. **P16 Platform Ports**：8 个抽象接口 + 确定性 fake；Learning Domain/interaction/mcp/ports 零硬件头（4b3 扫描门禁证明）。UiPort 只表达语义动作与确认回调，LVGL 归 P17；NetworkPort 只留连接状态 + JSON POST 边界。
+
+### 11.4 验收标准逐项自检
+
+| 任务包要求 | 结果 |
+| --- | --- |
+| P14 dispatcher 门禁与映射 15 测例 | ✅ 15/15，含 Voice/MCP 完成零 emit、confirm 单发、Query 零变更 |
+| P15 8 工具 + AI 禁止直接 Complete | ✅ 15/15；`request_complete_task` 后 sink 零 Complete 调用，confirm 后恰一次 |
+| P16 8 接口 + fakes 往返 | ✅ 8/8（含失败注入、重复注册拒绝、回调触发） |
+| 新增目录无硬件/OS/Metalio include | ✅ §4b3 扫描 PASS |
+| 全量非回归 | ✅ host gate 7/7 二进制 RUN PASS，总计 135 case 0 失败；P4 交叉契约 exit=0 |
+| 不触碰真机 / 不改 domain/sync 语义 / 无越界 | ✅（见 11.8） |
+
+### 11.5 验证命令与结果
+
+| 验证 | 命令 | 结果 |
+| --- | --- | --- |
+| 全量 host 门槛 | `tools/dev/verify-host-cpp-tests.ps1 -CompilerPath w64devkit-2.9.1\bin\g++.exe -CrossCompilerPath riscv32-esp-elf-g++.exe` | `RESULT: NATIVE CPP TEST GATE PASS`；smoke compile/link/run PASS；4b/4b2/4b3 扫描 PASS；unit 7/7（coordinator 20 + domain 28 + dispatcher 15 + mcp 15 + ports 8 + outbox 21 + presenter 28 = **135 cases, 0 failures**）；interface exit=0 |
+| 变更无越界 | 隔离 index + `git diff <parent> <tree> --stat` | C5 +1 文件；C6 10 文件 +746/−5；C7 4 文件 +684；C8 10 文件 +580；均仅目标路径 |
+| 提交链完整性 | `git cat-file -p` 逐提交核验 parent | `3e72cd8 → a862cb0 → 35e3d45 → 1467527 → e10a7e1` 父链正确 |
+| 远端推送 | 代理 51846 后台长窗口普通 push | 每 CP `old..new -> workbuddy/learning-v4-host-sync`（8s~54s，快进） |
+| trailing whitespace | `git diff --check` | 新增文件无告警 |
+
+### 11.6 阶段 2 未解决问题、风险与边界（`HARDWARE_VERIFY_REQUIRED` 保持）
+
+- `mapFocusTap` 修复仅为任务键补全，未触及 reducer/presenter 其他语义；遗留的「voice 完成请求→UI 确认弹窗→Touch 确认」设备链路依赖 P17 适配与真机 UI，属后续授权范围。
+- STT mapper 为 MVP 固定短语表（无 ASR）：真实语音识别、唤醒词互斥、VoiceSession 与 mic/I2S 排他均 `HARDWARE_VERIFY_REQUIRED`。
+- NetworkPort 的 `postJson`/真实 HTTP·TLS、StoragePort 的 NVS/SD 后端、McpRegistrationPort 桥接 Metalio `AddTool`：P17 设备适配 + 真机网络任务，未实现。
+- 本地 git refs 竞争（外部进程抢占）依旧；本次继续用隔离 index + 裸 SHA push，远端分支为唯一可靠状态源（现头 = 本收口提交）。
+- 真机未连接：LVGL 渲染、Flash 分区、Wi-Fi/TLS、音频 codec 全部保持 `HARDWARE_VERIFY_REQUIRED`；`BLK-FLASH-AUTH-001` 未解除。
+
+### 11.7 范围偏差
+
+无。阶段 2 严格限于任务包 P14–P16 允许路径（interaction/mcp/ports 新增 + fakes/tests/harness + P14.1 有界 presenter 修正 + 任务包/报告/看板文档）；未进入 §10 Metalio Adapter、未接真实 MCP transport、未触碰 vendor 源码与 domain/sync 语义。
+
+### 11.8 建议用户决策点
+
+1. 阶段 2 三个 checkpoint（P14/P15/P16）是否 ACCEPT；
+2. 是否授权下一步：§10 Metalio Adapter（`integration/metalio_claw4/` thin adapter，起涉设备侧）与 P17 设备边界——建议等真机连接授权后再入队；
+3. host 门槛新增的 4b3 include 扫描与 P14.1 presenter 修正是否认可（有界改动，28 case 无回归）。
+
