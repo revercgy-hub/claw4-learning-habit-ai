@@ -15,6 +15,8 @@
 3. §5 XiaoZhi Upstream Tracking：新增 `docs/XIAOZHI_UPSTREAM_TRACKING.md`（只 selective backport，禁止整仓 merge）；
 4. §6 Metalio Integration Recheck：输出 `docs/METALIO_LEARNING_INTEGRATION_MAP_V4.md`。
 
+截至 2026-09-03：**§3~§6 已完成并推送**（提交 `f8513f1` → `ef5d22d` → `cbdd5ba`，远端 `workbuddy/learning-v4-host-sync`；流报告 `reports/WB-LEARNING-V4_REPORT.md`）。§6 已源码级核实 `openclaw_screen`（Metalio 云 Agent 对话 App，**非**学习宿主；Learning 与 chat/openclaw 等为 Home 网格并列 App）。**下一步候选：§7 Interaction Router / §8 Learning MCP Host / §9 Platform Ports（可用主机侧 + fake 模式先行，建议同 WB-STREAM-002 模式，待用户确认入队）；§10 Metalio Adapter 起涉设备侧，待真机授权。**
+
 本工作流不触碰真机、LVGL、真实 NVS/网络适配、Flash/分区或发布固件；Device MVP（Bring-up、App Shell、L0~L6）保持 `HOLD` 直至用户另行授权。
 
 `WB-STREAM-002`（`workbuddy/domain-offline-stream`）已收口：CP0~CP8 全部 `CHECKPOINT_READY` 并推送，Review 修复（FIX-03/08/10 + TaskNotReady）推送至分支（看板记录头 `2787fb9`；planning-v4 `1310ca3d` 承载其收口代码全量）；`CR-WB-STREAM-002-FINAL` 因用户取消 Codex 复检 `CANCELLED`。流收口证据以 `WB-STREAM-002_REPORT.md`（§10/§11）与 `HOST_MVP_ACCEPTANCE.md`（§0 `HOST_MVP_FINAL_FIX=PASS`）为准，验收决策归用户。
@@ -57,6 +59,7 @@
 | 6.14 | WB-STREAM-002 / CP7 | WorkBuddy | `CHECKPOINT_READY` | CP6 checkpoint | 提交 `79900f4`；主机 MVP E2E 闭环 PASS（backend 62/62） |
 | 6.15 | WB-STREAM-002 / CP8 | WorkBuddy | `CHECKPOINT_READY` | CP7 checkpoint | 提交 `36d2e13`+`028a544`+`52481dd`；C++/Backend 5 轮、PWA 3 轮、E2E 5 轮 0 失败；`HOST_MVP_ACCEPTANCE.md` 交付 |
 | 6.16 | WB-STREAM-002 / Review 修复 | WorkBuddy | `CHECKPOINT_READY` | CP8 checkpoint | 提交 `7e7fa07`+`c4a3bed`+`2787fb9`；FIX-03/08/10 + TaskNotReady；C++ 28/28、backend 70/70、E2E PASS；报告 §11 |
+| 6.17 | WB-LEARNING-V4-HOST / §3~§6 | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | planning-v4 `1310ca3d` | 提交 `f8513f1`（§3 PASS 标志 + §4 Fact Sync）+`ef5d22d`（§5 tracking）+`cbdd5ba`（§6 integration map）推送 `workbuddy/learning-v4-host-sync`；`WB-LEARNING-V4_REPORT.md`；openclaw 源码级核实 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |

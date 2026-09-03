@@ -31,14 +31,16 @@ Metalio 官方固件已把 XiaoZhi 的"应用"演进为 **LVGL Screen 应用架�
 | 9 | Storage | ✅ NVS 为主 | `main/settings.{h,cc}`（`nvs_flash.h`，`nvs_handle_t`）；存在 `SdCardScreen`（SD 卡应用）；官方 OTA URL 默认存 NVS `wifi/ota_url` | 设备端学习状态/未同步事件落盘需评估 NVS 键值 vs SD（WB-STREAM-002 outbox 的平台适配点；真实 NVS 适配属 Device MVP，HOLD） |
 | 10 | Network | ✅ esp_wifi + 协议双传输 | `main/protocols/{websocket,mqtt}_protocol.*`；Wi-Fi 配网 UI（`network_screen`）；`system_info.cc` 引用 esp_wifi；NVS 存 wifi 配置 | 学习事件同步（WB-STREAM-002 coordinator/outbox 已 HOST_VERIFIED）待接设备网络层；设备 TLS/CA 路径 `HARDWARE_VERIFY_REQUIRED` |
 | 11 | build / app-flash | ✅ 既有流程 | `E:\c` 构建镜像；`idf.py build` + `app-flash`（仅 ota_0 应用分区）；出厂固件 `Metalio_Claw4_Latest.bin`（33,120,256 B，SHA-256 前缀 `1a69e379`） | Learning App Shell 进入真机前的构建门禁沿用 V4 §12；**每次写 Flash 需用户授权（BLK-FLASH-AUTH-001）** |
-| 12 | ota_0 size margin | ⚠️ 余量紧张 | 分区假设 ota_0≈9 MiB（9,437,184 B）；当前应用 `xiaozhi.bin` 9,036,192 B（≈8.62 MiB）→ **余量 ≈ 400,992 B（≈0.38 MiB）**；`xiaozhi.bin` 放不进 ota_1（4 MiB） | Learning 代码/资源体积预算极紧（~0.38 MiB 量级）；**严禁改分区表**；超预算需重新做体积/裁剪决策并经用户授权 |
+| 12 | ota_0 size margin | ⚠️ 余量紧张 | 分区假设 ota_0≈9 MiB（9,437,184 B）；当前应用 `xiaozhi.bin` 9,036,192 B（≈8.62 MiB）→ **余量 ≈ 400,992 B（≈0.38 MiB）**；`xiaozhi.bin` 放不进 ota_1（4 MiB）；**ota_1 已有官方用途** = ESPClaw 本地 edge_agent（README §10.1，另需 emote/system/storage 分区） | Learning 代码/资源体积预算极紧（~0.38 MiB 量级）；**严禁改分区表、严禁占用 ota_1**（官方 edge_agent 槽）；超预算需重新做体积/裁剪决策并经用户授权 |
 
 ## 3. 与现有资产的关系（不重复造轮子）
 
 - **Learning Core（domain reducer / outbox / coordinator）**：`firmware/main/learning_domain/`、`firmware/main/application/`（现为纯主机、零硬件头，HOST_VERIFIED）→ 计划作为平台无关 C++ 库链入 Metalio `main`；其 include 洁净性已被 CP0~CP8 门禁保护（forbidden include 扫描 PASS）。
 - **UI presenter（Home/Focus/Done/Offline）**：`firmware/main/ui/presenters.{h,cpp}`（纯映射、28/28）→ Learning Screen 的视图模型源；Screen 层只做 LVGL 渲染适配，不改 presenter。
 - **MCP / Voice / Audio / Protocol**：本轮不实现；集成点已在 §2 表锁定，避免后续重复侦查。
-- **openclaw_screen（官方内置）**：`UNKNOWN` 能力边界（未见官方文档/实机确认其用途与接口稳定性）→ 集成 Learning 前**必须先核实 openclaw 是否即官方预期的"学习/开放能力"宿主**，避免平行造两个入口；属实机/官方资料核实项（HARDWARE_VERIFY_REQUIRED / 文档待补）。
+- **openclaw_screen（官方内置，2026-09-03 源码级核实）**：`SOURCE_CONFIRMED` = Metalio **云 AI Agent 平台**（OpenClaw）的设备端 App（README §2.2/§10；`openclaw_screen.h`）。走 HTTP API（`main/api_endpoints.h`：`/api/v1/devices/status`、`/conversation`、`/conversation/{id}/messages`、`removeAll`），按住说话录音上传（独立 FreeRTOS task 不阻塞 LVGL）+ 消息气泡 UI，Home 网格经 `LifecycleCallback` 接入。**结论：OpenClaw 是通用云 Agent 对话入口，不是学习习惯宿主；Learning 与 chat / openclaw / digital_people 等为 Home 网格并列 App。** 官方 App 全清单见 README §11（`home_screen.cc` → `kApps[]`）。
+  - **可复用参考模式（Learning screen 实现时照做）**：① mic 与唤醒词共用 I2S 通道 → 录音前后必须临时关 wake word，且 `LifecycleCallback` 兜底（退出屏幕时还原）；② 录音/上传/网络放独立 FreeRTOS task，不阻塞 LVGL；③ 设备状态非 `Idle`（正在 AI 对话）时按钮置灰拒绝触发；④ 进入前激活检查（未激活弹不可关闭拦截窗）。
+  - **ESPClaw（README §10.1，与 Learning 无关但约束分区认知）**：Home 的 ESPClaw 入口 boot `ota_1` 内的本地 edge_agent（另需 emote/system/storage 分区，见 `esp_claw_bin/README.md`）→ 印证 ota_1 已有官方用途（本地 agent），**Learning 不得占用 ota_1 或改分区**；MVP 不开发本地大模型/edge agent。
 
 ## 4. 风险与门禁
 
