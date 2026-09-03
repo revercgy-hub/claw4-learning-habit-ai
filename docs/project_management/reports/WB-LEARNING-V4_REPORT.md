@@ -128,10 +128,10 @@
 
 | 任务包要求 | 结果 |
 | --- | --- |
-| P14 dispatcher 门禁与映射 15 测例 | ✅ 15/15，含 Voice/MCP 完成零 emit、confirm 单发、Query 零变更 |
-| P15 8 工具 + AI 禁止直接 Complete | ✅ 15/15；`request_complete_task` 后 sink 零 Complete 调用，confirm 后恰一次 |
+| P14 dispatcher 门禁与映射 | ✅ 18/18（新增：Voice 非完成变更直发、Mcp Skip/Pause、pending cancel→重请求循环），含 Voice/MCP 完成零 emit、confirm 单发、Query 零变更 |
+| P15 8 工具 + AI 禁止直接 Complete | ✅ 16/16（新增：无会话无 task_id → missing_arg 错误）；`request_complete_task` 后 sink 零 Complete 调用，confirm 后恰一次 |
 | P16 8 接口 + fakes 往返 | ✅ 8/8（含失败注入、重复注册拒绝、回调触发） |
-| P14/P15 对真实 domain 的 host funnel（C11） | ✅ 6/6（真实 coordinator 提交/迁移/门禁/拒绝路径，非脚本化 fake） |
+| P14/P15 对真实 domain 的 host funnel | ✅ 8/8（C11 6 case + C15 补：Completed 任务 start 幂等且零重复事件、Skipped 任务 start 拒绝） |
 | 跨语言 host MVP E2E 复跑（阶段 2 后，C13） | ✅ `E2E RESULT: PASS`：C++ host gate exit=0（141 case）+ backend pytest **70 passed** + PWA typecheck/vitest **30/30**/build PASS |
 | 新增目录无硬件/OS/Metalio include | ✅ §4b3 扫描 PASS |
 | 全量非回归 | ✅ host gate 8/8 二进制 RUN PASS，总计 141 case 0 失败；P4 交叉契约 exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1） |
@@ -141,7 +141,7 @@
 
 | 验证 | 命令 | 结果 |
 | --- | --- | --- |
-| 全量 host 门槛 | `tools/dev/verify-host-cpp-tests.ps1 -CompilerPath w64devkit-2.9.1\bin\g++.exe -CrossCompilerPath riscv32-esp-elf-g++.exe` | `RESULT: NATIVE CPP TEST GATE PASS`；smoke compile/link/run PASS；4b/4b2/4b3 扫描 PASS；unit 8/8（coordinator 20 + domain 28 + dispatcher 15 + mcp 15 + host_funnel 6 + ports 8 + outbox 21 + presenter 28 = **141 cases, 0 failures**）；interface exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1，riscv32 target ISA `-fsyntax-only`） |
+| 全量 host 门槛 | `tools/dev/verify-host-cpp-tests.ps1 -CompilerPath w64devkit-2.9.1\bin\g++.exe -CrossCompilerPath riscv32-esp-elf-g++.exe` | `RESULT: NATIVE CPP TEST GATE PASS`；smoke compile/link/run PASS；4b/4b2/4b3 扫描 PASS；unit 8/8（coordinator 20 + domain 28 + dispatcher 18 + mcp 16 + host_funnel 8 + ports 8 + outbox 21 + presenter 28 = **147 cases, 0 failures**）；interface exit=0（headers 33/33 + implsrcs 3/3 + contract 1/1，riscv32 target ISA `-fsyntax-only`） |
 | 跨语言 E2E 编排 | `tools/dev/run-host-mvp-e2e.ps1 -LogDir out\e2e_stage2`（backend/.venv 重建 + `npm ci` 313 包，均 git-ignored） | `E2E RESULT: PASS`（16:43:47→16:45:54）；C++ host gate exit=0、backend **70 passed**、PWA typecheck PASS + vitest **30/30** + `built in 779ms`；log `out/e2e_stage2/e2e_result.txt` |
 | 变更无越界 | 隔离 index + `git diff <parent> <tree> --stat` | C5 +1 文件；C6 10 文件 +746/−5；C7 4 文件 +684；C8 10 文件 +580；均仅目标路径 |
 | 提交链完整性 | `git cat-file -p` 逐提交核验 parent | `3e72cd8 → a862cb0 → 35e3d45 → 1467527 → e10a7e1` 父链正确 |
