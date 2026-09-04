@@ -36,6 +36,7 @@ bool NvsOutboxStorage::load(claw4::sync::OutboxState& out) {
   if (!OpenReadWrite(h)) return false;
   size_t len = 0;
   const esp_err_t peek = nvs_get_blob(h, kStateKey, nullptr, &len);
+  ESP_LOGI(TAG, "load peek=%d len=%u", (int)peek, (unsigned)len);
   if (peek == ESP_ERR_NVS_NOT_FOUND) {
     nvs_close(h);
     out = claw4::sync::OutboxState{};  // first boot: pristine state
@@ -77,8 +78,9 @@ claw4::sync::CommitStatus NvsOutboxStorage::Save(claw4::sync::OutboxState cur) {
   esp_err_t commit = ESP_OK;
   if (set == ESP_OK) commit = nvs_commit(h);
   nvs_close(h);
+  ESP_LOGI(TAG, "save blob=%u bytes set=%d commit=%d", (unsigned)blob.size(),
+           (int)set, (int)commit);
   if (set != ESP_OK || commit != ESP_OK) {
-    ESP_LOGE(TAG, "nvs set/commit err set=%d commit=%d", set, commit);
     return claw4::sync::CommitStatus::StorageError;
   }
   return claw4::sync::CommitStatus::Committed;

@@ -293,3 +293,12 @@
 | Known Risks | NVS 首启 seed 后若想重演需 erase（禁 erase 权限内不做；L1c 首刷 NVS 无旧状态天然 seed）；demo child/device id（L2 provisioning 替换） |
 | Hardware Verify | L1c 上机（批次 ota_0 app-flash+monitor）：seed→Start→暂停→继续→完成→返回→**重启后状态/任务保持**（NVS 恢复）+ 用户屏侧确认 |
 | Next | **L1c 上机**（等待用户安排设备在线与操作） |
+
+### 17.1 L1c 上机现场（2026-09-04）与阻塞缺陷 — 详见 `WB-LEARNING-V4-L1_HANDOFF.md`
+- 首刷 boot/seed/Start(Accepted,NVS save OK) 均 PASS；**Pause/Complete（Touch）→ intent=3 PersistFailed，Save 从未执行**；重启恢复正常。根因初判（事件 id 重复→改 esp_random）后**仍复现** → duplicate 排除，问题聚焦 outbox persistTransition commit 前出口（empty/duplicate/capacity/load 均证据排除，见 HANDOFF §3/§4）。
+- 调试资产已落地（learning_runtime random-id + SELFTEST 链 + NVS 操作日志）；设备现为干净 seed 态。
+- 状态：**BLOCKED（问题交接，换模型/工程师接手）**。
+
+### 17.2 独立记录（非 Learning 引入）
+- 官方 esp_netif Wi-Fi 停止崩溃（`esp_netif_stop_api` Load access fault + SW reboot）为基线行为，会打断长 monitor 会话。
+- 设备 USB 偶发掉线（CM_PROB_PHANTOM）；monitor 须在设备在线时 attach。

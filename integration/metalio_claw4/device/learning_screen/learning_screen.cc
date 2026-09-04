@@ -57,6 +57,55 @@ Ui s_ui;
 
 LearningRuntime& Rt() { return LearningRuntime::Instance(); }
 
+void RefreshUi();  // fwd (defined below; used by the self-test step chain)
+
+// --- one-shot funnel self-test (device debug aid) -------------------------
+// Boots into the Learning screen once: automatically walks Start -> Pause ->
+// Resume -> Complete against the REAL domain/NVS pipeline, logs each result,
+// then resets the learning namespace to a clean seeded demo state. Running it
+// requires no touch input (the user only needs to open the screen once).
+int s_selftest_step = 0;
+bool s_selftest_ok[4] = {false, false, false, false};
+lv_timer_t* s_selftest_timer = nullptr;
+
+void RunSelfTestStep(lv_timer_t*) {
+  auto& rt = Rt();
+  auto& app = rt.app();
+  const int step = s_selftest_step++;
+  if (step < 4) {
+    CommandPayload p;
+    p.task_id = claw4::domain::TaskId{"demo-math-001"};
+    switch (step) {
+      case 0: p.kind = CommandKind::StartTask; break;
+      case 1: p.kind = CommandKind::PauseTask; break;
+      case 2: p.kind = CommandKind::ResumeTask; break;
+      default: p.kind = CommandKind::CompleteTask; break;
+    }
+    const auto r = app.dispatcher().dispatch(CommandSource::Touch, p);
+    const bool ok = r.intent_result == claw4::domain::IntentResult::Accepted;
+    s_selftest_ok[step] = ok;
+    ESP_LOGI(TAG, "SELFTEST step%d kind=%d -> status=%d intent=%d ok=%d",
+             step, static_cast<int>(p.kind), static_cast<int>(r.status),
+             static_cast<int>(r.intent_result), ok ? 1 : 0);
+    return;
+  }
+  // Cleanup: stop the chain, report, reset to a clean demo state.
+  if (s_selftest_timer != nullptr) {
+    lv_timer_del(s_selftest_timer);
+    s_selftest_timer = nullptr;
+  }
+  const bool all = s_selftest_ok[0] && s_selftest_ok[1] && s_selftest_ok[2] &&
+                   s_selftest_ok[3];
+  ESP_LOGI(TAG, "SELFTEST %s (start=%d pause=%d resume=%d complete=%d)",
+           all ? "PASS" : "FAIL", s_selftest_ok[0] ? 1 : 0,
+           s_selftest_ok[1] ? 1 : 0, s_selftest_ok[2] ? 1 : 0,
+           s_selftest_ok[3] ? 1 : 0);
+  rt.MarkSelfTestDone();
+  rt.ResetToSeed();
+  RefreshUi();
+  ESP_LOGI(TAG, "SELFTEST cleanup done -> state re-seeded to demo");
+}
+
 // --- pure view helpers ---------------------------------------------------
 const char* TaskStatusWord(TaskStatus s) {
   switch (s) {
@@ -127,6 +176,16 @@ void DispatchTouch(CommandKind kind, const TaskId& task_id) {
   ESP_LOGI(TAG, "touch kind=%d task=%s -> status=%d intent=%d",
            static_cast<int>(kind), task_id.value.c_str(),
            static_cast<int>(r.status), static_cast<int>(r.intent_result));
+  if (r.intent_result == claw4::domain::IntentResult::PersistFailed) {
+    const DomainState& st = app.state();
+    ESP_LOGW(TAG,
+             "persist-fail diag: tasks=%d active=%d pending=%d lastAcked=%lld "
+             "nextPending=%d",
+             (int)st.tasks.size(), st.active_session.has_value() ? 1 : 0,
+             app.pendingCount(),
+             (long long)app.coordinator().lastAcked(),
+             app.coordinator().pendingCount());
+  }
 }
 
 // --- refresh (pure projection of committed domain state) ------------------
@@ -295,6 +354,10 @@ void LearningScreen::LifecycleCallback(screen_lifecycle_event_t event) {
       lv_timer_del(s_ui.timer);
       s_ui.timer = nullptr;
     }
+    if (s_selftest_timer != nullptr) {
+      lv_timer_del(s_selftest_timer);
+      s_selftest_timer = nullptr;
+    }
   }
 }
 
@@ -367,5 +430,11 @@ lv_obj_t* LearningScreen::Create() {
 
   RefreshUi();
   s_ui.timer = lv_timer_create(OnRefreshTick, kRefreshMs, nullptr);
+  if (rt.SelfTestPending() && s_selftest_timer == nullptr) {
+    s_selftest_step = 0;
+    s_selftest_ok[0] = s_selftest_ok[1] = s_selftest_ok[2] = s_selftest_ok[3] = false;
+    s_selftest_timer = lv_timer_create(RunSelfTestStep, 600, nullptr);
+    ESP_LOGI(TAG, "SELFTEST armed (auto 4-step funnel chain)");
+  }
   return scr;
 }

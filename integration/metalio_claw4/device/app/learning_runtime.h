@@ -34,9 +34,16 @@ class LearningRuntime {
   std::string NextEventId();
   std::string NextSessionId();
 
+  // One-shot on-device funnel self-test (dev/debug aid; guarded by NVS flag
+  // "stest"). The screen runs the step chain on its LVGL timer thread.
+  bool SelfTestPending();
+  void MarkSelfTestDone();
+  // Erases the learning namespace and re-seeds the demo snapshot (used to
+  // restore a clean demo state after the self-test chain).
+  bool ResetToSeed();
+
  private:
   LearningRuntime() = default;
-  int64_t NextNvsCounter(const char* key);
 
   NvsOutboxStorage storage_;
   EspTimerClock clock_;
