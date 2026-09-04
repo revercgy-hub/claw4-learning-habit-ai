@@ -23,6 +23,8 @@ Codex 负责：
 
 2026-09-03（晚）更新：`WB-LEARNING-V4-NEXT` 任务书授权推进——① Host 契约修正（FIX-V4-01 auth_pause 短路、FIX-V4-02 权威今日快照 `applyTodaySnapshot`、FIX-V4-03 deadletter 持久化失败传播）已完成（C19 `bba9356`），验收重声明 **`HOST_MVP_FINAL_FIX_V4=PASS`**（C20 `9f62c12`，`HOST_MVP_ACCEPTANCE.md` §0.1）；② P17 Metalio Adapter 与 P18 Learning App Shell **代码 + 编译**阶段已授权（`integration/metalio_claw4/` 薄适配；允许 Home Registry/CMake 极小集成补丁并记录 `integration_manifest.md`；禁改 BSP/driver/sdkconfig/partition/bootloader/ota_1/eFuse 等）；③ 真机调试批次已由用户于 2026-09-03 授权并执行完毕（仅 ota_0 application app-flash + monitor）：L0 首刷 PASS（Hash verified，app 2.0.51）、monitor 确认 Home 正常且 learning_screen load/unload 往返；Start 交互修复（所有 label 显式白字 + 按钮改官方 `lv_button_create` 按压反馈；根因=深色背景下状态文字深字深底不可见）后真机复测 `button start -> running -> done` PASS（C27 `117c31b`）。**L0 范围闭环**（Home→Learning→Mock Task→Start→Back，UI mock 无 backend/NVS/Voice/STT/MCP/AI）。任何后续设备侧推进——L1+ 真实 backend/NVS/语音/MCP 接入，或 erase_flash/bootloader/partition/ota_1/C5/eFuse 等操作——均需新的明确授权。current_remote_head=见 TASK_BOARD（每次 fetch 核实）。
 
+2026-09-04 更新：用户已启动 L1 设备基本功能工作。WorkBuddy 远端头 `e9141c8` 的 L1c 现场为 Start 成功、Pause/Complete `PersistFailed`；Codex 依既有直接修复授权在独立 `codex/wb-learning-v4-l1-persist-fix` 分支定位为 nano-newlib 不支持 `%llx`，导致 `esp_random()` 结果被格式化为恒定 event ID，并补上 outbox 批内重复保护与“codec 持久化→重启→旧 pending→Pause”回归（代码 `0e53265`）。host 10/10 与 IDF build 已通过，新固件尚未写 Flash；当前只待用户/WorkBuddy在既有安全边界内执行 ota_0 application app-flash + monitor 复测。erase_flash、bootloader、partition、ota_1、C5、eFuse 等仍禁止。
+
 ### WorkBuddy：实施
 
 WorkBuddy 负责：

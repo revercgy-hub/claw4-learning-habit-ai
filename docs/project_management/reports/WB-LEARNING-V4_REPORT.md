@@ -295,10 +295,22 @@
 | Next | **L1c 上机**（等待用户安排设备在线与操作） |
 
 ### 17.1 L1c 上机现场（2026-09-04）与阻塞缺陷 — 详见 `WB-LEARNING-V4-L1_HANDOFF.md`
-- 首刷 boot/seed/Start(Accepted,NVS save OK) 均 PASS；**Pause/Complete（Touch）→ intent=3 PersistFailed，Save 从未执行**；重启恢复正常。根因初判（事件 id 重复→改 esp_random）后**仍复现** → duplicate 排除，问题聚焦 outbox persistTransition commit 前出口（empty/duplicate/capacity/load 均证据排除，见 HANDOFF §3/§4）。
+- 首刷 boot/seed/Start(Accepted,NVS save OK) 均 PASS；**Pause/Complete（Touch）→ intent=3 PersistFailed，Save 从未执行**；重启恢复正常。历史初判“改 esp_random 后 duplicate 排除”已由 §17.3 **SUPERSEDED**；问题实际仍是 event_id 重复，但根在 nano-newlib 的 `%llx` 格式化。
 - 调试资产已落地（learning_runtime random-id + SELFTEST 链 + NVS 操作日志）；设备现为干净 seed 态。
 - 状态：**BLOCKED（问题交接，换模型/工程师接手）**。
 
 ### 17.2 独立记录（非 Learning 引入）
 - 官方 esp_netif Wi-Fi 停止崩溃（`esp_netif_stop_api` Load access fault + SW reboot）为基线行为，会打断长 monitor 会话。
 - 设备 USB 偶发掉线（CM_PROB_PHANTOM）；monitor 须在设备在线时 attach。
+
+### 17.3 L1c PersistFailed 根因修复候选（Codex，2026-09-04）
+
+| 项 | 值 |
+| --- | --- |
+| Base / Branch / Code SHA | 远端冻结头 `e9141c8` / `codex/wb-learning-v4-l1-persist-fix` / `0e53265` |
+| Root Cause | `CONFIG_NEWLIB_NANO_FORMAT=y` 下 `%llx` 不受支持；`esp_random()` 的 64-bit 组合虽变化，`snprintf("%llx", …)` 却生成恒定文字 ID。Start 的两个 draft 因缺少批内重复校验而同时入队，后续 Pause/Complete 命中 existing duplicate，恰在 commit 前失败。真机日志中的 `tasks=zu`、`lastAcked=ld` 为同一 formatter 限制的直接旁证。 |
+| Product Fix | 新增纯 C++ `formatEntropyId(prefix, high32, low32)` 手工十六进制编码，不再依赖 64-bit printf；`OutboxCore` 增加 transition 内重复 ID 原子拒绝；设备日志改用 nano 安全格式。 |
+| Regression | LearningApp 新增 codec 存储的“Start→销毁实例→重启恢复旧 pending→Pause”用例；outbox 新增同批重复拒绝；codec 新增 entropy 格式用例。关键套件：LearningApp **5/5**、outbox **22/22**、codec PASS；全量主机 **10/10 binaries PASS**，接口 cross-check exit=0。 |
+| Device Build | `idf.py -C E:/c -B E:/b build` exit=0；`xiaozhi.bin` **9,175,856 B**；SHA-256 `7f96c501903b25f2d3c37307e22cf6d7490b1bb987e854b0ef5cc963f974e6f3`；ota_0 容量 PASS，ota_1 仍溢出且未触碰。 |
+| Scope | repo 权威与 `E:/c` 构建镜像逐文件一致；未修改 sdkconfig/partition/bootloader/ota_1/C5/eFuse；未写 Flash。 |
+| Current Status | **FIX_BUILT / DEVICE_RETEST_REQUIRED**：设备保持干净 seed；下一步只需 ota_0 app-flash + monitor，确认 SELFTEST 四步、人工触摸与重启恢复。 |
