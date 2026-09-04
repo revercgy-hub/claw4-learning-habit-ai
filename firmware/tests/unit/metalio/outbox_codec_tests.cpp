@@ -7,6 +7,7 @@
 
 #include "learning_domain/domain_state.h"
 #include "metalio_claw4/device/core/outbox_codec.h"
+#include "metalio_claw4/device/core/random_id.h"
 #include "sync/outbox_storage.h"
 
 namespace {
@@ -26,6 +27,7 @@ using claw4::domain::TaskStatus;
 using claw4::domain::TimestampSource;
 using claw4::metalio::decodeOutboxState;
 using claw4::metalio::encodeOutboxState;
+using claw4::metalio::formatEntropyId;
 using claw4::sync::OutboxState;
 using claw4::sync::PendingEvent;
 
@@ -219,6 +221,17 @@ bool RunCorruptionNegatives() {
   return true;
 }
 
+bool RunEntropyIdFormatting() {
+  CHECK(formatEntropyId("ev-", 0x01234567U, 0x89abcdefU) ==
+        "ev-0123456789abcdef");
+  CHECK(formatEntropyId("ev-", 0U, 1U) == "ev-0000000000000001");
+  CHECK(formatEntropyId("sess-", 0xffffffffU, 0U) ==
+        "sess-ffffffff00000000");
+  CHECK(formatEntropyId("ev-", 0x01234567U, 0x89abcdefU) !=
+        formatEntropyId("ev-", 0x01234567U, 0x89abcdeeU));
+  return true;
+}
+
 }  // namespace
 
 int main() {
@@ -226,6 +239,7 @@ int main() {
   RunEmptyRoundtrip();
   RunIdempotentRoundtrip();
   RunCorruptionNegatives();
+  RunEntropyIdFormatting();
   if (g_fail == 0) {
     std::printf("outbox_codec_tests: all PASS\n");
     return 0;

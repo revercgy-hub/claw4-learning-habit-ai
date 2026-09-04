@@ -1,14 +1,16 @@
 # 项目任务看板
 
-- 更新时间：2026-09-03（V4 复核）
+- 更新时间：2026-09-04（L1 PersistFailed 根因修复候选）
 - 维护者：Codex（协作分工）；2026-09-03 起用户决定不再安排 Codex 复检，实施状态由 WorkBuddy 记录、验收决策归用户
-- 当前阶段：V4 主机侧工作流 `WB-LEARNING-V4-HOST`（分支 `workbuddy/learning-v4-host-sync`）为当前唯一活动工作流；`current_remote_head=117c31b`（C27，2026-09-03；每 checkpoint 更新，不再用旧 head 表述）
+- 当前阶段：L1c 真机状态机缺陷修复；WorkBuddy 活动分支 `workbuddy/learning-v4-host-sync` 的 `current_remote_head=7ee686d`。Codex 修复候选位于 `codex/wb-learning-v4-l1-persist-fix`，代码提交 `0e53265`；已整合 C33 host 恢复测试，host/build 通过，待 ota_0 真机复测。
 - 调度规则：任意时刻只允许一个活动 WorkBuddy 工作流；流内 checkpoint 按任务包顺序连续执行
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前活动工作流
 
-`WB-LEARNING-V4-HOST`（分支 `workbuddy/learning-v4-host-sync`，基线 planning-v4 `1310ca3d`）为当前唯一活动工作流，依据 `项目总规划/WORKBUDDY_CLAW4_学习伙伴_完整开发提示词_V4.md` §3~§9 连续执行：
+**2026-09-04 当前项：** `WB-LEARNING-V4-L1` 的 WorkBuddy 实施头为 `7ee686d`（C33 host 恢复测试）；L1c 的 PersistFailed 已在独立 Codex 修复分支定位并产出代码提交 `0e53265`。当前仅剩将该候选整合后按既有批次边界执行 `ota_0` application app-flash + monitor；禁止项（erase/partition/bootloader/ota_1/C5/eFuse）不变。下述 `WB-LEARNING-V4-HOST` 内容为已完成的前序阶段基线。
+
+`WB-LEARNING-V4-HOST`（分支 `workbuddy/learning-v4-host-sync`，基线 planning-v4 `1310ca3d`）曾作为唯一活动工作流，已依据 `项目总规划/WORKBUDDY_CLAW4_学习伙伴_完整开发提示词_V4.md` §3~§9 连续完成：
 
 1. §3 Host Final Fix 正式标志：`HOST_MVP_FINAL_FIX=PASS`（12 项 checklist 落 `HOST_MVP_ACCEPTANCE.md` §0）；
 2. §4 Project Fact Sync：同步 TASK_BOARD / ARCHITECTURE / AGENTS / acceptance（Host MVP 与 Device MVP 分开）；
@@ -68,7 +70,7 @@
 | 6.20 | P17a LearningApp glue（阶段 E cp1） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `911e5c2` | C23 `31cb6b8`：`integration/metalio_claw4/host_glue/`（ContextBuilder/CommandSinkGlue/BackendGlue/LearningApp）+ glue 测试 4 case + `integration_manifest.md`（0 官方改动）+ harness 纳入 host_glue；host gate 9/9、**156 case 0 失败**；报告 §13 |
 | 6.21 | P18 Learning L0 App Shell BUILD（阶段 F） | WorkBuddy | `LEARNING_V4_L0_BUILD_READY` → 批次授权已获 → **首刷 PASS + Start 交互 PASS（C26/C27）** | `911e5c2` | C25：`integration/metalio_claw4/device/learning_screen/`（权威副本）+ manifest 两条 APPLIED；`E:/b/xiaozhi.bin` = **9,025,520 B（delta +2,096 B）**、sdkconfig diff=0（调优基线未动）、idf.py build exit=0、learning 源入固件；ota_0 余量 ≈0.39 MiB；报告 §14/§14.2/§14.3 |
 | 6.22 | WB-LEARNING-V4-NEXT 全任务收口（阶段 A–F） | WorkBuddy | `CHECKPOINT_READY`（任务书授权范围全部完成；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19–C27 链：FIX-V4-01~03 → `HOST_MVP_FINAL_FIX_V4=PASS` → Fact Sync → P17 集成策略 → P17a glue（host gate 9/9、156 case）→ P18 L0 BUILD（+2,096 B、sdkconfig diff=0）→ 首刷 PASS → Start 交互修复复测 PASS（9,026,000 B）；报告 §12–§15 |
-| 6.23 | WB-LEARNING-V4-L1 Learning App 设备基本功能 | WorkBuddy | `BLOCKED`（L1a/L1b ✅；L1c 上机发现 Pause/Complete PersistFailed 未解，**问题交接 `WB-LEARNING-V4-L1_HANDOFF.md`，换模型接手**） | `afa7c48` | L1a/L1b 见行内（C30/C31，bin 9,169,056 B）。L1c 现场：seed/Start PASS；Pause/Complete `intent=3`（Save 未执行）；排除 duplicate（esp_random 修复后复现）/capacity/draft-empty/load；矛盾点与建议路径见 HANDOFF §3/§4；**host 复现（C33 `restart_recovery_tests`）PASS → 域/outbox 无缺陷、问题锁定设备专属层**（HANDOFF §7）。报告 §16/§17/§17.1 |
+| 6.23 | WB-LEARNING-V4-L1 Learning App 设备基本功能 | WorkBuddy + Codex fix branch | `IN_PROGRESS`（L1a/L1b ✅；L1c 根因已确认、修复已 build，待真机复测） | WorkBuddy `7ee686d`；Codex code `0e53265` | C33 `restart_recovery_tests` 证明唯一 ID 下重启→Pause/Resume/Complete 正常；根因是 nano-newlib 不支持 `%llx`，使随机 event ID 字符串恒定，且 Start 缺批内重复防线。修复：手工 hex ID + outbox 批内重复保护 + codec 重启旧 pending 回归。host 11/11、LearningApp 5/5、outbox 22/22、IDF build PASS；bin 9,175,856 B / SHA-256 `7f96c501…f974e6f3`；仅待 ota_0 app-flash+monitor。见 HANDOFF §7/§9、报告 §17.3。 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |

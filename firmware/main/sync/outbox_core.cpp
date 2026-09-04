@@ -70,12 +70,22 @@ PersistResult OutboxCore::persistTransition(const PendingTransition& transition)
     return makeFailure(PersistStatus::CapacityExceeded);
   }
 
-  // Duplicate event_id protection: a draft whose id is already pending (e.g. a
-  // wrongly repeated submit after a lost response) must not pollute the queue;
-  // the caller re-syncs instead of re-persisting.
-  for (const auto& existing : state.pending) {
-    for (const auto& d : transition.event_drafts) {
+  // Validate every id before materialization. Protect both against ids already
+  // in the persisted queue and duplicate ids inside this transition. The
+  // latter matters because one Start command emits two drafts: accepting two
+  // equal ids would commit a poisoned queue that makes the next command fail.
+  for (std::size_t i = 0; i < transition.event_drafts.size(); ++i) {
+    const auto& d = transition.event_drafts[i];
+    if (d.event_id.empty()) {
+      return makeFailure(PersistStatus::InvalidTransition);
+    }
+    for (const auto& existing : state.pending) {
       if (existing.event_id == d.event_id) {
+        return makeFailure(PersistStatus::InvalidTransition);
+      }
+    }
+    for (std::size_t j = 0; j < i; ++j) {
+      if (transition.event_drafts[j].event_id == d.event_id) {
         return makeFailure(PersistStatus::InvalidTransition);
       }
     }
@@ -88,9 +98,6 @@ PersistResult OutboxCore::persistTransition(const PendingTransition& transition)
   materialized.reserve(transition.event_drafts.size());
   int64_t seq = state.next_sequence;
   for (const auto& d : transition.event_drafts) {
-    if (d.event_id.empty()) {
-      return makeFailure(PersistStatus::InvalidTransition);
-    }
     PendingEvent row;
     row.event_id = d.event_id;
     row.device_id = d.device_id;

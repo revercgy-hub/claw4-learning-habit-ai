@@ -11,6 +11,7 @@
 
 #include "metalio_claw4/device/core/demo_seed.h"
 #include "metalio_claw4/device/core/outbox_codec.h"
+#include "metalio_claw4/device/core/random_id.h"
 
 namespace claw4 {
 namespace metalio {
@@ -22,13 +23,6 @@ constexpr const char* TAG = "LearningRt";
 constexpr const char* kDeviceId = "dev-claw4-l1";
 constexpr const char* kChildId = "child-1";
 
-std::string Hex(int64_t v) {
-  char buf[24];
-  std::snprintf(buf, sizeof(buf), "%llx",
-                static_cast<unsigned long long>(v));
-  return buf;
-}
-
 }  // namespace
 
 LearningRuntime& LearningRuntime::Instance() {
@@ -37,18 +31,13 @@ LearningRuntime& LearningRuntime::Instance() {
 }
 
 std::string LearningRuntime::NextEventId() {
-  // Random 63-bit id (two 32-bit draws): no persisted counter is needed, so a
-  // live event can never collide with a pre-reboot pending id and the outbox
-  // duplicate guard never misfires after a reboot.
-  const int64_t hi = static_cast<int64_t>(esp_random()) << 32;
-  const int64_t lo = static_cast<int64_t>(esp_random());
-  return "ev-" + Hex((hi | lo) & 0x7FFFFFFFFFFFFFFFLL);
+  // Two independent 32-bit draws, formatted without printf-family 64-bit
+  // specifiers (unsupported by the firmware's nano-newlib configuration).
+  return formatEntropyId("ev-", esp_random(), esp_random());
 }
 
 std::string LearningRuntime::NextSessionId() {
-  const int64_t hi = static_cast<int64_t>(esp_random()) << 32;
-  const int64_t lo = static_cast<int64_t>(esp_random());
-  return "sess-" + Hex((hi | lo) & 0x7FFFFFFFFFFFFFFFLL);
+  return formatEntropyId("sess-", esp_random(), esp_random());
 }
 
 bool LearningRuntime::SelfTestPending() {
@@ -104,8 +93,9 @@ void LearningRuntime::Init() {
     ESP_LOGI(TAG, "first boot: demo today snapshot seeded=%d", ok ? 1 : 0);
   } else {
     ESP_LOGI(TAG,
-             "boot with committed state: tasks=%zu pending=%d active=%d",
-             app_->state().tasks.size(), app_->pendingCount(),
+             "boot with committed state: tasks=%u pending=%d active=%d",
+             static_cast<unsigned>(app_->state().tasks.size()),
+             app_->pendingCount(),
              app_->state().active_session.has_value() ? 1 : 0);
   }
   app_->start();
