@@ -85,11 +85,12 @@ I LearningNvs: save blob=554 bytes set=0 commit=0   # 只在 Start(成功) 时�
 - `0e53265`：新增无 printf 的固定 16 位十六进制编码 `formatEntropyId()`，直接格式化两次 `esp_random()` 的 32-bit 输出；同时消除 signed 64-bit 左移风险。
 - outbox 新增同一 transition 内 event_id 重复保护，禁止再次写入“同批双重复”的毒化队列。
 - 设备诊断日志移除 `%zu/%lld`，避免 nano formatter 再次制造错误证据。
+- 修正 SELFTEST 完成标志顺序：`ResetToSeed()` 成功后才写 `stest=1`，避免 `nvs_erase_all()` 把标志立即删掉并在下次进屏重复运行自动链。
 - 新增回归：确定性 entropy ID 格式、同批重复拒绝、codec 持久化 → 重启 → 旧 pending → Pause 成功。
 
 ### 9.3 验证与当前恢复点
 
 - 主机：整合 C33 后 11/11 单测二进制 PASS；关键套件 restart_recovery PASS、LearningApp 5/5、outbox 22/22、codec PASS；接口 cross-check exit=0。
-- 设备构建：`idf.py -C E:/c -B E:/b build` exit=0；新 `xiaozhi.bin` **9,175,856 B**；SHA-256 `7f96c501903b25f2d3c37307e22cf6d7490b1bb987e854b0ef5cc963f974e6f3`；`ota_0` 可容纳，`ota_1` 继续保持禁止/不触碰。
+- 设备构建：`idf.py -C E:/c -B E:/b build` exit=0；新 `xiaozhi.bin` **9,175,856 B**；SHA-256 `6d27653a7baa690bdb63e7288a27a5b2b5ad0b347ef5f1b9354fe84b5722aa1f`；`ota_0` 可容纳，`ota_1` 继续保持禁止/不触碰。
 - 构建镜像与 repo 权威的四个修改文件 + 新 header 已逐文件比对一致。
 - 设备仍保持 HANDOFF 时的干净 seed 态；**新固件尚未 app-flash**。下一门禁仅为已授权范围内的 `ota_0` application app-flash + monitor，验证 SELFTEST Start→Pause→Resume→Complete 与人工重启恢复。

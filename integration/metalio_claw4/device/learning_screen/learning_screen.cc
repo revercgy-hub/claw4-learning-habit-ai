@@ -100,10 +100,14 @@ void RunSelfTestStep(lv_timer_t*) {
            all ? "PASS" : "FAIL", s_selftest_ok[0] ? 1 : 0,
            s_selftest_ok[1] ? 1 : 0, s_selftest_ok[2] ? 1 : 0,
            s_selftest_ok[3] ? 1 : 0);
-  rt.MarkSelfTestDone();
-  rt.ResetToSeed();
+  // ResetToSeed erases the complete "learning" namespace, including the
+  // self-test marker. Persist the marker only after a successful reset so the
+  // one-shot chain does not run again on the next screen entry/reboot.
+  const bool reset_ok = rt.ResetToSeed();
+  if (reset_ok) rt.MarkSelfTestDone();
   RefreshUi();
-  ESP_LOGI(TAG, "SELFTEST cleanup done -> state re-seeded to demo");
+  ESP_LOGI(TAG, "SELFTEST cleanup done -> state re-seeded=%d",
+           reset_ok ? 1 : 0);
 }
 
 // --- pure view helpers ---------------------------------------------------
