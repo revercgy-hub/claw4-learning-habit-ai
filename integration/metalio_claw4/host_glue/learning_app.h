@@ -31,6 +31,19 @@ class LearningApp {
   void stop() { running_ = false; }
   bool running() const { return running_; }
 
+  // --- identity / id sources (device overrides the host-default sequential
+  // factories so rebooted devices never reuse pre-reboot event/session ids;
+  // CommandSinkGlue reads ctx per emit, so these take effect immediately). ---
+  void setIdentity(claw4::domain::DeviceId device, claw4::domain::ChildId child) {
+    ctx_.setIdentity(std::move(device), std::move(child));
+  }
+  void setEventIdFactory(std::function<claw4::domain::EventId()> f) {
+    ctx_.setEventIdFactory(std::move(f));
+  }
+  void setSessionIdFactory(std::function<claw4::domain::SessionId()> f) {
+    ctx_.setSessionIdFactory(std::move(f));
+  }
+
   // --- domain entry ------------------------------------------------------
   bool applyTodaySnapshot(const std::vector<claw4::domain::Task>& server_tasks) {
     return app_.applyTodaySnapshot(server_tasks);

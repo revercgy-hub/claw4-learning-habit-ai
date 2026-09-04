@@ -279,3 +279,17 @@
 | Known Risks | 屏仍为 L0 UI mock（真实状态机接线在 L1b）；NVS 单 key blob 上限 16 KiB（>200 pending 极端时 commit 返 StorageError→coordinator Backoff，不丢旧态，语义安全） |
 | Hardware Verify | 无（本轮纯编入/build）；NVS 真机读写行为待 L1c 上机 |
 | Next | **L1b**：Learning 屏接真实 LearningApp（NVS 存储 + clock），seed 首启注入，Start/Pause/Resume/Complete(Touch 门禁) 真实驱动，1 s LVGL timer 渲染 state 投影；重启恢复 |
+
+## 17. WB-LEARNING-V4-L1b — Learning 屏接真实状态机（2026-09-04）
+
+| 项 | 值 |
+| --- | --- |
+| Task ID | L1b（任务包 L1，看板 6.23） |
+| Base / New | C30 `187b544` → C31 |
+| Changed（repo） | `host_glue/learning_app.h`（新增 `setIdentity/setEventIdFactory/setSessionIdFactory` 透传——设备用 NVS 持久计数器，重启后事件/会话 id 不碰撞）；新增 `device/app/learning_runtime.{h,cpp}`（LearningRuntime 单例：NVS storage+esp_timer clock+LearningApp 组装、首启 `hasState()==false` 时 seed `DemoTodaySnapshot()`、`evseq/sessseq` NVS 单调计数器 id 工厂）；`device/learning_screen/learning_screen.cc` 重写（L1 真实渲染）；`device/learning_screen/README.md`（L1 tree/同步命令）；manifest #3 → APPLIED（SOURCES +learning_runtime.cpp） |
+| 屏实现要点 | UI 零业务状态（移除 L0 `s_ui.running/done`）：1 s LVGL timer 把 `state()` 投影为任务行/会话面板/按钮；唯一变更路径 `dispatcher.dispatch(CommandSource::Touch,…)`（P14 门禁，Touch Complete 直发）；按钮语义：无活动→开始第一项 Ready / Running→暂停 / Paused→继续；完成仅活动会话可见；专注秒 Running 时按单调时钟只读投影；header 返回按钮；unload 删 timer |
+| Device build | `idf.py build` exit=0（3m59s，第 4 次；前 3 次：configure 截断/`LearningApp` 未声明→`auto&`/`-Werror=format-truncation`→Mmss 改纯字符串）；`xiaozhi.bin`=**9,169,056 B**（+142,976 vs L1a；核心被引用后的真实代码量）；符号 LearningRuntime/LearningScreen/NvsOutboxStorage 在 elf；ota_0 余量 ≈0x41EE0≈270 KB；sdkconfig diff=0 |
+| Host regression | host gate **10/10 PASS**（learning_app.h setter 不破坏 glue 测试）；learning_runtime/屏为设备源不 host 编译 |
+| Known Risks | NVS 首启 seed 后若想重演需 erase（禁 erase 权限内不做；L1c 首刷 NVS 无旧状态天然 seed）；demo child/device id（L2 provisioning 替换） |
+| Hardware Verify | L1c 上机（批次 ota_0 app-flash+monitor）：seed→Start→暂停→继续→完成→返回→**重启后状态/任务保持**（NVS 恢复）+ 用户屏侧确认 |
+| Next | **L1c 上机**（等待用户安排设备在线与操作） |
