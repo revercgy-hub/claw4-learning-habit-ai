@@ -57,7 +57,13 @@ I LearningNvs: save blob=554 bytes set=0 commit=0   # 只在 Start(成功) 时�
 - 设备 USB 偶发掉线（PnP CM_PROB_PHANTOM），monitor 需在设备在线时 attach；`pnputil` 需管理员。
 - IDF 构建 recipe / sdkconfig 保护 / NVS namespace `learning`（官方用 assets/wifi/audio/display… 不冲突）：见 `.workbuddy/memory/2026-09-03.md`。
 
-## 7. 当前固件与恢复点
+## 7. host 复现结果（2026-09-04 17:00，C33 追加）
+
+- 新增 `firmware/tests/unit/metalio/restart_recovery_tests.cpp`：共享 FakeDisk 模拟设备序列 seed → Start(Accepted,pending=2) → 重启(同 disk 重建 coordinator) → 校验恢复态 → Pause → Resume → Complete。
+- 结果：**host 全 PASS（Pause/Resume/Complete 均 Accepted，pending 2→6）——域/outbox 层未复现 PersistFailed**。
+- **结论：缺陷为设备专属层**（NVS OutboxStorage adapter / 设备 ReducerContext / 调用时序 / NVS 并发），不在 reducer/outbox/coordinator 领域逻辑。下个模型聚焦设备侧：① `device/ports/nvs_outbox_storage.cpp`（每次 open/close + blob 全量覆盖，疑 NVS 覆盖写/句柄时序或 load 态与内存 state 差异）；② `learning_runtime`/ContextBuilder ctx 生成；③ 设备端临时在 outbox_core 失败出口打点（改 E:/c 镜像副本，不动 repo）。
+
+## 8. 当前固件与恢复点
 
 - `E:/b/xiaozhi.bin` = random-id 修复版（build exit=0，已上机）；设备 NVS 现为**干净 seed 态**（SELFTEST 清理后）。
 - repo 远端头：见 TASK_BOARD `current_remote_head`（本 HANDOFF 提交后更新）。
