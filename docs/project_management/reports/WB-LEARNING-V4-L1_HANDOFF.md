@@ -1,9 +1,9 @@
 # WB-LEARNING-V4-L1 — 真机调试问题交接（HANDOFF）
 
-> 状态：L1c 上机验证中，遇阻塞性缺陷（未解决）。本文件给接手的模型/工程师，含现象、硬证据、已排除项、待查项与建议路径。
+> 状态：历史故障交接，已由 §9 根因修复与 §10 真机持久化复测取代。当前限定结论为 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY（验收决策归用户）`。
 > 时间：2026-09-04 16:45；分支：`workbuddy/learning-v4-host-sync`；真机 COM7（Espressif USB JTAG/serial）；批次授权：仅 ota_0 application app-flash + monitor（无 erase/分区/ota_1/C5）。
 
-> **2026-09-04 17:10 更新：ROOT_CAUSE_FOUND / FIX_BUILT / DEVICE_RETEST_REQUIRED。** Codex 在冻结头 `e9141c8` 上确认根因并提交修复候选 `0e53265`（分支 `codex/wb-learning-v4-l1-persist-fix`），并整合 WorkBuddy C33 `7ee686d` 的独立 host 恢复测试。主机回归和 IDF build 已通过；尚未将新固件写入设备，原 `BLOCKED` 现场结论由本文件 §9 取代。
+> **2026-09-04 最终更新：ROOT_CAUSE_FOUND / FIX_BUILT / DEVICE_PERSISTENCE_RETEST_PASS。** Codex 在冻结头 `e9141c8` 上确认根因并提交修复 `0e53265`，整合 WorkBuddy C33 `7ee686d` 后形成 ready 代码基线 `4db2283`。主机回归、IDF build、COM7 application-only 写入和 NVS 只读取证均完成；原 `BLOCKED` 与 `DEVICE_RETEST_REQUIRED` 由 §10 取代。
 
 ## 1. 现场现象（用户实机反馈）
 
@@ -67,7 +67,8 @@ I LearningNvs: save blob=554 bytes set=0 commit=0   # 只在 Start(成功) 时�
 
 ## 8. 当前固件与恢复点
 
-- `E:/b/xiaozhi.bin` = random-id 修复版（build exit=0，已上机）；设备 NVS 现为**干净 seed 态**（SELFTEST 清理后）。
+- 本节是故障现场的历史恢复点，已由 §10 **SUPERSEDED**。
+- 当时 `E:/b/xiaozhi.bin` = random-id 修复版（build exit=0）；“设备 NVS 为干净 seed 态”不再代表当前状态。
 - repo 远端头：见 TASK_BOARD `current_remote_head`（本 HANDOFF 提交后更新）。
 - 复现步骤（拿到日志）：设备在线 → `esptool write_flash 0x200000 xiaozhi.bin` → `idf.py -p COM7 monitor` → 用户进 Learning → Start → Pause → 观察 `intent=` 与是否出现 `save blob`。
 
@@ -93,4 +94,35 @@ I LearningNvs: save blob=554 bytes set=0 commit=0   # 只在 Start(成功) 时�
 - 主机：整合 C33 后 11/11 单测二进制 PASS；关键套件 restart_recovery PASS、LearningApp 5/5、outbox 22/22、codec PASS；接口 cross-check exit=0。
 - 设备构建：`idf.py -C E:/c -B E:/b build` exit=0；新 `xiaozhi.bin` **9,175,856 B**；SHA-256 `6d27653a7baa690bdb63e7288a27a5b2b5ad0b347ef5f1b9354fe84b5722aa1f`；`ota_0` 可容纳，`ota_1` 继续保持禁止/不触碰。
 - 构建镜像与 repo 权威的四个修改文件 + 新 header 已逐文件比对一致。
-- 设备仍保持 HANDOFF 时的干净 seed 态；**新固件尚未 app-flash**。下一门禁仅为已授权范围内的 `ota_0` application app-flash + monitor，验证 SELFTEST Start→Pause→Resume→Complete 与人工重启恢复。
+- 本条“尚未 app-flash / 待复测”为历史状态，已由 §10 **SUPERSEDED**。
+
+## 10. Codex 真机持久化复测（2026-09-04）
+
+### 10.1 写入对象与范围
+
+- 分支/代码基线：`codex/wb-learning-v4-l1-ready` @ `4db2283086971d4be11272b5fd99f347d1796b98`。
+- COM7：ESP32-P4 rev v1.3，USB-Serial/JTAG，MAC `80:f1:b2:d2:ed:14`。
+- `xiaozhi.bin`：9,175,856 B；SHA-256 `6d27653a7baa690bdb63e7288a27a5b2b5ad0b347ef5f1b9354fe84b5722aa1f`。
+- 仅执行 `write_flash 0x200000 E:/b/xiaozhi.bin`；esptool `Hash of data verified.`。未触碰 erase、bootloader、partition、ota_1、C5、eFuse、Secure Boot 或 Flash Encryption。
+
+### 10.2 用户操作与 NVS 法证证据
+
+用户完成屏侧测试并反馈“测试完成了”。物理交互期间 monitor 未保持连接，所以不能声称每一步均有 `intent=Accepted` 串口证据，也不能把 `stest=1` 单独写成本次 SELFTEST 日志 PASS。
+
+测试后只读导出 NVS `0x3c000 + 0xD2000`：860,160 B，SHA-256 `3263c3df864b53fb1d47ec75b208ae50ae3c355787516ee847eb39ee310a0cda`。原始整分区留在仓库外，仅披露 `learning` namespace 的脱敏结果：
+
+- NVS 有效页 CRC32 正常；`learning/st` blob 可解码，magic=`C4L1OUTBOX`；`learning/stest=1` 标志存在。
+- 结束态 `S|0`，无活动 session；`E|20` 为当前待上送 outbox，不定性为清理缺陷；`Q|21`、`A|0`、`F|0`、`R|0`。
+- sequence 1..20 连续无缺口；20 个 ID 均匹配 `ev-[0-9a-f]{16}`、全部唯一、无 duplicate。
+- 事件类型：TaskStarted 2、TaskPaused 6、TaskResumed 6、TaskCompleted 2、StudySessionStarted 2、StudySessionCompleted 2。
+- 上述事件可能混合自动链与人工链，不声称“恰好两条人工链”；但它们直接证明 Start/Pause/Resume/Complete transition 已成功 commit，且在 USB/JTAG 复位后仍可读回。
+
+### 10.3 结论、限制与独立风险
+
+- 限定结论：**`DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY（验收决策归用户）`**。原恒定 event ID/duplicate 症状未复现。
+- 原任务包要求“monitor 日志级 PASS + 用户屏侧确认”；本轮用户确认已具备，但逐步 monitor 证据未采集完整。NVS 法证足以支持持久化能力通过，不将结论扩大为整个 L1、联网、发布或整机稳定性 PASS。
+- 后续进入页面时观察到 GT911/TCA95xx/BQ27220 短暂 I2C timeout，重置后曾恢复；单列 `HARDWARE_VERIFY_REQUIRED`，不归因于本次 persistence 修复。
+- 蜂窝注册超时与 OTA DNS/TLS 无网失败超出本地 L1c 范围。
+- 调试时曾在构建树准备临时自动进入 Learning 钩子；用户反馈测试完成后该钩子即被移除、重新构建并恢复权威镜像哈希，且临时版本从未写入设备。
+
+完整审计见 `CODEX_WB_LEARNING_V4_L1_DEVICE_TEST_2026-09-04.md`。后续按用户最新要求改为 App-first 批量开发，不为单个功能反复刷机或持续读取串口。

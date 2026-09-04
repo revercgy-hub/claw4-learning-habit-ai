@@ -1,5 +1,6 @@
 # Claw4 学习习惯终端 MVP 架构基线（WB-002）
 
+> **状态同步（2026-09-04，当前）**：L1c 本地状态机/NVS/重启读回已在 ready 基线 `4db2283` 完成限定真机复测，结论 `DEVICE_L1C_PERSISTENCE=PASS`（不扩展到联网/语音/整机稳定性）。用户已将后续节奏改为 App-first：Codex 先完成真实 C++ LearningApp ↔ Backend ↔ PWA 的 L2/L3 在线/离线纵向链、故障矩阵和设备适配 BUILD ONLY，达到 `APP_FIRST_MVP_LOOP=PASS` 后由用户一次性上机。当前执行事实见 `TASK_BOARD.md` 与 `tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`；下方 2026-09-03 的 `HOLD` 表述是历史状态。
 > **状态同步（2026-09-03 深夜，L0 上机验证收口）**：主机侧已含 V4 §7~§9 层（`interaction/` CommandDispatcher、`mcp/` learning host、`ports/` 8 抽象 + fakes，152→156 case 全绿）与三项契约修正（FIX-V4-01~03，`HOST_MVP_ACCEPTANCE.md` §0.1 `HOST_MVP_FINAL_FIX_V4=PASS`）；P17/P18 **代码+编译**已授权完成——P17a glue（`integration/metalio_claw4/host_glue/`，host gate 9/9、156 case）+ P18 Learning L0 App Shell BUILD + **真机首刷 PASS + Start 交互 PASS**（用户批次授权仅 ota_0 app-flash+monitor；C25~C27，远端头见 TASK_BOARD）；Home 官方补丁两条 APPLIED（`integration_manifest.md`）；sdkconfig diff=0。L1+ 真实 backend/NVS/Voice/MCP 接入及 erase 类操作待新授权。
 > **状态同步（2026-09-03，V4 §4 Project Fact Sync）**：本文件为 WB-002 开发前架构设计基线（2026-09-01）。
 > 其中已被实现并验证的**主机侧（Host MVP）**决策——领域 reducer / transactional outbox / 应用协调器 / 纯 UI presenter / 持久化家庭后端 / 家长 PWA / 主机 E2E——现以

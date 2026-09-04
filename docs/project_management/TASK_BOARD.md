@@ -1,14 +1,16 @@
 # 项目任务看板
 
-- 更新时间：2026-09-04（L1 PersistFailed 根因修复候选）
-- 维护者：Codex（协作分工）；2026-09-03 起用户决定不再安排 Codex 复检，实施状态由 WorkBuddy 记录、验收决策归用户
-- 当前阶段：L1c 真机状态机缺陷修复；WorkBuddy 活动分支 `workbuddy/learning-v4-host-sync` 的 `current_remote_head=7ee686d`。Codex 修复候选位于 `codex/wb-learning-v4-l1-persist-fix`，代码提交 `0e53265`；已整合 C33 host 恢复测试，host/build 通过，待 ota_0 真机复测。
-- 调度规则：任意时刻只允许一个活动 WorkBuddy 工作流；流内 checkpoint 按任务包顺序连续执行
+- 更新时间：2026-09-04（L1c 持久化复测通过；切换 App-first 批量开发）
+- 维护者：Codex；2026-09-04 起 WorkBuddy 暂停调度，Codex 直接实施与复检，验收决策归用户
+- 当前阶段：ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`。下一阶段为 `CODEX-APP-FIRST-001`：先在 App/Host 模式完成 L2/L3 MVP 主链路，再安排一次用户主导的阶段末真机验收。
+- 调度规则：当前无 WorkBuddy 活动流；Codex 按 App-first checkpoint 连续实施，单功能不刷机，阶段 gate 通过后只冻结一个真机候选
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
 ## 当前活动工作流
 
-**2026-09-04 当前项：** `WB-LEARNING-V4-L1` 的 WorkBuddy 实施头为 `7ee686d`（C33 host 恢复测试）；L1c 的 PersistFailed 已在独立 Codex 修复分支定位并产出代码提交 `0e53265`。当前仅剩将该候选整合后按既有批次边界执行 `ota_0` application app-flash + monitor；禁止项（erase/partition/bootloader/ota_1/C5/eFuse）不变。下述 `WB-LEARNING-V4-HOST` 内容为已完成的前序阶段基线。
+**2026-09-04 当前项：** `WB-LEARNING-V4-L1c` 已在整合头 `4db2283` 完成限定持久化复测：镜像 SHA-256 `6d27653a…5722aa1f` 写入 `0x200000` 后 Hash verified；用户完成屏侧测试；只读 NVS 证据显示 sequence 1..20 连续、20 个有效 event ID 全唯一，Start/Pause/Resume/Complete 与 StudySession 事件均已落盘并在复位后读回。物理操作期间未保持 monitor，因此不声明逐步串口 SELFTEST PASS。当前不再调度 WorkBuddy；下一活动工作流是 Codex 的 `CODEX-APP-FIRST-001`，先完成 App/Host L2/L3 全链，阶段末再做一次真机。禁止项（erase/partition/bootloader/ota_1/C5/eFuse）不变。
+
+`CODEX-APP-FIRST-001` 的批次范围与门禁见 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`：家长 PWA 建任务 → Backend → 真实 C++ LearningApp 拉取 → 离线学习/重启恢复 → 恢复联网同步/ACK → PWA 恰好一次可见。L4 Voice、L5 MCP 真机注册与 L6 AI Coach 不混入本批。
 
 `WB-LEARNING-V4-HOST`（分支 `workbuddy/learning-v4-host-sync`，基线 planning-v4 `1310ca3d`）曾作为唯一活动工作流，已依据 `项目总规划/WORKBUDDY_CLAW4_学习伙伴_完整开发提示词_V4.md` §3~§9 连续完成：
 
@@ -70,7 +72,8 @@
 | 6.20 | P17a LearningApp glue（阶段 E cp1） | WorkBuddy | `CHECKPOINT_READY`（流级；验收决策归用户） | `911e5c2` | C23 `31cb6b8`：`integration/metalio_claw4/host_glue/`（ContextBuilder/CommandSinkGlue/BackendGlue/LearningApp）+ glue 测试 4 case + `integration_manifest.md`（0 官方改动）+ harness 纳入 host_glue；host gate 9/9、**156 case 0 失败**；报告 §13 |
 | 6.21 | P18 Learning L0 App Shell BUILD（阶段 F） | WorkBuddy | `LEARNING_V4_L0_BUILD_READY` → 批次授权已获 → **首刷 PASS + Start 交互 PASS（C26/C27）** | `911e5c2` | C25：`integration/metalio_claw4/device/learning_screen/`（权威副本）+ manifest 两条 APPLIED；`E:/b/xiaozhi.bin` = **9,025,520 B（delta +2,096 B）**、sdkconfig diff=0（调优基线未动）、idf.py build exit=0、learning 源入固件；ota_0 余量 ≈0.39 MiB；报告 §14/§14.2/§14.3 |
 | 6.22 | WB-LEARNING-V4-NEXT 全任务收口（阶段 A–F） | WorkBuddy | `CHECKPOINT_READY`（任务书授权范围全部完成；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19–C27 链：FIX-V4-01~03 → `HOST_MVP_FINAL_FIX_V4=PASS` → Fact Sync → P17 集成策略 → P17a glue（host gate 9/9、156 case）→ P18 L0 BUILD（+2,096 B、sdkconfig diff=0）→ 首刷 PASS → Start 交互修复复测 PASS（9,026,000 B）；报告 §12–§15 |
-| 6.23 | WB-LEARNING-V4-L1 Learning App 设备基本功能 | WorkBuddy + Codex fix branch | `IN_PROGRESS`（L1a/L1b ✅；L1c 根因已确认、修复已 build，待真机复测） | WorkBuddy `7ee686d`；Codex code `0e53265` | C33 `restart_recovery_tests` 证明唯一 ID 下重启→Pause/Resume/Complete 正常；根因是 nano-newlib 不支持 `%llx`，使随机 event ID 字符串恒定，且 Start 缺批内重复防线。修复：手工 hex ID + outbox 批内重复保护 + codec 重启旧 pending 回归。host 11/11、LearningApp 5/5、outbox 22/22、IDF build PASS；bin 9,175,856 B / SHA-256 `6d27653a…5722aa1f`；仅待 ota_0 app-flash+monitor。见 HANDOFF §7/§9、报告 §17.3。 |
+| 6.23 | WB-LEARNING-V4-L1 Learning App 设备基本功能 | WorkBuddy 历史实现 + Codex 修复/真机复测 | `CHECKPOINT_READY`（`DEVICE_L1C_PERSISTENCE=PASS`；验收决策归用户） | WorkBuddy `7ee686d`；Codex ready `4db2283` | 根因/修复仍见 HANDOFF §7/§9。COM7 application-only 写入 9,175,856 B / SHA-256 `6d27653a…5722aa1f`，Hash verified；用户完成屏侧测试；只读 NVS：learning blob/CRC OK、`S|0`、`E|20`、seq 1..20、20 个 `ev-[0-9a-f]{16}` 全唯一，六类 transition 事件均存在且复位后可读。无逐步 monitor 证据的限制、I2C 独立风险见 HANDOFF §10 与 `CODEX_WB_LEARNING_V4_L1_DEVICE_TEST_2026-09-04.md`。 |
+| 6.24 | CODEX-APP-FIRST-001 / L2-L3 MVP 全链批次 | Codex | `READY`（WorkBuddy 暂停；完成 AF0~AF4 后才允许 AF5 真机） | 6.23 `CHECKPOINT_READY` | 任务包 `CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`：真实 C++ App ↔ Backend ↔ PWA、offline/restart/fault matrix、设备薄适配 BUILD ONLY、屏上诊断；标志 `APP_FIRST_MVP_LOOP=PASS` 后冻结唯一候选，由用户执行一次阶段末验收。 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |
@@ -88,7 +91,7 @@
 
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
-| BLK-FLASH-AUTH-001 | 固件刷写/Flash 擦除/分区/OTA 操作 | **2026-09-03 已按批次解除（仅 ota_0 application app-flash + monitor，已执行 L0 首刷与复测）**；erase_flash、bootloader、partition、ota_1、C5、eFuse、Secure Boot、Flash Encryption 仍禁 | 新范围（erase/其它分区/ota_1/C5 等）需再次向用户说明目标与风险后取得明确授权 |
+| BLK-FLASH-AUTH-001 | 固件刷写/Flash 擦除/分区/OTA 操作 | **既有批次仅覆盖已完成的 ota_0 application-only L0/L1 测试**；App-first AF0~AF4 不写真机。erase_flash、bootloader、partition、ota_1、C5、eFuse、Secure Boot、Flash Encryption 仍禁 | AF4 通过后再向用户提交唯一候选与 AF5 屏侧验收单；任何新范围需重新说明风险并取得明确授权 |
 
 ## 已解除阻塞
 
@@ -104,6 +107,6 @@
 - 官方 `sdkconfig` 中 Flash mode 选择项与字符串值存在不一致迹象，WorkBuddy 只能记录，不能擅自修正。
 - 真机 SKU、屏驱、PSRAM、Flash、C5、触摸等均需实机确认。
 - 历史 `docs/系统检查报告_2026-09-01.md` 已被后续主机准备报告取代，不得继续据其重新安装工具链。
-- 本地 git refs 竞争：4 worktree 共享对象库、外部进程抢占 refs，本地 HEAD 无法解析；全程隔离 index + 裸 SHA push，产物以远端 `workbuddy/learning-v4-host-sync` 为准（`current_remote_head=9f62c12`，每次 fetch 核实，不用过时 head 表述）。
+- 历史 WorkBuddy 环境曾出现共享对象库 refs 竞争；后续以独立 `codex/` 工作树、普通 checkpoint push 和远端 SHA 为证据，不复用过时的 `current_remote_head` 表述。
 - 本地测试环境为易失 scratch：backend/.venv 与 frontend/node_modules 随时可能被清理，复跑 E2E 需先重建（pip ~2m / `npm ci` ~4m，经代理 51846；`.gitignore` 已含 `**/node_modules/`、`**/dist/`）。
-- 真机已连接（COM7 = Espressif USB JTAG/serial）并完成 L0 首刷 + Start 交互复测（日志级 PASS）；屏幕视觉细节（图标格观感、按压反馈观感）仍待用户在屏侧确认。NVS、Wi-Fi/TLS、音频（mic/唤醒词互斥）、真实 backend 等 L1+ 项继续 `HARDWARE_VERIFY_REQUIRED`，且需新授权后接入。
+- 真机 COM7 已完成 L0 与 L1c 本地持久化验证；L1c 的 NVS/重启读回限定为 `DEVICE_L1C_PERSISTENCE=PASS`。后续曾观察到 GT911/TCA95xx/BQ27220 短暂 I2C timeout，单列 `HARDWARE_VERIFY_REQUIRED`；Wi-Fi/TLS、音频（mic/唤醒词互斥）和真实 Backend 真机链仍待 App-first 阶段末一次性验证。

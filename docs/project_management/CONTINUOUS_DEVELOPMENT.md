@@ -1,5 +1,7 @@
 # WorkBuddy 连续开发与 Codex 异步修复协议
 
+> **当前状态（2026-09-04）：暂停使用。** 用户已暂停 WorkBuddy 调度并采用 Codex App-first 批次；当前流程见 `WORKFLOW.md` 的“当前 App-first 循环”与 `tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`。本协议保留，供未来恢复 WorkBuddy 协作时使用。
+
 ## 1. 目的
 
 减少“实现一个小任务 → 等待复检 → 再领取下一任务”的空转时间。WorkBuddy 在一个预授权工作流内连续实施，Codex 按不可变 Git checkpoint 异步复检，并在工作流后段直接修复普通缺陷。

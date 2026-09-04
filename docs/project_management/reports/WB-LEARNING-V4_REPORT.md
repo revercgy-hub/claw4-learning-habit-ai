@@ -296,8 +296,8 @@
 
 ### 17.1 L1c 上机现场（2026-09-04）与阻塞缺陷 — 详见 `WB-LEARNING-V4-L1_HANDOFF.md`
 - 首刷 boot/seed/Start(Accepted,NVS save OK) 均 PASS；**Pause/Complete（Touch）→ intent=3 PersistFailed，Save 从未执行**；重启恢复正常。历史初判“改 esp_random 后 duplicate 排除”已由 §17.3 **SUPERSEDED**；问题实际仍是 event_id 重复，但根在 nano-newlib 的 `%llx` 格式化。
-- 调试资产已落地（learning_runtime random-id + SELFTEST 链 + NVS 操作日志）；设备现为干净 seed 态。
-- 状态：**BLOCKED（问题交接，换模型/工程师接手）**。
+- 调试资产已落地（learning_runtime random-id + SELFTEST 链 + NVS 操作日志）；“设备为干净 seed 态”是当时现场状态，已由 §17.4 **SUPERSEDED**。
+- 历史状态：**BLOCKED**；当前状态已由 §17.4 取代。
 
 ### 17.2 独立记录（非 Learning 引入）
 - 官方 esp_netif Wi-Fi 停止崩溃（`esp_netif_stop_api` Load access fault + SW reboot）为基线行为，会打断长 monitor 会话。
@@ -312,5 +312,19 @@
 | Product Fix | 新增纯 C++ `formatEntropyId(prefix, high32, low32)` 手工十六进制编码，不再依赖 64-bit printf；`OutboxCore` 增加 transition 内重复 ID 原子拒绝；设备日志改用 nano 安全格式；SELFTEST 改为 ResetToSeed 成功后再写完成标志，保持真正一次性。 |
 | Regression | 整合 C33 `restart_recovery_tests` 的完整 Start→重启→Pause→Resume→Complete；LearningApp 新增 codec 存储的“Start→销毁实例→重启恢复旧 pending→Pause”用例；outbox 新增同批重复拒绝；codec 新增 entropy 格式用例。关键套件：restart_recovery PASS、LearningApp **5/5**、outbox **22/22**、codec PASS；全量主机 **11/11 binaries PASS**，接口 cross-check exit=0。 |
 | Device Build | `idf.py -C E:/c -B E:/b build` exit=0；`xiaozhi.bin` **9,175,856 B**；SHA-256 `6d27653a7baa690bdb63e7288a27a5b2b5ad0b347ef5f1b9354fe84b5722aa1f`；ota_0 容量 PASS，ota_1 仍溢出且未触碰。 |
-| Scope | repo 权威与 `E:/c` 构建镜像逐文件一致；未修改 sdkconfig/partition/bootloader/ota_1/C5/eFuse；未写 Flash。 |
-| Current Status | **FIX_BUILT / DEVICE_RETEST_REQUIRED**：设备保持干净 seed；下一步只需 ota_0 app-flash + monitor，确认 SELFTEST 四步、人工触摸与重启恢复。 |
+| Scope | repo 权威与 `E:/c` 构建镜像逐文件一致；未修改 sdkconfig/partition/bootloader/ota_1/C5/eFuse；本行“未写 Flash”为修复候选形成时的历史状态。 |
+| Current Status | **SUPERSEDED by §17.4**：候选已完成 application-only 真机持久化复测。 |
+
+### 17.4 L1c 最终真机持久化复测（Codex，2026-09-04）
+
+| 项 | 值 |
+| --- | --- |
+| Ready Baseline | `codex/wb-learning-v4-l1-ready` @ `4db2283086971d4be11272b5fd99f347d1796b98` |
+| Device / Flash | COM7 ESP32-P4 rev v1.3；仅 `0x200000` application 写入；9,175,856 B；SHA-256 `6d27653a…5722aa1f`；esptool Hash verified |
+| User Test | 用户完成屏侧操作并反馈测试完成；交互期间 monitor 未持续连接，故不宣称逐步 `intent=Accepted` 或 SELFTEST 串口 PASS |
+| Read-only NVS Evidence | dump 860,160 B / SHA-256 `3263c3df…0cda`（仓库外）；只解析 learning namespace：CRC OK、blob 可解码、`S|0`、`E|20`、seq 1..20、20 个 ID 全部有效且唯一；TaskStarted 2 / Paused 6 / Resumed 6 / Completed 2 / SessionStarted 2 / SessionCompleted 2；复位后仍可读 |
+| Decision | **`DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY（验收决策归用户）`**。该结论仅覆盖本地状态机/NVS/重启读回，不覆盖网络、语音、MCP、AI 或整机长期稳定性。 |
+| Independent Risk | GT911/TCA95xx/BQ27220 曾短暂 I2C timeout，单列 `HARDWARE_VERIFY_REQUIRED`；蜂窝注册与 OTA DNS/TLS 无网失败超出本轮范围 |
+| Audit | 详见 `WB-LEARNING-V4-L1_HANDOFF.md` §10 与 `CODEX_WB_LEARNING_V4_L1_DEVICE_TEST_2026-09-04.md` |
+
+后续节奏按用户最新决定改为 App-first：先完成 L2/L3 的 App/Host MVP 全链与故障矩阵，阶段末冻结一个候选，由用户按固定屏侧验收单一次性真机测试；默认不反复连接 monitor。任务包见 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`。

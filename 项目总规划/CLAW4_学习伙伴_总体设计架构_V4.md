@@ -4,6 +4,7 @@
 > 状态：评估确认版  
 > 适用基线：MetalioClaw4 + ESP-IDF 5.5.4 稳定轨；XiaoZhi 仅作上游；ESP-IDF 6.1 仅作并行兼容性轨  
 > V4 核心变化：从“模拟优先、刷机谨慎”调整为“Host 保证业务正确 + 真机早介入 + app-flash 高频迭代”。
+> **2026-09-04 执行节奏覆盖说明：** 用户在 L1c 持久化复测后将后续节奏改为“App/Host 完整批次 → 冻结唯一候选 → 用户阶段末一次真机验收”。本文件的分层架构与安全边界继续有效，但“每个小功能高频 app-flash/monitor”不再是当前执行方式；以根 `AGENTS.md` 与 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md` 为准。
 
 ---
 

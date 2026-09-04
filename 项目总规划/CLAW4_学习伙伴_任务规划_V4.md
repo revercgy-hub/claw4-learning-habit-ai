@@ -2,6 +2,7 @@
 
 > 日期：2026-09-03  
 > 核心调整：删除过重的 Simulation / Recovery 强制门槛，采用“Host Final Fix → Learning App Shell → 真机 app-flash 高频迭代”的开发路线。
+> **2026-09-04 执行节奏覆盖说明：** 用户已改为 App-first 批量开发。后续先完成一个可验收纵向阶段并跑自动 gate，再冻结唯一固件由用户一次性上机；不再按小功能反复刷写或持续读取串口。当前批次为 L2/L3 MVP 主链，详见 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`。
 
 ---
 

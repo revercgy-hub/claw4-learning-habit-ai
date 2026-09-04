@@ -1,5 +1,7 @@
 # Codex / WorkBuddy 协作与验收流程
 
+> **当前执行覆盖（2026-09-04）：** WorkBuddy 暂停调度，Codex 直接实施 `CODEX-APP-FIRST-001`。先在 App/Host 模式完成 L2/L3 MVP 纵向全链，达到批次 gate 后冻结唯一候选；用户仅在阶段末按屏侧验收单执行一次真机测试。以下 WorkBuddy 循环保留为历史/恢复调度时的标准流程。
+
 ## 目标
 
 把“Codex 负责规划、异步复检与后续修复；WorkBuddy 负责连续实施”落实为仓库内可追踪、可复现、可回滚的工作流。
@@ -34,7 +36,17 @@
 | G1 平台证据 | 仓库审计和平台实现映射被 Codex 接受 | `PASSED`：WB-001 @ `45b2c73` 已验收 |
 | G2 真机 Stage 1 | B001/B002/B003/B004/B005/B009/B013 有实机证据且复检通过 | `INCOMPLETE`：WB-HW-001/WB-HW-002 已验收；完整屏幕、触摸、音频、存储、电源等 Stage 1 仍未通过，未授权 Flash 访问 |
 | G3 MVP 开发准入 | Bring-up 准入项满足并给出 GO/GO WITH CONDITIONS | `CONDITIONAL`：用户已授权 `WB-STREAM-002` 在隔离分支连续完成 host-only 领域/离线/协调、UI presenter、家庭后端、家长 PWA 与合成 E2E；真机耦合、LVGL、设备网络/TLS、真实 NVS、发布固件和硬件声明仍 `HOLD` |
+| G3.5 App-first 批次 | 真实 C++ LearningApp ↔ Backend ↔ PWA 在线/离线/重启/ACK 全链、故障矩阵、设备适配 BUILD ONLY 全通过 | `READY`：`CODEX-APP-FIRST-001` AF0~AF4；未通过前不安排真机 |
 | G4 MVP 闭环 | 设备到后端到家长端的在线与离线闭环均通过 | `HOLD` |
+
+## 当前 App-first 循环
+
+1. Codex 在独立 `codex/` 分支实现一个纵向批次，checkpoint 间连续推进。
+2. 快速测试随提交运行；完整 C++/Backend/PWA/跨语言 E2E 在 checkpoint 运行；cold IDF build 只在阶段冻结前运行。
+3. App runner 必须复用真实业务核心，fake 只允许出现在硬件/时钟/链路边界。
+4. 阶段 gate 通过后生成唯一 commit、固件 SHA-256 与不超过 15 分钟的用户验收单。
+5. 用户回传屏上 build ID、错误码、PWA 结果或照片；默认不连接串口。只有失败证据不足时才定向 monitor。
+6. 真机失败回到同一批次修复，不在现场临时扩展功能范围。
 
 ## Git 规则
 

@@ -2,6 +2,7 @@
 
 > 用途：V4 正式执行提示词  
 > 核心方式：Host 保证业务正确，Claw4 真机尽早介入，日常采用 app-flash + monitor 高频迭代。
+> **2026-09-04 状态：HISTORICAL / WorkBuddy 暂停调度。** 用户已要求改由 Codex 执行 App-first 完整批次，并在阶段末由用户一次性真机验收；本提示词中的高频 app-flash/monitor 节奏不再用于当前工作。技术边界仍可参考，活动任务包以 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md` 为准。
 
 ---
 

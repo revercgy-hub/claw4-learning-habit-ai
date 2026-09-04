@@ -1,5 +1,7 @@
 # WB-LEARNING-V4-L1 — Learning App 设备基本功能（Device Basics）
 
+> **2026-09-04 收口更新：** `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY（验收决策归用户）`，ready 代码 `4db2283`。用户完成屏侧测试；物理交互期间 monitor 未持续连接，因此 L1c 原“逐步 monitor 日志级 PASS”证据格式未完全采集，改由只读 NVS 法证（连续 sequence、有效唯一 event ID、六类 transition、复位后可读）支持限定的本地持久化通过。完整限制见 `reports/CODEX_WB_LEARNING_V4_L1_DEVICE_TEST_2026-09-04.md`。本任务包不再是活动工作流。
+
 - Task ID: WB-LEARNING-V4-L1
 - 分支: `workbuddy/learning-v4-host-sync`（当前唯一活动工作流分支，普通快进）
 - 基线: L0 收口头（C28 后 current_remote_head 见 TASK_BOARD）
