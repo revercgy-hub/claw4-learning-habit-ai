@@ -417,6 +417,22 @@ static bool run_case_duplicate_event_id_persist_rejected() {
   return true;
 }
 
+static bool run_case_duplicate_event_ids_within_transition_rejected() {
+  Env env;
+  auto c = env.core();
+  PendingTransition t;
+  t.next_state = nextDomain();
+  t.event_drafts.push_back(draft("ev-same", EventType::TaskStarted));
+  t.event_drafts.push_back(
+      draft("ev-same", EventType::StudySessionStarted));
+  auto r = c.persistTransition(t);
+  CHECK(!r.committed());
+  CHECK(r.status == PersistStatus::InvalidTransition);
+  CHECK(pendingCount(*env.disk) == 0);
+  CHECK(nextSeq(*env.disk) == 1);
+  return true;
+}
+
 static bool run_case_dead_letter_replay_same_event_id() {
   Env env;
   auto c = env.core();
@@ -499,6 +515,7 @@ static bool run_case_all() {
   CASE(diagnostic_slot_outside_budget);
   CASE(diagnostic_slot_merges_latest);
   CASE(duplicate_event_id_persist_rejected);
+  CASE(duplicate_event_ids_within_transition_rejected);
   CASE(dead_letter_replay_same_event_id);
   CASE(materialized_matches_drafts);
   CASE(invalid_empty_event_id_rejected);

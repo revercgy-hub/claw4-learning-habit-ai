@@ -178,12 +178,14 @@ void DispatchTouch(CommandKind kind, const TaskId& task_id) {
            static_cast<int>(r.status), static_cast<int>(r.intent_result));
   if (r.intent_result == claw4::domain::IntentResult::PersistFailed) {
     const DomainState& st = app.state();
+    const std::string last_acked =
+        std::to_string(app.coordinator().lastAcked());
     ESP_LOGW(TAG,
-             "persist-fail diag: tasks=%d active=%d pending=%d lastAcked=%lld "
+             "persist-fail diag: tasks=%d active=%d pending=%d lastAcked=%s "
              "nextPending=%d",
              (int)st.tasks.size(), st.active_session.has_value() ? 1 : 0,
              app.pendingCount(),
-             (long long)app.coordinator().lastAcked(),
+             last_acked.c_str(),
              app.coordinator().pendingCount());
   }
 }
