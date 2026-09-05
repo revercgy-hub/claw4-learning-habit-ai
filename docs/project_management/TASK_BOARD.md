@@ -2,7 +2,7 @@
 
 - 更新时间：2026-09-04（L1c 持久化复测通过；切换 App-first 批量开发）
 - 维护者：Codex；2026-09-04 起 WorkBuddy 暂停调度，Codex 直接实施与复检，验收决策归用户
-- 当前阶段：L1 ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`；App-first 活动分支为 `codex/app-first-mvp-loop`。`CODEX-APP-FIRST-001` 已完成 AF0~AF2c，下一步 AF3 BUILD ONLY；先在 App/Host 模式完成 L2/L3 MVP 主链路，再安排一次用户主导的阶段末真机验收。
+- 当前阶段：L1 ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`；App-first 活动分支为 `codex/app-first-mvp-loop`。`CODEX-APP-FIRST-001` 已完成 AF0~AF2c、AF3a，下一步 AF3b/AF4；先在 App/Host 模式完成 L2/L3 MVP 主链路，再安排一次用户主导的阶段末真机验收。
 - 调度规则：当前无 WorkBuddy 活动流；Codex 按 App-first checkpoint 连续实施，单功能不刷机，阶段 gate 通过后只冻结一个真机候选
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
@@ -73,7 +73,7 @@
 | 6.21 | P18 Learning L0 App Shell BUILD（阶段 F） | WorkBuddy | `LEARNING_V4_L0_BUILD_READY` → 批次授权已获 → **首刷 PASS + Start 交互 PASS（C26/C27）** | `911e5c2` | C25：`integration/metalio_claw4/device/learning_screen/`（权威副本）+ manifest 两条 APPLIED；`E:/b/xiaozhi.bin` = **9,025,520 B（delta +2,096 B）**、sdkconfig diff=0（调优基线未动）、idf.py build exit=0、learning 源入固件；ota_0 余量 ≈0.39 MiB；报告 §14/§14.2/§14.3 |
 | 6.22 | WB-LEARNING-V4-NEXT 全任务收口（阶段 A–F） | WorkBuddy | `CHECKPOINT_READY`（任务书授权范围全部完成；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19–C27 链：FIX-V4-01~03 → `HOST_MVP_FINAL_FIX_V4=PASS` → Fact Sync → P17 集成策略 → P17a glue（host gate 9/9、156 case）→ P18 L0 BUILD（+2,096 B、sdkconfig diff=0）→ 首刷 PASS → Start 交互修复复测 PASS（9,026,000 B）；报告 §12–§15 |
 | 6.23 | WB-LEARNING-V4-L1 Learning App 设备基本功能 | WorkBuddy 历史实现 + Codex 修复/真机复测 | `CHECKPOINT_READY`（`DEVICE_L1C_PERSISTENCE=PASS`；验收决策归用户） | WorkBuddy `7ee686d`；Codex ready `4db2283` | 根因/修复仍见 HANDOFF §7/§9。COM7 application-only 写入 9,175,856 B / SHA-256 `6d27653a…5722aa1f`，Hash verified；用户完成屏侧测试；只读 NVS：learning blob/CRC OK、`S|0`、`E|20`、seq 1..20、20 个 `ev-[0-9a-f]{16}` 全唯一，六类 transition 事件均存在且复位后可读。无逐步 monitor 证据的限制、I2C 独立风险见 HANDOFF §10 与 `CODEX_WB_LEARNING_V4_L1_DEVICE_TEST_2026-09-04.md`。 |
-| 6.24 | CODEX-APP-FIRST-001 / L2-L3 MVP 全链批次 | Codex | `IN_PROGRESS`（AF0~AF2c `CHECKPOINT_READY`；AF3 下一步；WorkBuddy 暂停） | 6.23 `CHECKPOINT_READY` | AF2b exactly-once：3 accepted + 27 duplicate，PWA sessions=1；AF2c：coordinator/outbox/backend bridge host 14/14，认证暂停、退避、存储失败和 ACK/duplicate 证据通过，报告 `CODEX_APP_FIRST_AF2C_2026-09-05.md`。完成 AF0~AF4 后才允许 AF5 真机。 |
+| 6.24 | CODEX-APP-FIRST-001 / L2-L3 MVP 全链批次 | Codex | `IN_PROGRESS`（AF0~AF2c、AF3a `CHECKPOINT_READY`；AF3b/AF4 下一步；WorkBuddy 暂停） | 6.23 `CHECKPOINT_READY` | AF3a：ESP-IDF 5.5.4 BUILD ONLY exit=0，xiaozhi.bin 9,175,856 B、SHA 与 L1 基线一致；ota_1 告警保持不触碰，报告 `CODEX_APP_FIRST_AF3A_2026-09-05.md`。完成 AF0~AF4 后才允许 AF5 真机。 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |

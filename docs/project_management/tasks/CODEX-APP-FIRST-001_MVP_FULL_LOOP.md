@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`IN_PROGRESS`（AF0~AF2c `CHECKPOINT_READY`；AF3 下一步）
+> 状态：`IN_PROGRESS`（AF0~AF2c、AF3a `CHECKPOINT_READY`；AF3b/AF4 下一步）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >
@@ -119,6 +119,15 @@ App/Host 模式不是脚本伪造整个设备。它必须使用：
 验收：恢复网络后 pending 收敛；PWA 与设备投影一致；任何失败都有稳定错误码。
 
 ### AF3 — Device 薄适配与诊断页（BUILD ONLY）
+
+#### AF3a — 基线 BUILD ONLY（已完成）
+
+- 现有 `E:\c` 镜像重复构建 PASS，binary SHA 与已验收 L1 基线一致；ota_1 既有溢出保持不触碰。
+- 证据：`reports/CODEX_APP_FIRST_AF3A_2026-09-05.md`。
+
+#### AF3b — App-first manifest/诊断候选（下一步）
+
+- 对候选镜像登记 repo→镜像文件哈希、build ID、pending/ACK/error 诊断字段，完成后才进入 AF4 冻结。
 
 - 接 Metalio 网络调度/传输的薄适配器，不在业务核心包含 IDF/Metalio 头。
 - Learning 页面增加可折叠诊断信息：build ID、auth/network、pending、last ACK、最近错误码、最后同步时间。

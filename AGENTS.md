@@ -27,7 +27,7 @@ Codex 负责：
 
 2026-09-04 最新节奏决定：WorkBuddy 暂停调度，后续由 Codex 直接实施 `CODEX-APP-FIRST-001`。不再为单个小功能反复刷机或长时间读取串口；先在 App/Host 模式复用真实 C++ LearningApp、Backend 与 PWA 完成 L2/L3 MVP 全链和故障矩阵，达到 `APP_FIRST_MVP_LOOP=PASS` 后才冻结一个真机候选。阶段末由用户按固定屏侧验收单操作并反馈 build ID、失败步骤和错误码；默认不接 monitor，只有现有屏上诊断、Backend 与 PWA 证据不足以定位失败时才进行一次受控串口取证。该节奏不扩大 Flash 授权和永久禁区，详见 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`。
 
-2026-09-05 AF0/AF1a/AF1b/AF1c/AF2a/AF2b/AF2c 更新：Quick gate、wire/Backend、Virtual Device fault、10 轮 exactly-once 均 PASS；AF2c host unit 14/14 覆盖 auth pause、退避、storage/dead-letter failure、ACK/duplicate/gap、重启重试。证据见 `docs/project_management/reports/CODEX_APP_FIRST_AF2C_2026-09-05.md`；活动分支 `codex/app-first-mvp-loop`，下一步 AF3 BUILD ONLY，暂不连接真机。
+2026-09-05 AF0/AF1a/AF1b/AF1c/AF2a/AF2b/AF2c/AF3a 更新：Quick gate、wire/Backend、Virtual Device fault、10 轮 exactly-once、host 14/14 均 PASS；AF3a `idf.py build` exit=0，xiaozhi.bin 9,175,856 B、SHA 与 L1 基线一致，ota_1 告警保持不触碰。证据见 `docs/project_management/reports/CODEX_APP_FIRST_AF3A_2026-09-05.md`；活动分支 `codex/app-first-mvp-loop`，下一步 AF3b manifest/诊断候选与 AF4，暂不连接真机。
 
 ### WorkBuddy：实施
 
