@@ -27,7 +27,7 @@ Codex 负责：
 
 2026-09-04 最新节奏决定：WorkBuddy 暂停调度，后续由 Codex 直接实施 `CODEX-APP-FIRST-001`。不再为单个小功能反复刷机或长时间读取串口；先在 App/Host 模式复用真实 C++ LearningApp、Backend 与 PWA 完成 L2/L3 MVP 全链和故障矩阵，达到 `APP_FIRST_MVP_LOOP=PASS` 后才冻结一个真机候选。阶段末由用户按固定屏侧验收单操作并反馈 build ID、失败步骤和错误码；默认不接 monitor，只有现有屏上诊断、Backend 与 PWA 证据不足以定位失败时才进行一次受控串口取证。该节奏不扩大 Flash 授权和永久禁区，详见 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`。
 
-2026-09-05 AF0/AF1a/AF1b/AF1c 更新：统一 Quick gate PASS；AF1a wire codec（12/12）、AF1b `BackendClient`/`HttpTransport`（13/13）均已推送；AF1c 用 C++ fixture 生成真实 Backend challenge/auth/events JSON，并由 C++ decoder 解析 Today/ACK，accepted→duplicate 通过。证据见 `docs/project_management/reports/CODEX_APP_FIRST_AF1C_2026-09-05.md`；活动分支 `codex/app-first-mvp-loop`，下一步 AF2 离线/重启/故障矩阵，暂不连接真机。
+2026-09-05 AF0/AF1a/AF1b/AF1c/AF2a 更新：Quick gate、wire codec、BackendClient、C++ wire↔真实 Backend 均 PASS；AF2a Virtual Device 已覆盖 offline、lost response、duplicate ACK、restart，pending 保持/活动会话恢复/最终收敛均通过。证据见 `docs/project_management/reports/CODEX_APP_FIRST_AF2A_2026-09-05.md`；活动分支 `codex/app-first-mvp-loop`，下一步 AF2b PWA exactly-once 与多轮矩阵，暂不连接真机。
 
 ### WorkBuddy：实施
 

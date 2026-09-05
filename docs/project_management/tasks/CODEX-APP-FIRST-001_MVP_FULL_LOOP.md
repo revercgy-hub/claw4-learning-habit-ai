@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`IN_PROGRESS`（AF0、AF1a、AF1b、AF1c `CHECKPOINT_READY`；AF2 下一步；报告见 AF0/AF1a/AF1b/AF1c 报告）
+> 状态：`IN_PROGRESS`（AF0~AF1c、AF2a `CHECKPOINT_READY`；AF2b 下一步）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >
@@ -95,6 +95,15 @@ App/Host 模式不是脚本伪造整个设备。它必须使用：
 验收：PWA 建任务后，真实 C++ App 能拉取并完成任务，Backend/PWA 只出现一次完成事实。
 
 ### AF2 — Offline / Restart / Fault Matrix
+
+#### AF2a — Virtual Device 故障子集（已完成）
+
+- JSONL runner 已支持 offline、lost response、duplicate ACK、restart；真实 coordinator/outbox 验证 pending 保持、活动会话恢复和最终收敛。
+- 证据：`reports/CODEX_APP_FIRST_AF2A_2026-09-05.md`。
+
+#### AF2b — PWA exactly-once 与重复矩阵（下一步）
+
+- 将 C++ runner 的事件链接入真实 Backend/PWA，至少 10 轮重复执行，覆盖 auth pause、存储提交失败、ACK 缺口和浏览器核对。
 
 - 场景：启动前断网、完成时断网、请求已到但响应丢失、连续重启、旧 pending、ACK 缺口、认证失效、存储提交失败。
 - 所有状态变更继续遵守 commit-then-publish；未持久化不得更新 UI 成功态。

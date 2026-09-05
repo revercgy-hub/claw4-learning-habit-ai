@@ -25,6 +25,44 @@ using claw4::interaction::CommandKind;
 using claw4::interaction::CommandPayload;
 using claw4::interaction::CommandSource;
 using claw4::metalio::LearningApp;
+using claw4::application::SyncOutcome;
+
+class RunnerTransport final : public claw4::application::SyncTransport {
+ public:
+  enum class Mode { Offline, Accept, Duplicate, LostThenDuplicate };
+
+  Mode mode = Mode::Offline;
+  int calls = 0;
+
+  claw4::sync::SyncClient::Response send(
+      const claw4::sync::SyncClient::Request& request) override {
+    ++calls;
+    if (mode == Mode::Offline ||
+        (mode == Mode::LostThenDuplicate && calls == 1)) {
+      claw4::sync::SyncClient::Response response;
+      response.error_class = claw4::sync::SyncErrorClass::Network;
+      return response;
+    }
+    claw4::sync::SyncClient::Response response;
+    response.error_class = claw4::sync::SyncErrorClass::None;
+    response.http_status = 200;
+    response.batch.last_acked_sequence = request.last_acked_sequence;
+    response.batch.server_time = 1700000100 + calls;
+    const auto outcome = mode == Mode::Duplicate
+                             ? claw4::sync::EventOutcome::Duplicate
+                             : claw4::sync::EventOutcome::Accepted;
+    for (const auto& event : request.events) {
+      claw4::sync::PerEventResult result;
+      result.event_id = event.event_id;
+      result.sequence = event.sequence;
+      result.outcome = outcome;
+      result.http_status = 200;
+      response.batch.results.push_back(result);
+      response.batch.last_acked_sequence = event.sequence;
+    }
+    return response;
+  }
+};
 
 std::string JsonEscape(const std::string& value) {
   std::string out;
@@ -77,6 +115,17 @@ const char* CommandName(const CommandKind kind) {
   }
 }
 
+const char* SyncOutcomeName(const SyncOutcome outcome) {
+  switch (outcome) {
+    case SyncOutcome::Synced: return "synced";
+    case SyncOutcome::ReauthOk: return "reauth_ok";
+    case SyncOutcome::PausedAuth: return "paused_auth";
+    case SyncOutcome::Backoff: return "backoff";
+    case SyncOutcome::NoPending: return "no_pending";
+  }
+  return "unknown";
+}
+
 struct Runtime {
   explicit Runtime(std::shared_ptr<claw4::sync::FakeDisk> shared_disk)
       : disk(std::move(shared_disk)), storage(disk), app(storage, clock) {
@@ -88,6 +137,7 @@ struct Runtime {
   claw4::ports::FakeClockPort clock;
   claw4::sync::FakeOutboxStorage storage;
   LearningApp app;
+  RunnerTransport transport;
 };
 
 void PrintState(const Runtime& runtime, const std::string& op,
@@ -172,6 +222,13 @@ bool DispatchTouch(Runtime& runtime, const std::string& action,
   return ok;
 }
 
+void RunSync(Runtime& runtime) {
+  const auto outcome = runtime.app.runSyncOnce(runtime.transport, [] { return false; });
+  PrintState(runtime, std::string("sync_") + SyncOutcomeName(outcome),
+             outcome != SyncOutcome::PausedAuth,
+             outcome == SyncOutcome::Backoff ? "network_unavailable" : "");
+}
+
 }  // namespace
 
 int main() {
@@ -213,6 +270,28 @@ int main() {
       }
       DispatchTouch(*runtime, argument.substr(0, separator),
                     argument.substr(separator + 1));
+    } else if (verb == "network") {
+      if (!runtime) {
+        std::cout << "{\"op\":\"network\",\"ok\":false,\"error\":\"not_booted\"}\n";
+        continue;
+      }
+      if (argument == "offline") runtime->transport.mode = RunnerTransport::Mode::Offline;
+      else if (argument == "accept") runtime->transport.mode = RunnerTransport::Mode::Accept;
+      else if (argument == "duplicate") runtime->transport.mode = RunnerTransport::Mode::Duplicate;
+      else if (argument == "lost") {
+        runtime->transport.mode = RunnerTransport::Mode::LostThenDuplicate;
+        runtime->transport.calls = 0;
+      } else {
+        PrintState(*runtime, "network", false, "use_network:offline|accept|duplicate|lost");
+        continue;
+      }
+      PrintState(*runtime, "network_" + argument);
+    } else if (verb == "sync") {
+      if (!runtime) {
+        std::cout << "{\"op\":\"sync\",\"ok\":false,\"error\":\"not_booted\"}\n";
+        continue;
+      }
+      RunSync(*runtime);
     } else if (verb == "summary") {
       if (!runtime) {
         std::cout << "{\"op\":\"summary\",\"ok\":false,\"error\":\"not_booted\"}\n";
