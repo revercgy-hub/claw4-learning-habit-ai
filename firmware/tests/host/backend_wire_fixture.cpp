@@ -28,6 +28,8 @@ EventType ParseEventType(const std::string& value) {
   if (value == "task.completed") return EventType::TaskCompleted;
   if (value == "task.paused") return EventType::TaskPaused;
   if (value == "task.resumed") return EventType::TaskResumed;
+  if (value == "study.session.started") return EventType::StudySessionStarted;
+  if (value == "study.session.completed") return EventType::StudySessionCompleted;
   return EventType::DeviceBooted;
 }
 
@@ -57,7 +59,7 @@ int main(int argc, char** argv) {
     std::cout << claw4::sync::wire::EncodeAuthRequest(request) << '\n';
     return 0;
   }
-  if (command == "batch" && argc == 9) {
+  if (command == "batch" && argc >= 9) {
     SyncClient::Request request;
     request.device_id = DeviceId{argv[2]};
     request.last_acked_sequence = std::stoll(argv[3]);
@@ -70,7 +72,15 @@ int main(int argc, char** argv) {
     event.timestamp_source = TimestampSource::Rtc;
     event.type = ParseEventType(argv[8]);
     event.version = 1;
-    event.payload["task_id"] = "task-1";
+    event.payload["task_id"] = argc >= 10 ? argv[9] : "task-1";
+    if (event.type == EventType::StudySessionStarted ||
+        event.type == EventType::StudySessionCompleted) {
+      event.payload["session_id"] = argc >= 11 ? argv[10] : "session-1";
+    }
+    if (event.type == EventType::StudySessionCompleted) {
+      event.payload["actual_seconds"] = "120";
+      event.payload["completion_type"] = "manual";
+    }
     request.events.push_back(event);
     std::cout << claw4::sync::wire::EncodeBatchRequest(request) << '\n';
     return 0;
