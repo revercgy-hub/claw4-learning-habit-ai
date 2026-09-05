@@ -2,7 +2,7 @@
 
 - 更新时间：2026-09-04（L1c 持久化复测通过；切换 App-first 批量开发）
 - 维护者：Codex；2026-09-04 起 WorkBuddy 暂停调度，Codex 直接实施与复检，验收决策归用户
-- 当前阶段：ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`。`CODEX-APP-FIRST-001` 的 AF0 已通过，正在进入 AF1；先在 App/Host 模式完成 L2/L3 MVP 主链路，再安排一次用户主导的阶段末真机验收。
+- 当前阶段：L1 ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`；App-first 活动分支为 `codex/app-first-mvp-loop` @ `24ccf1a`。`CODEX-APP-FIRST-001` 的 AF0 已通过，正在进入 AF1；先在 App/Host 模式完成 L2/L3 MVP 主链路，再安排一次用户主导的阶段末真机验收。
 - 调度规则：当前无 WorkBuddy 活动流；Codex 按 App-first checkpoint 连续实施，单功能不刷机，阶段 gate 通过后只冻结一个真机候选
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
