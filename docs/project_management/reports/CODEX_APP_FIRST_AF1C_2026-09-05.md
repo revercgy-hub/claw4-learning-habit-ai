@@ -2,7 +2,8 @@
 
 - 任务：`CODEX-APP-FIRST-001 / AF1c`
 - 分支：`codex/app-first-mvp-loop`
-- 当前状态：实现与验证已完成，待提交后作为 checkpoint 收口。
+- 当前状态：`CHECKPOINT_READY`。
+- 实现提交：`18ff69f`（已普通 push 到 `origin/codex/app-first-mvp-loop`）。
 - 范围：本地 throwaway SQLite + FastAPI TestClient；没有公网监听、真实账号或真机。
 
 ## 证据链
