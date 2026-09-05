@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -50,6 +51,24 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 logger = logging.getLogger("claw4.backend")
 
 app = FastAPI(title="Claw4 Family Backend (Host MVP)", version="0.2.0")
+
+# The host PWA is served by Vite on a separate loopback port during local
+# development. Keep the allow-list explicit and loopback-only; production
+# deployment must provide its own origin policy instead of widening this.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:4173",
+        "http://127.0.0.1:4174",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://localhost:4174",
+        "http://localhost:5173",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 API_V1 = "/api/v1"
 

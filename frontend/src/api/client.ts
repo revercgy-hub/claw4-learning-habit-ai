@@ -41,7 +41,10 @@ export class ApiClient {
   constructor(opts: ApiClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? BASE_URL).replace(/\/$/, '');
     this.token = opts.token ?? '';
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    // Browser's native fetch requires its global receiver. Keeping the
+    // unbound function and invoking it as a field causes `Illegal invocation`
+    // in a real browser, even though injected unit-test fakes still pass.
+    this.fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
   setToken(token: string): void {
