@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`IN_PROGRESS`（AF0~AF1c、AF2a、AF2b `CHECKPOINT_READY`；AF2c 下一步）
+> 状态：`IN_PROGRESS`（AF0~AF2c `CHECKPOINT_READY`；AF3 下一步）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >
@@ -106,9 +106,10 @@ App/Host 模式不是脚本伪造整个设备。它必须使用：
 - C++ fixture 生成三条业务事件，真实 Backend/PWA 投影完成；相同 event_id/sequence 重复 10 轮，3 accepted + 27 duplicate，PWA 只见 1 条 completed session。
 - 证据：`reports/CODEX_APP_FIRST_AF2B_2026-09-05.md`。
 
-#### AF2c — 认证/存储/ACK 缺口与重启矩阵（下一步）
+#### AF2c — 认证/存储/ACK 缺口与重启矩阵（已完成）
 
-- 收口 auth pause、storage commit failure、ACK gap、连续进程重启；再进入 AF3 设备薄适配 BUILD ONLY。
+- 收口 auth pause、storage commit failure、ACK gap、连续重启和 BackendClient→coordinator 桥接；host unit `14/14` PASS。
+- 证据：`reports/CODEX_APP_FIRST_AF2C_2026-09-05.md`。
 
 - 场景：启动前断网、完成时断网、请求已到但响应丢失、连续重启、旧 pending、ACK 缺口、认证失效、存储提交失败。
 - 所有状态变更继续遵守 commit-then-publish；未持久化不得更新 UI 成功态。
