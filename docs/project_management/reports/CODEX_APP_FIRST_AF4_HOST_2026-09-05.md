@@ -4,11 +4,11 @@
 
 - 工作流：`CODEX-APP-FIRST-001 / AF4`
 - 执行分支：`codex/app-first-mvp-loop`
-- 当前头：`a15698013bda04c3f6254ffc15b2fd25edf367a7`
-- 结论：`HOST_APP_GATE=PASS`；`APP_FIRST_MVP_LOOP` 暂不标记 `PASS`。
+- 当前头：`85129a5b3e66f09c5d8fd1f8052d138b28a7b2c8`
+- 结论：`HOST_APP_GATE=PASS`；真实浏览器 smoke 3/3 通过；`APP_FIRST_MVP_LOOP` 暂不标记 `PASS`。
 - 真机状态：不需要连接 COM3；未执行 flash、erase、monitor、分区或 bootloader 操作。
 
-本批主机侧完整链路已经跑通。尚未满足阶段收口的两项边界是：仓库没有 Playwright/Cypress 等浏览器级执行器，且受当前工具链所有权/导出元数据限制，无法在全新 IDF build 目录复现 cold build；此前 AF3a 已有同一 `E:\c` 镜像的 `idf.py build` exit=0 证据，未发现产品源码构建回归。
+本批主机侧完整链路已经跑通。尚未满足阶段收口的一项边界是：受当前工具链所有权/导出元数据限制，无法在全新 IDF build 目录复现 cold build；此前 AF3a 已有同一 `E:\c` 镜像的 `idf.py build` exit=0 证据，未发现产品源码构建回归。
 
 ## 2. 本次提交
 
@@ -16,6 +16,7 @@
 |---|---|
 | `5f5f375` | 修复虚拟设备 runner 在重启后重置事件/会话 ID，改为进程生命周期共享确定性计数器；真实设备仍使用熵源 ID。 |
 | `a156980` | Full Gate 支持绝对日志目录、显式 Python/PWA 依赖路径，并把 C++ gate 输出写入同一外部日志树。 |
+| `85129a5` | 浏览器真实回归发现并修复 unbound `fetch`；Backend 增加仅限 loopback 开发端口的 CORS 白名单。 |
 
 ## 3. 验证证据
 
@@ -47,7 +48,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/dev/run-app-first-gate
 - PWA：typecheck PASS、Vitest PASS、production build PASS；
 - E2E 编排器：`E2E RESULT: PASS`，无残留进程。
 
-### 3.3 固件候选与 manifest
+### 3.3 浏览器 smoke（真实 Chrome）
+
+- 浏览器：Chrome，PWA dev server `http://127.0.0.1:4174/`，Backend `http://127.0.0.1:8000/`。
+- 每轮均执行：开发会话登录 → 概况 → 今日任务 → 学习记录 → 设备；退出并重新登录后进入下一轮。
+- 连续 3 轮：`3/3 PASS`。
+- 首轮发现的两个真实浏览器问题已在 `85129a5` 修复：原生 `fetch` receiver 绑定、loopback CORS 预检。
+
+### 3.4 固件候选与 manifest
 
 - 已有 AF3a IDF build：exit=0，`E:\b\xiaozhi.bin`，`9,175,856 B`。
 - SHA-256：`6d27653a7baa690bdb63e7288a27a5b2b5ad0b347ef5f1b9354fe84b5722aa1f`。
@@ -56,13 +64,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/dev/run-app-first-gate
 
 ## 4. 未完成项与下一步门禁
 
-1. 浏览器级 PWA E2E 连续 3 轮：当前仓库明确没有 Playwright/Cypress；不能把 Vitest 冒充浏览器 E2E。应先补一个可审查的浏览器执行器或由用户明确接受替代证据。
-2. 全新 IDF build：当前外部 IDF tools 的 `idf_tools.py export` 报 installed versions 元数据缺失，且新目录无法找到 Ninja/交叉编译器；不得通过修改项目配置绕过。应修复工具链环境后再跑一次 cold build。
-3. 上述两项完成并生成唯一候选后，才向用户发出连接 COM3 的 AF5 屏侧验收通知。
+1. 全新 IDF build：当前外部 IDF tools 的 `idf_tools.py export` 报 installed versions 元数据缺失，且新目录无法找到 Ninja/交叉编译器；不得通过修改项目配置绕过。应修复工具链环境后再跑一次 cold build。
+2. cold IDF build 完成并生成唯一候选后，才向用户发出连接 COM3 的 AF5 屏侧验收通知。
 
 ## 5. 复检重点
 
 - 复核 `5f5f375` 只影响 host 测试 runner，不改变设备生产代码；
 - 复核 `a156980` 的路径参数不引入仓库外写入或产品逻辑；
-- 复核浏览器 E2E 与 cold IDF build 在补齐后再把状态提升为 `APP_FIRST_MVP_LOOP=PASS`。
-
+- 复核 cold IDF build 在补齐后再把状态提升为 `APP_FIRST_MVP_LOOP=PASS`。
