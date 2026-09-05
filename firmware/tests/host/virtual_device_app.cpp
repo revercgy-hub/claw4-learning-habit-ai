@@ -127,9 +127,22 @@ const char* SyncOutcomeName(const SyncOutcome outcome) {
 }
 
 struct Runtime {
-  explicit Runtime(std::shared_ptr<claw4::sync::FakeDisk> shared_disk)
+  explicit Runtime(std::shared_ptr<claw4::sync::FakeDisk> shared_disk,
+                   std::shared_ptr<int64_t> event_sequence,
+                   std::shared_ptr<int64_t> session_sequence)
       : disk(std::move(shared_disk)), storage(disk), app(storage, clock) {
     app.setIdentity(DeviceId{"virtual-device"}, ChildId{"child-demo"});
+    // A reboot must never reset persisted event/session identity. The real
+    // device uses entropy-backed IDs; the deterministic runner keeps process-
+    // lifetime counters shared by all Runtime instances in this scenario.
+    app.setEventIdFactory([event_sequence]() {
+      return claw4::domain::EventId{"ev-" +
+                                    std::to_string(++(*event_sequence))};
+    });
+    app.setSessionIdFactory([session_sequence]() {
+      return claw4::domain::SessionId{"sess-" +
+                                      std::to_string(++(*session_sequence))};
+    });
     app.start();
   }
 
@@ -233,6 +246,8 @@ void RunSync(Runtime& runtime) {
 
 int main() {
   auto disk = std::make_shared<claw4::sync::FakeDisk>();
+  auto event_sequence = std::make_shared<int64_t>(0);
+  auto session_sequence = std::make_shared<int64_t>(0);
   std::unique_ptr<Runtime> runtime;
   std::string line;
   while (std::getline(std::cin, line)) {
@@ -241,7 +256,7 @@ int main() {
     if (!ParseCommand(line, verb, argument)) continue;
 
     if (verb == "boot") {
-      runtime = std::make_unique<Runtime>(disk);
+      runtime = std::make_unique<Runtime>(disk, event_sequence, session_sequence);
       PrintState(*runtime, "boot");
     } else if (verb == "restart") {
       if (!runtime) {
@@ -249,7 +264,7 @@ int main() {
         continue;
       }
       runtime.reset();
-      runtime = std::make_unique<Runtime>(disk);
+      runtime = std::make_unique<Runtime>(disk, event_sequence, session_sequence);
       PrintState(*runtime, "restart");
     } else if (verb == "seed") {
       if (!runtime) {
