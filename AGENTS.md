@@ -27,6 +27,8 @@ Codex 负责：
 
 2026-09-04 最新节奏决定：WorkBuddy 暂停调度，后续由 Codex 直接实施 `CODEX-APP-FIRST-001`。不再为单个小功能反复刷机或长时间读取串口；先在 App/Host 模式复用真实 C++ LearningApp、Backend 与 PWA 完成 L2/L3 MVP 全链和故障矩阵，达到 `APP_FIRST_MVP_LOOP=PASS` 后才冻结一个真机候选。阶段末由用户按固定屏侧验收单操作并反馈 build ID、失败步骤和错误码；默认不接 monitor，只有现有屏上诊断、Backend 与 PWA 证据不足以定位失败时才进行一次受控串口取证。该节奏不扩大 Flash 授权和永久禁区，详见 `docs/project_management/tasks/CODEX-APP-FIRST-001_MVP_FULL_LOOP.md`。
 
+2026-09-05 AF0 更新：统一 `tools/dev/run-app-first-gate.ps1 -Mode Quick` 已通过；C++ host/interface gate 与真实 `LearningApp` Virtual Device runner 均 PASS。runner 通过 JSONL 驱动 Start→Pause→Resume→Complete，并用同一 FakeDisk 重建进程验证重启后 pending=6、active=null。Backend 70/70、PWA typecheck/lint/test 30/30/build 亦已在依赖可用的等价源码工作树复跑通过；ready 工作树的 frontend/backend 源文件哈希逐文件一致。AF0 证据见 `docs/project_management/reports/CODEX_APP_FIRST_AF0_2026-09-05.md`；下一步进入 AF1，暂不连接真机。
+
 ### WorkBuddy：实施
 
 WorkBuddy 负责：

@@ -16,7 +16,8 @@
 # toolchain from claw4-idf-tools). Output goes to <repo>/out/ which is
 # git-ignored.
 param(
-    [string]$CompilerPath = "riscv32-esp-elf-g++"
+    [string]$CompilerPath = "riscv32-esp-elf-g++",
+    [string]$OutputDir = ""
 )
 
 # NOTE: keep "Continue". With "Stop", PowerShell 5.1 wraps native stderr
@@ -30,7 +31,7 @@ $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $MainDir = Join-Path $RepoRoot "firmware\main"
 $TestsDir = Join-Path $RepoRoot "firmware\tests\contracts"
-$OutDir = Join-Path $RepoRoot "out\verify-interface-contracts"
+$OutDir = if ($OutputDir) { $OutputDir } else { Join-Path $RepoRoot "out\verify-interface-contracts" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $Log = Join-Path $OutDir "verify_result.txt"
 $HeaderErr = Join-Path $OutDir "header_errors.txt"

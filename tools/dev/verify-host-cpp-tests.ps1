@@ -16,7 +16,8 @@
 #   .\verify-host-cpp-tests.ps1 -CompilerPath ... -CrossCompilerPath "...\riscv32-esp-elf-g++.exe"
 param(
     [string]$CompilerPath = "",
-    [string]$CrossCompilerPath = ""
+    [string]$CrossCompilerPath = "",
+    [string]$OutputDir = ""
 )
 
 $ErrorActionPreference = "Continue"  # native stderr becomes ErrorRecords under "Stop" (PS 5.1)
@@ -24,7 +25,7 @@ $ErrorActionPreference = "Continue"  # native stderr becomes ErrorRecords under 
 $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
 $SmokeSrc = Join-Path $RepoRoot "firmware\tests\host\smoke_test.cpp"
-$OutDir = Join-Path $RepoRoot "out\host-tests"
+$OutDir = if ($OutputDir) { $OutputDir } else { Join-Path $RepoRoot "out\host-tests" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $Log = Join-Path $OutDir "host_result.txt"
 Remove-Item $Log -ErrorAction SilentlyContinue
@@ -208,6 +209,10 @@ foreach ($sub in $hostSafeDirs) {
         $content = Get-Content -Raw $f.FullName
         foreach ($inc in [regex]::Matches($content, '#\s*include\s*[<"]([^>"]+)')) {
             $header = $inc.Groups[1].Value.ToLowerInvariant()
+            # The portable host glue is intentionally namespaced below
+            # metalio_claw4/host_glue; allow glue-to-glue includes while
+            # continuing to reject real Metalio/IDF device headers.
+            if ($header -like "metalio_claw4/host_glue/*") { continue }
             foreach ($tok in $ForbiddenHost) {
                 if ($header -like "*$tok*") {
                     $hostViol += "$($f.Name): forbidden include <$($inc.Groups[1].Value)>"
@@ -226,6 +231,7 @@ if (Test-Path $glueDir) {
         $content = Get-Content -Raw $f.FullName
         foreach ($inc in [regex]::Matches($content, '#\s*include\s*[<"]([^>"]+)')) {
             $header = $inc.Groups[1].Value.ToLowerInvariant()
+            if ($header -like "metalio_claw4/host_glue/*") { continue }
             foreach ($tok in $ForbiddenHost) {
                 if ($header -like "*$tok*") {
                     $hostViol += "$($f.Name): forbidden include <$($inc.Groups[1].Value)>"
@@ -320,12 +326,12 @@ if (Test-Path $ifaceScript) {
         if (Test-Path $probe) { $cross = $probe }
     }
     if ($cross) {
-        & $ifaceScript -CompilerPath $cross *>> $Log
+        & $ifaceScript -CompilerPath $cross -OutputDir (Join-Path $OutDir "interface") *>> $Log
         Write-Log "interface: exit=$LASTEXITCODE (see above; 0 == PASS)"
         if ($LASTEXITCODE -ne 0) { $global:FAILED = $true }
     } else {
         # fall back to PATH resolution inside the interface script
-        & $ifaceScript *>> $Log
+        & $ifaceScript -OutputDir (Join-Path $OutDir "interface") *>> $Log
         Write-Log "interface: exit=$LASTEXITCODE (PATH-resolved cross compiler)"
         if ($LASTEXITCODE -ne 0) { $global:FAILED = $true }
     }

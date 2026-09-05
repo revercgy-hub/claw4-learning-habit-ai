@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`READY`（待 Codex 从 L1 证据提交建立独立 `codex/app-first-mvp-loop` 分支后实施）
+> 状态：`IN_PROGRESS`（AF0 `CHECKPOINT_READY`；AF1 下一步；报告见 `reports/CODEX_APP_FIRST_AF0_2026-09-05.md`）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >
@@ -147,7 +147,7 @@ Codex 提供不超过 15 分钟的屏侧验收单和唯一候选。用户完成�
 
 ## 7. Git 交付规则
 
-- 开发分支：`codex/app-first-mvp-loop`。
+- 计划开发分支：`codex/app-first-mvp-loop`；当前共享 Git refs ACL 阻止新建该 ref，AF0 暂沿用已推送的 `codex/wb-learning-v4-l1-ready`，待 refs 可写时再从当前 checkpoint 建立独立分支。
 - 每个 checkpoint 独立提交并普通 push；报告记录不可变 SHA。
 - Codex 直接实施与修复；本批不向 WorkBuddy 派发任务。
 - 阶段末只交付一个真机候选及其 SHA-256，避免多个固件并行造成证据混淆。
