@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`IN_PROGRESS`（AF0、AF1a、AF1b `CHECKPOINT_READY`；AF1c 下一步；报告见 `reports/CODEX_APP_FIRST_AF0_2026-09-05.md`、`reports/CODEX_APP_FIRST_AF1A_2026-09-05.md` 与 `reports/CODEX_APP_FIRST_AF1B_2026-09-05.md`）
+> 状态：`IN_PROGRESS`（AF0、AF1a、AF1b、AF1c `CHECKPOINT_READY`；AF2 下一步；报告见 AF0/AF1a/AF1b/AF1c 报告）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >
@@ -84,8 +84,8 @@ App/Host 模式不是脚本伪造整个设备。它必须使用：
 
 #### AF1c — transport relay（下一步）
 
-- 实现 JSONL relay runner：真实 C++ runner 生成 codec JSON，Python 只负责 HTTP 转发，不重写事件。
-- 覆盖 challenge/auth/today/events batch 和原样 ACK/error 返回，再接入真实 Backend E2E。
+- 已完成 wire contract loop：C++ fixture 生成 challenge/auth/events JSON，真实 Backend 返回 Today/ACK 后由同一 C++ decoder 解析；accepted→duplicate 幂等证据通过。
+- 证据：`reports/CODEX_APP_FIRST_AF1C_2026-09-05.md`；下一阶段 AF2 把真实 coordinator/outbox 接到网络端口并进入故障矩阵。
 
 - 实现设备侧 Backend/Sync 的平台无关客户端核心；测试中连接真实本地 Backend，而不是 fake sink。
 - 覆盖设备注册/认证、今日任务、事件 batch、ACK 连续前缀、duplicate 幂等和 auth pause/reset。
