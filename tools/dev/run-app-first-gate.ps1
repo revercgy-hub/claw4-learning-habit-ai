@@ -15,6 +15,8 @@ param(
     [string]$Mode = "Quick",
     [string]$CompilerPath = "",
     [string]$CrossCompilerPath = "",
+    [string]$PythonPath = "",
+    [string]$FrontendPath = "",
     [string]$IdfProjectPath = "E:\c",
     [string]$IdfBuildPath = "E:\b",
     [string]$LogDir = "out\app-first"
@@ -128,6 +130,8 @@ try {
         $e2eScript = Join-Path $scriptDir "run-host-mvp-e2e.ps1"
         $e2eArgs = @{ CompilerPath = $compiler; LogDir = (Join-Path $LogDir "host-e2e") }
         if ($cross) { $e2eArgs.CrossCompilerPath = $cross }
+        if ($PythonPath) { $e2eArgs.PythonPath = $PythonPath }
+        if ($FrontendPath) { $e2eArgs.FrontendPath = $FrontendPath }
         $e2eExit = Invoke-GateScript -ScriptPath $e2eScript -Arguments $e2eArgs
         Add-Result -Name "hostMvpE2e" -Passed ($e2eExit -eq 0) -ExitCode $e2eExit -Detail "run-host-mvp-e2e.ps1"
         if ($e2eExit -ne 0) { throw "Host MVP E2E gate failed with exit code $e2eExit" }

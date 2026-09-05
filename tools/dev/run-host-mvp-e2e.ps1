@@ -23,12 +23,18 @@
 param(
     [Parameter(Mandatory = $true)][string]$CompilerPath,
     [string]$CrossCompilerPath = "",
-    [string]$LogDir = "out\e2e"
+    [string]$LogDir = "out\e2e",
+    [string]$PythonPath = "",
+    [string]$FrontendPath = ""
 )
 
 $ErrorActionPreference = "Continue"
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$LogDirAbs = Join-Path $RepoRoot $LogDir
+$LogDirAbs = if ([IO.Path]::IsPathRooted($LogDir)) {
+    [IO.Path]::GetFullPath($LogDir)
+} else {
+    Join-Path $RepoRoot $LogDir
+}
 New-Item -ItemType Directory -Force -Path $LogDirAbs | Out-Null
 $Log = Join-Path $LogDirAbs "e2e_result.txt"
 Remove-Item $Log -ErrorAction SilentlyContinue
@@ -57,9 +63,9 @@ if (-not (Test-Path $hostGate)) {
     # Pass the compiler paths as explicit named parameters (a plain array
     # splat would bind them positionally and break the parameters).
     if ($CrossCompilerPath) {
-        & $hostGate -CompilerPath $CompilerPath -CrossCompilerPath $CrossCompilerPath *>> $Log
+        & $hostGate -CompilerPath $CompilerPath -CrossCompilerPath $CrossCompilerPath -OutputDir (Join-Path $LogDirAbs "host-tests") *>> $Log
     } else {
-        & $hostGate -CompilerPath $CompilerPath *>> $Log
+        & $hostGate -CompilerPath $CompilerPath -OutputDir (Join-Path $LogDirAbs "host-tests") *>> $Log
     }
     if ($LASTEXITCODE -eq 0) {
         Write-Log "C++ host gate : PASS (exit=0; offline domain/outbox semantics proven)"
@@ -73,7 +79,7 @@ if (-not (Test-Path $hostGate)) {
 Write-Log ""
 Write-Log "== [2/3] backend pytest =="
 $backendDir = Join-Path $RepoRoot "backend"
-$py = Join-Path $backendDir ".venv\Scripts\python.exe"
+$py = if ($PythonPath) { $PythonPath } else { Join-Path $backendDir ".venv\Scripts\python.exe" }
 if (-not (Test-Path $py)) {
     Write-Log "FAIL: backend venv missing ($py) - run backend dependency install first"
     $global:FAILED = $true
@@ -93,7 +99,7 @@ if (-not (Test-Path $py)) {
 # --- 3) PWA typecheck + test + production build --------------------------
 Write-Log ""
 Write-Log "== [3/3] PWA typecheck + test + build =="
-$frontendDir = Join-Path $RepoRoot "frontend"
+$frontendDir = if ($FrontendPath) { $FrontendPath } else { Join-Path $RepoRoot "frontend" }
 $npm = "npm.cmd"
 if (-not (Test-Path (Join-Path $frontendDir "package.json"))) {
     Write-Log "FAIL: frontend package.json missing"
