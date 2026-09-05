@@ -4,7 +4,7 @@
 
 - 工作流：`CODEX-APP-FIRST-001 / AF4`
 - 执行分支：`codex/app-first-mvp-loop`
-- 当前头：`a18563a`（本报告提交）
+- 代码修复头：`85129a5`；报告基线：`a18563a`
 - 结论：`HOST_APP_GATE=PASS`；真实浏览器 smoke 3/3 通过；`APP_FIRST_MVP_LOOP` 暂不标记 `PASS`。
 - 真机状态：不需要连接 COM3；未执行 flash、erase、monitor、分区或 bootloader 操作。
 
@@ -67,7 +67,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/dev/run-app-first-gate
 1. 全新 IDF build：当前外部 IDF tools 的 `idf_tools.py export` 报 installed versions 元数据缺失，且新目录无法找到 Ninja/交叉编译器；不得通过修改项目配置绕过。应修复工具链环境后再跑一次 cold build。
 2. cold IDF build 完成并生成唯一候选后，才向用户发出连接 COM3 的 AF5 屏侧验收通知。
 
-本次尝试的失败证据已保留在外部 `out\app-first-af4-idf-cold*`：全新目录先后因 `idf_tools.py export` 无已安装版本、Ninja/交叉编译器不可导出而停止；使用既有 `E:\b` 构建树的增量命令又因该目录权限拒绝，无法把日志写回。两者均是外部工具/目录权限问题，不应通过修改仓库配置或分区规避。
+本次尝试的失败证据已保留在外部临时目录：
+
+- `idf.py` 新目录路径受工具元数据影响，无法正常导出 Ninja/交叉编译器；
+- 使用可撤销 ASCII junction 后，完成了全量 CMake/Kconfig 配置并实际编译到 2,165/2,628；
+- 最终失败点是 `E:\c\managed_components\espressif__esp_wifi_remote\idf_v5.5\include\injected\esp_wifi.h` 引用的 `CONFIG_WIFI_RMT_*` 符号缺失（`wifi_station.cc` / `wifi_configuration_ap.cc`），属于现有 `E:\c` 工程镜像与 sdkconfig/组件组合问题；
+- 使用既有 `E:\b` 构建树的增量命令又因该目录权限拒绝，无法把日志写回。
+
+不修改仓库 sdkconfig、managed component、分区或工具链元数据来绕过该失败；需后续单独修复工程镜像后再重跑 cold build。
 
 ## 5. 复检重点
 
