@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`IN_PROGRESS`（AF0~AF3b `CHECKPOINT_READY`；AF4 下一步）
+> 状态：`IN_PROGRESS`（AF0~AF3b `CHECKPOINT_READY`；AF4 主机 gate 通过；浏览器 E2E/cold IDF 待补）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >
