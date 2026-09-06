@@ -12,6 +12,7 @@
 #include "learning_screen/learning_screen.h"
 
 #include <cstdio>
+#include <mutex>
 #include <string>
 
 #include "esp_log.h"
@@ -71,6 +72,7 @@ lv_timer_t* s_selftest_timer = nullptr;
 
 void RunSelfTestStep(lv_timer_t*) {
   auto& rt = Rt();
+  std::lock_guard<std::recursive_mutex> lock(rt.stateMutex());
   auto& app = rt.app();
   const int step = s_selftest_step++;
   if (step < 4) {
@@ -197,6 +199,7 @@ void DispatchTouch(CommandKind kind, const TaskId& task_id) {
 
 // --- refresh (pure projection of committed domain state) ------------------
 void RefreshUi() {
+  std::lock_guard<std::recursive_mutex> lock(Rt().stateMutex());
   if (!Rt().bootReady()) {
     lv_label_set_text(s_ui.row_a, "学习状态恢复失败");
     lv_label_set_text(s_ui.row_b, "请返回后重试");
@@ -308,25 +311,26 @@ void RefreshUi() {
     lv_obj_set_style_opa(s_ui.secondary, LV_OPA_40, 0);
   }
 
-  const auto* backend = Rt().BackendDiagnostics();
+  const auto backend = Rt().BackendDiagnostics();
   std::string diagnostics =
       "诊断 · build app-first · pending " +
       std::to_string(app.pendingCount()) + " · ACK " +
       std::to_string(app.coordinator().lastAcked());
-  if (backend == nullptr) {
+  if (!backend.configured) {
     diagnostics += " · backend 未配置";
   } else {
-    diagnostics += backend->network_online ? " · 网络在线" : " · 网络离线";
-    diagnostics += backend->authenticated ? " · auth OK" : " · auth 未通过";
+    diagnostics += backend.network_online ? " · 网络在线" : " · 网络离线";
+    diagnostics += backend.authenticated ? " · auth OK" : " · auth 未通过";
     diagnostics += " · err=" +
-                   std::to_string(static_cast<int>(backend->last_error));
-    diagnostics += " · op=" + backend->last_operation;
+                   std::to_string(static_cast<int>(backend.last_error));
+    diagnostics += " · op=" + backend.last_operation;
   }
   lv_label_set_text(s_ui.diagnostics, diagnostics.c_str());
 }
 
 // --- callbacks -------------------------------------------------------------
 void OnPrimary(lv_event_t*) {
+  std::lock_guard<std::recursive_mutex> lock(Rt().stateMutex());
   auto& app = Rt().app();
   const DomainState& st = app.state();
   if (st.active_session.has_value()) {
@@ -350,6 +354,7 @@ void OnPrimary(lv_event_t*) {
 }
 
 void OnSecondary(lv_event_t*) {
+  std::lock_guard<std::recursive_mutex> lock(Rt().stateMutex());
   auto& app = Rt().app();
   const DomainState& st = app.state();
   if (st.active_session.has_value()) {

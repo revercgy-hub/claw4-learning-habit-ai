@@ -3,6 +3,7 @@
 #include "metalio_claw4/device/app/learning_runtime.h"
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #include "esp_log.h"
@@ -44,6 +45,7 @@ std::string LearningRuntime::NextSessionId() {
 }
 
 bool LearningRuntime::SelfTestPending() {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   nvs_handle_t h;
   if (nvs_open("learning", NVS_READONLY, &h) != ESP_OK) return false;
   int32_t flag = 0;
@@ -53,6 +55,7 @@ bool LearningRuntime::SelfTestPending() {
 }
 
 void LearningRuntime::MarkSelfTestDone() {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   nvs_handle_t h;
   if (nvs_open("learning", NVS_READWRITE, &h) != ESP_OK) return;
   nvs_set_i32(h, "stest", 1);
@@ -61,6 +64,7 @@ void LearningRuntime::MarkSelfTestDone() {
 }
 
 bool LearningRuntime::ResetToSeed() {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   backend_.reset();
   if (!NvsOutboxStorage::eraseAll()) {
     ESP_LOGE(TAG, "self-test cleanup: eraseAll failed");
@@ -88,6 +92,7 @@ bool LearningRuntime::ResetToSeed() {
 bool LearningRuntime::ConfigureBackend(
     std::string base_url, std::string device_id, std::string child_id,
     claw4::sync::LearningBackendSession::Signer signer) {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   if (!bootReady()) return false;
   backend_ = std::make_unique<claw4::sync::LearningBackendSession>(
       app_->coordinator(), CreateMetalioHttpTransport(), std::move(base_url),
@@ -98,6 +103,7 @@ bool LearningRuntime::ConfigureBackend(
 }
 
 bool LearningRuntime::ConfigureProvisionedBackend() {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   NvsBackendProvisioning provisioning;
   claw4::sync::ProvisionedBackendConfig config;
   if (provisioning.load(config) != claw4::sync::ProvisioningStatus::Ready) {
@@ -110,6 +116,7 @@ bool LearningRuntime::ConfigureProvisionedBackend() {
 }
 
 bool LearningRuntime::RunOnlineCycle() {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   if (backend_ == nullptr) return false;
   // The caller owns scheduling: this method must not be invoked from the
   // LVGL event callback because the scheduled HTTP boundary waits for its
@@ -117,12 +124,40 @@ bool LearningRuntime::RunOnlineCycle() {
   return backend_->runOnlineCycle();
 }
 
-const claw4::sync::BackendSessionDiagnostics*
-LearningRuntime::BackendDiagnostics() const {
-  return backend_ ? &backend_->diagnostics() : nullptr;
+claw4::sync::BackendSessionDiagnostics LearningRuntime::BackendDiagnostics() const {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+  return backend_ ? backend_->diagnostics()
+                  : claw4::sync::BackendSessionDiagnostics{};
+}
+
+void LearningRuntime::StartBackendWorker() {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+  if (backend_task_ != nullptr) return;
+  const BaseType_t rc = xTaskCreate(
+      [](void* arg) {
+        auto* runtime = static_cast<LearningRuntime*>(arg);
+        for (;;) {
+          bool has_backend = false;
+          {
+            std::lock_guard<std::recursive_mutex> lock(runtime->state_mutex_);
+            has_backend = runtime->backend_ != nullptr;
+          }
+          if (!has_backend) {
+            runtime->ConfigureProvisionedBackend();
+          }
+          runtime->RunOnlineCycle();
+          vTaskDelay(pdMS_TO_TICKS(15000));
+        }
+      },
+      "learning_backend", 8192, this, 4, &backend_task_);
+  if (rc != pdPASS) {
+    backend_task_ = nullptr;
+    ESP_LOGE(TAG, "backend worker start failed");
+  }
 }
 
 void LearningRuntime::Init() {
+  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   if (inited_) return;
   app_ = std::make_unique<LearningApp>(storage_, clock_);
   app_->setIdentity(claw4::domain::DeviceId{kDeviceId},
@@ -153,6 +188,11 @@ void LearningRuntime::Init() {
   }
   app_->start();
   inited_ = true;
+  // Configuration is local-only and does not contact the network. The worker
+  // performs challenge/auth, today pull, and outbox event sync off the LVGL
+  // callback thread once the page is created.
+  ConfigureProvisionedBackend();
+  StartBackendWorker();
 }
 
 }  // namespace metalio

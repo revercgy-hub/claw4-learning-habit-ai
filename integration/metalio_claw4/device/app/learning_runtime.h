@@ -6,7 +6,11 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "sync/learning_backend_session.h"
 #include "metalio_claw4/device/ports/learning_clock.h"
@@ -29,6 +33,9 @@ class LearningRuntime {
   LearningApp& app() { return *app_; }
   bool inited() const { return inited_; }
   bool bootReady() const { return inited_ && app_ != nullptr && app_->running(); }
+  // Screen callbacks and the backend worker must hold this lock while
+  // touching the shared LearningApp/coordinator state.
+  std::recursive_mutex& stateMutex() { return state_mutex_; }
   claw4::ports::ClockPort& clock() { return clock_; }
 
   // Persisted monotonic id sources (NVS-backed, survive reboot) so a fresh
@@ -43,6 +50,7 @@ class LearningRuntime {
   // Erases the learning namespace and re-seeds the demo snapshot (used to
   // restore a clean demo state after the self-test chain).
   bool ResetToSeed();
+  void StartBackendWorker();
 
   // Configure the L2/L3 backend session after provisioning supplies an
   // endpoint and signer. The signer is injected so no credential is embedded
@@ -55,7 +63,7 @@ class LearningRuntime {
   // and creates the injected HMAC signer. Returns false when unprovisioned.
   bool ConfigureProvisionedBackend();
   bool RunOnlineCycle();
-  const claw4::sync::BackendSessionDiagnostics* BackendDiagnostics() const;
+  claw4::sync::BackendSessionDiagnostics BackendDiagnostics() const;
 
  private:
   LearningRuntime() = default;
@@ -64,6 +72,8 @@ class LearningRuntime {
   EspTimerClock clock_;
   std::unique_ptr<LearningApp> app_;
   std::unique_ptr<claw4::sync::LearningBackendSession> backend_;
+  TaskHandle_t backend_task_ = nullptr;
+  mutable std::recursive_mutex state_mutex_;
   bool inited_ = false;
 };
 
