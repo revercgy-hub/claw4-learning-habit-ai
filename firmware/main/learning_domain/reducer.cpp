@@ -13,10 +13,10 @@ namespace {
 // Accumulates the running focus segment into actual_seconds and returns the
 // session with a cleared segment start. Rejects when the clock went backwards.
 bool settleRunningSegment(StudySession& s, int64_t now_ms) {
-  if (s.status != SessionStatus::Running || s.segment_start_monotonic_ms <= 0) {
+  if (s.status != SessionStatus::Running) {
     return true;  // nothing to settle
   }
-  if (now_ms < s.segment_start_monotonic_ms) {
+  if (s.segment_start_monotonic_ms < 0 || now_ms < s.segment_start_monotonic_ms) {
     return false;  // clock went backwards
   }
   s.actual_seconds += (now_ms - s.segment_start_monotonic_ms) / 1000;
@@ -141,7 +141,7 @@ TransitionResult DomainReducer::reduce(const DomainState& state,
         return {false, RejectReason::SessionNotPaused,
                 IntentResult::RejectedInvalidState, std::nullopt, {}};
       }
-      if (s.paused_at_monotonic_ms > 0) {
+      if (s.paused_at_monotonic_ms >= 0) {
         if (ctx.monotonic_ms < s.paused_at_monotonic_ms) {
           return {false, RejectReason::ClockWentBackwards,
                   IntentResult::RejectedInvalidState, std::nullopt, {}};
@@ -186,7 +186,8 @@ TransitionResult DomainReducer::reduce(const DomainState& state,
           ctx, EventType::StudySessionCompleted,
           {{"session_id", done.session_id.value}, {"task_id", task.task_id.value},
            {"completion_type", "manual"},
-           {"actual_seconds", std::to_string(done.actual_seconds)}}));
+           {"actual_seconds", std::to_string(done.actual_seconds)},
+           {"pause_count", std::to_string(done.pause_count)}}));
       return {true, RejectReason::None, IntentResult::Accepted, next, std::move(drafts)};
     }
 
@@ -279,7 +280,8 @@ TransitionResult DomainReducer::recoverSession(const DomainState& state,
       {{"session_id", aborted.session_id.value},
        {"task_id", aborted.task_id.value},
        {"completion_type", "aborted"},
-       {"actual_seconds", std::to_string(aborted.actual_seconds)}}));
+       {"actual_seconds", std::to_string(aborted.actual_seconds)},
+       {"pause_count", std::to_string(aborted.pause_count)}}));
   return {true, RejectReason::None, IntentResult::Accepted, next, std::move(drafts)};
 }
 
@@ -311,7 +313,8 @@ TransitionResult DomainReducer::endRecoveredSession(const DomainState& state,
       {{"session_id", saved.session_id.value},
        {"task_id", saved.task_id.value},
        {"completion_type", "auto_saved"},
-       {"actual_seconds", std::to_string(saved.actual_seconds)}}));
+       {"actual_seconds", std::to_string(saved.actual_seconds)},
+       {"pause_count", std::to_string(saved.pause_count)}}));
   return {true, RejectReason::None, IntentResult::Accepted, next, std::move(drafts)};
 }
 

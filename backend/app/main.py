@@ -72,6 +72,16 @@ app.add_middleware(
 
 API_V1 = "/api/v1"
 
+
+def _valid_pause_count(payload: dict) -> bool:
+    """Optional v1 counter: accept C++ string integers or JSON integers only."""
+    value = payload.get("pause_count", 0)
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return False
+    if isinstance(value, str) and (not value.isascii() or not value.isdigit() or len(value) > 10):
+        return False
+    return 0 <= int(value) <= 2_147_483_647
+
 MVP_EVENT_TYPES = {
     "device.booted",
     "device.online",
@@ -322,7 +332,8 @@ def _process_batch(req: EventsBatchRequest, store: Store, claims: dict,
                                        status="rejected", http_status=403))
             continue
         if ev.type not in MVP_EVENT_TYPES or ev.version != 1 \
-                or ev.timestamp_source not in {"rtc", "local"} or ev.sequence <= 0:
+                or ev.timestamp_source not in {"rtc", "local"} or ev.sequence <= 0 \
+                or (ev.type == "study.session.completed" and not _valid_pause_count(ev.payload)):
             rejected_meta.append({"event_id": ev.event_id, "sequence": ev.sequence,
                                   "status": "rejected", "reason": "invalid_event"})
             results.append(EventResult(sequence=ev.sequence, event_id=ev.event_id,

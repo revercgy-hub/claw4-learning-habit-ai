@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -252,6 +253,36 @@ def test_today_tasks_filters_by_scheduled_date():
 # ---------------------------------------------------------------------------
 # C. event projection, dashboard, study records, transaction rollback
 # ---------------------------------------------------------------------------
+@pytest.mark.parametrize("pauses", [1, "2"])
+def test_pause_count_projection_is_exactly_once(pauses):
+    reg, token = _fresh_device_pair()
+    task = _seed_task("合成暂停次数")
+    session_id = "pause-count-" + uuid.uuid4().hex
+    events = [_event(1, uuid.uuid4().hex, "study.session.completed",
+        {"task_id": task["task_id"], "session_id": session_id,
+         "actual_seconds": "120", "pause_count": pauses}, device_id=reg["device_id"])]
+    assert _batch(reg, token, 0, events)["accepted"] == 1
+    assert _batch(reg, token, 0, events)["duplicates"] == 1
+    records = client.get(f"/api/v1/parents/me/children/{C1}/study-sessions",
+                         headers=_headers(P1)).json()
+    rows = [row for row in records if row["session_id"] == session_id]
+    assert len(rows) == 1
+    assert rows[0]["pause_count"] == int(pauses)
+    assert rows[0]["actual_seconds"] == 120 and rows[0]["xp"] == 2
+
+
+@pytest.mark.parametrize("pauses", ["oops", -1, True, None, 1.5, {}, "99999999999"])
+def test_invalid_pause_count_is_rejected_without_ack(pauses):
+    reg, token = _fresh_device_pair()
+    task = _seed_task("合成无效暂停次数")
+    events = [_event(1, uuid.uuid4().hex, "study.session.completed",
+        {"task_id": task["task_id"], "session_id": uuid.uuid4().hex,
+         "actual_seconds": "120", "pause_count": pauses}, device_id=reg["device_id"])]
+    result = _batch(reg, token, 0, events)
+    assert result["accepted"] == 0 and result["last_acked_sequence"] == 0
+    assert result["results"][0]["http_status"] == 422
+
+
 def test_session_lifecycle_projection():
     reg, token = _fresh_device_pair()
     task = _seed_task("投影-任务")
@@ -272,7 +303,7 @@ def test_session_lifecycle_projection():
     b2 = _batch(reg, token, 2, [
         _event(3, f"e-{uuid.uuid4().hex}", "study.session.completed",
                {"task_id": task["task_id"], "session_id": "sess-proj-1",
-                "actual_seconds": 600, "completion_type": "manual"},
+                "actual_seconds": 600, "pause_count": "3", "completion_type": "manual"},
                device_id=reg["device_id"]),
         _event(4, f"e-{uuid.uuid4().hex}", "task.completed",
                {"task_id": task["task_id"]}, device_id=reg["device_id"]),
@@ -283,6 +314,7 @@ def test_session_lifecycle_projection():
     sess = next(r for r in recs if r["session_id"] == "sess-proj-1")
     assert sess["status"] == "completed"
     assert sess["actual_seconds"] == 600
+    assert sess["pause_count"] == 3
     assert sess["xp"] == 10  # 600s / 60
     assert sess["task_title"] == "投影-任务"
     dash = client.get("/api/v1/parents/me/dashboard", headers=_headers(P1)).json()

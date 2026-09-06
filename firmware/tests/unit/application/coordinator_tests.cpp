@@ -653,7 +653,50 @@ static bool run_case_dispatch_retry_same_event_id_after_outbox_failure() {
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
+static bool run_case_boot_clock_rebase_preserves_counters_and_pending() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  env.ctx.mono = 0;  // zero is a valid monotonic epoch, not a missing anchor
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  env.ctx.advance(60000);
+  auto pause = startOf();
+  pause.intent = Intent::Pause;
+  CHECK(c.dispatchIntent(pause, env.ctx.make()).ok);
+  CHECK(c.state().active_session->actual_seconds == 60);
+  CHECK(c.state().active_session->pause_count == 1);
+  auto reboot = env.make();
+  env.disk->fail_next_commit = true;
+  CHECK(!reboot.prepareAfterBoot(0));
+  CHECK(reboot.state().active_session->paused_at_monotonic_ms == 60000);
+  CHECK(env.disk->state.domain.active_session->paused_at_monotonic_ms == 60000);
+  CHECK(reboot.prepareAfterBoot(0));
+  CHECK(reboot.pendingCount() == 3);
+  CHECK(env.disk->state.next_sequence == 4);
+  CHECK(reboot.state().active_session->actual_seconds == 60);
+  CHECK(reboot.state().active_session->paused_at_monotonic_ms == 0);
+  env.ctx.mono = 10000;
+  auto resume = startOf();
+  resume.intent = Intent::Resume;
+  CHECK(reboot.dispatchIntent(resume, env.ctx.make()).ok);
+  CHECK(reboot.state().active_session->pause_seconds == 10);
+  // Reboot while running: preserve only settled time, not old-epoch uptime.
+  auto running_reboot = env.make();
+  CHECK(running_reboot.prepareAfterBoot(0));
+  env.ctx.mono = 60000;
+  auto complete = startOf();
+  complete.intent = Intent::Complete;
+  CHECK(running_reboot.dispatchIntent(complete, env.ctx.make()).ok);
+  const auto& payload = env.disk->state.pending.back().payload;
+  CHECK(payload.at("actual_seconds") == "120");
+  CHECK(payload.at("pause_count") == "1");
+  CHECK(running_reboot.pendingCount() == 6);
+  CHECK(!running_reboot.prepareAfterBoot(-1));
+  return true;
+}
+
 static bool run_case_all() {
+  CASE(boot_clock_rebase_preserves_counters_and_pending);
   CASE(dispatch_start_publishes_after_commit);
   CASE(dispatch_reducer_reject_not_published);
   CASE(dispatch_outbox_failure_not_published);

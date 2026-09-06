@@ -69,6 +69,25 @@ bool AppCoordinator::reloadState() {
 int AppCoordinator::pendingCount() const { return outbox_.pendingCount(); }
 int64_t AppCoordinator::lastAcked() const { return outbox_.lastAcked(); }
 
+bool AppCoordinator::prepareAfterBoot(int64_t monotonic_ms) {
+  if (monotonic_ms < 0) return false;
+  sync::OutboxState stored;
+  if (!storage_.load(stored)) return false;
+  auto next = stored.domain;
+  if (next.active_session) {
+    auto& session = *next.active_session;
+    session.segment_start_monotonic_ms =
+        session.status == domain::SessionStatus::Running ? monotonic_ms : 0;
+    session.paused_at_monotonic_ms =
+        session.status == domain::SessionStatus::Paused ? monotonic_ms : 0;
+    sync::PendingTransition transition;
+    transition.next_state = next;
+    if (!outbox_.persistTransition(transition).committed()) return false;
+  }
+  state_ = std::move(next);
+  return true;
+}
+
 domain::TransitionResult AppCoordinator::dispatchIntent(
     const domain::IntentRequest& intent, const domain::ReducerContext& ctx) {
   return commitAndPublish(reducer_.reduce(state_, intent, ctx));

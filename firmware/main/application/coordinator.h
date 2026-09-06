@@ -97,6 +97,12 @@ class AppCoordinator {
   // survives reboot.
   bool applyTodaySnapshot(const std::vector<domain::Task>& server_tasks);
 
+  // Once per new boot, before accepting interaction: persisted monotonic
+  // anchors belong to the old clock epoch. Preserve settled counters and
+  // pending events; never infer focus/pause duration from offline wall time.
+  // Failure must keep the caller's startup/interaction gate closed.
+  bool prepareAfterBoot(int64_t monotonic_ms);
+
   // --- sync -------------------------------------------------------------
   // Sends only the pending consecutive prefix (sequence == last_acked+1 ...).
   // When sync is auth-paused (PausedAuth after a failed re-auth) the transport

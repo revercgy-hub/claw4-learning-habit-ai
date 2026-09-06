@@ -473,6 +473,7 @@ class Store:
                 return
             row = self._s.get(m.StudySessionRow, session_id)
             actual = max(0, int(payload.get("actual_seconds", 0) or 0))
+            pauses = max(0, int(payload.get("pause_count", 0) or 0))
             completion = payload.get("completion_type", "manual")
             if row is None:
                 # The session may have started before this server came up; a
@@ -485,6 +486,7 @@ class Store:
                     status="completed",
                     completion_type=completion,
                     actual_seconds=actual,
+                    pause_count=pauses,
                     xp=actual // 60,  # MVP +XP: 1 per full minute
                     started_at=float(ev.timestamp),
                     finished_at=float(ev.timestamp),
@@ -493,6 +495,7 @@ class Store:
             row.status = "completed"
             row.completion_type = completion
             row.actual_seconds = actual
+            row.pause_count = pauses
             row.xp = actual // 60
             row.finished_at = float(ev.timestamp)
 
