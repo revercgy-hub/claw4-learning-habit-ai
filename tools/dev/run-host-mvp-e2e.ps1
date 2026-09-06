@@ -25,7 +25,8 @@ param(
     [string]$CrossCompilerPath = "",
     [string]$LogDir = "out\e2e",
     [string]$PythonPath = "",
-    [string]$FrontendPath = ""
+    [string]$FrontendPath = "",
+    [switch]$SkipHostCpp
 )
 
 $ErrorActionPreference = "Continue"
@@ -56,7 +57,9 @@ if (-not (Test-Path $hostGate)) {
 
 # --- 1) native C++ host gate ---------------------------------------------
 Write-Log "== [1/3] native C++ host gate =="
-if (-not (Test-Path $hostGate)) {
+if ($SkipHostCpp) {
+    Write-Log "C++ host gate : SKIPPED (caller owns this gate)"
+} elseif (-not (Test-Path $hostGate)) {
     Write-Log "FAIL: verify-host-cpp-tests.ps1 not found ($hostGate)"
     $global:FAILED = $true
 } else {
@@ -106,7 +109,7 @@ if (-not (Test-Path (Join-Path $frontendDir "package.json"))) {
     $global:FAILED = $true
 } else {
     Push-Location $frontendDir
-    foreach ($step in @("typecheck", "test", "build")) {
+    foreach ($step in @("typecheck", "lint", "test", "build")) {
         & $npm run $step 2>&1 | Out-File -Append -Encoding utf8 $Log
         $code = $LASTEXITCODE
         if ($code -eq 0) {
@@ -125,5 +128,5 @@ if ($global:FAILED) {
     Write-Log "E2E RESULT: FAIL"
     exit 1
 }
-Write-Log "E2E RESULT: PASS (all steps on 127.0.0.1 / in-process; nothing left running)"
+Write-Log "E2E RESULT: PASS (executed steps; SkipHostCpp=$SkipHostCpp; no device testing)"
 exit 0

@@ -128,13 +128,19 @@ try {
 
     if ($Mode -in @("Full", "IdfBuild")) {
         $e2eScript = Join-Path $scriptDir "run-host-mvp-e2e.ps1"
-        $e2eArgs = @{ CompilerPath = $compiler; LogDir = (Join-Path $LogDir "host-e2e") }
+        $e2eArgs = @{ CompilerPath = $compiler; LogDir = (Join-Path $LogDir "host-e2e"); SkipHostCpp = $true }
         if ($cross) { $e2eArgs.CrossCompilerPath = $cross }
         if ($PythonPath) { $e2eArgs.PythonPath = $PythonPath }
         if ($FrontendPath) { $e2eArgs.FrontendPath = $FrontendPath }
         $e2eExit = Invoke-GateScript -ScriptPath $e2eScript -Arguments $e2eArgs
         Add-Result -Name "hostMvpE2e" -Passed ($e2eExit -eq 0) -ExitCode $e2eExit -Detail "run-host-mvp-e2e.ps1"
         if ($e2eExit -ne 0) { throw "Host MVP E2E gate failed with exit code $e2eExit" }
+        $connectedPython = if ($PythonPath) { $PythonPath } else { Join-Path $repoRoot "backend\.venv\Scripts\python.exe" }
+        $connectedOutput = & $connectedPython (Join-Path $scriptDir "verify-connected-learning-app.py") --repo $repoRoot --compiler $compiler --out-dir (Join-Path $logDirAbs "connected-app") 2>&1
+        $connectedExit = $LASTEXITCODE
+        if ($connectedOutput) { $connectedOutput | Out-File -FilePath $transcriptPath -Append -Encoding utf8 }
+        Add-Result -Name "connectedLearningApp" -Passed ($connectedExit -eq 0) -ExitCode $connectedExit -Detail "5 HTTP rounds / 55 process restarts; browser/device are separate gates"
+        if ($connectedExit -ne 0) { throw "Connected LearningApp gate failed with exit code $connectedExit" }
     }
 
     if ($Mode -eq "IdfBuild") {

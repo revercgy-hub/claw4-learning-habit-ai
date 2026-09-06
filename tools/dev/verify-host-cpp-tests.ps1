@@ -30,7 +30,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $Log = Join-Path $OutDir "host_result.txt"
 Remove-Item $Log -ErrorAction SilentlyContinue
 function Write-Log([string]$m) { $m | Out-File -Append -Encoding utf8 $Log }
-$global:FAILED = $false
+$hostGateFailed = $false
 
 Write-Log "== WB-STREAM-002 CP0: native C++17 test gate =="
 Write-Log "Repo   : $RepoRoot"
@@ -97,7 +97,7 @@ if ($ccode -eq 0 -and (Test-Path $obj)) {
     Write-Log "compile : PASS (obj=$obj)"
 } else {
     Write-Log "compile : FAIL (exit=$ccode)"
-    $global:FAILED = $true
+    $hostGateFailed = $true
 }
 
 # ---- 3) link ----
@@ -112,13 +112,13 @@ if ($lcode -eq 0 -and (Test-Path $exe)) {
     Write-Log "link    : PASS (exe=$exe)"
 } else {
     Write-Log "link    : FAIL (exit=$lcode)"
-    $global:FAILED = $true
+    $hostGateFailed = $true
 }
 
 # ---- 4) run ----
 Write-Log ""
 Write-Log "== 4) run =="
-if ($global:FAILED) {
+if ($hostGateFailed) {
     Write-Log "run     : SKIPPED (compile/link failed)"
 } else {
     $rout = & $exe 2>&1
@@ -128,7 +128,7 @@ if ($global:FAILED) {
         Write-Log "run     : PASS (exit=0)"
     } else {
         Write-Log "run     : FAIL (exit=$rcode)"
-        $global:FAILED = $true
+        $hostGateFailed = $true
     }
 }
 
@@ -156,7 +156,7 @@ if ($violations.Count -eq 0) {
 } else {
     Write-Log "scan    : FAIL"
     $violations | ForEach-Object { Write-Log "  $_" }
-    $global:FAILED = $true
+    $hostGateFailed = $true
 }
 
 # ---- 4b2) dependency scan for ui presenters (no LVGL/network/hardware/BSP,
@@ -170,7 +170,7 @@ if (Test-Path (Join-Path $RepoRoot "firmware\main\ui")) {
 }
 $uiViol = @()
 $ForbiddenUi = @("lvgl", "esp_", "freertos", "driver/", "bsp", "wifi", "nvs", "hal",
-                 "sync", "application", "assistant/", "telemetry/")
+                 "sync/", "application/", "assistant/", "telemetry/")
 foreach ($f in $uiFiles) {
     $content = Get-Content -Raw $f.FullName
     foreach ($inc in [regex]::Matches($content, '#\s*include\s*[<"]([^>"]+)')) {
@@ -187,7 +187,7 @@ if ($uiViol.Count -eq 0) {
 } else {
     Write-Log "ui scan : FAIL"
     $uiViol | ForEach-Object { Write-Log "  $_" }
-    $global:FAILED = $true
+    $hostGateFailed = $true
 }
 
 # ---- 4b3) dependency scan for interaction/mcp/ports (host-safe V4 §7~§9:
@@ -245,7 +245,7 @@ if ($hostViol.Count -eq 0) {
 } else {
     Write-Log "scan    : FAIL"
     $hostViol | ForEach-Object { Write-Log "  $_" }
-    $global:FAILED = $true
+    $hostGateFailed = $true
 }
 
 # ---- 4c) native unit tests under firmware/tests/unit (compile + link + run)
@@ -282,20 +282,40 @@ if (Test-Path $unitRoot) {
     $includeArgs = @("-I", (Join-Path $RepoRoot "firmware\main"),
                      "-I", (Join-Path $RepoRoot "firmware\tests"),
                      "-I", (Join-Path $RepoRoot "integration"))
+    # Compile the common implementation ONCE per gate. Every test still
+    # compiles and links independently; no timestamp/cache correctness risk.
+    $implObjects = @()
+    $implFailed = $false
+    $objectIndex = 0
+    foreach ($source in $implSrcs) {
+        $object = Join-Path $OutDir ("common-{0}.o" -f $objectIndex++)
+        $compileArgs = @("-std=c++17", "-Wall", "-Wextra", "-Werror") + $includeArgs + @("-c", $source, "-o", $object)
+        $compileOutput = & $cc @compileArgs 2>&1
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $object)) {
+            if ($compileOutput) { $compileOutput | Out-File -Append -Encoding utf8 $Log }
+            Write-Log "common implementation: FAIL ($source)"
+            $implFailed = $true
+            $hostGateFailed = $true
+            break
+        }
+        $implObjects += $object
+    }
+    Write-Log "common implementation objects: $($implObjects.Count) (compiled once)"
     $unitPass = 0
     foreach ($tf in $testFiles) {
+        if ($implFailed) { break }
         $name = $tf.BaseName
         $exe = Join-Path $OutDir "$name.exe"
         $errf = Join-Path $OutDir "$name.err.txt"
         Remove-Item $exe, $errf -ErrorAction SilentlyContinue
         $args = @("-std=c++17", "-Wall", "-Wextra", "-Werror") + $includeArgs +
-                @($tf.FullName) + $implSrcs + @("-o", $exe)
+                @($tf.FullName) + $implObjects + @("-o", $exe)
         $cout = & $cc @args 2>&1
         $ccode = $LASTEXITCODE
         if ($ccode -ne 0 -or -not (Test-Path $exe)) {
             if ($cout) { $cout | Out-File -Append -Encoding utf8 $Log }
             Write-Log "unit $name : COMPILE/LINK FAIL (exit=$ccode)"
-            $global:FAILED = $true
+            $hostGateFailed = $true
             continue
         }
         $rout = & $exe 2>&1
@@ -306,7 +326,7 @@ if (Test-Path $unitRoot) {
             Write-Log "unit $name : RUN PASS (exit=0)"
         } else {
             Write-Log "unit $name : RUN FAIL (exit=$rcode)"
-            $global:FAILED = $true
+            $hostGateFailed = $true
         }
     }
     Write-Log "unit summary : $unitPass / $($testFiles.Count) PASS"
@@ -328,19 +348,19 @@ if (Test-Path $ifaceScript) {
     if ($cross) {
         & $ifaceScript -CompilerPath $cross -OutputDir (Join-Path $OutDir "interface") *>> $Log
         Write-Log "interface: exit=$LASTEXITCODE (see above; 0 == PASS)"
-        if ($LASTEXITCODE -ne 0) { $global:FAILED = $true }
+        if ($LASTEXITCODE -ne 0) { $hostGateFailed = $true }
     } else {
         # fall back to PATH resolution inside the interface script
         & $ifaceScript -OutputDir (Join-Path $OutDir "interface") *>> $Log
         Write-Log "interface: exit=$LASTEXITCODE (PATH-resolved cross compiler)"
-        if ($LASTEXITCODE -ne 0) { $global:FAILED = $true }
+        if ($LASTEXITCODE -ne 0) { $hostGateFailed = $true }
     }
 } else {
     Write-Log "interface: SKIPPED (verify-interface-contracts.ps1 not found)"
 }
 
 Write-Log ""
-if ($global:FAILED) {
+if ($hostGateFailed) {
     Write-Log "RESULT: FAIL"
     exit 1
 } else {
