@@ -47,6 +47,7 @@ struct Ui {
   lv_obj_t* row_b = nullptr;      // second task line
   lv_obj_t* row_more = nullptr;   // "… and N more" / empty hint
   lv_obj_t* session = nullptr;    // big session/status text (multi-line)
+  lv_obj_t* diagnostics = nullptr;  // pending/ACK/boot gate, no hardware claims
   lv_obj_t* primary = nullptr;    // 开始/暂停/继续 button
   lv_obj_t* primary_lbl = nullptr;
   lv_obj_t* secondary = nullptr;  // 完成 button
@@ -196,6 +197,21 @@ void DispatchTouch(CommandKind kind, const TaskId& task_id) {
 
 // --- refresh (pure projection of committed domain state) ------------------
 void RefreshUi() {
+  if (!Rt().bootReady()) {
+    lv_label_set_text(s_ui.row_a, "学习状态恢复失败");
+    lv_label_set_text(s_ui.row_b, "请返回后重试");
+    lv_label_set_text(s_ui.row_more, "启动恢复门禁未通过，未接受任何操作");
+    lv_label_set_text(s_ui.session, "暂不可用");
+    lv_label_set_text(s_ui.primary_lbl, "—");
+    lv_label_set_text(s_ui.secondary_lbl, "—");
+    lv_obj_remove_flag(s_ui.primary, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(s_ui.secondary, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_opa(s_ui.primary, LV_OPA_40, 0);
+    lv_obj_set_style_opa(s_ui.secondary, LV_OPA_40, 0);
+    lv_label_set_text(s_ui.diagnostics,
+                      "诊断 · boot recovery failed · 未执行网络/业务操作");
+    return;
+  }
   auto& app = Rt().app();
   const DomainState& st = app.state();
   const bool has_active = st.active_session.has_value();
@@ -287,6 +303,12 @@ void RefreshUi() {
     lv_obj_remove_flag(s_ui.secondary, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_opa(s_ui.secondary, LV_OPA_40, 0);
   }
+
+  const std::string diagnostics =
+      "诊断 · build app-first · pending " +
+      std::to_string(app.pendingCount()) + " · ACK " +
+      std::to_string(app.coordinator().lastAcked()) + " · 配对待验证";
+  lv_label_set_text(s_ui.diagnostics, diagnostics.c_str());
 }
 
 // --- callbacks -------------------------------------------------------------
@@ -427,6 +449,12 @@ lv_obj_t* LearningScreen::Create() {
   lv_obj_set_style_text_font(s_ui.session, &font_puhui_30_4, 0);
   lv_obj_set_style_text_align(s_ui.session, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_center(s_ui.session);
+  s_ui.diagnostics = lv_label_create(panel);
+  lv_obj_set_style_text_color(s_ui.diagnostics, lv_color_hex(0x8A93A6), 0);
+  lv_obj_set_style_text_font(s_ui.diagnostics, &font_puhui_20_4, 0);
+  lv_obj_set_width(s_ui.diagnostics, 600);
+  lv_label_set_long_mode(s_ui.diagnostics, LV_LABEL_LONG_CLIP);
+  lv_obj_set_pos(s_ui.diagnostics, 20, 116);
 
   // Primary / secondary actions.
   s_ui.primary = MakeButton(scr, 140, 470, 440, 88, "—", OnPrimary);
@@ -436,7 +464,7 @@ lv_obj_t* LearningScreen::Create() {
 
   RefreshUi();
   s_ui.timer = lv_timer_create(OnRefreshTick, kRefreshMs, nullptr);
-  if (rt.SelfTestPending() && s_selftest_timer == nullptr) {
+  if (rt.bootReady() && rt.SelfTestPending() && s_selftest_timer == nullptr) {
     s_selftest_step = 0;
     s_selftest_ok[0] = s_selftest_ok[1] = s_selftest_ok[2] = s_selftest_ok[3] = false;
     s_selftest_timer = lv_timer_create(RunSelfTestStep, 600, nullptr);

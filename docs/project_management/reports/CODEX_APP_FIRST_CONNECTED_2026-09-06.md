@@ -17,7 +17,7 @@ Host connected checkpoint：`CHECKPOINT_READY`。AF3 host scheduler 与 runtime 
 | `649f7d1` | connected C++ runner + Python relay | 真正结束/重建进程；复用设备 outbox codec；Python 只负责 HTTP/签名/文件 I/O，不构造或改写业务事件 |
 | `1757ef2` | 三个 gate 脚本 | 子脚本不再清除早先失败；修正 UI include 误报；共用实现每轮编译一次；Full 不重复跑 host；接入 connected gate 与 lint |
 | `49ce7a8` | `ScheduledHttpTransport`、Metalio HTTP 薄适配、runtime 启动恢复接线及报告 | 所有设备 HTTP 调用经 `Application::Schedule` 主循环；host 16/16 与 scheduler 单测通过 |
-| 待提交（本轮） | 白名单镜像同步工具与 AF3 CMake BUILD ONLY 证据 | 64/64 文件 SHA 一致；C5 构建成功编译两个新 adapter 对象 |
+| 待提交（本轮） | 白名单镜像同步工具、AF3 CMake BUILD ONLY 与屏侧启动保护 | 64/64 文件 SHA 一致；C5 构建成功编译两个新 adapter 对象及 Learning screen 保护 |
 
 关键复检发现：
 
@@ -44,6 +44,7 @@ Host connected checkpoint：`CHECKPOINT_READY`。AF3 host scheduler 与 runtime 
 - PWA：typecheck/lint/build PASS，5 files / 31 tests PASS。
 - AF3 scheduler：C++ host gate 16/16 PASS（新增 `scheduled_http_transport_tests`）；adapter 只在 device TU 引用 `board.h`/`application.h`，BackendClient 仍保持纯 C++。
 - repo→E:/c 白名单同步：64 个文件，`Check` 结果 `mismatch_before=0/mismatch_after=0`；同步工具为 `tools/dev/sync-app-first-mirror.ps1`，只复制 allowlist，不删除文件。
+- 屏侧保护：`LearningScreen::RefreshUi` 在 `bootReady()==false` 时不解引用空 app、不接受触摸/self-test，并显示恢复失败；正常态显示本地 pending/ACK/配对待验证。
 - connected：5 轮、55 次真实进程重启；30 accepted + 30 duplicates；每轮 pending 6→0、ACK 0→6。
 - 首次 Start 注入保存失败：旧 blob 字节不变、无活动会话、pending 0。断网暂停保留 3 pending；进程重启恢复后 Resume/Complete 成功。
 - 后端提交后丢弃响应，再 kill/restart；重传请求字节完全一致，6 个 event_id 全唯一，sequence 1..6 连续。
@@ -63,7 +64,7 @@ connected runner 的 `--base-url`/`--task-id` 模式执行这些同一 task_id�
 
 ## 冷构建与配置门禁
 
-独立 C5 配置副本 cold build exit 0：`E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin`，9,175,856 B，SHA-256 `ef7e52bfc527524f905c220883d489d0d32abbc892594891e1c81aad20cb5a83`。本次 BUILD ONLY 日志明确包含 `scheduled_http_transport.cpp` 与 `metalio_http_transport.cpp` 的编译和链接；**禁止刷写，不是 L2/L3 候选**，因为注册/凭据、设备诊断和真机网络链尚未完成。
+独立 C5 配置副本 cold build exit 0：`E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin`，9,176,176 B，SHA-256 `f3a8a58c9ea093f6363a264a72802b7323693982c3bb0efef8a047b5a38bcac3`。本次 BUILD ONLY 日志明确包含 `scheduled_http_transport.cpp`、`metalio_http_transport.cpp` 与 Learning screen 保护的编译和链接；**禁止刷写，不是 L2/L3 候选**，因为注册/凭据、设备诊断和真机网络链尚未完成。
 
 旧冷构建 `E:/workbuddy/claw4-idf-cold-20260905c/xiaozhi.bin`（9,188,624 B，SHA-256 `400b6ba665cb07767236ba2cbad7f6c8462c9999a0143f8dd7e9b2bd39b30d50`）同样仅作历史证据，禁止刷写。
 

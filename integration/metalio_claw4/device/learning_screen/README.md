@@ -11,6 +11,7 @@
 - `../ports/`：`learning_clock.{h,cpp}`（ClockPort<-esp_timer）、`nvs_outbox_storage.{h,cpp}`（OutboxStorage<-NVS namespace `learning`/key `st`）。
 - 构建镜像：repo 权威副本同步到 `E:/c/main/learning/`（fw 业务核心 = repo `firmware/main/{learning_domain,sync,application,interaction,mcp,ui,ports}`；glue/device = repo `integration/metalio_claw4/{host_glue,device}`），官方 `main/CMakeLists.txt` 由 `integration_manifest.md` #3 登记（INCLUDE_DIRS +learning、SOURCES +10 行）。
 - AF3 更新：`sync/scheduled_http_transport.{h,cpp}` 是平台无关的主循环边界；`device/ports/metalio_http_transport.{h,cpp}` 才引用官方 `Application`/`Board`/`NetworkInterface`，每次网络调用都由 `Application::Schedule` 执行。该 adapter 需在恢复 C5 构建镜像后加入 source registration 并做 BUILD ONLY 验证，当前不宣称已编入固件。
+- AF3 诊断：Learning 页面在 `bootReady()` 失败时保持交互关闭并显示恢复失败；正常态只显示本地 pending/ACK 与“配对待验证”，不把 host/BUILD ONLY 证据写成真机网络或 NVS 已验证。
 - 同步命令（在仓库根执行）：
 ```bash
 rm -rf /e/c/main/learning && mkdir -p /e/c/main/learning
