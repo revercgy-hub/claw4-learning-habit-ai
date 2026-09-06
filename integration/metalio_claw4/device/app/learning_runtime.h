@@ -48,8 +48,12 @@ class LearningRuntime {
   // endpoint and signer. The signer is injected so no credential is embedded
   // in the firmware or logged by the learning app. RunOnlineCycle() must be
   // called from a worker/task context; it never blocks the LVGL callback.
-  bool ConfigureBackend(std::string base_url,
-                        claw4::sync::LearningBackendSession::Signer signer);
+  bool ConfigureBackend(
+      std::string base_url, std::string device_id, std::string child_id,
+      claw4::sync::LearningBackendSession::Signer signer);
+  // Loads endpoint/identity/secret from the dedicated provisioning namespace
+  // and creates the injected HMAC signer. Returns false when unprovisioned.
+  bool ConfigureProvisionedBackend();
   bool RunOnlineCycle();
   const claw4::sync::BackendSessionDiagnostics* BackendDiagnostics() const;
 

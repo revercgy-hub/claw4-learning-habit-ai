@@ -13,6 +13,8 @@
 #include "metalio_claw4/device/core/outbox_codec.h"
 #include "metalio_claw4/device/core/random_id.h"
 #include "metalio_claw4/device/ports/metalio_http_transport.h"
+#include "metalio_claw4/device/ports/metalio_hmac_signer.h"
+#include "metalio_claw4/device/ports/nvs_backend_provisioning.h"
 
 namespace claw4 {
 namespace metalio {
@@ -84,14 +86,27 @@ bool LearningRuntime::ResetToSeed() {
 }
 
 bool LearningRuntime::ConfigureBackend(
-    std::string base_url,
+    std::string base_url, std::string device_id, std::string child_id,
     claw4::sync::LearningBackendSession::Signer signer) {
   if (!bootReady()) return false;
   backend_ = std::make_unique<claw4::sync::LearningBackendSession>(
       app_->coordinator(), CreateMetalioHttpTransport(), std::move(base_url),
-      claw4::domain::DeviceId{kDeviceId}, claw4::domain::ChildId{kChildId},
+      claw4::domain::DeviceId{std::move(device_id)},
+      claw4::domain::ChildId{std::move(child_id)},
       std::move(signer), [this] { return clock_.epochSeconds(); });
   return backend_->diagnostics().configured;
+}
+
+bool LearningRuntime::ConfigureProvisionedBackend() {
+  NvsBackendProvisioning provisioning;
+  claw4::sync::ProvisionedBackendConfig config;
+  if (provisioning.load(config) != claw4::sync::ProvisioningStatus::Ready) {
+    return false;
+  }
+  return ConfigureBackend(
+      std::move(config.base_url), std::move(config.device_id),
+      std::move(config.child_id),
+      CreateMetalioHmacSigner(std::move(config.device_secret)));
 }
 
 bool LearningRuntime::RunOnlineCycle() {

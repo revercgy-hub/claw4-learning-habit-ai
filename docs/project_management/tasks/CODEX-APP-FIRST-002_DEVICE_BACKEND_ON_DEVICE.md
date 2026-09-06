@@ -27,6 +27,7 @@
 
 - 新增平台无关 `BackendProvisioning` 接口：读取 endpoint、device ID、child ID 和不可回显 secret；缺失时返回 `NotConfigured`。
 - 设备适配使用现有 NVS 能力，限制在 learning 业务命名空间；不得擦除已有任务/outbox 状态，不在日志中打印 secret/token/nonce/signature。
+- 本实现使用独立 `learning_cfg` namespace，避免 `ResetToSeed()` 清理业务状态时删除配对凭据；MVP 仍记录为 NVS 明文存储，正式安全存储另列硬化任务。
 - 写入采用临时缓冲→校验→commit；失败保留旧配置。
 - host fake 覆盖空配置、损坏配置、重启读回和旧配置保留。
 
@@ -89,4 +90,3 @@ Learning 诊断至少显示：`configured`、network、auth、pending、last ACK
 - 每个 checkpoint 独立提交并 push；
 - 最终报告记录 endpoint 类型、候选 SHA、串口、操作地址、屏侧结果和未解决风险；
 - 任何 secret、token、nonce、原始儿童数据和完整设备日志均不得入 Git。
-
