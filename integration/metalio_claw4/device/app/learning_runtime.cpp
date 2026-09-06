@@ -23,10 +23,6 @@ namespace {
 
 constexpr const char* TAG = "LearningRt";
 
-// MVP identity (L2 provisioning replaces with the enrolled child/device ids).
-constexpr const char* kDeviceId = "dev-claw4-l1";
-constexpr const char* kChildId = "child-1";
-
 }  // namespace
 
 LearningRuntime& LearningRuntime::Instance() {
@@ -71,8 +67,8 @@ bool LearningRuntime::ResetToSeed() {
     return false;
   }
   app_ = std::make_unique<LearningApp>(storage_, clock_);
-  app_->setIdentity(claw4::domain::DeviceId{kDeviceId},
-                    claw4::domain::ChildId{kChildId});
+  app_->setIdentity(claw4::domain::DeviceId{device_id_},
+                    claw4::domain::ChildId{child_id_});
   app_->setEventIdFactory([this] {
     return claw4::domain::EventId{NextEventId()};
   });
@@ -94,6 +90,10 @@ bool LearningRuntime::ConfigureBackend(
     claw4::sync::LearningBackendSession::Signer signer) {
   std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   if (!bootReady()) return false;
+  device_id_ = device_id;
+  child_id_ = child_id;
+  app_->setIdentity(claw4::domain::DeviceId{device_id_},
+                    claw4::domain::ChildId{child_id_});
   backend_ = std::make_unique<claw4::sync::LearningBackendSession>(
       app_->coordinator(), CreateMetalioHttpTransport(), std::move(base_url),
       claw4::domain::DeviceId{std::move(device_id)},
@@ -108,6 +108,12 @@ bool LearningRuntime::ConfigureProvisionedBackend() {
   claw4::sync::ProvisionedBackendConfig config;
   if (provisioning.load(config) != claw4::sync::ProvisioningStatus::Ready) {
     return false;
+  }
+  device_id_ = config.device_id;
+  child_id_ = config.child_id;
+  if (app_ != nullptr) {
+    app_->setIdentity(claw4::domain::DeviceId{device_id_},
+                      claw4::domain::ChildId{child_id_});
   }
   return ConfigureBackend(
       std::move(config.base_url), std::move(config.device_id),
@@ -159,9 +165,16 @@ void LearningRuntime::StartBackendWorker() {
 void LearningRuntime::Init() {
   std::lock_guard<std::recursive_mutex> lock(state_mutex_);
   if (inited_) return;
+  NvsBackendProvisioning provisioning;
+  claw4::sync::ProvisionedBackendConfig provisioned;
+  if (provisioning.load(provisioned) ==
+      claw4::sync::ProvisioningStatus::Ready) {
+    device_id_ = provisioned.device_id;
+    child_id_ = provisioned.child_id;
+  }
   app_ = std::make_unique<LearningApp>(storage_, clock_);
-  app_->setIdentity(claw4::domain::DeviceId{kDeviceId},
-                    claw4::domain::ChildId{kChildId});
+  app_->setIdentity(claw4::domain::DeviceId{device_id_},
+                    claw4::domain::ChildId{child_id_});
   app_->setEventIdFactory([this] {
     return claw4::domain::EventId{NextEventId()};
   });

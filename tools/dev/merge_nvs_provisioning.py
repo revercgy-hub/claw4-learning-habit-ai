@@ -38,9 +38,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("source", type=Path, help="read-only NVS dump")
     parser.add_argument("output", type=Path, help="rebuilt NVS image")
     parser.add_argument("size", type=int, help="NVS partition size in bytes")
-    parser.add_argument("--base-url", required=True)
-    parser.add_argument("--device-id", required=True)
-    parser.add_argument("--child-id", required=True)
+    parser.add_argument("--base-url")
+    parser.add_argument("--device-id")
+    parser.add_argument("--child-id")
+    parser.add_argument(
+        "--drop-namespace",
+        action="append",
+        default=[],
+        help="omit an existing namespace (repeatable; destructive by design)",
+    )
+    parser.add_argument(
+        "--no-provisioning",
+        action="store_true",
+        help="do not append learning_cfg; preserve it if present in source",
+    )
     parser.add_argument(
         "--secret-stdin",
         action="store_true",
@@ -49,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def collect_entries(source: Path) -> tuple[list[tuple[str, str, str, Any]], set[tuple[str, str]], set[str]]:
+def collect_entries(source: Path, drop_namespaces: set[str]) -> tuple[list[tuple[str, str, str, Any]], set[tuple[str, str]], set[str]]:
     nvs_parser = load_parser()
     partition = nvs_parser.NVS_Partition(source.name, bytearray(source.read_bytes()))
     namespaces: dict[int, str] = {}
@@ -68,9 +79,11 @@ def collect_entries(source: Path) -> tuple[list[tuple[str, str, str, Any]], set[
 
     rows: list[tuple[str, str, str, Any]] = []
     logical_keys: set[tuple[str, str]] = {
-        (name, "<namespace>") for name in namespaces.values()
+        (name, "<namespace>")
+        for name in namespaces.values()
+        if name not in drop_namespaces
     }
-    namespace_names = set(namespaces.values())
+    namespace_names = set(namespaces.values()) - drop_namespaces
 
     for page in partition.pages:
         for entry in page.entries:
@@ -82,6 +95,8 @@ def collect_entries(source: Path) -> tuple[list[tuple[str, str, str, Any]], set[
             if namespace_id not in namespaces:
                 raise ValueError("entry refers to unknown namespace")
             namespace = namespaces[namespace_id]
+            if namespace in drop_namespaces:
+                continue
             entry_type = entry.metadata["type"]
 
             if entry_type == "blob_index":
@@ -119,6 +134,8 @@ def collect_entries(source: Path) -> tuple[list[tuple[str, str, str, Any]], set[
             logical_keys.add((namespace, entry.key))
 
     for namespace in namespaces.values():
+        if namespace in drop_namespaces:
+            continue
         rows.append((namespace, "namespace", "", ""))
         rows.extend(entries_by_namespace[namespace])
 
@@ -138,11 +155,12 @@ def write_csv(path: Path, rows: list[tuple[str, str, str, Any]], args: argparse.
         writer.writerow(("key", "type", "encoding", "value"))
         for row in rows:
             writer.writerow(row)
-        writer.writerow(("learning_cfg", "namespace", "", ""))
-        writer.writerow(("base_url", "data", "string", args.base_url))
-        writer.writerow(("device_id", "data", "string", args.device_id))
-        writer.writerow(("child_id", "data", "string", args.child_id))
-        writer.writerow(("device_secret", "data", "string", secret))
+        if not args.no_provisioning:
+            writer.writerow(("learning_cfg", "namespace", "", ""))
+            writer.writerow(("base_url", "data", "string", args.base_url))
+            writer.writerow(("device_id", "data", "string", args.device_id))
+            writer.writerow(("child_id", "data", "string", args.child_id))
+            writer.writerow(("device_secret", "data", "string", secret))
 
 
 def logical_key_set(path: Path) -> tuple[set[tuple[str, str]], set[str]]:
@@ -169,10 +187,13 @@ def main() -> int:
     args = parse_args()
     if args.size <= 0 or args.size % 4096:
         raise ValueError("size must be a positive multiple of 4096")
-    if not args.secret_stdin:
-        raise ValueError("--secret-stdin is required for local provisioning")
-    secret = read_secret()
-    rows, old_keys, old_namespaces = collect_entries(args.source)
+    if not args.no_provisioning:
+        if not args.secret_stdin:
+            raise ValueError("--secret-stdin is required for local provisioning")
+        if not args.base_url or not args.device_id or not args.child_id:
+            raise ValueError("base-url, device-id and child-id are required for provisioning")
+    secret = read_secret() if args.secret_stdin else ""
+    rows, old_keys, old_namespaces = collect_entries(args.source, set(args.drop_namespace))
     with tempfile.TemporaryDirectory(prefix="claw4-nvs-") as temp_dir:
         csv_path = Path(temp_dir) / "merged.csv"
         write_csv(csv_path, rows, args, secret)
@@ -199,18 +220,21 @@ def main() -> int:
         raise RuntimeError("generated image dropped an existing namespace")
     if not old_keys.issubset(new_keys):
         raise RuntimeError("generated image dropped an existing namespace/key")
-    expected = {
-        ("learning_cfg", "<namespace>"),
-        ("learning_cfg", "base_url"),
-        ("learning_cfg", "device_id"),
-        ("learning_cfg", "child_id"),
-        ("learning_cfg", "device_secret"),
-    }
-    if not expected.issubset(new_keys):
-        raise RuntimeError("generated image is missing provisioning keys")
+    expected = set()
+    if not args.no_provisioning:
+        expected = {
+            ("learning_cfg", "<namespace>"),
+            ("learning_cfg", "base_url"),
+            ("learning_cfg", "device_id"),
+            ("learning_cfg", "child_id"),
+            ("learning_cfg", "device_secret"),
+        }
+        if not expected.issubset(new_keys):
+            raise RuntimeError("generated image is missing provisioning keys")
+    added = len(expected)
     print(
         f"validated: preserved_namespaces={len(old_namespaces)} "
-        f"preserved_entries={len(old_keys)} added_entries=5 size={args.size}"
+        f"preserved_entries={len(old_keys)} added_entries={added} size={args.size}"
     )
     return 0
 

@@ -74,6 +74,8 @@ class LearningRuntime {
   std::unique_ptr<claw4::sync::LearningBackendSession> backend_;
   TaskHandle_t backend_task_ = nullptr;
   mutable std::recursive_mutex state_mutex_;
+  std::string device_id_ = "dev-claw4-l1";
+  std::string child_id_ = "child-1";
   bool inited_ = false;
 };
 
