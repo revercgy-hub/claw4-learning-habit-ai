@@ -4,9 +4,9 @@
 
 ## 结论
 
-Host connected checkpoint：`CHECKPOINT_READY`。**不是** `APP_FIRST_MVP_LOOP=PASS`，不安排刷机。
+Host connected checkpoint：`CHECKPOINT_READY`。AF3 host scheduler 与 runtime 启动恢复接线已完成；**不是** `APP_FIRST_MVP_LOOP=PASS`，不安排刷机。
 
-真实 C++ LearningApp → BackendClient/wire codec → loopback HTTP → SQLite → PWA 已有业务证据。AF3 的设备注册/凭据、网络调度、页面诊断、启动恢复入口接入和精确镜像集成仍待实施。
+真实 C++ LearningApp → BackendClient/wire codec → loopback HTTP → SQLite → PWA 已有业务证据。设备注册/凭据、页面诊断和精确镜像集成仍待实施；当前设备适配源码仍只存在于本仓库，未宣称已进入 E:/c 构建树。
 
 ## 不可变代码提交与修改范围
 
@@ -16,13 +16,13 @@ Host connected checkpoint：`CHECKPOINT_READY`。**不是** `APP_FIRST_MVP_LOOP=
 | `e4a0df8` | coordinator、reducer、后端投影及单测 | 重启时钟基准、零时刻计时、暂停次数传输与幂等投影、非法输入 422 |
 | `649f7d1` | connected C++ runner + Python relay | 真正结束/重建进程；复用设备 outbox codec；Python 只负责 HTTP/签名/文件 I/O，不构造或改写业务事件 |
 | `1757ef2` | 三个 gate 脚本 | 子脚本不再清除早先失败；修正 UI include 误报；共用实现每轮编译一次；Full 不重复跑 host；接入 connected gate 与 lint |
-| 待提交（本轮） | `ScheduledHttpTransport`、Metalio HTTP 薄适配、runtime 启动恢复接线 | 所有设备 HTTP 调用经 `Application::Schedule` 主循环；host 16/16 与 scheduler 单测通过 |
+| `49ce7a8` | `ScheduledHttpTransport`、Metalio HTTP 薄适配、runtime 启动恢复接线及报告 | 所有设备 HTTP 调用经 `Application::Schedule` 主循环；host 16/16 与 scheduler 单测通过 |
 
 关键复检发现：
 
 - 原测试只推进 epoch，没有推进 monotonic，导致完成事件时长为零；新 runner 同时推进两个时钟，并断言时长和 XP。
 - reducer 将合法 monotonic=0 当成未开始，现按 Running 状态判定，同时保留时钟回退拒绝。
-- 暂停后重启保留旧计时起点，可能导致 Resume 拒绝。`prepareAfterBoot` 保留已结算时长、暂停次数、pending 和 sequence，持久化新起点；失败不发布。关机时间、未结算时间不凭墙上时间补算。新 runner 启动失败即退出；**设备 runtime 尚未接入**。
+- 暂停后重启保留旧计时起点，可能导致 Resume 拒绝。`prepareAfterBoot` 保留已结算时长、暂停次数、pending 和 sequence，持久化新起点；失败不发布。关机时间、未结算时间不凭墙上时间补算。设备 runtime 已接入启动前恢复门禁，但尚未在 E:/c 的正确 C5 镜像中编译验证。
 - 完成/保存/终止事件补充可选 pause_count，后端兼容旧事件默认 0；新值只接受非负整数或整数字符串，重复事件不重复累计。
 - 原 `$global:FAILED` 会被 interface 子脚本重置，导致之前失败被改写成 PASS；已改为本脚本私有变量。UI 扫描由 `sync` 子串改为 `sync/` 模块路径，避免错拦 `ui/sync_diagnostics.h`。
 
@@ -37,8 +37,8 @@ Host connected checkpoint：`CHECKPOINT_READY`。**不是** `APP_FIRST_MVP_LOOP=
   -LogDir out/full-20260906
 ```
 
-- Full exit 0；09:34:15～09:35:41，约 86 秒（本机本轮，不作为跨机器基准）。运行时 HEAD 是 5885ad7 加上述待提交代码，随后按表中边界提交。
-- 共用实现 11 个对象各编译一次；C++ 15/15 测试二进制、interface gate PASS。coordinator 26 cases、domain 28 cases。
+- Full exit 0；09:34:15～09:35:41，约 86 秒（本机本轮，不作为跨机器基准）。运行时 HEAD 是 `49ce7a8`；以下 host 证据对应该提交及其父提交边界。
+- 共用实现 12 个对象各编译一次；C++ 16/16 测试二进制、interface gate PASS。coordinator 26 cases、domain 28 cases。
 - Backend：79 passed，1 条已有依赖弃用告警；含 9 个新增参数化计数案例。
 - PWA：typecheck/lint/build PASS，5 files / 31 tests PASS。
 - AF3 scheduler：C++ host gate 16/16 PASS（新增 `scheduled_http_transport_tests`）；adapter 只在 device TU 引用 `board.h`/`application.h`，BackendClient 仍保持纯 C++。
@@ -61,18 +61,20 @@ connected runner 的 `--base-url`/`--task-id` 模式执行这些同一 task_id�
 
 ## 冷构建与配置门禁
 
-离线 cold build exit 0：`E:/workbuddy/claw4-idf-cold-20260905c/xiaozhi.bin`，9,188,624 B，SHA-256 `400b6ba665cb07767236ba2cbad7f6c8462c9999a0143f8dd7e9b2bd39b30d50`。**禁止刷写此镜像，不是 L2/L3 候选。**
+独立 C5 配置副本 cold build exit 0：`E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin`，9,175,856 B，SHA-256 `d13b8c901c421c60f6ca84ba8d13963eb7d390e483396bfa1c473b4422c72278`。该构建只证明 E:/c 当前镜像可在 C5 配置副本下编译；**禁止刷写，不是 L2/L3 候选**，因为 E:/c 尚未包含本仓库 `metalio_http_transport.*` 等最新适配文件。
+
+旧冷构建 `E:/workbuddy/claw4-idf-cold-20260905c/xiaozhi.bin`（9,188,624 B，SHA-256 `400b6ba665cb07767236ba2cbad7f6c8462c9999a0143f8dd7e9b2bd39b30d50`）同样仅作历史证据，禁止刷写。
 
 输入 E:/c/sdkconfig 已偏离已验收 E:/b/config/sdkconfig.h：前者 ESP-Hosted 选择 H2，缺少原 C5 remote 选择。修正 ESP_IDF_VERSION=5.5 后输出副本默认 remote C6，仍不等于原 C5 基线。编译成功不证明硬件配置正确。ota_1 溢出告警保留，未改分区。
 
-只读核对发现，`E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4/sdkconfig` 保留 C5/C5、32 MB、metalio-claw-4、32m_dual.csv；其显式设置与 E:/b/config/sdkconfig.json 同名键比较差异 0。这不是完整重建零漂移证明，未覆盖全部 unset/default/工具链差异。
+只读核对发现，`E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4/sdkconfig` 保留 C5/C5、32 MB、metalio-claw-4、32m_dual.csv；其显式设置与 E:/b/config/sdkconfig.json 同名键比较差异 0，且本次 C5 构建输出与 vendor C5 同名键差异 0。这不是完整重建零漂移证明，未覆盖全部 unset/default/工具链差异。
 
 本轮只在构建输出目录使用 sdkconfig 副本，未回写 E:/c 或 vendor 配置；无串口、刷写、擦除操作。
 
 ## 下阶段
 
-1. AF3 先核定/恢复完整已验收构建输入；恢复配置须用户明确同意，禁止靠改 C5/BSP/driver/sdkconfig/分区凑编译通过。
-2. 设备薄网络适配、注册配对/凭据和诊断；已完成主循环调度边界与 `prepareAfterBoot` runtime 接线，仍需在正确 C5 构建镜像中编译验证。禁止继续使用会自动擦除 learning namespace 的旧自测链处理真实任务。
-3. repo→mirror 精确同步、零配置漂移、cold build 与尺寸通过后，才冻结唯一候选并通知用户连接设备。
+1. 在不改 C5/BSP/driver/sdkconfig/分区的前提下，将 `49ce7a8` 的设备适配精确同步到 E:/c，并记录文件级 hash；不得把 E:/c 的历史镜像当作最新候选。
+2. 在同步后的同一 C5 构建树执行 BUILD ONLY，确认 `metalio_http_transport.*`、runtime 启动恢复和页面诊断均进入编译；保留尺寸告警，不修改分区。
+3. 设备注册/凭据、页面诊断和真机网络链仍需单独实现/验证。完成精确镜像、零配置漂移、cold build 与尺寸检查后，才冻结唯一候选并通知用户连接设备。禁止继续使用会自动擦除 learning namespace 的旧自测链处理真实任务。
 
 范围：本轮 Host/PWA/后端/验证工具。未触碰官方设备源码、Flash、partition、bootloader、ota_1、eFuse、真实儿童数据。设备全链未完成。
