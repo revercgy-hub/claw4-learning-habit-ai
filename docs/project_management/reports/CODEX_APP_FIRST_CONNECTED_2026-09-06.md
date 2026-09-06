@@ -17,7 +17,7 @@ Host connected checkpoint：`CHECKPOINT_READY`。AF3 host scheduler 与 runtime 
 | `649f7d1` | connected C++ runner + Python relay | 真正结束/重建进程；复用设备 outbox codec；Python 只负责 HTTP/签名/文件 I/O，不构造或改写业务事件 |
 | `1757ef2` | 三个 gate 脚本 | 子脚本不再清除早先失败；修正 UI include 误报；共用实现每轮编译一次；Full 不重复跑 host；接入 connected gate 与 lint |
 | `49ce7a8` | `ScheduledHttpTransport`、Metalio HTTP 薄适配、runtime 启动恢复接线及报告 | 所有设备 HTTP 调用经 `Application::Schedule` 主循环；host 16/16 与 scheduler 单测通过 |
-| 待提交（本轮） | 白名单镜像同步工具、AF3 CMake BUILD ONLY 与屏侧启动保护 | 64/64 文件 SHA 一致；C5 构建成功编译两个新 adapter 对象及 Learning screen 保护 |
+| `bf16b03` + `e115074` | 白名单镜像同步工具、AF3 CMake BUILD ONLY 与屏侧启动保护 | 64/64 文件 SHA 一致；C5 构建成功编译两个新 adapter 对象及 Learning screen 保护 |
 
 关键复检发现：
 
