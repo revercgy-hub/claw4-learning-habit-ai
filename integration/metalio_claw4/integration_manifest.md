@@ -23,3 +23,4 @@
 | --- | --- | --- | --- | --- | --- |
 | AF3-1 | `integration/metalio_claw4/device/ports/metalio_http_transport.{h,cpp}` | `main/learning/metalio_claw4/device/ports/` | `NetworkInterface::CreateHttp`，由 `Application::Schedule` 调度 | 不改 BSP/driver/sdkconfig/partition/bootloader/ota_1/eFuse；不在网络线程直接触碰 LVGL/domain | **REPO READY / BUILD ONLY 待 C5 镜像** |
 | AF3-2 | `integration/metalio_claw4/device/app/learning_runtime.cpp` | 同路径 | `prepareAfterBoot(clock_.monotonicMs())` 启动恢复门禁 | 恢复失败不得启动 LearningApp；不以墙上时间补算未结算时长；禁止旧自测擦除真实任务 | **REPO READY / BUILD ONLY 待 C5 镜像** |
+| AF3-3 | `firmware/main/sync/scheduled_http_transport.cpp` + `integration/metalio_claw4/device/ports/metalio_http_transport.cpp` | `main/CMakeLists.txt` source list 追加两行 | 平台无关等待边界与 Metalio 主循环 HTTP 实现进入同一 BUILD ONLY | 仅 source registration；不改 CMake 其它组件、BSP、sdkconfig、partition、bootloader、ota_1/eFuse | **BUILD ONLY PASS**（CMake SHA `3E4A76BD…` → `603BD4A4…`；C5 mirror SHA check 64/64） |

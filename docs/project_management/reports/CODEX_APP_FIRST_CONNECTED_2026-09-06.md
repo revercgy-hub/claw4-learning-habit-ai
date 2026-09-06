@@ -17,6 +17,7 @@ Host connected checkpoint：`CHECKPOINT_READY`。AF3 host scheduler 与 runtime 
 | `649f7d1` | connected C++ runner + Python relay | 真正结束/重建进程；复用设备 outbox codec；Python 只负责 HTTP/签名/文件 I/O，不构造或改写业务事件 |
 | `1757ef2` | 三个 gate 脚本 | 子脚本不再清除早先失败；修正 UI include 误报；共用实现每轮编译一次；Full 不重复跑 host；接入 connected gate 与 lint |
 | `49ce7a8` | `ScheduledHttpTransport`、Metalio HTTP 薄适配、runtime 启动恢复接线及报告 | 所有设备 HTTP 调用经 `Application::Schedule` 主循环；host 16/16 与 scheduler 单测通过 |
+| 待提交（本轮） | 白名单镜像同步工具与 AF3 CMake BUILD ONLY 证据 | 64/64 文件 SHA 一致；C5 构建成功编译两个新 adapter 对象 |
 
 关键复检发现：
 
@@ -42,6 +43,7 @@ Host connected checkpoint：`CHECKPOINT_READY`。AF3 host scheduler 与 runtime 
 - Backend：79 passed，1 条已有依赖弃用告警；含 9 个新增参数化计数案例。
 - PWA：typecheck/lint/build PASS，5 files / 31 tests PASS。
 - AF3 scheduler：C++ host gate 16/16 PASS（新增 `scheduled_http_transport_tests`）；adapter 只在 device TU 引用 `board.h`/`application.h`，BackendClient 仍保持纯 C++。
+- repo→E:/c 白名单同步：64 个文件，`Check` 结果 `mismatch_before=0/mismatch_after=0`；同步工具为 `tools/dev/sync-app-first-mirror.ps1`，只复制 allowlist，不删除文件。
 - connected：5 轮、55 次真实进程重启；30 accepted + 30 duplicates；每轮 pending 6→0、ACK 0→6。
 - 首次 Start 注入保存失败：旧 blob 字节不变、无活动会话、pending 0。断网暂停保留 3 pending；进程重启恢复后 Resume/Complete 成功。
 - 后端提交后丢弃响应，再 kill/restart；重传请求字节完全一致，6 个 event_id 全唯一，sequence 1..6 连续。
@@ -61,7 +63,7 @@ connected runner 的 `--base-url`/`--task-id` 模式执行这些同一 task_id�
 
 ## 冷构建与配置门禁
 
-独立 C5 配置副本 cold build exit 0：`E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin`，9,175,856 B，SHA-256 `d13b8c901c421c60f6ca84ba8d13963eb7d390e483396bfa1c473b4422c72278`。该构建只证明 E:/c 当前镜像可在 C5 配置副本下编译；**禁止刷写，不是 L2/L3 候选**，因为 E:/c 尚未包含本仓库 `metalio_http_transport.*` 等最新适配文件。
+独立 C5 配置副本 cold build exit 0：`E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin`，9,175,856 B，SHA-256 `ef7e52bfc527524f905c220883d489d0d32abbc892594891e1c81aad20cb5a83`。本次 BUILD ONLY 日志明确包含 `scheduled_http_transport.cpp` 与 `metalio_http_transport.cpp` 的编译和链接；**禁止刷写，不是 L2/L3 候选**，因为注册/凭据、设备诊断和真机网络链尚未完成。
 
 旧冷构建 `E:/workbuddy/claw4-idf-cold-20260905c/xiaozhi.bin`（9,188,624 B，SHA-256 `400b6ba665cb07767236ba2cbad7f6c8462c9999a0143f8dd7e9b2bd39b30d50`）同样仅作历史证据，禁止刷写。
 
@@ -69,12 +71,12 @@ connected runner 的 `--base-url`/`--task-id` 模式执行这些同一 task_id�
 
 只读核对发现，`E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4/sdkconfig` 保留 C5/C5、32 MB、metalio-claw-4、32m_dual.csv；其显式设置与 E:/b/config/sdkconfig.json 同名键比较差异 0，且本次 C5 构建输出与 vendor C5 同名键差异 0。这不是完整重建零漂移证明，未覆盖全部 unset/default/工具链差异。
 
-本轮只在构建输出目录使用 sdkconfig 副本，未回写 E:/c 或 vendor 配置；无串口、刷写、擦除操作。
+本轮只在构建输出目录使用 sdkconfig 副本；E:/c 仅同步 allowlist 源文件并追加两条已登记 CMake source registration，未回写 sdkconfig/vendor 配置；无串口、刷写、擦除操作。
 
 ## 下阶段
 
-1. 在不改 C5/BSP/driver/sdkconfig/分区的前提下，将 `49ce7a8` 的设备适配精确同步到 E:/c，并记录文件级 hash；不得把 E:/c 的历史镜像当作最新候选。
-2. 在同步后的同一 C5 构建树执行 BUILD ONLY，确认 `metalio_http_transport.*`、runtime 启动恢复和页面诊断均进入编译；保留尺寸告警，不修改分区。
-3. 设备注册/凭据、页面诊断和真机网络链仍需单独实现/验证。完成精确镜像、零配置漂移、cold build 与尺寸检查后，才冻结唯一候选并通知用户连接设备。禁止继续使用会自动擦除 learning namespace 的旧自测链处理真实任务。
+1. 完成设备注册/凭据与页面诊断入口，并继续保持网络回调只经主循环；host/BUILD ONLY 证据不等于真机 Wi-Fi/TLS/NVS 已验证。
+2. 在不改 C5/BSP/driver/sdkconfig/分区的前提下，继续跑 PWA→Backend→device runtime 的接口接线和 host 契约测试；禁止继续使用会自动擦除 learning namespace 的旧自测链处理真实任务。
+3. 只有设备网络链、屏侧诊断和一次性真机验收单齐备后，才冻结唯一候选并通知用户连接设备。
 
 范围：本轮 Host/PWA/后端/验证工具。未触碰官方设备源码、Flash、partition、bootloader、ota_1、eFuse、真实儿童数据。设备全链未完成。
