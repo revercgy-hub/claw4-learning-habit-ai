@@ -4,6 +4,8 @@
 > 前置：`CODEX-APP-FIRST-001` AF3-5 `49599f9`，COM7 ota_0 刷写 `FLASH_PASS_HASH_VERIFIED`  
 > 目标：把已编译的 `BackendClient` 会话层接到安全 provisioning、设备 worker 和真实测试 Backend，完成一次可复现的 L2/L3 真机闭环。
 
+> 本机联调默认值（2026-09-06）：Backend 回环 `127.0.0.1:8000`；LAN relay `192.168.3.26:18765`；设备 base URL `http://192.168.3.26:18765`。relay 只转发 `/api/v1/*`，不修改 Backend 的回环监听门禁。
+
 ## 1. 任务边界
 
 本批只覆盖：设备注册凭据的安全注入、HMAC challenge signer、今日任务拉取、outbox 事件同步/ACK、重试/认证暂停、屏侧诊断和一次 ota_0 application-only 真机验收。
