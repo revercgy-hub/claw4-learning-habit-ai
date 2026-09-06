@@ -1,12 +1,12 @@
 # 项目任务看板
 
-> **2026-09-06 最新覆盖结论**：Host connected checkpoint `CHECKPOINT_READY`；Full gate PASS（C++ 16/16、Backend 79、PWA 31、HTTP 5 轮/55 次真实进程重启），PWA 三个真实创建任务均验证 2 分钟/暂停 1 次/恰好一次记录。`49ce7a8` 已完成主循环 HTTP 边界与 runtime 启动恢复接线；64/64 白名单源已同步并经 SHA 校验，C5 BUILD ONLY 成功编译新 adapter 与屏侧保护，最新镜像 SHA `f3a8a58c…`。只读硬件复核确认目标口为 COM7，设备仍运行旧 `2.0.51` 镜像；继续新链路验证需明确 ota_0 application-only app-flash 授权。详见 [最新报告](reports/CODEX_APP_FIRST_CONNECTED_2026-09-06.md) 与 [硬件复核](reports/CODEX_HW_COM7_READONLY_2026-09-06.md)。
+> **2026-09-06 最新覆盖结论**：Host connected checkpoint `CHECKPOINT_READY`；Full gate PASS（C++ 16/16、Backend 79、PWA 31、HTTP 5 轮/55 次真实进程重启），PWA 三个真实创建任务均验证 2 分钟/暂停 1 次/恰好一次记录。COM7 ota_0 application-only 复测已完成：用户授权并通过“重新生成演示任务”清空 learning NVS、重新 seed，随后屏侧本地状态链路交互正常；当前限定子门禁 `L1_DEMO_RESET=ACCEPTED`。App-first L2/L3 全链仍 `IN_PROGRESS`，不扩大为网络/发布验收。详见 [L1 reset 报告](reports/CODEX_APP_FIRST_L1_RESET_2026-09-06.md)、[connected 报告](reports/CODEX_APP_FIRST_CONNECTED_2026-09-06.md) 与 [硬件复核](reports/CODEX_HW_COM7_READONLY_2026-09-06.md)。
 
 > 2026-09-05 复核修正（优先于下方历史摘要）：AF3/AF4 继续 IN_PROGRESS。尚缺同一 connected runner 的真实 HTTP 全链、浏览器创建/完成记录核对、设备网络/屏侧诊断适配。原“仅 cold IDF build 待补”撤回；详见 reports/CODEX_APP_FIRST_CONTINUATION_2026-09-05.md。当前无需连接设备。
 
 - 更新时间：2026-09-04（L1c 持久化复测通过；切换 App-first 批量开发）
 - 维护者：Codex；2026-09-04 起 WorkBuddy 暂停调度，Codex 直接实施与复检，验收决策归用户
-- 当前阶段：L1 ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`；App-first 活动分支为 `codex/app-first-mvp-loop`。`CODEX-APP-FIRST-001` 已完成 AF0~AF3b，AF4 主机 Full Gate、浏览器 smoke 3/3、5 轮故障矩阵和 50 次重启压力通过；仅 cold IDF build 仍是阶段收口门禁，完成后才安排一次用户主导的阶段末真机验收。
+- 当前阶段：L1 ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`；本轮 `L1_DEMO_RESET=ACCEPTED`。App-first 活动分支为 `codex/app-first-mvp-loop`。`CODEX-APP-FIRST-001` 的 Host Full Gate、浏览器 smoke、故障矩阵和冷构建均已通过；L2/L3 真机网络与注册仍不在本轮验收内。
 - 调度规则：当前无 WorkBuddy 活动流；Codex 按 App-first checkpoint 连续实施，单功能不刷机，阶段 gate 通过后只冻结一个真机候选
 - 项目远端：[`revercgy-hub/claw4-learning-habit-ai`](https://github.com/revercgy-hub/claw4-learning-habit-ai)（私有）
 
@@ -78,6 +78,7 @@
 | 6.22 | WB-LEARNING-V4-NEXT 全任务收口（阶段 A–F） | WorkBuddy | `CHECKPOINT_READY`（任务书授权范围全部完成；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19–C27 链：FIX-V4-01~03 → `HOST_MVP_FINAL_FIX_V4=PASS` → Fact Sync → P17 集成策略 → P17a glue（host gate 9/9、156 case）→ P18 L0 BUILD（+2,096 B、sdkconfig diff=0）→ 首刷 PASS → Start 交互修复复测 PASS（9,026,000 B）；报告 §12–§15 |
 | 6.23 | WB-LEARNING-V4-L1 Learning App 设备基本功能 | WorkBuddy 历史实现 + Codex 修复/真机复测 | `CHECKPOINT_READY`（`DEVICE_L1C_PERSISTENCE=PASS`；验收决策归用户） | WorkBuddy `7ee686d`；Codex ready `4db2283` | 根因/修复仍见 HANDOFF §7/§9。COM7 application-only 写入 9,175,856 B / SHA-256 `6d27653a…5722aa1f`，Hash verified；用户完成屏侧测试；只读 NVS：learning blob/CRC OK、`S|0`、`E|20`、seq 1..20、20 个 `ev-[0-9a-f]{16}` 全唯一，六类 transition 事件均存在且复位后可读。无逐步 monitor 证据的限制、I2C 独立风险见 HANDOFF §10 与 `CODEX_WB_LEARNING_V4_L1_DEVICE_TEST_2026-09-04.md`。 |
 | 6.24 | CODEX-APP-FIRST-001 / L2-L3 MVP 全链批次 | Codex | `IN_PROGRESS`（Host 全链与 AF3 BUILD ONLY `CHECKPOINT_READY`；真机网络/凭据/屏侧诊断验收待后续） | 6.23 `CHECKPOINT_READY` | `bf16b03` + `e115074`：64/64 白名单镜像 SHA 校验、CMake source registration、启动恢复保护/屏侧诊断、C5 BUILD ONLY；最新镜像 9,176,176 B，SHA-256 `f3a8a58c…`；报告 `CODEX_APP_FIRST_CONNECTED_2026-09-06.md`。仍禁止刷写，下一门禁为设备注册/凭据与真机网络链。 |
+| 6.25 | CODEX-APP-FIRST-001 / L1 演示任务 reset-reseed | Codex | `ACCEPTED`（限定 learning NVS 与本地屏侧状态链路） | 6.24；用户授权 learning NVS 清空 | 屏幕按钮调用 `ResetToSeed()`，COM7 monitor 记录 `ok=1`、NVS seed blob 344 B，用户确认演示任务与交互正常；复检修复 `ResetToSeed()` 后恢复 `stest=1`。报告 `CODEX_APP_FIRST_L1_RESET_2026-09-06.md`。 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
 | 8 | CR-BRINGUP-GATE | Codex | `BACKLOG` | WB-BRINGUP-S1 `REVIEW_READY` | Stage 1 复检和 GO/NO-GO |
 | 9 | WB-MVP-INTERFACES / STREAM-001 CP1 | WorkBuddy | `ACCEPTED` | CP0 checkpoint | 提交 `a38dfad`，Codex 接口修复并入 `f021233` |
@@ -95,7 +96,7 @@
 
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
-| BLK-FLASH-AUTH-001 | 固件刷写/Flash 擦除/分区/OTA 操作 | **既有批次仅覆盖已完成的 ota_0 application-only L0/L1 测试**；App-first AF0~AF4 不写真机。erase_flash、bootloader、partition、ota_1、C5、eFuse、Secure Boot、Flash Encryption 仍禁 | AF4 通过后再向用户提交唯一候选与 AF5 屏侧验收单；任何新范围需重新说明风险并取得明确授权 |
+| BLK-FLASH-AUTH-001 | 固件刷写/Flash 擦除/分区/OTA 操作 | 本轮已获并使用一次 ota_0 application-only 授权完成 L1 reset-reseed；`erase_flash`、bootloader、partition、ota_1、C5、eFuse、Secure Boot、Flash Encryption 仍禁 | 任何超出 ota_0 application-only 的操作都需用户重新明确授权；L2/L3 真机候选须另行冻结并验收 |
 
 ## 已解除阻塞
 

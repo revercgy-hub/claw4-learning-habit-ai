@@ -73,6 +73,10 @@ bool LearningRuntime::ResetToSeed() {
   });
   const bool ok = app_->applyTodaySnapshot(DemoTodaySnapshot());
   app_->start();
+  // ResetToSeed intentionally clears the whole learning namespace. Preserve
+  // the one-shot self-test guard after the reseed so a later screen reload
+  // cannot re-run the debug chain and overwrite the user's demo progress.
+  if (ok) MarkSelfTestDone();
   ESP_LOGI(TAG, "self-test cleanup: re-seeded=%d", ok ? 1 : 0);
   return ok;
 }

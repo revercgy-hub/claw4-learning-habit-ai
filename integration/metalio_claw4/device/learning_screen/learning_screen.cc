@@ -282,7 +282,11 @@ void RefreshUi() {
       primary_en = false;
     }
   } else if (first_ready == nullptr) {
-    primary_en = false;  // nothing runnable (all finished or empty)
+    if (AllFinished(st)) {
+      primary_text = "重新生成演示任务";
+    } else {
+      primary_en = false;  // nothing runnable (empty snapshot)
+    }
   }
   lv_label_set_text(s_ui.primary_lbl, primary_text);
   if (primary_en) {
@@ -324,7 +328,13 @@ void OnPrimary(lv_event_t*) {
     }
   } else {
     const Task* first = FirstReady(st);
-    if (first != nullptr) DispatchTouch(CommandKind::StartTask, first->task_id);
+    if (first != nullptr) {
+      DispatchTouch(CommandKind::StartTask, first->task_id);
+    } else if (AllFinished(st)) {
+      const bool reset_ok = Rt().ResetToSeed();
+      ESP_LOGI(TAG, "demo reset requested from completed state -> ok=%d",
+               reset_ok ? 1 : 0);
+    }
   }
   RefreshUi();
 }
