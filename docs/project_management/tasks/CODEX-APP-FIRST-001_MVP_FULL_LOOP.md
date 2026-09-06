@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`IN_PROGRESS`（AF0~AF3b `CHECKPOINT_READY`；AF4 主机 gate/浏览器 smoke 3/3 通过；cold IDF 待补）
+> 状态：`IN_PROGRESS`（Host connected checkpoint CHECKPOINT_READY；2026-09-06 Full gate 与真实浏览器任务链通过。AF3 设备集成和配置基线门禁未收口；见 reports/CODEX_APP_FIRST_CONNECTED_2026-09-06.md。下方历史小节标题不得覆盖最新结论。）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >

@@ -1,5 +1,7 @@
 # CODEX-APP-FIRST-001 AF4 主机侧验收报告（未进真机）
 
+> **SUPERSEDED（范围与根因修正）**：本报告中“主机侧完整链路已经跑通”“仅 cold build 待补”不成立。浏览器证据仅为登录和页面导航 smoke，未覆盖创建任务→真实 LearningApp→完成记录；重复投递 fixture 与模拟网络 runner 也不是同一条 HTTP 全链。设备 runtime 仍调用 DemoTodaySnapshot，尚未接入 BackendClient 与屏侧同步诊断。AF3/AF4 均继续 IN_PROGRESS，APP_FIRST_MVP_LOOP 未通过。另，先前构建手工设置 ESP_IDF_VERSION=5.5.4，组件仅有 Kconfig.idf_v5.5.in 等文件，因此漏载 Wi-Fi 符号；正确值为 5.5（与 IDF export 的 major/minor 规则一致），不应据此归咎用户工程。后续证据见 CODEX_APP_FIRST_CONTINUATION_2026-09-05.md。
+
 ## 1. 范围与结论
 
 - 工作流：`CODEX-APP-FIRST-001 / AF4`

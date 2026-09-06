@@ -1,5 +1,9 @@
 # 项目任务看板
 
+> **2026-09-06 最新覆盖结论**：Host connected checkpoint `CHECKPOINT_READY`，代码至 `1757ef2`；Full gate PASS（C++ 15/15、Backend 79、PWA 31、HTTP 5 轮/55 次真实进程重启），PWA 三个真实创建任务均验证 2 分钟/暂停 1 次/恰好一次记录。AF3/AF4 未收口；设备配置偏离原 C5 基线，恢复需用户确认，禁止刷写当前 cold 镜像。详见 [最新报告](reports/CODEX_APP_FIRST_CONNECTED_2026-09-06.md)。下方旧“仅 cold 待补/AF0~AF3 完成”等摘要已 SUPERSEDED；当前无需连接设备。
+
+> 2026-09-05 复核修正（优先于下方历史摘要）：AF3/AF4 继续 IN_PROGRESS。尚缺同一 connected runner 的真实 HTTP 全链、浏览器创建/完成记录核对、设备网络/屏侧诊断适配。原“仅 cold IDF build 待补”撤回；详见 reports/CODEX_APP_FIRST_CONTINUATION_2026-09-05.md。当前无需连接设备。
+
 - 更新时间：2026-09-04（L1c 持久化复测通过；切换 App-first 批量开发）
 - 维护者：Codex；2026-09-04 起 WorkBuddy 暂停调度，Codex 直接实施与复检，验收决策归用户
 - 当前阶段：L1 ready 基线 `codex/wb-learning-v4-l1-ready` @ `4db2283` 已完成 COM7 application-only 复测，限定结论 `DEVICE_L1C_PERSISTENCE=PASS` / `CHECKPOINT_READY`；App-first 活动分支为 `codex/app-first-mvp-loop`。`CODEX-APP-FIRST-001` 已完成 AF0~AF3b，AF4 主机 Full Gate、浏览器 smoke 3/3、5 轮故障矩阵和 50 次重启压力通过；仅 cold IDF build 仍是阶段收口门禁，完成后才安排一次用户主导的阶段末真机验收。
