@@ -308,10 +308,20 @@ void RefreshUi() {
     lv_obj_set_style_opa(s_ui.secondary, LV_OPA_40, 0);
   }
 
-  const std::string diagnostics =
+  const auto* backend = Rt().BackendDiagnostics();
+  std::string diagnostics =
       "诊断 · build app-first · pending " +
       std::to_string(app.pendingCount()) + " · ACK " +
-      std::to_string(app.coordinator().lastAcked()) + " · 配对待验证";
+      std::to_string(app.coordinator().lastAcked());
+  if (backend == nullptr) {
+    diagnostics += " · backend 未配置";
+  } else {
+    diagnostics += backend->network_online ? " · 网络在线" : " · 网络离线";
+    diagnostics += backend->authenticated ? " · auth OK" : " · auth 未通过";
+    diagnostics += " · err=" +
+                   std::to_string(static_cast<int>(backend->last_error));
+    diagnostics += " · op=" + backend->last_operation;
+  }
   lv_label_set_text(s_ui.diagnostics, diagnostics.c_str());
 }
 

@@ -1,6 +1,6 @@
 # CODEX-APP-FIRST-001 — App-first MVP 完整链路批次
 
-> 状态：`IN_PROGRESS`（Host connected checkpoint CHECKPOINT_READY；2026-09-06 Full gate 与真实浏览器任务链通过。AF3 设备集成和配置基线门禁未收口；见 reports/CODEX_APP_FIRST_CONNECTED_2026-09-06.md。下方历史小节标题不得覆盖最新结论。）
+> 状态：`IN_PROGRESS`（Host connected checkpoint 与 AF3-5 Backend session BUILD ONLY 均为 `CHECKPOINT_READY`；2026-09-06 Full gate 与真实浏览器任务链通过。真实 endpoint/signer、设备网络和 ota_0 真机候选仍未验收；见 `reports/CODEX_APP_FIRST_AF3_SESSION_2026-09-06.md`。下方历史小节标题不得覆盖最新结论。）
 >
 > 执行：Codex；WorkBuddy 暂停调度
 >
@@ -129,6 +129,12 @@ App/Host 模式不是脚本伪造整个设备。它必须使用：
 
 - 新增纯 host 诊断 DTO 与测试；manifest 脚本登记 repo→镜像文件哈希、build ID、pending/ACK/error 字段。
 - 证据：`reports/CODEX_APP_FIRST_AF3B_2026-09-05.md`。
+
+#### AF3c — Backend session + device diagnostics（BUILD ONLY，已完成）
+
+- `LearningBackendSession` 已将 `BackendClient`、权威今日快照、coordinator outbox/ACK 串成设备侧 worker 调用接口；`LearningRuntime` 注入 endpoint/signer，屏侧显示真实会话诊断。
+- Host Quick gate 17/17 PASS；repo → `E:\c` 允许列表 66/66 无差异；C5 `idf.py build` exit 0。
+- 证据：`reports/CODEX_APP_FIRST_AF3_SESSION_2026-09-06.md`。该 checkpoint 不声明真实 endpoint/signer、Wi-Fi/TLS 或真机网络已验证。
 
 - 接 Metalio 网络调度/传输的薄适配器，不在业务核心包含 IDF/Metalio 头。
 - Learning 页面增加可折叠诊断信息：build ID、auth/network、pending、last ACK、最近错误码、最后同步时间。

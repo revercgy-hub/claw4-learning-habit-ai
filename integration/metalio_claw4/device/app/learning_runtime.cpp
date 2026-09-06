@@ -12,6 +12,7 @@
 #include "metalio_claw4/device/core/demo_seed.h"
 #include "metalio_claw4/device/core/outbox_codec.h"
 #include "metalio_claw4/device/core/random_id.h"
+#include "metalio_claw4/device/ports/metalio_http_transport.h"
 
 namespace claw4 {
 namespace metalio {
@@ -58,6 +59,7 @@ void LearningRuntime::MarkSelfTestDone() {
 }
 
 bool LearningRuntime::ResetToSeed() {
+  backend_.reset();
   if (!NvsOutboxStorage::eraseAll()) {
     ESP_LOGE(TAG, "self-test cleanup: eraseAll failed");
     return false;
@@ -79,6 +81,30 @@ bool LearningRuntime::ResetToSeed() {
   if (ok) MarkSelfTestDone();
   ESP_LOGI(TAG, "self-test cleanup: re-seeded=%d", ok ? 1 : 0);
   return ok;
+}
+
+bool LearningRuntime::ConfigureBackend(
+    std::string base_url,
+    claw4::sync::LearningBackendSession::Signer signer) {
+  if (!bootReady()) return false;
+  backend_ = std::make_unique<claw4::sync::LearningBackendSession>(
+      app_->coordinator(), CreateMetalioHttpTransport(), std::move(base_url),
+      claw4::domain::DeviceId{kDeviceId}, claw4::domain::ChildId{kChildId},
+      std::move(signer), [this] { return clock_.epochSeconds(); });
+  return backend_->diagnostics().configured;
+}
+
+bool LearningRuntime::RunOnlineCycle() {
+  if (backend_ == nullptr) return false;
+  // The caller owns scheduling: this method must not be invoked from the
+  // LVGL event callback because the scheduled HTTP boundary waits for its
+  // main-loop callback to complete.
+  return backend_->runOnlineCycle();
+}
+
+const claw4::sync::BackendSessionDiagnostics*
+LearningRuntime::BackendDiagnostics() const {
+  return backend_ ? &backend_->diagnostics() : nullptr;
 }
 
 void LearningRuntime::Init() {

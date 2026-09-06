@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "sync/learning_backend_session.h"
 #include "metalio_claw4/device/ports/learning_clock.h"
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
 #include "metalio_claw4/host_glue/learning_app.h"
@@ -43,12 +44,22 @@ class LearningRuntime {
   // restore a clean demo state after the self-test chain).
   bool ResetToSeed();
 
+  // Configure the L2/L3 backend session after provisioning supplies an
+  // endpoint and signer. The signer is injected so no credential is embedded
+  // in the firmware or logged by the learning app. RunOnlineCycle() must be
+  // called from a worker/task context; it never blocks the LVGL callback.
+  bool ConfigureBackend(std::string base_url,
+                        claw4::sync::LearningBackendSession::Signer signer);
+  bool RunOnlineCycle();
+  const claw4::sync::BackendSessionDiagnostics* BackendDiagnostics() const;
+
  private:
   LearningRuntime() = default;
 
   NvsOutboxStorage storage_;
   EspTimerClock clock_;
   std::unique_ptr<LearningApp> app_;
+  std::unique_ptr<claw4::sync::LearningBackendSession> backend_;
   bool inited_ = false;
 };
 
