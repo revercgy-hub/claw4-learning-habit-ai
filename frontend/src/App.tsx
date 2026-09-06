@@ -16,8 +16,8 @@ const TABS: Array<{ id: Tab; label: string }> = [
 ];
 
 export function App() {
-  const [client] = useState(() => new ApiClient());
   const [token, setToken] = useState<string>(() => sessionStorage.getItem('claw4_parent_token') ?? '');
+  const [client] = useState(() => new ApiClient({ token }));
   const [tab, setTab] = useState<Tab>('dashboard');
 
   const authed = useMemo(() => token.length > 0, [token]);
