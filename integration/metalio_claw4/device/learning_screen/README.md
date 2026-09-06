@@ -10,6 +10,7 @@
 - `../core/`：`outbox_codec.{h,cpp}`（OutboxState<->blob，纯 C++17 host 可测）、`demo_seed.h`（首启演示快照，L2 被 server 快照替换）。
 - `../ports/`：`learning_clock.{h,cpp}`（ClockPort<-esp_timer）、`nvs_outbox_storage.{h,cpp}`（OutboxStorage<-NVS namespace `learning`/key `st`）。
 - 构建镜像：repo 权威副本同步到 `E:/c/main/learning/`（fw 业务核心 = repo `firmware/main/{learning_domain,sync,application,interaction,mcp,ui,ports}`；glue/device = repo `integration/metalio_claw4/{host_glue,device}`），官方 `main/CMakeLists.txt` 由 `integration_manifest.md` #3 登记（INCLUDE_DIRS +learning、SOURCES +10 行）。
+- AF3 更新：`sync/scheduled_http_transport.{h,cpp}` 是平台无关的主循环边界；`device/ports/metalio_http_transport.{h,cpp}` 才引用官方 `Application`/`Board`/`NetworkInterface`，每次网络调用都由 `Application::Schedule` 执行。该 adapter 需在恢复 C5 构建镜像后加入 source registration 并做 BUILD ONLY 验证，当前不宣称已编入固件。
 - 同步命令（在仓库根执行）：
 ```bash
 rm -rf /e/c/main/learning && mkdir -p /e/c/main/learning

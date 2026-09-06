@@ -27,6 +27,7 @@ class LearningRuntime {
 
   LearningApp& app() { return *app_; }
   bool inited() const { return inited_; }
+  bool bootReady() const { return inited_ && app_ != nullptr && app_->running(); }
   claw4::ports::ClockPort& clock() { return clock_; }
 
   // Persisted monotonic id sources (NVS-backed, survive reboot) so a fresh

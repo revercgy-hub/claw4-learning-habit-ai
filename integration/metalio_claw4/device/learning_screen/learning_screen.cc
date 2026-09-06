@@ -161,7 +161,7 @@ bool AllFinished(const DomainState& st) {
 }
 
 int64_t LiveActualSeconds(const StudySession& s) {
-  if (s.status == SessionStatus::Running && s.segment_start_monotonic_ms > 0) {
+  if (s.status == SessionStatus::Running) {
     // Project running seconds from the monotonic clock (read-only; the domain
     // accumulates actual_seconds on state transitions).
     const int64_t ms = Rt().clock().monotonicMs();

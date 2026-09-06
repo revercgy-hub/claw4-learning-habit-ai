@@ -16,3 +16,10 @@
 
 - 正式 pin（复核于 2026-09-03）：`ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950`（vendor/MetalioClaw4 HEAD 与此一致，无上游漂移）。
 - 新增 repo 侧（非官方文件，无需登记）：`integration/metalio_claw4/host_glue/*`（P17a，host 可测）、`firmware/tests/unit/metalio/learning_app_glue_tests.cpp`。
+
+## AF3 追加登记（待正确 C5 镜像 BUILD ONLY）
+
+| 序号 | repo 文件 | 设备镜像目标 | 接入点 | 禁止事项 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| AF3-1 | `integration/metalio_claw4/device/ports/metalio_http_transport.{h,cpp}` | `main/learning/metalio_claw4/device/ports/` | `NetworkInterface::CreateHttp`，由 `Application::Schedule` 调度 | 不改 BSP/driver/sdkconfig/partition/bootloader/ota_1/eFuse；不在网络线程直接触碰 LVGL/domain | **REPO READY / BUILD ONLY 待 C5 镜像** |
+| AF3-2 | `integration/metalio_claw4/device/app/learning_runtime.cpp` | 同路径 | `prepareAfterBoot(clock_.monotonicMs())` 启动恢复门禁 | 恢复失败不得启动 LearningApp；不以墙上时间补算未结算时长；禁止旧自测擦除真实任务 | **REPO READY / BUILD ONLY 待 C5 镜像** |

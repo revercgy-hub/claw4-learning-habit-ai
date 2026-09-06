@@ -16,6 +16,7 @@ Host connected checkpoint：`CHECKPOINT_READY`。**不是** `APP_FIRST_MVP_LOOP=
 | `e4a0df8` | coordinator、reducer、后端投影及单测 | 重启时钟基准、零时刻计时、暂停次数传输与幂等投影、非法输入 422 |
 | `649f7d1` | connected C++ runner + Python relay | 真正结束/重建进程；复用设备 outbox codec；Python 只负责 HTTP/签名/文件 I/O，不构造或改写业务事件 |
 | `1757ef2` | 三个 gate 脚本 | 子脚本不再清除早先失败；修正 UI include 误报；共用实现每轮编译一次；Full 不重复跑 host；接入 connected gate 与 lint |
+| 待提交（本轮） | `ScheduledHttpTransport`、Metalio HTTP 薄适配、runtime 启动恢复接线 | 所有设备 HTTP 调用经 `Application::Schedule` 主循环；host 16/16 与 scheduler 单测通过 |
 
 关键复检发现：
 
@@ -40,6 +41,7 @@ Host connected checkpoint：`CHECKPOINT_READY`。**不是** `APP_FIRST_MVP_LOOP=
 - 共用实现 11 个对象各编译一次；C++ 15/15 测试二进制、interface gate PASS。coordinator 26 cases、domain 28 cases。
 - Backend：79 passed，1 条已有依赖弃用告警；含 9 个新增参数化计数案例。
 - PWA：typecheck/lint/build PASS，5 files / 31 tests PASS。
+- AF3 scheduler：C++ host gate 16/16 PASS（新增 `scheduled_http_transport_tests`）；adapter 只在 device TU 引用 `board.h`/`application.h`，BackendClient 仍保持纯 C++。
 - connected：5 轮、55 次真实进程重启；30 accepted + 30 duplicates；每轮 pending 6→0、ACK 0→6。
 - 首次 Start 注入保存失败：旧 blob 字节不变、无活动会话、pending 0。断网暂停保留 3 pending；进程重启恢复后 Resume/Complete 成功。
 - 后端提交后丢弃响应，再 kill/restart；重传请求字节完全一致，6 个 event_id 全唯一，sequence 1..6 连续。
@@ -70,7 +72,7 @@ connected runner 的 `--base-url`/`--task-id` 模式执行这些同一 task_id�
 ## 下阶段
 
 1. AF3 先核定/恢复完整已验收构建输入；恢复配置须用户明确同意，禁止靠改 C5/BSP/driver/sdkconfig/分区凑编译通过。
-2. 设备薄网络适配、注册配对/凭据、主循环调度和诊断；补 prepareAfterBoot 启动失败门禁。禁止继续使用会自动擦除 learning namespace 的旧自测链处理真实任务。
+2. 设备薄网络适配、注册配对/凭据和诊断；已完成主循环调度边界与 `prepareAfterBoot` runtime 接线，仍需在正确 C5 构建镜像中编译验证。禁止继续使用会自动擦除 learning namespace 的旧自测链处理真实任务。
 3. repo→mirror 精确同步、零配置漂移、cold build 与尺寸通过后，才冻结唯一候选并通知用户连接设备。
 
 范围：本轮 Host/PWA/后端/验证工具。未触碰官方设备源码、Flash、partition、bootloader、ota_1、eFuse、真实儿童数据。设备全链未完成。

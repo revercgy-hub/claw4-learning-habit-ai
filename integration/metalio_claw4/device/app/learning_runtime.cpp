@@ -88,6 +88,14 @@ void LearningRuntime::Init() {
   app_->setSessionIdFactory([this] {
     return claw4::domain::SessionId{NextSessionId()};
   });
+  // A reboot resets esp_timer's monotonic epoch. Rebase any persisted live
+  // session before exposing the app to the screen; on failure keep the app
+  // stopped so an uncommitted recovery can never be presented as success.
+  if (!app_->coordinator().prepareAfterBoot(clock_.monotonicMs())) {
+    ESP_LOGE(TAG, "boot recovery failed: keeping LearningApp stopped");
+    app_.reset();
+    return;
+  }
   if (!storage_.hasState()) {
     const bool ok = app_->applyTodaySnapshot(DemoTodaySnapshot());
     ESP_LOGI(TAG, "first boot: demo today snapshot seeded=%d", ok ? 1 : 0);
