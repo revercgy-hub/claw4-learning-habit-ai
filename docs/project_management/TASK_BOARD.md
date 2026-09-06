@@ -1,6 +1,6 @@
 # 项目任务看板
 
-> **2026-09-06 最新覆盖结论**：Host connected checkpoint `CHECKPOINT_READY`；Full gate PASS（C++ 16/16、Backend 79、PWA 31、HTTP 5 轮/55 次真实进程重启），PWA 三个真实创建任务均验证 2 分钟/暂停 1 次/恰好一次记录。`49ce7a8` 已完成主循环 HTTP 边界与 runtime 启动恢复接线；64/64 白名单源已同步并经 SHA 校验，C5 BUILD ONLY 成功编译新 adapter，镜像 SHA `ef7e52bf…`。仍禁止刷写：设备注册/凭据、屏侧诊断和真机网络链尚未完成。详见 [最新报告](reports/CODEX_APP_FIRST_CONNECTED_2026-09-06.md)。当前无需连接设备。
+> **2026-09-06 最新覆盖结论**：Host connected checkpoint `CHECKPOINT_READY`；Full gate PASS（C++ 16/16、Backend 79、PWA 31、HTTP 5 轮/55 次真实进程重启），PWA 三个真实创建任务均验证 2 分钟/暂停 1 次/恰好一次记录。`49ce7a8` 已完成主循环 HTTP 边界与 runtime 启动恢复接线；64/64 白名单源已同步并经 SHA 校验，C5 BUILD ONLY 成功编译新 adapter 与屏侧保护，最新镜像 SHA `f3a8a58c…`。只读硬件复核确认目标口为 COM7，设备仍运行旧 `2.0.51` 镜像；继续新链路验证需明确 ota_0 application-only app-flash 授权。详见 [最新报告](reports/CODEX_APP_FIRST_CONNECTED_2026-09-06.md) 与 [硬件复核](reports/CODEX_HW_COM7_READONLY_2026-09-06.md)。
 
 > 2026-09-05 复核修正（优先于下方历史摘要）：AF3/AF4 继续 IN_PROGRESS。尚缺同一 connected runner 的真实 HTTP 全链、浏览器创建/完成记录核对、设备网络/屏侧诊断适配。原“仅 cold IDF build 待补”撤回；详见 reports/CODEX_APP_FIRST_CONTINUATION_2026-09-05.md。当前无需连接设备。
 
