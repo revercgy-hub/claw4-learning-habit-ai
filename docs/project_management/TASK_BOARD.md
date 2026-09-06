@@ -77,7 +77,7 @@
 | 6.21 | P18 Learning L0 App Shell BUILD（阶段 F） | WorkBuddy | `LEARNING_V4_L0_BUILD_READY` → 批次授权已获 → **首刷 PASS + Start 交互 PASS（C26/C27）** | `911e5c2` | C25：`integration/metalio_claw4/device/learning_screen/`（权威副本）+ manifest 两条 APPLIED；`E:/b/xiaozhi.bin` = **9,025,520 B（delta +2,096 B）**、sdkconfig diff=0（调优基线未动）、idf.py build exit=0、learning 源入固件；ota_0 余量 ≈0.39 MiB；报告 §14/§14.2/§14.3 |
 | 6.22 | WB-LEARNING-V4-NEXT 全任务收口（阶段 A–F） | WorkBuddy | `CHECKPOINT_READY`（任务书授权范围全部完成；验收决策归用户） | `6b787d1`（fetch 核实基线） | C19–C27 链：FIX-V4-01~03 → `HOST_MVP_FINAL_FIX_V4=PASS` → Fact Sync → P17 集成策略 → P17a glue（host gate 9/9、156 case）→ P18 L0 BUILD（+2,096 B、sdkconfig diff=0）→ 首刷 PASS → Start 交互修复复测 PASS（9,026,000 B）；报告 §12–§15 |
 | 6.23 | WB-LEARNING-V4-L1 Learning App 设备基本功能 | WorkBuddy 历史实现 + Codex 修复/真机复测 | `CHECKPOINT_READY`（`DEVICE_L1C_PERSISTENCE=PASS`；验收决策归用户） | WorkBuddy `7ee686d`；Codex ready `4db2283` | 根因/修复仍见 HANDOFF §7/§9。COM7 application-only 写入 9,175,856 B / SHA-256 `6d27653a…5722aa1f`，Hash verified；用户完成屏侧测试；只读 NVS：learning blob/CRC OK、`S|0`、`E|20`、seq 1..20、20 个 `ev-[0-9a-f]{16}` 全唯一，六类 transition 事件均存在且复位后可读。无逐步 monitor 证据的限制、I2C 独立风险见 HANDOFF §10 与 `CODEX_WB_LEARNING_V4_L1_DEVICE_TEST_2026-09-04.md`。 |
-| 6.24 | CODEX-APP-FIRST-001 / L2-L3 MVP 全链批次 | Codex | `IN_PROGRESS`（Host 全链与 AF3 BUILD ONLY `CHECKPOINT_READY`；真机网络/凭据/屏侧诊断验收待后续） | 6.23 `CHECKPOINT_READY` | `bf16b03` + `e115074`：64/64 白名单镜像 SHA 校验、CMake source registration、启动恢复保护/屏侧诊断、C5 BUILD ONLY；最新镜像 9,176,176 B，SHA-256 `f3a8a58c…`；报告 `CODEX_APP_FIRST_CONNECTED_2026-09-06.md`。仍禁止刷写，下一门禁为设备注册/凭据与真机网络链。 |
+| 6.24 | CODEX-APP-FIRST-001 / L2-L3 MVP 全链批次 | Codex | `IN_PROGRESS`（Host 全链与 AF3 BUILD ONLY `CHECKPOINT_READY`；真机网络/凭据/屏侧诊断验收待后续） | 6.23 `CHECKPOINT_READY` | `bf16b03` + `e115074`：64/64 白名单镜像 SHA 校验、CMake source registration、启动恢复保护/屏侧诊断、C5 BUILD ONLY；最新镜像 9,176,176 B，SHA-256 `f3a8a58c…`；报告 `CODEX_APP_FIRST_CONNECTED_2026-09-06.md`。用户已授权后续 ota_0 application-only 刷写，但仍需设备注册/凭据、候选冻结与真机网络链门禁。 |
 | 6.25 | CODEX-APP-FIRST-001 / L1 演示任务 reset-reseed | Codex | `ACCEPTED`（限定 learning NVS 与本地屏侧状态链路） | 6.24；用户授权 learning NVS 清空 | 屏幕按钮调用 `ResetToSeed()`，COM7 monitor 记录 `ok=1`、NVS seed blob 344 B，用户确认演示任务与交互正常；复检修复 `ResetToSeed()` 后恢复 `stest=1`。报告 `CODEX_APP_FIRST_L1_RESET_2026-09-06.md`。 |
 | 6.26 | CODEX-APP-FIRST-001 / AF3-5 Backend session + diagnostics | Codex | `CHECKPOINT_READY`（Host 17/17 + C5 BUILD ONLY；未声明真机联网） | 6.25；AF1/AF2 契约与故障矩阵 | `LearningBackendSession` 认证→今日快照→事件 ACK；Runtime 注入式 endpoint/signer；屏侧实际诊断；C5 `xiaozhi.bin` 9,182,112 B，SHA-256 `EF2AEA45…A11F9BB`；报告 `CODEX_APP_FIRST_AF3_SESSION_2026-09-06.md`。真实 endpoint/signer 与 ota_0 真机候选待下一门禁。 |
 | 7 | WB-BRINGUP-S1 | WorkBuddy | `BACKLOG` | WB-HW-001；恢复路径；涉及刷写时需用户明确授权 | B001/B002/B003/B004/B005/B009/B013 + `BRINGUP_STAGE1_REPORT.md` |
@@ -97,7 +97,7 @@
 
 | 阻塞 ID | 影响任务 | 证据 | 解除条件 |
 | --- | --- | --- | --- |
-| BLK-FLASH-AUTH-001 | 固件刷写/Flash 擦除/分区/OTA 操作 | 本轮已获并使用一次 ota_0 application-only 授权完成 L1 reset-reseed；`erase_flash`、bootloader、partition、ota_1、C5、eFuse、Secure Boot、Flash Encryption 仍禁 | 任何超出 ota_0 application-only 的操作都需用户重新明确授权；L2/L3 真机候选须另行冻结并验收 |
+| BLK-FLASH-AUTH-001 | 固件刷写/Flash 擦除/分区/OTA 操作 | 用户已授权本批后续 ota_0 application-only 刷写；`erase_flash`、bootloader、partition、ota_1、C5、eFuse、Secure Boot、Flash Encryption 仍禁 | 先完成 endpoint/signer 注入、冻结唯一 L2/L3 候选并核对 SHA；任何超出 ota_0 application-only 的操作仍需用户重新明确授权 |
 
 ## 已解除阻塞
 
