@@ -42,15 +42,16 @@
 
 - 启动日志确认 Wi-Fi station connected，设备 IP `192.168.3.49`，网关 `192.168.3.1`。
 - 电脑地址 `192.168.3.26`；relay 已监听 `192.168.3.26:18765`，局域网转发到 loopback Backend。
-- 尚未宣称 auth/today/events PASS：需要用户在设备进入一次“学习”页，让 worker 被创建并完成至少一个周期。
+- 用户已进入“学习”页；worker 已发起请求，但设备日志为 `EspTcp: Failed to connect to 192.168.3.26:18765, code=0x71`，尚未到达 HTTP/auth 层。
+- 本机 loopback/relay 自测仍为预期 `401`；Windows 入站防火墙规则创建返回“拒绝访问”，当前 Codex 进程无法取得管理员权限。
 
 ## 4. 验收结论
 
 - P1/P2：`CHECKPOINT_READY`；配置注入与 HMAC 代码已编译并在设备 NVS 落盘。
-- P3：`CHECKPOINT_READY`；worker 与诊断构建通过，需学习页现场日志确认运行期网络结果。
+- P3：`CHECKPOINT_READY`；worker 与诊断构建通过，运行期已确认发起 TCP 请求，但被本机防火墙阻断。
 - P6：`CHECKPOINT_READY`（ota_0 application-only flash）；真机业务链路仍为 `HARDWARE_VERIFY_REQUIRED`。
 - 未发生范围偏差；未提交构建目录、NVS dump、镜像或任何密钥。
 
 ## 5. 下一步
 
-用户进入“学习”页并保持约 30 秒后，Codex 读取 COM7 日志，验收 `authenticate`、`today`、`events` 与屏幕诊断；若失败，只修复对应出口，不重刷 bootloader/partition。
+管理员放行私有 Wi‑Fi 网段到 TCP 18765 后，Codex 再读取 COM7 日志验收 `authenticate`、`today`、`events` 与屏幕诊断；若失败，只修复对应出口，不重刷 bootloader/partition。
