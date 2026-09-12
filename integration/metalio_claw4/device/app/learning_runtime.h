@@ -14,6 +14,7 @@
 
 #include "sync/learning_backend_session.h"
 #include "metalio_claw4/device/ports/learning_clock.h"
+#include "metalio_claw4/device/ports/metalio_voice_session.h"
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
 #include "metalio_claw4/host_glue/learning_app.h"
 
@@ -37,6 +38,12 @@ class LearningRuntime {
   // touching the shared LearningApp/coordinator state.
   std::recursive_mutex& stateMutex() { return state_mutex_; }
   claw4::ports::ClockPort& clock() { return clock_; }
+
+  // L4 (P25 Voice STT)：语音会话所有权。
+  // 学习屏 LOAD 时 beginSession()、UNLOAD 时 endSession()，让唤醒词与麦克风
+  // 归属语音 UI 会话（否则学习屏里说唤醒词不会响应）。实现在
+  // ports/metalio_voice_session.{h,cpp}，仅映射到 Application::SetVoiceUiDesired。
+  claw4::ports::VoiceSessionPort& voiceSession() { return voice_session_; }
 
   // Persisted monotonic id sources (NVS-backed, survive reboot) so a fresh
   // boot can never collide with pre-reboot pending event/session ids.
@@ -70,6 +77,7 @@ class LearningRuntime {
 
   NvsOutboxStorage storage_;
   EspTimerClock clock_;
+  MetalioVoiceSessionPort voice_session_;
   std::unique_ptr<LearningApp> app_;
   std::unique_ptr<claw4::sync::LearningBackendSession> backend_;
   TaskHandle_t backend_task_ = nullptr;

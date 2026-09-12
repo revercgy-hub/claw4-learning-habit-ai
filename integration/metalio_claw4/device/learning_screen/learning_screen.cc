@@ -19,6 +19,7 @@
 #include "home_screen/home_screen.h"
 
 #include "interaction/command.h"
+#include "interaction/stt_mapper.h"
 #include "learning_domain/domain_state.h"
 #include "metalio_claw4/device/app/learning_runtime.h"
 
@@ -53,9 +54,13 @@ struct Ui {
   lv_obj_t* primary_lbl = nullptr;
   lv_obj_t* secondary = nullptr;  // 完成 button
   lv_obj_t* secondary_lbl = nullptr;
+  lv_obj_t* voice = nullptr;      // L4: 语音命令反馈行
   lv_timer_t* timer = nullptr;
 };
 Ui s_ui;
+
+// L4 (P25)：学习屏是否在前台 —— display 层据此路由语音识别文本。
+bool s_active = false;
 
 LearningRuntime& Rt() { return LearningRuntime::Instance(); }
 
@@ -365,6 +370,75 @@ void OnSecondary(lv_event_t*) {
 
 void OnRefreshTick(lv_timer_t*) { RefreshUi(); }
 
+// --- L4 voice (P25 Voice STT) ----------------------------------------------
+
+void SetVoiceHint(const char* text) {
+  if (s_ui.voice == nullptr) return;
+  lv_label_set_text(s_ui.voice, text != nullptr ? text : "");
+}
+
+const char* KindLabel(CommandKind kind) {
+  switch (kind) {
+    case CommandKind::StartTask:          return "开始";
+    case CommandKind::PauseTask:          return "暂停";
+    case CommandKind::ResumeTask:         return "继续";
+    case CommandKind::CompleteTask:       return "完成";
+    case CommandKind::SkipTask:           return "跳过";
+    case CommandKind::QueryTodayTasks:    return "今天任务";
+    case CommandKind::QueryCurrentTask:   return "当前任务";
+    case CommandKind::QueryRemainingTime: return "剩余时间";
+    case CommandKind::QueryTodayProgress: return "今日进度";
+    default:                              return "未知";
+  }
+}
+
+// 查询类命令的答复文本（纯读，不改状态；dispatcher 明确不转发 query）。
+std::string VoiceQueryText(CommandKind kind, const DomainState& st) {
+  int total = 0;
+  int done = 0;
+  for (const auto& t : st.tasks) {
+    ++total;
+    if (t.status == TaskStatus::Completed || t.status == TaskStatus::Skipped) ++done;
+  }
+
+  switch (kind) {
+    case CommandKind::QueryTodayTasks:
+      return "今日任务共 " + std::to_string(total) + " 个，未完成 " +
+             std::to_string(total - done) + " 个";
+    case CommandKind::QueryTodayProgress:
+      return "今日进度 " + std::to_string(done) + "/" + std::to_string(total);
+    case CommandKind::QueryCurrentTask: {
+      if (!st.active_session.has_value()) return "当前没有进行中的任务";
+      const Task* t = FindTask(st, st.active_session->task_id);
+      return std::string("当前任务：") + (t != nullptr ? t->title : "未知任务");
+    }
+    case CommandKind::QueryRemainingTime: {
+      if (!st.active_session.has_value()) return "当前没有进行中的任务";
+      const StudySession& s = *st.active_session;
+      const Task* t = FindTask(st, s.task_id);
+      const int planned = (t != nullptr && t->estimated_minutes > 0)
+                              ? t->estimated_minutes
+                              : s.planned_minutes;
+      long long remain = static_cast<long long>(planned) * 60 - s.actual_seconds;
+      if (remain < 0) remain = 0;
+      return "还剩约 " + std::to_string(remain / 60) + " 分钟";
+    }
+    default:
+      return "已识别";
+  }
+}
+
+void DispatchVoice(CommandKind kind, const TaskId& task_id) {
+  auto& app = Rt().app();
+  CommandPayload p;
+  p.kind = kind;
+  p.task_id = task_id;
+  const auto r = app.dispatcher().dispatch(CommandSource::Voice, p);
+  ESP_LOGI(TAG, "voice kind=%d task=%s -> status=%d intent=%d",
+           static_cast<int>(kind), task_id.value.c_str(),
+           static_cast<int>(r.status), static_cast<int>(r.intent_result));
+}
+
 void GoHome() {
   lv_obj_t* old_scr = lv_screen_active();
   lv_obj_t* home = HomeScreen::Create();
@@ -400,9 +474,17 @@ lv_obj_t* MakeButton(lv_obj_t* parent, int x, int y, int w, int h,
 
 void LearningScreen::LifecycleCallback(screen_lifecycle_event_t event) {
   if (event == SCREEN_LIFECYCLE_LOAD) {
-    ESP_LOGI(TAG, "load: learning_screen (real state)");
+    s_active = true;
+    // L4: 取得语音会话，让唤醒词与麦克风归属学习屏
+    //（上游「唤醒词只属于语音 UI 会话」，不取则唤醒词不响应）。
+    Rt().voiceSession().beginSession();
+    SetVoiceHint("语音：说「你好小智」唤醒，再说「暂停 / 继续 / 还有多久」");
+    ESP_LOGI(TAG, "load: learning_screen (real state, voice session acquired)");
   } else {
-    ESP_LOGI(TAG, "unload: learning_screen");
+    s_active = false;
+    // L4: 释放语音会话，交还聊天 / 数字人屏。
+    Rt().voiceSession().endSession();
+    ESP_LOGI(TAG, "unload: learning_screen (voice session released)");
     if (s_ui.timer != nullptr) {
       lv_timer_del(s_ui.timer);
       s_ui.timer = nullptr;
@@ -412,6 +494,62 @@ void LearningScreen::LifecycleCallback(screen_lifecycle_event_t event) {
       s_selftest_timer = nullptr;
     }
   }
+}
+
+bool LearningScreen::IsActive() { return s_active; }
+
+void LearningScreen::OnVoicePhrase(const char* text) {
+  if (text == nullptr || text[0] == '\0') return;
+
+  auto& rt = Rt();
+  std::lock_guard<std::recursive_mutex> lock(rt.stateMutex());
+  if (!rt.bootReady()) return;
+
+  const claw4::interaction::SttMapping m =
+      claw4::interaction::mapVoicePhrase(text);
+
+  // 无论命中与否，先掐断云端回复：上游是 ASR→LLM 服务端流水线，
+  // 识别文本到达设备时服务端可能已在生成闲聊回复。
+  rt.voiceSession().abortCloudReply();
+
+  if (!m.recognized) {
+    // 学习页只做确定性命令，不做自由对话。
+    SetVoiceHint("语音仅支持：开始/暂停/继续/完成/跳过/还有多久/当前任务/今天任务");
+    ESP_LOGI(TAG, "voice phrase not a learning command: %s", text);
+    return;
+  }
+
+  const DomainState& st = rt.app().state();
+
+  // 查询类：只读答复，不进入派发（dispatcher 不转发 query kind）。
+  if (m.kind == CommandKind::QueryTodayTasks ||
+      m.kind == CommandKind::QueryCurrentTask ||
+      m.kind == CommandKind::QueryRemainingTime ||
+      m.kind == CommandKind::QueryTodayProgress) {
+    const std::string ans = VoiceQueryText(m.kind, st);
+    SetVoiceHint(ans.c_str());
+    ESP_LOGI(TAG, "voice query (%s) -> %s", KindLabel(m.kind), ans.c_str());
+    return;
+  }
+
+  // 变更类：目标 = 当前活动会话的 task，否则第一个 Ready 任务。
+  TaskId target{};
+  if (st.active_session.has_value()) {
+    target = st.active_session->task_id;
+  } else {
+    const Task* first = FirstReady(st);
+    if (first != nullptr) target = first->task_id;
+  }
+
+  DispatchVoice(m.kind, target);
+  RefreshUi();
+
+  std::string hint = std::string("语音已识别：") + KindLabel(m.kind);
+  if (rt.app().dispatcher().hasPendingComplete()) {
+    // 「完成」走受控路径：AI 不能直接完成任务，需物理确认。
+    hint += "（请在屏幕上确认）";
+  }
+  SetVoiceHint(hint.c_str());
 }
 
 lv_obj_t* LearningScreen::Create() {
@@ -486,6 +624,15 @@ lv_obj_t* LearningScreen::Create() {
   s_ui.primary_lbl = lv_obj_get_child(s_ui.primary, 0);
   s_ui.secondary = MakeButton(scr, 140, 574, 440, 76, "—", OnSecondary);
   s_ui.secondary_lbl = lv_obj_get_child(s_ui.secondary, 0);
+
+  // L4: 语音命令反馈行（secondary 按钮下方，720 屏高内）。
+  s_ui.voice = lv_label_create(scr);
+  lv_label_set_text(s_ui.voice, "");
+  lv_obj_set_style_text_color(s_ui.voice, lv_color_hex(0x5DCAA5), 0);
+  lv_obj_set_style_text_font(s_ui.voice, &font_puhui_20_4, 0);
+  lv_obj_set_width(s_ui.voice, 640);
+  lv_label_set_long_mode(s_ui.voice, LV_LABEL_LONG_CLIP);
+  lv_obj_set_pos(s_ui.voice, 48, 662);
 
   RefreshUi();
   s_ui.timer = lv_timer_create(OnRefreshTick, kRefreshMs, nullptr);
