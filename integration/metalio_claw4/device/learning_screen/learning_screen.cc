@@ -62,6 +62,13 @@ Ui s_ui;
 // L4 (P25)：学习屏是否在前台 —— display 层据此路由语音识别文本。
 bool s_active = false;
 
+// L4：按需开麦。学习页**不常开**语音会话 —— AFE 持续 feed 会与后台同步争抢
+// CPU（实测触发 task_wdt 全系统卡死）。改为「语音」按钮开启一个时间窗。
+constexpr uint32_t kVoiceWindowMs = 8000;
+bool s_voice_open = false;
+lv_timer_t* s_voice_timer = nullptr;
+void SetVoiceHint(const char* text);  // fwd（定义在下方语音段落）
+
 LearningRuntime& Rt() { return LearningRuntime::Instance(); }
 
 void RefreshUi();  // fwd (defined below; used by the self-test step chain)
@@ -439,6 +446,52 @@ void DispatchVoice(CommandKind kind, const TaskId& task_id) {
            static_cast<int>(r.status), static_cast<int>(r.intent_result));
 }
 
+// --- L4 按需开麦（语音时间窗） ---------------------------------------------
+
+void CloseVoiceWindow(const char* hint) {
+  if (s_voice_timer != nullptr) {
+    lv_timer_del(s_voice_timer);
+    s_voice_timer = nullptr;
+  }
+  if (s_voice_open) {
+    s_voice_open = false;
+    Rt().voiceSession().endSession();
+    ESP_LOGI(TAG, "voice window closed");
+  }
+  if (hint != nullptr) SetVoiceHint(hint);
+}
+
+void OnVoiceWindowTimeout(lv_timer_t*) {
+  CloseVoiceWindow("语音已关闭（8 秒未识别）");
+}
+
+void ArmVoiceWindow() {
+  auto& rt = Rt();
+  if (!rt.bootReady()) return;
+
+  if (s_voice_timer != nullptr) {
+    lv_timer_del(s_voice_timer);
+    s_voice_timer = nullptr;
+  }
+  if (!s_voice_open) {
+    if (!rt.voiceSession().beginSession()) {
+      SetVoiceHint("语音会话获取失败");
+      return;
+    }
+    s_voice_open = true;
+    ESP_LOGI(TAG, "voice window armed (%u ms)", (unsigned)kVoiceWindowMs);
+  }
+  s_voice_timer = lv_timer_create(OnVoiceWindowTimeout, kVoiceWindowMs, nullptr);
+  lv_timer_set_repeat_count(s_voice_timer, 1);
+  SetVoiceHint("语音已开启，请说「嗨钛灵」唤醒后再下达命令");
+}
+
+void OnVoiceButton(lv_event_t*) {
+  auto& rt = Rt();
+  std::lock_guard<std::recursive_mutex> lock(rt.stateMutex());
+  ArmVoiceWindow();
+}
+
 void GoHome() {
   lv_obj_t* old_scr = lv_screen_active();
   lv_obj_t* home = HomeScreen::Create();
@@ -475,15 +528,14 @@ lv_obj_t* MakeButton(lv_obj_t* parent, int x, int y, int w, int h,
 void LearningScreen::LifecycleCallback(screen_lifecycle_event_t event) {
   if (event == SCREEN_LIFECYCLE_LOAD) {
     s_active = true;
-    // L4: 取得语音会话，让唤醒词与麦克风归属学习屏
-    //（上游「唤醒词只属于语音 UI 会话」，不取则唤醒词不响应）。
-    Rt().voiceSession().beginSession();
-    SetVoiceHint("语音：说「你好小智」唤醒，再说「暂停 / 继续 / 还有多久」");
-    ESP_LOGI(TAG, "load: learning_screen (real state, voice session acquired)");
+    // L4: 不自动开麦 —— 点「语音」按钮开启 8 秒时间窗。常开语音会让 AFE 持续
+    // feed 并与后台同步争抢 CPU（实测触发 task_wdt 全系统卡死）。
+    SetVoiceHint("点右上角「语音」开麦，说「嗨钛灵」唤醒后再下命令");
+    ESP_LOGI(TAG, "load: learning_screen (real state, voice on demand)");
   } else {
     s_active = false;
-    // L4: 释放语音会话，交还聊天 / 数字人屏。
-    Rt().voiceSession().endSession();
+    // L4: 释放语音会话（若时间窗仍开着）并清掉定时器。
+    CloseVoiceWindow(nullptr);
     ESP_LOGI(TAG, "unload: learning_screen (voice session released)");
     if (s_ui.timer != nullptr) {
       lv_timer_del(s_ui.timer);
@@ -514,7 +566,7 @@ void LearningScreen::OnVoicePhrase(const char* text) {
 
   if (!m.recognized) {
     // 学习页只做确定性命令，不做自由对话。
-    SetVoiceHint("语音仅支持：开始/暂停/继续/完成/跳过/还有多久/当前任务/今天任务");
+    CloseVoiceWindow("语音仅支持：开始/暂停/继续/完成/跳过/还有多久/当前任务/今天任务");
     ESP_LOGI(TAG, "voice phrase not a learning command: %s", text);
     return;
   }
@@ -527,7 +579,7 @@ void LearningScreen::OnVoicePhrase(const char* text) {
       m.kind == CommandKind::QueryRemainingTime ||
       m.kind == CommandKind::QueryTodayProgress) {
     const std::string ans = VoiceQueryText(m.kind, st);
-    SetVoiceHint(ans.c_str());
+    CloseVoiceWindow(ans.c_str());
     ESP_LOGI(TAG, "voice query (%s) -> %s", KindLabel(m.kind), ans.c_str());
     return;
   }
@@ -549,7 +601,8 @@ void LearningScreen::OnVoicePhrase(const char* text) {
     // 「完成」走受控路径：AI 不能直接完成任务，需物理确认。
     hint += "（请在屏幕上确认）";
   }
-  SetVoiceHint(hint.c_str());
+  // 命令已收到，关麦释放 CPU（再次使用需重新点「语音」）。
+  CloseVoiceWindow(hint.c_str());
 }
 
 lv_obj_t* LearningScreen::Create() {
@@ -575,6 +628,8 @@ lv_obj_t* LearningScreen::Create() {
   lv_obj_set_style_text_font(title, &font_puhui_30_4, 0);
   lv_obj_center(title);
   MakeButton(header, 16, 21, 110, 48, "返回", [](lv_event_t*) { GoHome(); });
+  // L4: 按需开麦按钮（避免常开语音会话让 AFE 持续 feed 抢占 CPU）。
+  MakeButton(header, 586, 21, 118, 48, "语音", OnVoiceButton);
 
   // Today list section.
   lv_obj_t* section = lv_label_create(scr);
