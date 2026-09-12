@@ -21,7 +21,9 @@
 | 变更范围 | 新旧固件**仅 rodata 段 +256 B**，其余段仅地址对齐位移 → 无其他隐藏差异 |
 | `sdkconfig` | **逐字节未变**（md5 `d8874d49…`，mtime 仍为 08-31），满足用户"非必要勿改"硬约束 |
 | 新候选固件 | `9,255,792 B` / SHA-256 `20a73b70…19cf0` |
-| 刷写状态 | **未刷写**。需用户对 `ota_0` application-only 重新授权 |
+| 刷写状态 | **已刷写 `ota_0` 并通过回读验证**（用户授权，09-13 00:15） |
+| **端到端验证** | **PASS** —— `pause_count` 已从设备上报并落库（`0 → 1`，见 §11） |
+| 新发现缺陷 | **1 项**：`ResetToSeed()` 致序号与后端失配，事件全被拒（见 §12） |
 
 > **一句话**：这不是代码缺陷，而是**构建产物的时间戳陷阱**。源码一直是对的，是编译器"没看见"它。
 
@@ -271,3 +273,162 @@ grep -ac "pause_count"  E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin   # 
 sha256sum               E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin
 md5sum                  E:/workbuddy/claw4-idf-cold-c5-20260906/sdkconfig      # 期望 d8874d49…
 ```
+
+---
+
+## 11. 真机刷写与端到端验证（2026-09-13 00:15–00:30）
+
+> 用户授权：**「刷写并直接做完整验证」**。仅 `ota_0` application-only。
+
+### 11.1 刷写
+
+```bash
+python -m esptool --chip esp32p4 -p COM7 -b 460800 \
+  write_flash 0x200000 E:/workbuddy/claw4-idf-cold-c5-20260906/xiaozhi.bin
+```
+
+```
+Wrote 9255792 bytes (4869787 compressed) at 0x00200000 in 51.7 seconds
+Hash of data verified.
+Hard resetting via RTS pin...
+```
+
+未动 bootloader / partition-table / ota_data / ota_1 / C5 ✓
+
+### 11.2 回读验证（强证据）
+
+```bash
+python -m esptool --chip esp32p4 -p COM7 -b 460800 read_flash 0x200000 0x2000 vh_dev.bin
+```
+
+| 对象 | 首 8 KiB SHA-256 |
+| --- | --- |
+| 本地新固件 | `56b729f7d2d3ea40414666abbcad3e5f4482f45ebe889bca02c1f3f135085746` |
+| **设备实机回读** | `56b729f7d2d3ea40414666abbcad3e5f4482f45ebe889bca02c1f3f135085746` |
+
+**逐字节一致** ✓
+
+app_desc 指纹三方核对：
+
+| 固件 | `elf_sha256` |
+| --- | --- |
+| 冻结版（修复前） | `7b0944d593581a9332519b9c6152a766024a9ada3a37a60c4cc47bc979319a58` |
+| 新固件（本地） | `7f3be21d1c6990f560df0acead513d6495b4449964b574730001beadf50bf091` |
+| **设备回读** | `7f3be21d1c6990f560df0acead513d6495b4449964b574730001beadf50bf091` |
+
+> 注：app_desc 的 `time/date` 仍显示 `18:42:40 Sep 6 2026` —— 因为 `esp_app_desc.c` 未被重编，`__DATE__/__TIME__` 是编译期常量。
+> 这不影响功能，`elf_sha256` 由链接后步骤生成，**已正确更新**。
+
+### 11.3 环境前置（再次踩到同一坑）
+
+刷写后联调前发现 **Tailscale 再次运行并劫持 `192.168.3.0/24`**：
+
+```
+route print -4:
+  0.0.0.0/0        -> 192.168.3.1      metric 30   (正常 WLAN)
+  192.168.3.0/24   -> 100.100.100.100  metric 0    (Tailscale 劫持)
+```
+
+`tailscale down` 后劫持条目消失，`tracert` 恢复 1 跳直达、`ping -S` 通 ✓
+
+> **运维提示**：Tailscale 会随开机自启，每次真机联调前都应先核对 `route print -4` 中 `192.168.3.0/24` 的下一跳。
+
+### 11.4 事件链路（最终结果）
+
+```bash
+relay: 192.168.3.26:18765 LISTENING   (转发自测 /api/v1/parents/me → 401 预期)
+backend: 127.0.0.1:8000 LISTENING     (/health → ok)
+```
+
+真机操作 Start → Pause → Complete 后，事件全部 accepted：
+
+```
+seq=1  task.started             {"task_id": "demo-math-001"}
+seq=2  study.session.started    {"session_id": "sess-851182428c03b3f5", "task_id": "demo-math-001"}
+seq=3  task.paused              {"task_id": "demo-math-001"}
+seq=4  task.completed           {"task_id": "demo-math-001"}
+seq=5  study.session.completed  {"actual_seconds": "2", "completion_type": "manual",
+                                 "pause_count": "1",              ← ⭐ 本次修复的核心目标
+                                 "session_id": "sess-851182428c03b3f5", "task_id": "demo-math-001"}
+```
+
+`devices.last_acked_sequence` 由 `0` 推进至 `5`，`accepted=5 / duplicates=0 / rejected=0`。
+
+### 11.5 ⭐ 验收核心：`pause_count` 落库对比
+
+| session_id | task | `pause_count` | 说明 |
+| --- | --- | --- | --- |
+| `sess-250f2c37e61888c9` | demo-math-001 | **0** | 修复前 |
+| `sess-055867ca4df6b890` | 4f6f26c8… | **0** | 修复前 |
+| **`sess-851182428c03b5f5`** | demo-math-001 | **1** | **✅ 修复后** |
+
+> **结论**：`pause_count` 已实现「设备端生成 → outbox 序列化 → relay → backend 投影 → 数据库落库」全链路打通。
+> **§2 的陈旧目标文件缺陷修复得到真机端到端验证。**
+
+### 11.6 本轮未覆盖
+
+- 本次操作使用**演示任务** `demo-math-001`（原因见 §12.2），**真实任务** `4f6f26c8…` 未参与本次验证；
+- 操作序列为 Start→Pause→Complete，**未包含 Resume**，故 `pause_seconds=0`；
+  如需验证暂停时长累计，需补做一次含 Resume 的完整流程。
+
+---
+
+## 12. 🆕 新发现缺陷：`ResetToSeed()` 致序号与后端失配
+
+### 12.1 现象
+
+首次操作后，后端连续多轮记录：
+
+```
+batch: device_id=988566fb-… accepted=0 duplicates=0 rejected=5 gaps=0 ack=20
+```
+
+**5 条事件全部被拒，ACK 卡在 20 不再前进**，链路看似"通了但数据不入库"。
+
+### 12.2 根因
+
+`main/learning/metalio_claw4/device/app/learning_runtime.cpp:62`：
+
+```cpp
+bool LearningRuntime::ResetToSeed() {
+  backend_.reset();
+  if (!NvsOutboxStorage::eraseAll()) { ... }          // ← 擦除整个 outbox namespace
+  app_ = std::make_unique<LearningApp>(storage_, clock_);
+  ...
+  const bool ok = app_->applyTodaySnapshot(DemoTodaySnapshot());  // ← 用 demo 快照覆盖
+```
+
+两个后果：
+
+1. **序号失配**：`eraseAll()` 把 outbox 中持久化的 `next_sequence` 一并清除。
+   `outbox_core.cpp:198` 的 `nextSequence()` 在 `loadState()` 失败时返回 **1**
+   → 新事件从 `seq=1` 开始；而后端 `last_acked_sequence=20`、`expected=21`
+   → `main.py:389` 判定 **`sequence_regression`** → 逐条 409 拒绝。
+2. **任务被替换成 demo**：`applyTodaySnapshot(DemoTodaySnapshot())` 使设备显示 `demo-math-001`
+   而非后端下发的真实今日任务。
+
+> 触发条件：**设备端已存在历史 ack 的后端 + 设备端执行 ResetToSeed**（例如 demo 任务全部完成后再次点击主按钮）。
+> 后果是**永久性失配**——设备会每 15 s 重试同一批序号，永远被拒。
+
+### 12.3 本次解封方式（仅解除现象，未修缺陷）
+
+1. 备份数据库 → `.claw4_host_mvp.db.bak-20260913-0025`
+2. `DELETE FROM events`
+3. `UPDATE devices SET last_acked_sequence = 0`
+4. 设备下一轮重试即全部 accepted（见 §11.4）
+
+> ⚠️ 这是**绕过**而非**修复**。只要再次触发 ResetToSeed，问题会复现。
+
+### 12.4 建议修复方向（待评估，需新任务授权）
+
+| 方案 | 做法 | 评价 |
+| --- | --- | --- |
+| A（推荐） | `ResetToSeed()` 后不擦除序号状态；或擦除后从后端 `last_acked_sequence+1` 重新起算 | 从根上消除失配 |
+| B | 设备端收到 batch 响应后做自愈：若本地 `next_sequence <= resp.last_acked_sequence`，则跳到 `ack+1` | 具备通用容错，也可覆盖其他重置场景 |
+| C | 后端放宽对 `sequence <= ack` 的判定 | **不推荐**，会破坏幂等/防重放语义 |
+
+### 12.5 附带观察
+
+- `ResetToSeed()` 会用 demo 快照**覆盖后端下发的今日任务**，若该行为非预期，应一并评估；
+- 设备侧 GT911 触摸在 00:19 起出现间歇 `I2C read error`（既有已知问题，软复位无效，需断电），本次不影响操作完成。
+
