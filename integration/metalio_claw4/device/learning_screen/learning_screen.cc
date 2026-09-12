@@ -12,6 +12,7 @@
 #include "learning_screen/learning_screen.h"
 
 #include <cstdio>
+#include <deque>
 #include <mutex>
 #include <string>
 
@@ -64,10 +65,20 @@ bool s_active = false;
 
 // L4：按需开麦。学习页**不常开**语音会话 —— AFE 持续 feed 会与后台同步争抢
 // CPU（实测触发 task_wdt 全系统卡死）。改为「语音」按钮开启一个时间窗。
-constexpr uint32_t kVoiceWindowMs = 8000;
+// 窗口需覆盖「唤醒 + 说命令 + ASR 往返」，且每次收到语音文本都会续期。
+constexpr uint32_t kVoiceWindowMs = 15000;
 bool s_voice_open = false;
 lv_timer_t* s_voice_timer = nullptr;
 void SetVoiceHint(const char* text);  // fwd（定义在下方语音段落）
+
+// L4：跨任务语音文本队列（详见头文件 QueueVoicePhrase 的说明）。
+// 协议任务只 push（仅碰 std::mutex + deque），LVGL 定时器 pop 后在
+// LVGL 任务上下文执行 —— 避免跨任务并发操作 LVGL。
+constexpr size_t kVoiceQueueMax = 8;
+std::mutex s_voice_q_mtx;
+std::deque<std::string> s_voice_q;
+lv_timer_t* s_voice_poll_timer = nullptr;
+constexpr uint32_t kVoicePollMs = 50;
 
 LearningRuntime& Rt() { return LearningRuntime::Instance(); }
 
@@ -545,10 +556,45 @@ void LearningScreen::LifecycleCallback(screen_lifecycle_event_t event) {
       lv_timer_del(s_selftest_timer);
       s_selftest_timer = nullptr;
     }
+    if (s_voice_poll_timer != nullptr) {
+      lv_timer_del(s_voice_poll_timer);
+      s_voice_poll_timer = nullptr;
+    }
+    {
+      std::lock_guard<std::mutex> lock(s_voice_q_mtx);
+      s_voice_q.clear();
+    }
   }
 }
 
 bool LearningScreen::IsActive() { return s_active; }
+
+// ---- L4 跨任务投递：协议任务 -> 队列 -> LVGL 定时器 -------------------------
+// 协议任务（LVAdapterDisplay::SetChatMessage 的调用者）绝不能直接调 LVGL：
+// LVGL 非线程安全，与 LVGL 任务里的 RefreshUi() 并发会破坏失效区链表，
+// 实测导致 lv_inv_area 重绘死循环 -> IDLE1 饿死 -> task_wdt 全系统卡死。
+void LearningScreen::QueueVoicePhrase(const char* text) {
+  if (text == nullptr || text[0] == '\0') return;
+  std::lock_guard<std::mutex> lock(s_voice_q_mtx);
+  if (s_voice_q.size() >= kVoiceQueueMax) {
+    s_voice_q.pop_front();  // 极端情况丢最旧的，绝不无界增长
+  }
+  s_voice_q.emplace_back(text);
+}
+
+// LVGL 定时器回调 —— 运行在 LVGL 任务上下文，此处操作 LVGL 是安全的。
+void OnVoicePollTick(lv_timer_t*) {
+  for (;;) {
+    std::string phrase;
+    {
+      std::lock_guard<std::mutex> lock(s_voice_q_mtx);
+      if (s_voice_q.empty()) return;
+      phrase = std::move(s_voice_q.front());
+      s_voice_q.pop_front();
+    }
+    LearningScreen::OnVoicePhrase(phrase.c_str());
+  }
+}
 
 void LearningScreen::OnVoicePhrase(const char* text) {
   if (text == nullptr || text[0] == '\0') return;
@@ -557,21 +603,28 @@ void LearningScreen::OnVoicePhrase(const char* text) {
   std::lock_guard<std::recursive_mutex> lock(rt.stateMutex());
   if (!rt.bootReady()) return;
 
+  // 只要有语音文本回来就续期时间窗 —— 唤醒词回声到达时窗口往往已过大半，
+  // 不续期会导致用户还没说出命令就被关麦。
+  ArmVoiceWindow();
+
   const claw4::interaction::SttMapping m =
       claw4::interaction::mapVoicePhrase(text);
 
-  // 无论命中与否，先掐断云端回复：上游是 ASR→LLM 服务端流水线，
-  // 识别文本到达设备时服务端可能已在生成闲聊回复。
-  rt.voiceSession().abortCloudReply();
-
   if (!m.recognized) {
-    // 学习页只做确定性命令，不做自由对话。
-    CloseVoiceWindow("语音仅支持：开始/暂停/继续/完成/跳过/还有多久/当前任务/今天任务");
-    ESP_LOGI(TAG, "voice phrase not a learning command: %s", text);
+    // 未识别为学习命令：**不掐断、不关麦**。
+    // 上游会把唤醒词音频也送入云端 ASR（返回形如 "Hi 钛灵"），若在此掐断或
+    // 关闭时间窗，会杀死刚建立的对话流程，导致后续真正的命令收不到。
+    // 时间窗仍由 8 秒定时器兜底关闭。
+    SetVoiceHint("未识别，请继续说：开始/暂停/继续/完成/跳过/还有多久/当前任务/今天任务");
+    ESP_LOGI(TAG, "voice phrase not a learning command (session kept): %s", text);
     return;
   }
 
   const DomainState& st = rt.app().state();
+
+  // 命中学习命令：先掐断云端 LLM/TTS，避免孩子听到无关闲聊
+  //（上游为 ASR→LLM 流水线，可能已有残余输出）。
+  rt.voiceSession().abortCloudReply();
 
   // 查询类：只读答复，不进入派发（dispatcher 不转发 query kind）。
   if (m.kind == CommandKind::QueryTodayTasks ||
@@ -691,6 +744,10 @@ lv_obj_t* LearningScreen::Create() {
 
   RefreshUi();
   s_ui.timer = lv_timer_create(OnRefreshTick, kRefreshMs, nullptr);
+  // L4：语音文本队列轮询（LVGL 上下文取出处理，见 QueueVoicePhrase）。
+  if (s_voice_poll_timer == nullptr) {
+    s_voice_poll_timer = lv_timer_create(OnVoicePollTick, kVoicePollMs, nullptr);
+  }
   if (rt.bootReady() && rt.SelfTestPending() && s_selftest_timer == nullptr) {
     s_selftest_step = 0;
     s_selftest_ok[0] = s_selftest_ok[1] = s_selftest_ok[2] = s_selftest_ok[3] = false;
