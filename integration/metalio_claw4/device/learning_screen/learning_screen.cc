@@ -5,7 +5,7 @@
 //     LearningRuntime::app().state() refreshed on a 1 s LVGL timer;
 //   * the only mutation path is dispatcher.dispatch(CommandSource::Touch, ..)
 //     (P14 funnel; Complete from a Touch source is emitted directly);
-//   * first boot seeds the demo today snapshot (see LearningRuntime::Init);
+//   * an explicitly unprovisioned first boot may seed a demo snapshot;
 //   * session focus seconds are projected live from the monotonic clock while
 //     Running (read-only; the domain accumulates on state transitions).
 // L0 mock (s_ui.running/done) is removed.
@@ -89,59 +89,7 @@ constexpr uint32_t kVoicePollMs = 50;
 
 LearningRuntime& Rt() { return LearningRuntime::Instance(); }
 
-void RefreshUi();  // fwd (defined below; used by the self-test step chain)
-
-// --- one-shot funnel self-test (device debug aid) -------------------------
-// Boots into the Learning screen once: automatically walks Start -> Pause ->
-// Resume -> Complete against the REAL domain/NVS pipeline, logs each result,
-// then resets the learning namespace to a clean seeded demo state. Running it
-// requires no touch input (the user only needs to open the screen once).
-int s_selftest_step = 0;
-bool s_selftest_ok[4] = {false, false, false, false};
-lv_timer_t* s_selftest_timer = nullptr;
-
-void RunSelfTestStep(lv_timer_t*) {
-  auto& rt = Rt();
-  std::lock_guard<std::recursive_mutex> lock(rt.stateMutex());
-  auto& app = rt.app();
-  const int step = s_selftest_step++;
-  if (step < 4) {
-    CommandPayload p;
-    p.task_id = claw4::domain::TaskId{"demo-math-001"};
-    switch (step) {
-      case 0: p.kind = CommandKind::StartTask; break;
-      case 1: p.kind = CommandKind::PauseTask; break;
-      case 2: p.kind = CommandKind::ResumeTask; break;
-      default: p.kind = CommandKind::CompleteTask; break;
-    }
-    const auto r = app.dispatcher().dispatch(CommandSource::Touch, p);
-    const bool ok = r.intent_result == claw4::domain::IntentResult::Accepted;
-    s_selftest_ok[step] = ok;
-    ESP_LOGI(TAG, "SELFTEST step%d kind=%d -> status=%d intent=%d ok=%d",
-             step, static_cast<int>(p.kind), static_cast<int>(r.status),
-             static_cast<int>(r.intent_result), ok ? 1 : 0);
-    return;
-  }
-  // Cleanup: stop the chain, report, reset to a clean demo state.
-  if (s_selftest_timer != nullptr) {
-    lv_timer_del(s_selftest_timer);
-    s_selftest_timer = nullptr;
-  }
-  const bool all = s_selftest_ok[0] && s_selftest_ok[1] && s_selftest_ok[2] &&
-                   s_selftest_ok[3];
-  ESP_LOGI(TAG, "SELFTEST %s (start=%d pause=%d resume=%d complete=%d)",
-           all ? "PASS" : "FAIL", s_selftest_ok[0] ? 1 : 0,
-           s_selftest_ok[1] ? 1 : 0, s_selftest_ok[2] ? 1 : 0,
-           s_selftest_ok[3] ? 1 : 0);
-  // ResetToSeed erases the complete "learning" namespace, including the
-  // self-test marker. Persist the marker only after a successful reset so the
-  // one-shot chain does not run again on the next screen entry/reboot.
-  const bool reset_ok = rt.ResetToSeed();
-  if (reset_ok) rt.MarkSelfTestDone();
-  RefreshUi();
-  ESP_LOGI(TAG, "SELFTEST cleanup done -> state re-seeded=%d",
-           reset_ok ? 1 : 0);
-}
+void RefreshUi();  // fwd (defined below)
 
 // --- pure view helpers ---------------------------------------------------
 const char* TaskStatusWord(TaskStatus s) {
@@ -374,10 +322,6 @@ void OnPrimary(lv_event_t*) {
     const Task* first = FirstReady(st);
     if (first != nullptr) {
       DispatchTouch(CommandKind::StartTask, first->task_id);
-    } else if (AllFinished(st)) {
-      const bool reset_ok = Rt().ResetToSeed();
-      ESP_LOGI(TAG, "demo reset requested from completed state -> ok=%d",
-               reset_ok ? 1 : 0);
     }
   }
   RefreshUi();
@@ -750,12 +694,6 @@ lv_obj_t* LearningScreen::Create() {
   // L4：语音文本队列轮询（LVGL 上下文取出处理，见 QueueVoicePhrase）。
   if (s_voice_poll_timer == nullptr) {
     s_voice_poll_timer = lv_timer_create(OnVoicePollTick, kVoicePollMs, nullptr);
-  }
-  if (rt.bootReady() && rt.SelfTestPending() && s_selftest_timer == nullptr) {
-    s_selftest_step = 0;
-    s_selftest_ok[0] = s_selftest_ok[1] = s_selftest_ok[2] = s_selftest_ok[3] = false;
-    s_selftest_timer = lv_timer_create(RunSelfTestStep, 600, nullptr);
-    ESP_LOGI(TAG, "SELFTEST armed (auto 4-step funnel chain)");
   }
   return scr;
 }
