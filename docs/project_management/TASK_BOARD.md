@@ -1,6 +1,6 @@
 # Claw4 当前任务看板
 
-更新时间：2026-09-13。维护者：Codex 主 agent。当前唯一总工作流：**CODEX-V53 / READY**（规划完成，后续按工作包领取；本轮未启动产品实现）。
+更新时间：2026-09-13。维护者：Codex 主 agent。当前唯一总工作流：**CODEX-V53 / IN_PROGRESS**（用户“继续任务”后已派发首批A01/A02/B01；子agent使用Luna/medium）。
 
 用户最新分工：子 agent 做具体开发；主 agent负责整体架构、任务审查、整合与疑难问题。历史“取消Codex复检/仅WorkBuddy实施”的调度约定对新任务由此取代；历史验收不回溯修改。
 
@@ -8,6 +8,7 @@
 
 - 最新设备开发来源：`origin/workbuddy-app-first-l3-acceptance` @ `7dd6511ab0125962d37f039955298819bdbb77be`（2026-09-13 11:43 +08:00；本轮远端复核一致）。
 - 规划分支：`codex/v53-architecture-task-plan`；独立目录 `E:/workbuddy/claw4-v53-control-20260913`。后续agent从主agent给出的已审查SHA建立独立分支，不从旧工作区或main起步。
+- 当前整合分支：`codex/v53-foundation-wave1`，从已推送规划提交 `1ae2a0c546615666a57abdf601b343bc88a043c4` 起步；三个实现工作区分别为同级 `claw4-v53-a01`、`claw4-v53-a02`、`claw4-v53-b01`，模型统一 `gpt-5.6-luna / medium`。
 - `main` 仍为9/2旧基线，不代表当前设备开发。旧目录HEAD损坏，未修复/覆盖。
 - [现状核验](reports/CODEX_V53_FACT_SYNC_2026-09-13.md) · [架构与路线](../ARCHITECTURE_V5_3.md) · [子agent工作包](tasks/CODEX-V53_AGENT_WORK_PACKAGES.md)。
 - [旧看板](TASK_BOARD_PRE_V53_20260913.md)保留历史证据，SUPERSEDED仅指调度入口。原V5.3是参考输入，不是自动执行命令。
@@ -29,14 +30,14 @@
 
 ## 3. 调度队列
 
-READY为可下发，QUEUED必须等待列出的依赖与主agent放行；同一共享文件任务串行。所有实现包本轮均未领取。审查包C0不计为产品Gate。
+READY为可下发，QUEUED必须等待列出的依赖与主agent放行；同一共享文件任务串行。首批三个实现包已领取。审查包C0不计为产品Gate。
 
 | ID | 任务 | 执行角色 | 状态 | 依赖/门禁 |
 | --- | --- | --- | --- | --- |
 | C0 | 远端事实、架构、看板、子agent包 | 主agent + 只读审计agents | ACCEPTED（规划范围） | 7dd6511；无硬件声明 |
-| A01 | 可复现镜像/补丁/产物证据 | Build agent | READY | C0；实际镜像只读取证 |
-| A02 | 正式任务Reset数据保护 | Data agent | READY | C0；Host+源码最小修复，无实际擦除 |
-| B01 | TimeAuthority Host | Time agent | READY | C0；独立目录，与A01/A02可并行 |
+| A01 | 可复现镜像/补丁/产物证据 | a01_luna | IN_PROGRESS | Base 1ae2a0c；实际镜像只读取证 |
+| A02 | 正式任务Reset数据保护 | a02_luna | IN_PROGRESS | Base 1ae2a0c；Host+源码最小修复，无实际擦除 |
+| B01 | TimeAuthority Host | b01_luna | IN_PROGRESS | Base 1ae2a0c；独立目录，与A01/A02并行 |
 | A03 | 网络I/O与状态所有权 | Concurrency agent + 主agent | QUEUED | A02 + 主agent线程ADR审查 |
 | A04 | 离线终态与快照合并 | Sync agent | QUEUED | A03；共享session/coordinator串行 |
 | B02 | InteractionArbiter Host | Interaction agent | QUEUED | C0；有空闲槽位且接口冻结 |

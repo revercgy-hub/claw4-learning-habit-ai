@@ -7,6 +7,7 @@
 1. 唯一当前总工作流为 `CODEX-V53`；事实与状态只看 `docs/project_management/TASK_BOARD.md`。架构扩展见 `docs/ARCHITECTURE_V5_3.md`；派发范围见 `docs/project_management/tasks/CODEX-V53_AGENT_WORK_PACKAGES.md`。旧看板归档保留，旧V4/App-first/L4未完成项逐项承接，不自动验收通过。
 2. 主agent维护接口/不变量、优先级、依赖、风险、文件所有权与最终集成，审查不可变提交和测试证据。复杂并发、数据恢复、疑难问题由主agent亲自负责；子agent不能自行改架构或扩大范围。
 3. 子agent承担有界实现，使用独立clone/worktree与 `codex/v53-<task-id>-<name>` 分支。最多三个实现agent并行，主agent留一槽；同文件/同镜像构建目录/同设备不得多写者。主agent指定经过审查的Base SHA；不得从过时main或HEAD损坏工作区起步。
+   用户2026-09-13进一步指定：子agent统一使用 **Luna / medium**（工具模型ID `gpt-5.6-luna`，`reasoning_effort=medium`）。创建时显式指定并传必要任务上下文；不得默认继承主agent模型。主agent配置不受此条改变。
 4. 实现→验证→单任务提交→REVIEW_READY→主agent给ACCEPTED/CHANGES_REQUIRED/BLOCKED→解锁依赖。独立任务可继续，不需要每个小功能等待用户；子agent不能自验收、合main或自行发布。全局脚本/共享头/manifest由主agent单点整合。
 5. WorkBuddy若继续参与，也作为领取同一工作包的实施者，不能另开活动工作流。当前规划不能被解释成已停止外部正在运行的进程；派发前fetch并核对新提交/占用路径。
 6. 保留App-first节奏：先Host及合成故障测试，再单一设备候选；默认不反复接串口/按功能刷机。设备/Flash批次须有明确范围与授权；历史授权不自动续期。vendor新改动须精确白名单，硬件禁区不变。
