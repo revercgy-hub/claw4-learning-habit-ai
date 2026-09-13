@@ -21,18 +21,29 @@ $paths = @(
     "firmware/main/ui/sync_diagnostics.cpp",
     "integration/metalio_claw4/integration_manifest.md"
 )
+# Keep the provenance manifest aligned with the mirror allowlist. These
+# modules are optional until their host contracts land, but once present they
+# must be covered by the same hash inventory.
+foreach ($optionalRoot in @("firmware/main/time", "firmware/main/reminder")) {
+    $optionalFull = Join-Path $RepoRoot $optionalRoot
+    if (Test-Path -LiteralPath $optionalFull) {
+        $paths += Get-ChildItem -LiteralPath $optionalFull -File -Recurse | ForEach-Object {
+            [IO.Path]::GetRelativePath($RepoRoot, $_.FullName).Replace('\', '/')
+        }
+    }
+}
 $files = @()
 foreach ($relative in $paths) {
     $full = Join-Path $RepoRoot $relative
     if (-not (Test-Path -LiteralPath $full)) { throw "manifest input missing: $relative" }
     $hash = Get-FileHash -LiteralPath $full -Algorithm SHA256
-    $files += [ordered]@{ path = $relative; sha256 = $hash.Hash; bytes = (Get-Item -LiteralPath $full).Length }
+    $files += [ordered]@{ path = $relative; sha256 = $hash.Hash.ToLowerInvariant(); bytes = (Get-Item -LiteralPath $full).Length }
 }
 $binary = $null
 if ($BuildBinary) {
     if (-not (Test-Path -LiteralPath $BuildBinary)) { throw "build binary missing: $BuildBinary" }
     $hash = Get-FileHash -LiteralPath $BuildBinary -Algorithm SHA256
-    $binary = [ordered]@{ path = $BuildBinary; sha256 = $hash.Hash; bytes = (Get-Item -LiteralPath $BuildBinary).Length }
+    $binary = [ordered]@{ path = $BuildBinary; sha256 = $hash.Hash.ToLowerInvariant(); bytes = (Get-Item -LiteralPath $BuildBinary).Length }
 }
 $manifest = [ordered]@{
     task = "CODEX-APP-FIRST-001"
