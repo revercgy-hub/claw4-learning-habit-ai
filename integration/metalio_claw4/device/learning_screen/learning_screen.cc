@@ -68,8 +68,15 @@ bool s_active = false;
 // 窗口需覆盖「唤醒 + 说命令 + ASR 往返」，且每次收到语音文本都会续期。
 constexpr uint32_t kVoiceWindowMs = 15000;
 bool s_voice_open = false;
-lv_timer_t* s_voice_timer = nullptr;
+// ⚠️ 窗口超时用【时间戳】而不是一次性 lv_timer：
+// `lv_timer_set_repeat_count(t, 1)` 会让 LVGL 在到期后**自动删除**该 timer，
+// 之后再手动 `lv_timer_del()` 同一指针就是 use-after-free → 堆破坏
+// （实测：`assert failed: xQueueSemaphoreTake queue.c:1713 (pxQueue->uxItemSize == 0)`
+//  → SW_CPU_RESET 重启）。改为在既有的 50 ms poll timer 里比较 lv_tick 时间戳，
+// **全程不新增、不删除任何 timer**，删除权只归 s_voice_poll_timer 一家。
+uint32_t s_voice_deadline = 0;  // lv_tick_get() 到期时刻；0 = 窗口未开启
 void SetVoiceHint(const char* text);  // fwd（定义在下方语音段落）
+void CloseVoiceWindow(const char* hint);  // fwd（定义在下方语音段落）
 
 // L4：跨任务语音文本队列（详见头文件 QueueVoicePhrase 的说明）。
 // 协议任务只 push（仅碰 std::mutex + deque），LVGL 定时器 pop 后在
@@ -460,10 +467,8 @@ void DispatchVoice(CommandKind kind, const TaskId& task_id) {
 // --- L4 按需开麦（语音时间窗） ---------------------------------------------
 
 void CloseVoiceWindow(const char* hint) {
-  if (s_voice_timer != nullptr) {
-    lv_timer_del(s_voice_timer);
-    s_voice_timer = nullptr;
-  }
+  // 只清时间戳 —— 不碰任何 timer（timer 生命周期见文件头注释）。
+  s_voice_deadline = 0;
   if (s_voice_open) {
     s_voice_open = false;
     Rt().voiceSession().endSession();
@@ -472,18 +477,10 @@ void CloseVoiceWindow(const char* hint) {
   if (hint != nullptr) SetVoiceHint(hint);
 }
 
-void OnVoiceWindowTimeout(lv_timer_t*) {
-  CloseVoiceWindow("语音已关闭（8 秒未识别）");
-}
-
 void ArmVoiceWindow() {
   auto& rt = Rt();
   if (!rt.bootReady()) return;
 
-  if (s_voice_timer != nullptr) {
-    lv_timer_del(s_voice_timer);
-    s_voice_timer = nullptr;
-  }
   if (!s_voice_open) {
     if (!rt.voiceSession().beginSession()) {
       SetVoiceHint("语音会话获取失败");
@@ -492,8 +489,8 @@ void ArmVoiceWindow() {
     s_voice_open = true;
     ESP_LOGI(TAG, "voice window armed (%u ms)", (unsigned)kVoiceWindowMs);
   }
-  s_voice_timer = lv_timer_create(OnVoiceWindowTimeout, kVoiceWindowMs, nullptr);
-  lv_timer_set_repeat_count(s_voice_timer, 1);
+  // 续期：仅刷新到期时刻（收到语音文本时也会走到这里）。
+  s_voice_deadline = lv_tick_get() + kVoiceWindowMs;
   SetVoiceHint("语音已开启，请说「嗨钛灵」唤醒后再下达命令");
 }
 
@@ -588,11 +585,17 @@ void OnVoicePollTick(lv_timer_t*) {
     std::string phrase;
     {
       std::lock_guard<std::mutex> lock(s_voice_q_mtx);
-      if (s_voice_q.empty()) return;
+      if (s_voice_q.empty()) break;
       phrase = std::move(s_voice_q.front());
       s_voice_q.pop_front();
     }
     LearningScreen::OnVoicePhrase(phrase.c_str());
+  }
+
+  // 时间窗超时检查 —— 复用本 timer，不新增/删除任何 timer（见文件头注释）。
+  if (s_voice_open && s_voice_deadline != 0 &&
+      static_cast<int32_t>(lv_tick_get() - s_voice_deadline) >= 0) {
+    CloseVoiceWindow("语音已关闭（15 秒未识别）");
   }
 }
 
