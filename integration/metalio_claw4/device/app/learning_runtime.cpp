@@ -8,9 +8,8 @@
 
 #include "esp_log.h"
 #include "esp_random.h"
-#include "nvs.h"
-
 #include "metalio_claw4/device/core/demo_seed.h"
+#include "metalio_claw4/device/core/learning_boot_policy.h"
 #include "metalio_claw4/device/core/outbox_codec.h"
 #include "metalio_claw4/device/core/random_id.h"
 #include "metalio_claw4/device/ports/metalio_http_transport.h"
@@ -38,51 +37,6 @@ std::string LearningRuntime::NextEventId() {
 
 std::string LearningRuntime::NextSessionId() {
   return formatEntropyId("sess-", esp_random(), esp_random());
-}
-
-bool LearningRuntime::SelfTestPending() {
-  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
-  nvs_handle_t h;
-  if (nvs_open("learning", NVS_READONLY, &h) != ESP_OK) return false;
-  int32_t flag = 0;
-  const esp_err_t rc = nvs_get_i32(h, "stest", &flag);
-  nvs_close(h);
-  return rc == ESP_ERR_NVS_NOT_FOUND || flag == 0;
-}
-
-void LearningRuntime::MarkSelfTestDone() {
-  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
-  nvs_handle_t h;
-  if (nvs_open("learning", NVS_READWRITE, &h) != ESP_OK) return;
-  nvs_set_i32(h, "stest", 1);
-  nvs_commit(h);
-  nvs_close(h);
-}
-
-bool LearningRuntime::ResetToSeed() {
-  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
-  backend_.reset();
-  if (!NvsOutboxStorage::eraseAll()) {
-    ESP_LOGE(TAG, "self-test cleanup: eraseAll failed");
-    return false;
-  }
-  app_ = std::make_unique<LearningApp>(storage_, clock_);
-  app_->setIdentity(claw4::domain::DeviceId{device_id_},
-                    claw4::domain::ChildId{child_id_});
-  app_->setEventIdFactory([this] {
-    return claw4::domain::EventId{NextEventId()};
-  });
-  app_->setSessionIdFactory([this] {
-    return claw4::domain::SessionId{NextSessionId()};
-  });
-  const bool ok = app_->applyTodaySnapshot(DemoTodaySnapshot());
-  app_->start();
-  // ResetToSeed intentionally clears the whole learning namespace. Preserve
-  // the one-shot self-test guard after the reseed so a later screen reload
-  // cannot re-run the debug chain and overwrite the user's demo progress.
-  if (ok) MarkSelfTestDone();
-  ESP_LOGI(TAG, "self-test cleanup: re-seeded=%d", ok ? 1 : 0);
-  return ok;
 }
 
 bool LearningRuntime::ConfigureBackend(
@@ -167,10 +121,16 @@ void LearningRuntime::Init() {
   if (inited_) return;
   NvsBackendProvisioning provisioning;
   claw4::sync::ProvisionedBackendConfig provisioned;
-  if (provisioning.load(provisioned) ==
-      claw4::sync::ProvisioningStatus::Ready) {
+  const auto provisioning_status = provisioning.load(provisioned);
+  ProvisioningDisposition disposition =
+      ProvisioningDisposition::InvalidOrUnavailable;
+  if (provisioning_status == claw4::sync::ProvisioningStatus::Ready) {
+    disposition = ProvisioningDisposition::Provisioned;
     device_id_ = provisioned.device_id;
     child_id_ = provisioned.child_id;
+  } else if (provisioning_status ==
+             claw4::sync::ProvisioningStatus::NotConfigured) {
+    disposition = ProvisioningDisposition::Unprovisioned;
   }
   app_ = std::make_unique<LearningApp>(storage_, clock_);
   app_->setIdentity(claw4::domain::DeviceId{device_id_},
@@ -189,7 +149,21 @@ void LearningRuntime::Init() {
     app_.reset();
     return;
   }
-  if (!storage_.hasState()) {
+  claw4::sync::OutboxState persisted;
+  if (!storage_.load(persisted)) {
+    ESP_LOGE(TAG, "learning state read failed: keeping LearningApp stopped");
+    app_.reset();
+    return;
+  }
+  const LearningBootAction boot_action = DecideLearningBootAction(
+      disposition, storage_.hasState());
+  if (boot_action == LearningBootAction::ClosedBootGate) {
+    ESP_LOGE(TAG,
+             "provisioning unavailable/invalid: keeping LearningApp stopped");
+    app_.reset();
+    return;
+  }
+  if (boot_action == LearningBootAction::SeedDemo) {
     const bool ok = app_->applyTodaySnapshot(DemoTodaySnapshot());
     ESP_LOGI(TAG, "first boot: demo today snapshot seeded=%d", ok ? 1 : 0);
   } else {

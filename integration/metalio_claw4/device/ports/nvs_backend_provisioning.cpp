@@ -15,17 +15,25 @@ constexpr const char* kChildId = "child_id";
 constexpr const char* kSecret = "device_secret";
 constexpr size_t kMaxFieldBytes = 256;
 
-bool ReadString(nvs_handle_t handle, const char* key, std::string& out) {
+enum class ReadResult { Ok, Missing, Error };
+
+ReadResult ReadString(nvs_handle_t handle, const char* key, std::string& out) {
   size_t len = 0;
-  if (nvs_get_str(handle, key, nullptr, &len) != ESP_OK || len == 0 ||
-      len > kMaxFieldBytes) {
-    return false;
+  const esp_err_t size_rc = nvs_get_str(handle, key, nullptr, &len);
+  if (size_rc != ESP_OK) {
+    return size_rc == ESP_ERR_NVS_NOT_FOUND ? ReadResult::Missing
+                                            : ReadResult::Error;
+  }
+  if (len == 0 || len > kMaxFieldBytes) {
+    return ReadResult::Error;
   }
   std::string value(len, '\0');
-  if (nvs_get_str(handle, key, value.data(), &len) != ESP_OK) return false;
+  if (nvs_get_str(handle, key, value.data(), &len) != ESP_OK) {
+    return ReadResult::Error;
+  }
   value.resize(len > 0 ? len - 1 : 0);
   out = std::move(value);
-  return true;
+  return ReadResult::Ok;
 }
 
 }  // namespace
@@ -33,16 +41,26 @@ bool ReadString(nvs_handle_t handle, const char* key, std::string& out) {
 claw4::sync::ProvisioningStatus NvsBackendProvisioning::load(
     claw4::sync::ProvisionedBackendConfig& out) {
   nvs_handle_t handle;
-  if (nvs_open(kNamespace, NVS_READONLY, &handle) != ESP_OK) {
-    return claw4::sync::ProvisioningStatus::NotConfigured;
+  const esp_err_t open_rc = nvs_open(kNamespace, NVS_READONLY, &handle);
+  if (open_rc != ESP_OK) {
+    return open_rc == ESP_ERR_NVS_NOT_FOUND
+               ? claw4::sync::ProvisioningStatus::NotConfigured
+               : claw4::sync::ProvisioningStatus::StorageError;
   }
   claw4::sync::ProvisionedBackendConfig candidate;
-  const bool ok = ReadString(handle, kBaseUrl, candidate.base_url) &&
-                  ReadString(handle, kDeviceId, candidate.device_id) &&
-                  ReadString(handle, kChildId, candidate.child_id) &&
-                  ReadString(handle, kSecret, candidate.device_secret);
+  const ReadResult base = ReadString(handle, kBaseUrl, candidate.base_url);
+  const ReadResult device = ReadString(handle, kDeviceId, candidate.device_id);
+  const ReadResult child = ReadString(handle, kChildId, candidate.child_id);
+  const ReadResult secret = ReadString(handle, kSecret, candidate.device_secret);
   nvs_close(handle);
-  if (!ok) return claw4::sync::ProvisioningStatus::NotConfigured;
+  if (base == ReadResult::Error || device == ReadResult::Error ||
+      child == ReadResult::Error || secret == ReadResult::Error) {
+    return claw4::sync::ProvisioningStatus::StorageError;
+  }
+  if (base == ReadResult::Missing || device == ReadResult::Missing ||
+      child == ReadResult::Missing || secret == ReadResult::Missing) {
+    return claw4::sync::ProvisioningStatus::Invalid;
+  }
   out = std::move(candidate);
   return out.complete() ? claw4::sync::ProvisioningStatus::Ready
                         : claw4::sync::ProvisioningStatus::Invalid;

@@ -1,7 +1,7 @@
 // claw4/integration/metalio_claw4/device/app/learning_runtime.h
 // WB-LEARNING-V4-L1 — device-side LearningApp singleton container.
 // Owns the NVS outbox storage + esp_timer clock and the LearningApp glue;
-// first-boot seeds the demo today snapshot (guarded by hasState()).
+// an explicitly unprovisioned first boot may seed the demo today snapshot.
 // Device-only TU (includes the NVS/clock adapters).
 #pragma once
 
@@ -28,7 +28,7 @@ class LearningRuntime {
   // Idempotent; called lazily from the Learning screen. Constructs the app
   // over NVS storage + esp_timer clock, wires device identity and persisted
   // event/session id counters, then seeds the demo today snapshot exactly
-  // once (when no committed outbox state exists yet).
+  // once (only when provisioning is absent and no committed state exists).
   void Init();
 
   LearningApp& app() { return *app_; }
@@ -50,13 +50,6 @@ class LearningRuntime {
   std::string NextEventId();
   std::string NextSessionId();
 
-  // One-shot on-device funnel self-test (dev/debug aid; guarded by NVS flag
-  // "stest"). The screen runs the step chain on its LVGL timer thread.
-  bool SelfTestPending();
-  void MarkSelfTestDone();
-  // Erases the learning namespace and re-seeds the demo snapshot (used to
-  // restore a clean demo state after the self-test chain).
-  bool ResetToSeed();
   void StartBackendWorker();
 
   // Configure the L2/L3 backend session after provisioning supplies an
