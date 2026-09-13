@@ -66,10 +66,27 @@ foreach ($tree in $trees) {
 # prevents an unrelated file placed in a mapped directory from being deleted.
 $previous = @{}
 if (Test-Path -LiteralPath $ManifestPath) {
-    try {
-        $old = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
-        foreach ($f in @($old.files)) { if ($f.repo_path -and $f.mirror_path) { $previous[$f.mirror_path] = $f.repo_path } }
-    } catch { Write-Warning "Ignoring unreadable previous manifest: $ManifestPath" }
+    try { $old = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json }
+    catch { throw "Manifest is unreadable; refusing to continue: $ManifestPath" }
+    foreach ($f in @($old.files) + @($old.stale_manifest_records)) {
+        if (-not $f.repo_path -or -not $f.mirror_path) { throw "Manifest entry is incomplete; refusing to continue: $ManifestPath" }
+        $mp = ([string]$f.mirror_path).Replace('\', '/')
+        $rp = ([string]$f.repo_path).Replace('\', '/')
+        if ([IO.Path]::IsPathRooted($mp) -or $mp -match '(^|/)\.\.?(/|$)' -or [IO.Path]::IsPathRooted($rp) -or $rp -match '(^|/)\.\.?(/|$)') { throw "Manifest contains unsafe path; refusing to continue: $mp" }
+        $mapped = $false
+        foreach ($tree in $trees) {
+            $targetPrefix = $tree.target.TrimEnd('/') + '/'; $sourcePrefix = $tree.source.TrimEnd('/') + '/'
+            if ($mp.StartsWith($targetPrefix, [StringComparison]::OrdinalIgnoreCase) -and $rp.StartsWith($sourcePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                $suffixM = $mp.Substring($targetPrefix.Length); $suffixR = $rp.Substring($sourcePrefix.Length)
+                if ($suffixM -eq $suffixR) { $mapped = $true }
+            }
+        }
+        if (-not $mapped) { throw "Manifest mapping is outside the fixed allowlist; refusing to continue: $mp -> $rp" }
+        $targetFull = [IO.Path]::GetFullPath((Join-Path $mirror $mp))
+        $mirrorPrefix = $mirror.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+        if (-not $targetFull.StartsWith($mirrorPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Manifest target escapes mirror; refusing to continue: $mp" }
+        $previous[$mp] = $rp
+    }
 }
 $currentByMirror = @{}
 foreach ($entry in $entries) { $currentByMirror[$entry.MirrorPath] = $entry.RepoPath }
@@ -80,13 +97,16 @@ function Get-CmakeSource([string]$mirrorPath) {
     return $Matches[1]
 }
 $cmakeText = Get-Content -Raw -LiteralPath $cmake
+$cmakeCode = [regex]::Replace($cmakeText, '(?s)/\*.*?\*/', '')
+$cmakeCode = [regex]::Replace($cmakeCode, '(?m)#.*$', '')
+function Test-CmakeToken([string]$text, [string]$token) {
+    return $text -match ('(?<![A-Za-z0-9_./-])' + [regex]::Escape($token) + '(?![A-Za-z0-9_./-])')
+}
 $cmakeMissing = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object {
     $source = Get-CmakeSource $_.MirrorPath
-    if ($source -and $cmakeText -notmatch [regex]::Escape($source)) { $_.MirrorPath }
+    if ($source -and -not (Test-CmakeToken $cmakeCode $source)) { $_.MirrorPath }
 })
-$registeredSources = @([regex]::Matches($cmakeText, '"([^"]+\.(?:cpp|cc|c))"') | ForEach-Object { $_.Groups[1].Value.Replace('\', '/') } | Where-Object {
-    $_ -like 'learning/*' -or $_ -like 'display/screen/learning_screen/*'
-})
+$registeredSources = @([regex]::Matches($cmakeCode, '(?<![A-Za-z0-9_./-])((?:learning|display/screen/learning_screen)/[^\s()"]+\.(?:cpp|cc|c))(?![A-Za-z0-9_./-])') | ForEach-Object { $_.Groups[1].Value.Replace('\', '/') })
 $expectedSources = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object { (Get-CmakeSource $_.MirrorPath) })
 $cmakeExtra = @($registeredSources | Where-Object { $_ -notin $expectedSources })
 
@@ -121,10 +141,6 @@ if ($Mode -eq 'Sync') {
         # when the source checkout clock is older than the mirror.
         (Get-Item -LiteralPath $target).LastWriteTimeUtc = [DateTime]::UtcNow
     }
-    foreach ($mirrorPath in $stale) {
-        $target = Join-Path $mirror $mirrorPath
-        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
-    }
     foreach ($record in $records) {
         $target = Join-Path $mirror $record.mirror_path
         $record | Add-Member -NotePropertyName mirror_sha256_after -NotePropertyValue ((Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash.ToLowerInvariant())
@@ -149,6 +165,7 @@ $payload = [ordered]@{
     mismatch_count_after = @($records | Where-Object { -not $_.equal_after }).Count
     stale_manifest_count = $stale.Count
     stale_manifest_paths = @($stale)
+    stale_manifest_records = @($old.files + $old.stale_manifest_records | Where-Object { $_.mirror_path -in $stale })
     cmake_missing_count = $cmakeMissing.Count
     cmake_missing_sources = @($cmakeMissing)
     cmake_extra_count = $cmakeExtra.Count
@@ -158,10 +175,11 @@ $payload = [ordered]@{
 $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
 
 Write-Output ("mirror={0} mode={1} files={2} mismatch_before={3} mismatch_after={4}" -f $mirror, $Mode, $records.Count, $mismatches.Count, $payload.mismatch_count_after)
-if ($payload.mismatch_count_after -ne 0 -or $payload.cmake_missing_count -ne 0 -or $payload.cmake_extra_count -ne 0) {
+if ($payload.mismatch_count_after -ne 0 -or $payload.stale_manifest_count -ne 0 -or $payload.cmake_missing_count -ne 0 -or $payload.cmake_extra_count -ne 0) {
     $records | Where-Object { -not $_.equal_after } | Select-Object repo_path, mirror_path, repo_sha256, mirror_sha256_after | Format-Table -AutoSize
     if ($payload.cmake_missing_count -ne 0) { Write-Output ("cmake_missing=" + ($payload.cmake_missing_sources -join ',')) }
     if ($payload.cmake_extra_count -ne 0) { Write-Output ("cmake_extra=" + ($payload.cmake_extra_sources -join ',')) }
+    if ($payload.stale_manifest_count -ne 0) { Write-Output ("stale_manifest=" + ($payload.stale_manifest_paths -join ',')) }
     exit 1
 }
 exit 0

@@ -11,14 +11,20 @@ $required = @(
   'integration/metalio_claw4/device/ports', 'integration/metalio_claw4/device/app',
   'integration/metalio_claw4/device/learning_screen')
 foreach ($dir in $required) { New-Item -ItemType Directory -Force -Path (Join-Path $root $dir) | Out-Null }
+New-Item -ItemType Directory -Force -Path (Join-Path $root 'firmware/main/time'), (Join-Path $root 'firmware/main/reminder') | Out-Null
 Set-Content -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp') -Value 'old-content'
 Set-Content -LiteralPath (Join-Path $root 'firmware/main/sync/wire_codec.cpp') -Value 'codec'
 Set-Content -LiteralPath (Join-Path $root 'integration/metalio_claw4/device/app/runtime.cpp') -Value 'runtime'
+Set-Content -LiteralPath (Join-Path $root 'firmware/main/time/time.cpp') -Value 'time'
+Set-Content -LiteralPath (Join-Path $root 'firmware/main/reminder/reminder.cpp') -Value 'reminder'
 $cmake = @'
 idf_component_register(
+  # "learning/time/time.cpp" is comment-only and must not count
   SRCS "learning/learning_domain/reducer.cpp"
         "learning/sync/wire_codec.cpp"
         "learning/metalio_claw4/device/app/runtime.cpp"
+        "learning/time/time.cpp"
+        "learning/reminder/reminder.cpp"
 )
 '@
 Set-Content -LiteralPath (Join-Path $mirror 'main/CMakeLists.txt') -Value $cmake
@@ -45,11 +51,20 @@ Set-Content -LiteralPath $unknown -Value 'keep me'
 Remove-Item -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp')
 & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
 if ($LASTEXITCODE -eq 0) { throw 'stale CMake registration was not detected' }
-if (Test-Path -LiteralPath $target) { throw 'stale controlled file was not removed' }
+if (-not (Test-Path -LiteralPath $target)) { throw 'stale controlled file was unexpectedly deleted' }
 if (-not (Test-Path -LiteralPath $unknown)) { throw 'unknown file was removed' }
+$sentinel = Join-Path $root 'sentinel.txt'; Set-Content -LiteralPath $sentinel -Value 'outside'
+$badManifest = Join-Path $root 'bad-manifest.json'
+Set-Content -LiteralPath $badManifest -Value '{"files":[{"repo_path":"firmware/main/sync/wire_codec.cpp","mirror_path":"../sentinel.txt"}]}'
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $badManifest
+if ($LASTEXITCODE -eq 0 -or (Get-Content -Raw -LiteralPath $sentinel) -ne "outside`r`n") { throw 'unsafe manifest path was not blocked' }
 
 $cmakePath = Join-Path $mirror 'main/CMakeLists.txt'
-Set-Content -LiteralPath $cmakePath -Value 'idf_component_register(SRCS "learning/sync/wire_codec.cpp")'
+Set-Content -LiteralPath $cmakePath -Value @'
+idf_component_register(SRCS "learning/sync/wire_codec.cpp" "learning/sync/wire_codec.cpp.bak")
+'@
 & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
 if ($LASTEXITCODE -eq 0) { throw 'missing CMake registration was not detected' }
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
+if ($LASTEXITCODE -eq 0) { throw 'stale/missing CMake failure did not persist on repeat' }
 Write-Output 'sync-app-first-mirror fixture tests: PASS'
