@@ -5,17 +5,17 @@
 - Task: `A01` (CODEX-V53)
 - Branch: `codex/v53-a01-build-provenance`
 - Base: `1ae2a0c546615666a57abdf601b343bc88a043c4`
-- Commit: the single commit containing this report (SHA returned with REVIEW_READY)
+- Commits: `af2daa7` (initial implementation), followed by the review-fix commit containing this report update (SHA returned with REVIEW_READY)
 - Scope: repository mirror tooling, source/build hash manifest coverage, and isolated fixture tests.
 
 ## Changes
 
 - `sync-app-first-mirror.ps1` now accepts an explicit repository root for fixture/reproducible use, includes optional `time` and `reminder` trees, and hashes before copying.
 - A mismatched file gets a fresh destination mtime even when its source mtime is older, while equal content is not copied and keeps its mtime.
-- Previous manifest entries are the only files eligible for stale-file removal. Unknown files in mapped directories are retained.
+- Stale files are detected from the previous manifest and retained; Sync and Check fail until a separately reviewed mapping/CMake update resolves them. Unknown files are never deleted.
 - The script reports missing and stale controlled CMake registrations and fails the run when registration and the current source inventory disagree. It does not edit the vendor CMake file.
 - `write-app-first-manifest.ps1` includes optional time/reminder files and emits normalized lowercase SHA-256 values.
-- `sync-app-first-mirror.tests.ps1` exercises equal-content mtime stability, changed-content with old source mtime, stale removal, unknown-file preservation, and CMake registration failure.
+- `sync-app-first-mirror.tests.ps1` exercises equal-content mtime stability, changed-content with old source mtime, persistent stale failure, unknown-file preservation, unsafe manifest paths, optional modules, and comment/prefix CMake false positives.
 
 ## Verification
 
@@ -43,7 +43,7 @@ Result: exit code `0`; source hashes and byte counts emitted. No generated manif
 | --- | --- |
 | Same content does not trigger rebuild timestamp churn | Fixture compares destination mtime across a second Sync |
 | Older source mtime cannot hide changed content | Fixture changes content, sets source mtime to 2020, and verifies destination mtime advances |
-| Added/removed files are detectable | Hash mismatch and previous-manifest stale inventory are reported |
+| Added/removed files are detectable | Hash mismatch and persistent previous-manifest stale inventory are reported; stale files are not auto-deleted |
 | Unknown files are not deleted | Fixture places `user-note.txt` beside a stale controlled file and verifies retention |
 | CMake and source inventory agree | Missing and extra controlled registrations are detected; vendor CMake is never edited |
 | SHA manifest covers optional modules | Mirror allowlist and candidate manifest enumerate `firmware/main/time` and `firmware/main/reminder` when present |
@@ -57,8 +57,12 @@ Result: exit code `0`; source hashes and byte counts emitted. No generated manif
 
 ## Scope
 
-No scope deviation. `HARDWARE_VERIFY_REQUIRED`: none for this host-only tooling change; device/build acceptance remains with A05 and the main agent.
+Scope deviation: review fixes intentionally remove the earlier auto-delete behavior and add manifest/CMake safety gates. `HARDWARE_VERIFY_REQUIRED`: none for this host-only tooling change; device/build acceptance remains with A05 and the main agent.
 
 ## Review focus
 
-Please review the previous-manifest deletion boundary, path normalization on Windows, CMake registration parsing, and the distinction between host tooling evidence and device build evidence.
+## Fixed upstream patch evidence
+
+The pinned upstream reference is `ca3aa3fa` (vendor HEAD as supplied). A read-only probe of `E:/c` found no usable `.git` repository, so a commit diff could not be reproduced there. The repository-side `integration_manifest.md` records four relevant registered files: `main/display/screen/home_screen/home_screen.cc`, `main/CMakeLists.txt`, `main/display/lv_adapter_display.cc`, and `main/audio/audio_service.cc`. Their exact patch content and hashes remain an evidence gap; no patch was reconstructed or applied, and no vendor file was modified. The fixture only validates the controlled mapping/registration behavior, not upstream firmware equivalence.
+
+Please review the fixed manifest mapping boundary, path normalization on Windows, CMake registration parsing, and the distinction between host tooling evidence and vendor/device build evidence.
