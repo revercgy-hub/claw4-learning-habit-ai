@@ -10,10 +10,12 @@ param(
     [string]$Mode = 'Check',
 
     [string]$ManifestPath
+    ,[string]$RepoRoot
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+if (-not $RepoRoot) { $RepoRoot = Join-Path $PSScriptRoot '../..' }
+$repoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $mirror = (Resolve-Path -LiteralPath $MirrorRoot).Path
 $cmake = Join-Path $mirror 'main/CMakeLists.txt'
 if (-not (Test-Path -LiteralPath $cmake)) {
@@ -24,9 +26,10 @@ if (-not $ManifestPath) {
     $ManifestPath = Join-Path $repoRoot 'out/app-first-mirror-manifest.json'
 }
 
-function Add-Tree([System.Collections.Generic.List[object]]$entries, [string]$sourceRoot, [string]$targetRoot) {
+function Add-Tree([System.Collections.Generic.List[object]]$entries, [string]$sourceRoot, [string]$targetRoot, [bool]$optional = $false) {
     $fullSource = Join-Path $repoRoot $sourceRoot
     if (-not (Test-Path -LiteralPath $fullSource)) {
+        if ($optional) { return }
         throw "Allowlisted source tree is missing: $sourceRoot"
     }
     Get-ChildItem -LiteralPath $fullSource -File -Recurse | ForEach-Object {
@@ -39,22 +42,53 @@ function Add-Tree([System.Collections.Generic.List[object]]$entries, [string]$so
 }
 
 $entries = [System.Collections.Generic.List[object]]::new()
-foreach ($tree in @(
-    @('firmware/main/learning_domain', 'main/learning/learning_domain'),
-    @('firmware/main/sync', 'main/learning/sync'),
-    @('firmware/main/application', 'main/learning/application'),
-    @('firmware/main/interaction', 'main/learning/interaction'),
-    @('firmware/main/mcp', 'main/learning/mcp'),
-    @('firmware/main/ui', 'main/learning/ui'),
-    @('firmware/main/ports', 'main/learning/ports'),
-    @('integration/metalio_claw4/host_glue', 'main/learning/metalio_claw4/host_glue'),
-    @('integration/metalio_claw4/device/core', 'main/learning/metalio_claw4/device/core'),
-    @('integration/metalio_claw4/device/ports', 'main/learning/metalio_claw4/device/ports'),
-    @('integration/metalio_claw4/device/app', 'main/learning/metalio_claw4/device/app'),
-    @('integration/metalio_claw4/device/learning_screen', 'main/display/screen/learning_screen')
-)) {
-    Add-Tree $entries $tree[0] $tree[1]
+$trees = @(
+    [pscustomobject]@{ source = 'firmware/main/learning_domain'; target = 'main/learning/learning_domain'; optional = $false },
+    [pscustomobject]@{ source = 'firmware/main/sync'; target = 'main/learning/sync'; optional = $false },
+    [pscustomobject]@{ source = 'firmware/main/application'; target = 'main/learning/application'; optional = $false },
+    [pscustomobject]@{ source = 'firmware/main/interaction'; target = 'main/learning/interaction'; optional = $false },
+    [pscustomobject]@{ source = 'firmware/main/mcp'; target = 'main/learning/mcp'; optional = $false },
+    [pscustomobject]@{ source = 'firmware/main/ui'; target = 'main/learning/ui'; optional = $false },
+    [pscustomobject]@{ source = 'firmware/main/ports'; target = 'main/learning/ports'; optional = $false },
+    [pscustomobject]@{ source = 'firmware/main/time'; target = 'main/learning/time'; optional = $true },
+    [pscustomobject]@{ source = 'firmware/main/reminder'; target = 'main/learning/reminder'; optional = $true },
+    [pscustomobject]@{ source = 'integration/metalio_claw4/host_glue'; target = 'main/learning/metalio_claw4/host_glue'; optional = $false },
+    [pscustomobject]@{ source = 'integration/metalio_claw4/device/core'; target = 'main/learning/metalio_claw4/device/core'; optional = $false },
+    [pscustomobject]@{ source = 'integration/metalio_claw4/device/ports'; target = 'main/learning/metalio_claw4/device/ports'; optional = $false },
+    [pscustomobject]@{ source = 'integration/metalio_claw4/device/app'; target = 'main/learning/metalio_claw4/device/app'; optional = $false },
+    [pscustomobject]@{ source = 'integration/metalio_claw4/device/learning_screen'; target = 'main/display/screen/learning_screen'; optional = $false }
+)
+foreach ($tree in $trees) {
+    Add-Tree $entries $tree.source $tree.target $tree.optional
 }
+
+# Only files recorded by a previous manifest are eligible for removal. This
+# prevents an unrelated file placed in a mapped directory from being deleted.
+$previous = @{}
+if (Test-Path -LiteralPath $ManifestPath) {
+    try {
+        $old = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+        foreach ($f in @($old.files)) { if ($f.repo_path -and $f.mirror_path) { $previous[$f.mirror_path] = $f.repo_path } }
+    } catch { Write-Warning "Ignoring unreadable previous manifest: $ManifestPath" }
+}
+$currentByMirror = @{}
+foreach ($entry in $entries) { $currentByMirror[$entry.MirrorPath] = $entry.RepoPath }
+$stale = @($previous.Keys | Where-Object { -not $currentByMirror.ContainsKey($_) })
+
+function Get-CmakeSource([string]$mirrorPath) {
+    if (-not ($mirrorPath -match '^main/(.*)$')) { return $null }
+    return $Matches[1]
+}
+$cmakeText = Get-Content -Raw -LiteralPath $cmake
+$cmakeMissing = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object {
+    $source = Get-CmakeSource $_.MirrorPath
+    if ($source -and $cmakeText -notmatch [regex]::Escape($source)) { $_.MirrorPath }
+})
+$registeredSources = @([regex]::Matches($cmakeText, '"([^"]+\.(?:cpp|cc|c))"') | ForEach-Object { $_.Groups[1].Value.Replace('\', '/') } | Where-Object {
+    $_ -like 'learning/*' -or $_ -like 'display/screen/learning_screen/*'
+})
+$expectedSources = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object { (Get-CmakeSource $_.MirrorPath) })
+$cmakeExtra = @($registeredSources | Where-Object { $_ -notin $expectedSources })
 
 $records = [System.Collections.Generic.List[object]]::new()
 $mismatches = [System.Collections.Generic.List[object]]::new()
@@ -82,6 +116,14 @@ if ($Mode -eq 'Sync') {
         $parent = Split-Path -Parent $target
         New-Item -ItemType Directory -Force -Path $parent | Out-Null
         Copy-Item -LiteralPath (Join-Path $repoRoot $record.repo_path) -Destination $target -Force
+        # Copy-Item can preserve an old source timestamp on some providers.
+        # A content change must invalidate downstream build dependencies even
+        # when the source checkout clock is older than the mirror.
+        (Get-Item -LiteralPath $target).LastWriteTimeUtc = [DateTime]::UtcNow
+    }
+    foreach ($mirrorPath in $stale) {
+        $target = Join-Path $mirror $mirrorPath
+        if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
     }
     foreach ($record in $records) {
         $target = Join-Path $mirror $record.mirror_path
@@ -105,13 +147,21 @@ $payload = [ordered]@{
     allowlist_count = $records.Count
     mismatch_count_before = $mismatches.Count
     mismatch_count_after = @($records | Where-Object { -not $_.equal_after }).Count
+    stale_manifest_count = $stale.Count
+    stale_manifest_paths = @($stale)
+    cmake_missing_count = $cmakeMissing.Count
+    cmake_missing_sources = @($cmakeMissing)
+    cmake_extra_count = $cmakeExtra.Count
+    cmake_extra_sources = @($cmakeExtra)
     files = @($records)
 }
 $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
 
 Write-Output ("mirror={0} mode={1} files={2} mismatch_before={3} mismatch_after={4}" -f $mirror, $Mode, $records.Count, $mismatches.Count, $payload.mismatch_count_after)
-if ($payload.mismatch_count_after -ne 0) {
+if ($payload.mismatch_count_after -ne 0 -or $payload.cmake_missing_count -ne 0 -or $payload.cmake_extra_count -ne 0) {
     $records | Where-Object { -not $_.equal_after } | Select-Object repo_path, mirror_path, repo_sha256, mirror_sha256_after | Format-Table -AutoSize
+    if ($payload.cmake_missing_count -ne 0) { Write-Output ("cmake_missing=" + ($payload.cmake_missing_sources -join ',')) }
+    if ($payload.cmake_extra_count -ne 0) { Write-Output ("cmake_extra=" + ($payload.cmake_extra_sources -join ',')) }
     exit 1
 }
 exit 0

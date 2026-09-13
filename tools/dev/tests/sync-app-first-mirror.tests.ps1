@@ -1,0 +1,55 @@
+$ErrorActionPreference = 'Stop'
+$script = Join-Path $PSScriptRoot '..\sync-app-first-mirror.ps1'
+$root = Join-Path ([IO.Path]::GetTempPath()) ('claw4-a01-' + [guid]::NewGuid().ToString('N'))
+$mirror = Join-Path $root 'mirror'
+$manifest = Join-Path $root 'manifest.json'
+New-Item -ItemType Directory -Force -Path $root, (Join-Path $mirror 'main') | Out-Null
+$required = @(
+  'firmware/main/learning_domain', 'firmware/main/sync', 'firmware/main/application',
+  'firmware/main/interaction', 'firmware/main/mcp', 'firmware/main/ui', 'firmware/main/ports',
+  'integration/metalio_claw4/host_glue', 'integration/metalio_claw4/device/core',
+  'integration/metalio_claw4/device/ports', 'integration/metalio_claw4/device/app',
+  'integration/metalio_claw4/device/learning_screen')
+foreach ($dir in $required) { New-Item -ItemType Directory -Force -Path (Join-Path $root $dir) | Out-Null }
+Set-Content -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp') -Value 'old-content'
+Set-Content -LiteralPath (Join-Path $root 'firmware/main/sync/wire_codec.cpp') -Value 'codec'
+Set-Content -LiteralPath (Join-Path $root 'integration/metalio_claw4/device/app/runtime.cpp') -Value 'runtime'
+$cmake = @'
+idf_component_register(
+  SRCS "learning/learning_domain/reducer.cpp"
+        "learning/sync/wire_codec.cpp"
+        "learning/metalio_claw4/device/app/runtime.cpp"
+)
+'@
+Set-Content -LiteralPath (Join-Path $mirror 'main/CMakeLists.txt') -Value $cmake
+
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
+if ($LASTEXITCODE -ne 0) { throw 'initial sync failed' }
+$target = Join-Path $mirror 'main/learning/learning_domain/reducer.cpp'
+$oldStamp = (Get-Item -LiteralPath $target).LastWriteTimeUtc
+Start-Sleep -Milliseconds 1200
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
+if ($LASTEXITCODE -ne 0) { throw 'same-content sync failed' }
+if ((Get-Item -LiteralPath $target).LastWriteTimeUtc -ne $oldStamp) { throw 'same content changed target mtime' }
+
+Set-Content -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp') -Value 'new-content'
+(Get-Item -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp')).LastWriteTimeUtc = [datetime]::Parse('2020-01-01T00:00:00Z')
+Start-Sleep -Milliseconds 1200
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
+if ($LASTEXITCODE -ne 0) { throw 'changed-content sync failed' }
+if ((Get-Content -Raw -LiteralPath $target) -ne "new-content`r`n") { throw 'changed content was not copied' }
+if ((Get-Item -LiteralPath $target).LastWriteTimeUtc -le $oldStamp) { throw 'changed content did not refresh mtime' }
+
+$unknown = Join-Path $mirror 'main/learning/learning_domain/user-note.txt'
+Set-Content -LiteralPath $unknown -Value 'keep me'
+Remove-Item -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp')
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
+if ($LASTEXITCODE -eq 0) { throw 'stale CMake registration was not detected' }
+if (Test-Path -LiteralPath $target) { throw 'stale controlled file was not removed' }
+if (-not (Test-Path -LiteralPath $unknown)) { throw 'unknown file was removed' }
+
+$cmakePath = Join-Path $mirror 'main/CMakeLists.txt'
+Set-Content -LiteralPath $cmakePath -Value 'idf_component_register(SRCS "learning/sync/wire_codec.cpp")'
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
+if ($LASTEXITCODE -eq 0) { throw 'missing CMake registration was not detected' }
+Write-Output 'sync-app-first-mirror fixture tests: PASS'
