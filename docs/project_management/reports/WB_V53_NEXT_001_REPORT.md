@@ -13,7 +13,11 @@
 | CP4 | B03 Reminder Host 与持久化恢复 | 完成 | 见 §14 |
 | CP5 | 主机联合 Gate 与审查交付 | 完成 | 见 §15 |
 
-**全包状态：`REVIEW_READY`**（详见 §15；设备侧并发收益与触控 P95 仍需 A05 真机测量）
+**全包状态：`REVIEW_READY`**
+
+- 第一轮整改 `REVIEW-FIX-001`（RF1–RF6）：见 `## REVIEW-FIX-001`
+- 第二轮整改 `REVIEW-FIX-002`（R7 / R8 / Final Gate）：见 `## REVIEW-FIX-002`；`Local Host Gate 28/28 PASS`
+- 设备侧并发收益与触控 P95 仍需 A05 真机测量
 
 ## 1. 元信息
 
@@ -736,3 +740,220 @@ RESULT: NATIVE CPP TEST GATE PASS
 3. `beginNewSession()` 的调用点：目前**只在测试中调用**。CP1b 必须在 `LearningRuntime::ConfigureBackend()` / 重新配置路径上调用它，否则 generation 机制形同虚设。这是 CP1a 与 CP1b 的接口交接点。
 4. `SyncOutcome` 新增枚举值后，除 `virtual_device_app.cpp` 外是否还有别的穷尽 switch（我 grep 过 `SyncOutcome::`，只有那一处 switch）。
 5. DTO 放 `coordinator.h` 而非新建 `firmware/main/sync/` 头文件是否可接受（§10.2 已说明理由）。
+
+---
+
+## REVIEW-FIX-002
+
+> 针对 `WB-V53-NEXT-001-REVIEW-FIX-002`（Codex 第二轮审查，结论 `CHANGES_REQUIRED`）。
+> 本包只处理 **R7（A03 最终 session/generation 竞态收口）**、**R8（Reminder Wake 边界）**、**Final Gate（真跑 lock-injected 生产路径）**。
+> 不重开 RF2/RF3/RF4，不重做 Reminder 主体，未进入 A05，未 Flash。
+
+### R0. 基线与提交链
+
+- 起点：`118f8622aeefcccff8869022cf6403e75c3979b1`（审查给定 tip，已核对为本地 HEAD 的祖先）
+- 追加普通提交，**无 rebase / reset / squash / force-push**，原 13 个提交历史完整保留
+
+| SHA | 内容 |
+| --- | --- |
+| `99ea51d` | `fix(A03): close today apply and reauth generation race windows`（R7.1–R7.4 + 判别性测试） |
+| `88205a9` | `fix(B03): align reminder wake with calendar and quiet policy`（R8） |
+| `7729dbe` | `test(CP5): exercise lock-injected backend production path`（Final Gate，8 cases） |
+| 报告提交 | `docs(WB-V53-NEXT-001): record REVIEW-FIX-002 remediation and final status`（本节；其 SHA 即远端分支 tip，用 `git log -1` 取） |
+
+### R7.1 `/today` 最终 TOCTOU：校验与提交同一事务
+
+**修复前**（`pullTodayLocked`）：
+
+```text
+client_.fetchToday() 返回
+if (superseded())      <-- 无锁：读 coordinator generation + lease
+lock()
+  applyTodaySnapshot()
+unlock()
+```
+
+合法交错：`superseded()==false` → `ConfigureBackend()` 递增 generation → 旧 session `lock()` 并写入陈旧快照。
+
+**修复后**：
+
+```cpp
+bool applied = false, rejected = false;
+lock();
+  if (app_.generation() != session_generation_ || !leaseStillCurrent()) rejected = true;
+  else applied = app_.applyTodaySnapshot(today.tasks);
+unlock();
+```
+
+- **最终 stale 校验与 `applyTodaySnapshot()` 位于同一个 state 事务**（同一对 `lock()/unlock()`），且**未把网络 I/O 包进锁内**（`fetchToday` 仍在锁外）。
+- generation 作为 state mutation 的最终真相；lease 只用于对象存活与锁外快速拒绝。
+- 唯一能递增 generation 的路径 `LearningRuntime::ConfigureBackend()` 必须先持有同一把 `state_mutex_`，因此**从校验到提交之间不可能插入重配**。
+
+**判别性证据（不是"看起来对"）**：新增 `gate_c3_today_ownership_check_runs_inside_transaction`，用一个探针 `SessionLeaseSource` 记录"session 询问 lease 时 state 锁是否被持有"。
+**证伪检验**：把校验临时改回锁外写法后重编重跑，该用例**失败**（`assert fail: lease_source.probed_while_locked`）；恢复修复后通过。=> 该用例真的能抓到旧缺陷，而不是恒真断言。
+
+### R7.2 session generation 构造时冻结
+
+- `LearningBackendSession` 新增 `session_generation_`，构造时由 `lease.generation` **冻结**，此后任何路径都不再重读 coordinator generation。
+- `SyncExecutor` 构造签名新增 `expected_generation`；**每一轮** phase 1 在锁内先判 `coord_.generation() != expected_generation_` → `StaleResult`（不 prepare、不发包），再判 `envelope.generation != expected_generation_` → `StaleResult`。
+- 因此 401 后的重试**不可能**继承新 generation（旧代码的 `prepareSync()` 会读当时的 generation，正好是这个漏洞）。
+- 同时 `result.generation` 初值改为 `expected_generation_`（不再在 auth-paused/no-work 时错误地报 0）。
+
+**判别性证据**：`gate_b3_retry_never_inherits_new_generation` 直接驱动 `SyncExecutor`，把重配精确插在"reauth 返回 true"与"下一轮 prepare"之间。
+**证伪检验**：临时去掉 executor 的 generation 门禁后，该用例失败（`transport_calls` 变成 2）；恢复后通过。
+
+### R7.3 reauth 生命周期三段 Gate
+
+| 时刻 | 检查 | 位置 |
+| --- | --- | --- |
+| authenticate **之前** | `superseded()` → `return false`（不浪费凭据刷新） | session 的 reauth lambda |
+| authenticate **之后** | `return !superseded()`（期间被重配即拒绝，绝不进入第二次 POST） | 同上 |
+| retry prepare **之前** | 锁内 generation gate → `StaleResult` | `SyncExecutor::runCycle()` 循环顶部 |
+
+另加：reauth 失败/被拒后的"补写 pause"步骤也加了锁内 generation gate，**旧 session 不会把 `auth_paused_` 写到替换它的新 session 上**。
+
+**判别性证据**：`gate_b_reconfigure_during_reauth_cannot_retry`（阻塞在 refresh 的 challenge 上重配）、`gate_b2_reconfigure_after_refresh_token_before_retry_is_stale`（阻塞在 refresh 的 auth 返回处，token 已下发）。
+**证伪检验**：完整还原（executor 门禁 + session 后置校验都去掉）后，`gate_b` 失败（`old_sock->events_calls` 变成 2 —— 真的发了第二次 POST）；恢复后通过。
+
+### R7.4 消除锁外 coordinator generation 数据竞争
+
+- `AppCoordinator::generation_` 由 `int64_t` 改为 **`std::atomic<int64_t>`**；`beginNewSession()` 用 `fetch_add`，`generation()` 用 acquire load。
+- `LearningBackendSession::superseded()` 锁外只读两类线程安全状态：`SessionLeaseSource::isCurrent()`（内部有锁）与上述原子值。**没有任何无同步的裸整数读写**。
+- **没有**把 `AppCoordinator` 改造成内部锁对象：所有状态迁移依旧要求调用方持 state 锁，锁内仍以 `coord_.generation()` 为准。
+- 副作用（如实说明）：`std::atomic` 抑制了隐式移动构造，而 `coordinator_tests.cpp` 的 `Env::make() { AppCoordinator c{...}; return c; }` 需要它。因此**显式补回移动构造**（成员逐一搬移 + generation 原子 load），保持原有可移动性，未新增移动赋值。
+
+### R7 明确 lock order
+
+```text
+state mutex   ->   SessionLeaseHolder mutex
+```
+
+- `LearningRuntime::ConfigureBackend()`：先 `lock_guard(state_mutex_)`，再 `beginNewSession()`，再 `backend_holder_.installWith()`（取 holder 锁）。
+- `LearningBackendSession::leaseStillCurrent()` 是唯一在持 state 锁时触碰 holder 的地方，因此顺序**一致**。
+- `RunOnlineCycle()` 的 diagnostics 发布：`accepts()`（holder 锁）**先取先放**，之后才取 `state_mutex_`，两者不嵌套。
+- 全仓无"先 holder 后 state"的路径 => 无反向锁序，无死锁环。
+
+### R7.5 三个 deterministic race tests（全部用 latch，无 sleep）
+
+| 用例 | 机制 | 结果 |
+| --- | --- | --- |
+| `gate_c3_today_ownership_check_runs_inside_transaction` | 探针 lease source 记录"校验时是否持锁" | PASS；证伪下 FAIL |
+| `gate_c2_today_check_and_apply_are_one_critical_section` | 在 snapshot commit 内用 latch 暂停，外部 `try_lock` 状态锁**失败**；`holder.isInstalled()` 仍为当前 | PASS |
+| `gate_b_reconfigure_during_reauth_cannot_retry` | latch 卡在 refresh 的 challenge → 重配 → 释放 | PASS；证伪下 FAIL |
+| `gate_b2_reconfigure_after_refresh_token_before_retry_is_stale` | latch 卡在 refresh 的 auth 返回处 | PASS |
+| `gate_b3_retry_never_inherits_new_generation` | 在 reauth 回调内精确重配（唯一能插进该窗口的钩子） | PASS；证伪下 FAIL |
+| `gate_c_reconfigure_before_today_apply_rejects_stale` | latch 卡在 /today 返回答复时重配 | PASS |
+
+### R8.1 Wake 必须遵守 `calendar_allowed`
+
+```cpp
+if (!status.calendar_allowed || !status.epoch_valid || !status.epoch_ms) return std::nullopt;
+```
+
+`syncWake()` 在 `nullopt` 时调用 `cancelWake()`（原有逻辑），因此**已 armed 的 wake 会在失去信任时被撤销**，不会留下一个 core 永远不会处理的唤醒点。
+
+### R8.2 quiet 期间下一次 wake 指向 quiet_end
+
+- 先求候选唤醒时刻：`candidate = max(effectiveDue, now)`，再折算其**当地时刻** `local_at_candidate = (local_ms_of_day + delta % 24h) % 24h`。
+- 若该时刻落在 quiet 内 → `candidate += quietEndDeltaMs(local_at_candidate)`，即推到 quiet 结束那一刻（那一点本身不属于 quiet，一次调整即可收敛）。
+- **跨午夜规则**：`local < quiet_end` → 结束于**当日**（`quiet_end - local`）；`local >= quiet_end` → 开始于昨日，结束于**次日**（`quiet_end + 24h - local`）。默认 `21:00 → 07:00` 因此满足审查给的两条规则。
+- `quietActive()` 被 `evaluate()` 与 `nextWakeMonotonicMs()` **共用**，避免"投递说 quiet、唤醒说非 quiet"的分裂。纯 Host，无 `esp_sleep`。
+
+### R8.3 FakeWakePort 测试
+
+| 用例 | 覆盖 |
+| --- | --- |
+| `stale_or_untrusted_calendar_does_not_arm_wake` | (a) Unsynced；(b) 同步过但 holdover 超期（`epoch_valid=true` 而 `calendar_allowed=false`）；(c) uncertainty 超标（数值 > `max_calendar_error_ms`）。三种都断言 `nextWakeMonotonicMs()` 无值 |
+| `wake_cancelled_when_calendar_not_allowed` | 已 armed 后失去信任 → `cancelWake` 被调用、不再 armed、不再 schedule |
+| `quiet_deferred_reminder_wakes_at_quiet_end` | 22:00 due 且被 quiet 抑制 → wake = 次日 07:00（mono 31h），断言 `> now`（绝不当场） |
+| `quiet_after_midnight_wakes_same_day_quiet_end` | 00:30 → 同日 07:00（mono 31h） |
+
+`reminder_core_tests`：17 → **21 cases**。
+
+### Final CP5 Gate：真实 lock-injected 生产路径
+
+新增套件 `firmware/tests/unit/v53/production_path_gate_tests.cpp`（**8 cases**），全部真实调用
+`LearningBackendSession::runOnlineCycle(lock, unlock)` → `pullTodayLocked` / `syncOnceLocked` → `SyncExecutor::runCycle` → `BackendClient` → `HttpTransport` → `AppCoordinator`。
+
+| Gate | 用例 | 覆盖 |
+| --- | --- | --- |
+| A | `gate_a_production_online_cycle` | 正常 online cycle：today 落库 + events ACK 清空 pending |
+| B | `gate_b_reconfigure_during_reauth_cannot_retry` | 401 → reauth → **认证网络等待中重配** → 无第二次 POST、pending 不丢、新 session 未被 pause |
+| B2 | `gate_b2_reconfigure_after_refresh_token_before_retry_is_stale` | token 已下发后重配 → 重试根本不被 prepare |
+| B3 | `gate_b3_retry_never_inherits_new_generation` | executor 层直击"重试不得继承新 generation" |
+| C | `gate_c_reconfigure_before_today_apply_rejects_stale` | 陈旧 /today 快照（task-9）**不得入库**，返回 stale |
+| C2 | `gate_c2_today_check_and_apply_are_one_critical_section` | 提交期间 state 锁必须被持有；当前 session 仍是 holder 里那一个 |
+| C3 | `gate_c3_today_ownership_check_runs_inside_transaction` | 所有权校验发生在事务内（判别性） |
+| D | `gate_d_ack_covers_only_the_sent_prefix` | events 阻塞期间本地事件提交（pending 2→3），旧 ACK 只删已发送前缀 → `lastAcked==2`、`pending==1`、残留 sequence==3 |
+
+`joint_loop_tests`、`backend_session_gate_tests` **原样保留**（仅按新的 `SyncExecutor` 签名补一个参数），未删除任何测试取得 PASS。
+
+**哪些边界仍是替身（明确列出）**：
+
+- **socket 层**：`ScriptedSocket`（同一 method/url/body/status 契约）。其余 `BackendClient`（真实端点路径、JSON 编解码、状态分类、挑战/凭据流）、`AppCoordinator`、`SyncExecutor`、`SessionLeaseHolder` 全是生产代码。
+- **存储层**：`FakeOutboxStorage` / 仅 Gate C2 使用的 `GatedCommitStorage`（委托给同一个 fake，只加一个提交内钩子）。**不是真实 NVS**。
+- **重配动作**：测试自己调用 `beginNewSession() + installWith()`，但**严格按 `ConfigureBackend()` 的锁顺序**（先 state 锁）。
+- 设备 TU（`learning_runtime.{h,cpp}`、`metalio_http_transport.*`）**仍不在 Host Gate 内**（FreeRTOS/ESP-IDF 依赖）。
+
+**TCP loopback：`ENV_VERIFY_REQUIRED`**（本包未要求、也未尝试绕过安全策略；单列见下）。
+
+> 依审查 §10：本节只写 **`Backend orchestration Host Gate PASS`** 与 **`TCP loopback: ENV_VERIFY_REQUIRED`**，不写 "TCP loopback PASS"。
+
+### 完整 Host Gate（RF2 后）
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/dev/verify-host-cpp-tests.ps1 `
+  -CompilerPath E:/workbuddy/toolchains/w64devkit-2.9.1/bin/g++.exe `
+  -CrossCompilerPath E:/workbuddy/claw4-idf-tools/tools/riscv32-esp-elf/esp-14.2.0_20260121/riscv32-esp-elf/bin/riscv32-esp-elf-g++.exe `
+  -OutputDir out/rf2-final
+```
+
+```
+common implementation objects: 18 (compiled once)
+unit summary : 28 / 28 PASS
+interface: exit=0 (see above; 0 == PASS)
+RESULT: NATIVE CPP TEST GATE PASS
+```
+
+- 套件数：27 → **28**（新增 `production_path_gate_tests` 8 cases）
+- 用例数：`reminder_core_tests` 17 → **21**
+- **单次运行直接通过**，本轮**没有**出现瞬时 `LAUNCH FAIL`（本地迭代期确实遇到过该瞬时拦截，原地重跑即通过，未改门禁掩盖、未绕策略）
+- 未删除旧测试、未降低 warning/error（仍 `-Wall -Wextra -Werror`）、未修改全局安全策略
+- **`Local Host Gate PASS`**（本仓库无 GitHub Actions / commit status 独立 Gate，故不写 `CI PASS`）
+
+### 明确没有做到的（不粉饰）
+
+- **TCP loopback 未落地**：本机无法执行创建网络 socket 的 exe（沿用 §7 / REVIEW-FIX-001 证据），保持 `ENV_VERIFY_REQUIRED`。
+- **R7.4 是"消除竞争"而非"证明竞争不存在"**：Host 侧无法构造无锁竞态的判别性用例，只做了代码级消除（原子化）+ 静态复核。请 Codex 按代码审。
+- **Gate C 的原始交错已不可构造**：修复把"校验→提交"合成了一个事务，那条缝本身消失了，所以测试改成"重配落在 /today 应用之前"+"事务内校验探针"两种可观测形式，并给出证伪结果。这一点我如实标注，而不是声称跑过了原始交错。
+- **镜像清单仍未登记**：`time`、`sync_executor`、`single_flight_http_transport`、`interaction_arbiter`、`reminder` 仍不在 CMake/image 清单 → **不能声称固件已含本包功能**，更不得据此宣布 A05 / Device Gate PASS。
+- **提交拆分**：建议 3 个提交，实际 3 个功能提交 + 1 个报告提交（与本包建议一致）。
+
+### 仍然 `HARDWARE_VERIFY_REQUIRED`
+
+- 触控 P95 < 100 ms（本包只证明 Host 层"持锁期间无 I/O"）
+- DNS / connect / headers / body / close **分段耗时**
+- **底层总 deadline 未解决**（`EspTcp::Connect()` 不继承 HTTP timeout；沿用 §7.3）
+- 20 轮语音窗口无 watchdog / heap 损坏
+- 真实 NVS 上的提醒持久化 与**真掉电**
+- 设备 image / CMake 尚未登记（见上）
+- Light Sleep 下 quiet→quiet_end 唤醒的实际行为（本包只有纯 Host 逻辑与 fake）
+
+### 给 Codex 的最终复检对照（对应审查 §15）
+
+| 审查关注点 | 结论 | 证据 |
+| --- | --- | --- |
+| 1 `/today` stale check 与 apply 是否真正原子化 | 是（同一 `lock()/unlock()`） | `gate_c3`（判别性）+ `gate_c2` + 源码 |
+| 2 旧 Session 是否绝不可能获得 new generation | 不可能（构造时冻结 + 每轮锁内 gate） | `gate_b3`（判别性） |
+| 3 reauth 中途 reconfigure 是否彻底阻止 second POST | 是 | `gate_b`、`gate_b2`（`gate_b` 判别性） |
+| 4 generation 是否不存在无同步 data race | 是（atomic + 仅锁外读原子值） | 源码复核 |
+| 5 lock order 是否无死锁风险 | 一致：state → lease | 上方 "R7 明确 lock order" |
+| 6 `runOnlineCycle(lock, unlock)` 是否进入 Host Gate | 是（8 cases 套件） | `production_path_gate_tests` |
+| 7 Reminder Wake 是否遵守 `calendar_allowed` | 是 | 4 个 Wake 用例 |
+| 8 quiet reminder 是否 wake 到 quiet_end | 是（含跨午夜两分支） | 2 个 quiet 用例 |
+| 9 原 27 suites 是否全部保留 | 是（28/28） | Gate 日志 |
+| 10 是否继续严格区分 Host / TCP loopback / Device / Hardware | 是 | 本节各"未做到"与边界清单 |
+
+### 最终状态
+
+`REVIEW_READY`。未标记 ACCEPTED、未合 main、未启动 A05、未做任何 Flash / 真实 NVS / partition / bootloader / OTA slot / eFuse / vendor / BSP / sdkconfig / SNTP / Light Sleep 设备实现 / NAS / MCP / AI 增强 / 真实家庭后端 / 真实儿童数据操作。
