@@ -274,6 +274,86 @@ static bool run_case_ack_is_not_completion() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// REVIEW-FIX-001 RF4: SystemCritical is above a deferred reminder in EVERY
+// combination — expiry must never demote critical.
+// ---------------------------------------------------------------------------
+
+static bool run_case_critical_blocks_deferred_reminder_expiry() {
+  InteractionArbiter arbiter(1);
+  CHECK(arbiter.requestPlayback(voiceFromUser(AudioSource::CloudTts, 1), 0) ==
+        ArbiterVerdict::Granted);
+  // A local reminder is deferred with its 3 s budget.
+  CHECK(arbiter.requestPlayback(voiceFromUser(AudioSource::LocalReminder, 1), 100) ==
+        ArbiterVerdict::Deferred);
+  const int64_t deadline = arbiter.deferredDeadlineMs();
+  CHECK(deadline == 100 + InteractionArbiter::kLocalReminderBudgetMs);
+
+  // Critical preempts the TTS; the reminder is now parked behind critical.
+  InteractionRequest critical;
+  critical.source = AudioSource::SystemCritical;
+  critical.generation = 1;
+  CHECK(arbiter.requestPlayback(critical, 200) == ArbiterVerdict::Granted);
+  CHECK(arbiter.currentSource() == AudioSource::SystemCritical);
+  CHECK(arbiter.deferredBlockedByCritical());
+  CHECK(arbiter.reminderDeferred());          // still pending, nothing lost
+  CHECK(arbiter.deferredDeadlineMs() == 0);   // no budget against critical
+
+  // Even far past the old budget, expiry must NOT preempt critical.
+  CHECK(!arbiter.expireDeferredReminder(deadline + 100000));
+  CHECK(arbiter.currentSource() == AudioSource::SystemCritical);
+  CHECK(arbiter.playing());
+  CHECK(arbiter.reminderDeferred());
+  return true;
+}
+
+static bool run_case_deferred_reminder_runs_after_critical_finishes() {
+  InteractionArbiter arbiter(1);
+  CHECK(arbiter.requestPlayback(voiceFromUser(AudioSource::CloudTts, 1), 0) ==
+        ArbiterVerdict::Granted);
+  CHECK(arbiter.requestPlayback(voiceFromUser(AudioSource::LocalReminder, 1), 100) ==
+        ArbiterVerdict::Deferred);
+  InteractionRequest critical;
+  critical.source = AudioSource::SystemCritical;
+  critical.generation = 1;
+  CHECK(arbiter.requestPlayback(critical, 200) == ArbiterVerdict::Granted);
+  CHECK(arbiter.deferredBlockedByCritical());
+
+  // Critical finishes long after the original budget: the reminder is restored.
+  CHECK(arbiter.playbackFinished(100 + InteractionArbiter::kLocalReminderBudgetMs + 5000));
+  CHECK(arbiter.playing());
+  CHECK(arbiter.currentSource() == AudioSource::LocalReminder);
+  CHECK(!arbiter.reminderDeferred());
+  CHECK(!arbiter.deferredBlockedByCritical());
+  CHECK(!arbiter.normalSourcePreempted());
+  return true;
+}
+
+static bool run_case_session_reset_during_critical_clears_stale_deferred() {
+  InteractionArbiter arbiter(1);
+  CHECK(arbiter.requestPlayback(voiceFromUser(AudioSource::CloudTts, 1), 0) ==
+        ArbiterVerdict::Granted);
+  CHECK(arbiter.requestPlayback(voiceFromUser(AudioSource::LocalReminder, 1), 10) ==
+        ArbiterVerdict::Deferred);
+  InteractionRequest critical;
+  critical.source = AudioSource::SystemCritical;
+  critical.generation = 1;
+  CHECK(arbiter.requestPlayback(critical, 20) == ArbiterVerdict::Granted);
+  CHECK(arbiter.deferredBlockedByCritical());
+
+  // The page is closed while critical is still playing.
+  arbiter.beginSession(2);
+  CHECK(!arbiter.reminderDeferred());
+  CHECK(!arbiter.deferredBlockedByCritical());
+  CHECK(!arbiter.playing());
+  CHECK(arbiter.deferredDeadlineMs() == 0);
+  // Nothing from the old generation can revive it.
+  CHECK(arbiter.requestPlayback(voiceFromUser(AudioSource::LocalReminder, 1), 30) ==
+        ArbiterVerdict::Denied);
+  CHECK(!arbiter.reminderDeferred());
+  return true;
+}
+
 static bool run_case_all() {
   CASE(critical_preempts_and_is_recoverable);
   CASE(local_reminder_budget_then_preempts);
@@ -285,6 +365,10 @@ static bool run_case_all() {
   CASE(reminder_action_requires_intent_and_scope);
   CASE(proactive_ai_cannot_authorize_anything);
   CASE(ack_is_not_completion);
+  // REVIEW-FIX-001 RF4
+  CASE(critical_blocks_deferred_reminder_expiry);
+  CASE(deferred_reminder_runs_after_critical_finishes);
+  CASE(session_reset_during_critical_clears_stale_deferred);
   return g_fail == 0;
 }
 

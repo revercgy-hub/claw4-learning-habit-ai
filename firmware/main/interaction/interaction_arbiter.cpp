@@ -9,6 +9,7 @@ void InteractionArbiter::beginSession(const int64_t generation) {
   // A closed page/session must not leave a local ring holding the speaker.
   playing_ = false;
   critical_preempted_normal_ = false;
+  deferred_blocked_by_critical_ = false;
   deferred_.reset();
   deferred_deadline_ms_ = 0;
 }
@@ -24,6 +25,12 @@ ArbiterVerdict InteractionArbiter::requestPlayback(
   if (request.source == AudioSource::SystemCritical) {
     if (playing_ && current_ != AudioSource::SystemCritical) {
       critical_preempted_normal_ = true;
+      // RF4: a reminder already parked behind the network output is now parked
+      // behind critical instead; its 3 s budget no longer applies.
+      if (deferred_) {
+        deferred_blocked_by_critical_ = true;
+        deferred_deadline_ms_ = 0;
+      }
     }
     playing_ = true;
     current_ = AudioSource::SystemCritical;
@@ -38,10 +45,16 @@ ArbiterVerdict InteractionArbiter::requestPlayback(
   }
 
   // A due local reminder must not be dropped while the network speaks; it gets
-  // the 3 s budget and preempts if the budget expires. Critical output is never
-  // preempted by a reminder.
-  if (request.source == AudioSource::LocalReminder &&
-      current_ != AudioSource::SystemCritical) {
+  // the 3 s budget and preempts if the budget expires.
+  if (request.source == AudioSource::LocalReminder) {
+    // RF4: while CRITICAL is playing the reminder is parked without a budget —
+    // 3 s expiry must never demote SystemCritical.
+    if (current_ == AudioSource::SystemCritical) {
+      if (!deferred_) deferred_ = request;
+      deferred_blocked_by_critical_ = true;
+      deferred_deadline_ms_ = 0;
+      return ArbiterVerdict::Deferred;
+    }
     if (!deferred_) {
       deferred_ = request;
       deferred_deadline_ms_ = now_ms + kLocalReminderBudgetMs;
@@ -54,11 +67,27 @@ ArbiterVerdict InteractionArbiter::requestPlayback(
 }
 
 bool InteractionArbiter::playbackFinished(const int64_t now_ms) {
+  const AudioSource finished = current_;
   playing_ = false;
+  current_ = AudioSource::CloudTts;
+  const bool was_critical = finished == AudioSource::SystemCritical;
   critical_preempted_normal_ = false;
 
-  // A deferred local reminder that still has budget starts immediately.
-  if (deferred_ && now_ms <= deferred_deadline_ms_) {
+  if (!deferred_) return false;
+
+  // RF4: a reminder parked behind critical (or behind a preempted source while
+  // critical ran) is restored now, regardless of the removed budget.
+  if (was_critical && deferred_blocked_by_critical_) {
+    deferred_blocked_by_critical_ = false;
+    deferred_deadline_ms_ = 0;
+    playing_ = true;
+    current_ = AudioSource::LocalReminder;
+    deferred_.reset();
+    return true;
+  }
+
+  // Normal path: a deferred local reminder that still has budget starts now.
+  if (now_ms <= deferred_deadline_ms_) {
     playing_ = true;
     current_ = AudioSource::LocalReminder;
     deferred_.reset();
@@ -70,6 +99,10 @@ bool InteractionArbiter::playbackFinished(const int64_t now_ms) {
 
 bool InteractionArbiter::expireDeferredReminder(const int64_t now_ms) {
   if (!deferred_) return false;
+  // RF4: SystemCritical is never preempted, and a reminder parked behind it has
+  // no budget to expire. The reminder stays pending until critical finishes.
+  if (playing_ && current_ == AudioSource::SystemCritical) return false;
+  if (deferred_blocked_by_critical_) return false;
   if (now_ms <= deferred_deadline_ms_) return false;
 
   // Budget exhausted: the LOCAL ring takes the speaker away from the network

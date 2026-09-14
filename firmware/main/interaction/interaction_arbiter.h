@@ -110,6 +110,10 @@ class InteractionArbiter {
   // Set while a critical prompt is holding the speaker after preempting a
   // normal source, so the shell knows there is something to recover.
   bool normalSourcePreempted() const { return critical_preempted_normal_; }
+  // RF4: the deferred reminder is parked behind SystemCritical. The 3 s budget
+  // does NOT apply in that state — a critical prompt may not be preempted by a
+  // reminder, and finishing critical restores the reminder.
+  bool deferredBlockedByCritical() const { return deferred_blocked_by_critical_; }
 
   // --- authorization -----------------------------------------------------
   // Snooze / ACK / Dismiss: requires the child's own explicit intent, a
@@ -134,6 +138,7 @@ class InteractionArbiter {
   bool playing_ = false;
   AudioSource current_ = AudioSource::CloudTts;
   bool critical_preempted_normal_ = false;
+  bool deferred_blocked_by_critical_ = false;
   std::optional<InteractionRequest> deferred_;
   int64_t deferred_deadline_ms_ = 0;
 };
