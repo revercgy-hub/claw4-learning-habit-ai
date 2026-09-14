@@ -161,6 +161,28 @@ bool AppCoordinator::applyTodaySnapshot(
   sync::OutboxState os = loadFrom(storage_);
   domain::DomainState next = os.domain;
 
+  // WB-V53-NEXT-001 CP2 (A04): a locally reached TERMINAL state whose terminal
+  // event is still waiting for an ACK means the server has not observed the
+  // completion yet. A snapshot that still lists the task as Ready describes a
+  // STALE revision, and applying its status would resurrect a finished task.
+  // Collect those task ids (payload carries task_id for every task event).
+  std::vector<domain::TaskId> terminal_pending;
+  for (const auto& row : os.pending) {
+    if (row.type != domain::EventType::TaskCompleted &&
+        row.type != domain::EventType::TaskSkipped) {
+      continue;
+    }
+    const auto it = row.payload.find("task_id");
+    if (it == row.payload.end()) continue;
+    terminal_pending.push_back(domain::TaskId{it->second});
+  }
+  const auto hasTerminalPending = [&terminal_pending](const domain::TaskId& id) {
+    for (const auto& t : terminal_pending) {
+      if (t == id) return true;
+    }
+    return false;
+  };
+
   // The task owning a live Running/Paused session is the ONLY row protected
   // from snapshot membership: it is kept (until the session ends) even when
   // the server does not list it, and its live status is never reset.
@@ -192,7 +214,16 @@ bool AppCoordinator::applyTodaySnapshot(
     // server snapshot; keep when present (honouring the version guard).
     for (const auto& sv : server_tasks) {
       if (sv.task_id == local.task_id) {
-        out_tasks.push_back(sv.version >= local.version ? sv : local);
+        if (hasTerminalPending(local.task_id)) {
+          // A04: never let a stale (possibly older-revision) server row revive
+          // a locally completed/skipped task before its terminal event is
+          // ACKed. Descriptive fields may still refresh.
+          domain::Task merged = sv.version >= local.version ? sv : local;
+          merged.status = local.status;  // keep Completed / Skipped
+          out_tasks.push_back(merged);
+        } else {
+          out_tasks.push_back(sv.version >= local.version ? sv : local);
+        }
         break;
       }
     }

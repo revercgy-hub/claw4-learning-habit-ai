@@ -888,6 +888,127 @@ static bool run_case_a03_prepare_apply_matches_wrapper_outcome() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// WB-V53-NEXT-001 CP2 (A04): a stale authoritative snapshot must never
+// overwrite a locally reached offline terminal state.
+// ---------------------------------------------------------------------------
+
+static bool run_case_a04_offline_complete_not_revived_by_stale_snapshot() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // Running
+  env.ctx.advance(60'000);
+  IntentRequest comp;
+  comp.intent = Intent::Complete;
+  comp.task_id = TaskId{"task-1"};
+  CHECK(c.dispatchIntent(comp, env.ctx.make()).ok);       // Completed offline
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);
+  CHECK(c.pendingCount() == 4);                           // terminal not ACKed
+  // The server has not observed the completion yet and still reports Ready.
+  Task stale = readyTask("task-1", 3);
+  stale.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({stale}));
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);  // NOT revived
+  // Even a NEWER stale revision must not revive it while un-ACKed.
+  Task stale_newer = readyTask("task-1", 9);
+  stale_newer.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({stale_newer}));
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);
+  CHECK(c.state().tasks[0].version == 9);                     // fields refreshed
+  return true;
+}
+
+static bool run_case_a04_offline_skip_not_revived_by_stale_snapshot() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  // Skip is only defined from Ready (reducer contract), so no Start here.
+  IntentRequest skip;
+  skip.intent = Intent::Skip;
+  skip.task_id = TaskId{"task-1"};
+  CHECK(c.dispatchIntent(skip, env.ctx.make()).ok);       // Skipped offline
+  CHECK(c.state().tasks[0].status == TaskStatus::Skipped);
+  CHECK(c.pendingCount() == 1);                           // terminal not ACKed
+  Task stale = readyTask("task-1", 3);
+  stale.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({stale}));
+  CHECK(c.state().tasks[0].status == TaskStatus::Skipped);  // NOT revived
+  return true;
+}
+
+static bool run_case_a04_terminal_applies_again_after_ack() {
+  // Once the terminal event is ACKed the protection must lift, otherwise a
+  // legitimate new plan revision could never reopen the task (no wedging).
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  env.ctx.advance(60'000);
+  IntentRequest comp;
+  comp.intent = Intent::Complete;
+  comp.task_id = TaskId{"task-1"};
+  CHECK(c.dispatchIntent(comp, env.ctx.make()).ok);
+  Task stale = readyTask("task-1", 3);
+  stale.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({stale}));
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);
+
+  // Sync: the terminal events are now confirmed by the server.
+  FakeSyncTransport tr;
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 4);
+  CHECK(c.pendingCount() == 0);
+
+  // A newer authoritative revision may now reopen the task.
+  Task reopened = readyTask("task-1", 9);
+  reopened.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({reopened}));
+  CHECK(c.state().tasks[0].status == TaskStatus::Ready);
+  CHECK(c.state().tasks[0].version == 9);
+  return true;
+}
+
+static bool run_case_a04_empty_snapshot_differs_from_request_failure() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  // A persistence/request failure must NOT be conflated with "no tasks today".
+  env.disk->fail_next_commit = true;
+  CHECK(!c.applyTodaySnapshot({}));   // snapshot commit failed
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.pendingCount() == 0);
+  // A genuine empty snapshot IS authoritative and clears non-active rows.
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.empty());
+  return true;
+}
+
+static bool run_case_a04_active_reschedule_and_delete_keep_session() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  const SessionId session_id = c.state().active_session->session_id;
+  // Server reschedules the active task (newer version, stale Ready status).
+  Task moved = readyTask("task-1", 9);
+  moved.status = TaskStatus::Ready;
+  moved.scheduled_date = "2026-09-20";
+  CHECK(c.applyTodaySnapshot({moved}));
+  CHECK(c.state().active_session.has_value());
+  CHECK(c.state().active_session->session_id == session_id);  // session kept
+  CHECK(c.state().tasks[0].status == TaskStatus::InProgress);  // live status kept
+  CHECK(c.state().tasks[0].scheduled_date == "2026-09-20");    // reschedule applied
+  CHECK(c.state().tasks[0].version == 9);
+  // Server deletes the active task entirely while the session is live.
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().active_session.has_value());                 // session kept
+  CHECK(c.state().tasks.size() == 1);                          // row retained
+  CHECK(c.state().active_session->session_id == session_id);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(boot_clock_rebase_preserves_counters_and_pending);
   CASE(dispatch_start_publishes_after_commit);
@@ -922,6 +1043,12 @@ static bool run_case_all() {
   CASE(a03_stale_generation_result_is_rejected);
   CASE(a03_apply_never_performs_reauth);
   CASE(a03_prepare_apply_matches_wrapper_outcome);
+  // WB-V53-NEXT-001 CP2 (A04)
+  CASE(a04_offline_complete_not_revived_by_stale_snapshot);
+  CASE(a04_offline_skip_not_revived_by_stale_snapshot);
+  CASE(a04_terminal_applies_again_after_ack);
+  CASE(a04_empty_snapshot_differs_from_request_failure);
+  CASE(a04_active_reschedule_and_delete_keep_session);
   return g_fail == 0;
 }
 
