@@ -108,6 +108,11 @@ class LearningBackendSession final {
   // Reads coordinator counters through the storage; must not run without the
   // state-owner lock while another task can commit.
   void RefreshCountersLocked(const StateLockFn& lock, const StateUnlockFn& unlock);
+  // FINAL-CONCURRENCY-CLEANUP FIX-2: pure diagnostic-field update. It performs
+  // NO Coordinator/storage counter read, so it is safe to call from the
+  // lock-free network phase (authenticate()) as well as from inside a state
+  // transaction.
+  void SetDiagnostic(SyncErrorClass error, int http_status, const char* operation);
   void RecordError(SyncErrorClass error, int http_status, const char* operation);
   void RecordErrorLocked(SyncErrorClass error, int http_status,
                          const char* operation, const StateLockFn& lock,

@@ -69,6 +69,20 @@ void LearningBackendSession::RefreshCounters() {
   diagnostics_.last_acked_sequence = app_.lastAcked();
 }
 
+// FIX-2: field-only update. Deliberately performs NO counter read, because it
+// runs both from the lock-free network phase and from inside state
+// transactions. `network_online` is derived from the error class so a success
+// record (None) marks the link up and any failure marks it down, matching the
+// previous behaviour at every call site.
+void LearningBackendSession::SetDiagnostic(const SyncErrorClass error,
+                                           const int http_status,
+                                           const char* operation) {
+  diagnostics_.network_online = error == SyncErrorClass::None;
+  diagnostics_.last_error = error;
+  diagnostics_.http_status = http_status;
+  diagnostics_.last_operation = operation;
+}
+
 void LearningBackendSession::RefreshCountersLocked(
     const StateLockFn& lock, const StateUnlockFn& unlock) {
   // Counter reads go through the storage adapter, so they belong to the same
@@ -78,44 +92,44 @@ void LearningBackendSession::RefreshCountersLocked(
   unlock();
 }
 
+// LEGACY single-threaded path only (pullToday / syncOnce / runOnlineCycle).
+// The device lock-injected path must never reach this: it uses
+// RecordErrorLocked() / RefreshCountersLocked() so every counter read happens
+// inside the state transaction.
 void LearningBackendSession::RecordError(const SyncErrorClass error,
                                          const int http_status,
                                          const char* operation) {
-  diagnostics_.network_online = false;
-  diagnostics_.last_error = error;
-  diagnostics_.http_status = http_status;
-  diagnostics_.last_operation = operation;
+  SetDiagnostic(error, http_status, operation);
   RefreshCounters();
 }
 
 void LearningBackendSession::RecordErrorLocked(
     const SyncErrorClass error, const int http_status, const char* operation,
     const StateLockFn& lock, const StateUnlockFn& unlock) {
-  diagnostics_.network_online = false;
-  diagnostics_.last_error = error;
-  diagnostics_.http_status = http_status;
-  diagnostics_.last_operation = operation;
+  SetDiagnostic(error, http_status, operation);
   RefreshCountersLocked(lock, unlock);
 }
 
+// FIX-2: the credential exchange runs with NO state lock held (that is the
+// whole point of the lock-injected cycle), so it must not touch Coordinator or
+// storage counters. It only updates this session's OWN state plus the pure
+// diagnostic fields; the owning path refreshes counters explicitly through
+// RefreshCountersLocked() when it is inside a transaction (or
+// RefreshCounters() on the legacy single-threaded path).
 bool LearningBackendSession::authenticate() {
   if (!diagnostics_.configured) {
-    RecordError(SyncErrorClass::Unknown, 0, "auth_not_configured");
+    SetDiagnostic(SyncErrorClass::Unknown, 0, "auth_not_configured");
     return false;
   }
   wire::AuthResponse auth;
   SyncErrorClass error = SyncErrorClass::None;
   if (!client_.authenticate(device_id_.value, signer_, auth, error)) {
     authenticated_ = false;
-    RecordError(error, 0, "authenticate");
+    SetDiagnostic(error, 0, "authenticate");
     return false;
   }
   authenticated_ = true;
-  diagnostics_.network_online = true;
-  diagnostics_.last_error = SyncErrorClass::None;
-  diagnostics_.http_status = 200;
-  diagnostics_.last_operation = "authenticate";
-  RefreshCounters();
+  SetDiagnostic(SyncErrorClass::None, 200, "authenticate");
   return true;
 }
 
@@ -283,8 +297,11 @@ application::SyncOutcome LearningBackendSession::syncOnceLocked(
 
   const auto outcome = cycle.outcome;
   diagnostics_.network_online = outcome != application::SyncOutcome::Backoff;
+  // FIX-2: RefreshCountersLocked() already reads auth_paused/pending/ACK inside
+  // this state transaction. The extra `diagnostics_.auth_paused =
+  // app_.authPaused()` that used to follow was a redundant OUT-OF-LOCK
+  // coordinator read and has been removed.
   RefreshCountersLocked(lock, unlock);
-  diagnostics_.auth_paused = app_.authPaused();
   diagnostics_.last_operation = "events";
   if (outcome == application::SyncOutcome::Backoff) {
     diagnostics_.last_error = SyncErrorClass::Network;
