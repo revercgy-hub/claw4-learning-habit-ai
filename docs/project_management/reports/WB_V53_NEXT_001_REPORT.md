@@ -479,6 +479,186 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/dev/verify-host-cp
 | `learning_screen.cc` 未改 | 有意 | §11.2 / §11.5-3 |
 | 未做真机/Flash/NVS/vendor/sdkconfig/partition | 遵守禁区 | 无任何此类操作 |
 
+## REVIEW-FIX-001
+
+审查整改包 `WB-V53-NEXT-001-REVIEW-FIX-001`。Codex 结论 `CHANGES_REQUIRED`；本节记录全部整改。
+
+### R0. 基线与提交链
+
+- 审查基线（上一轮 tip）：`a705f43e4a0bdc2ac2e834758dfba03d0e8e8d34`
+- 本包追加提交（**未 rebase / 未 reset / 未 squash / 未 force-push，原 9 个提交历史完整保留**）：
+
+| SHA | 内容 | 覆盖 RF |
+| --- | --- | --- |
+| `15e63aa` | fix(A03/A04)：session lease、连续作用域 ACK 前缀、未 ACK 终态 tombstone | RF1 + RF2 + RF3 |
+| `65b6412` | fix(B02)：SystemCritical 始终高于 deferred reminder | RF4 |
+| `0647d70` | fix(B03)：quiet/snooze/容量/合并/掉电/wake 收口 | RF5 |
+| `0ae7b3f` | test(CP5)：BackendSession 编排可靠性 Gate | RF6 |
+| 本报告提交 | docs：REVIEW-FIX-001 记录 | — |
+
+**与建议的 6 提交拆分的偏差（需 Codex 知悉）**：RF1/RF2/RF3 的改动落在同一批文件（`firmware/main/application/coordinator.{h,cpp}`、`firmware/tests/unit/application/coordinator_tests.cpp`）上，`git add` 只能按文件暂存，拆分它们需要把同一 hunk 反复重写两次。为避免在整改中引入与主题无关的改写风险，我合并为一个提交并在提交信息里标注 A03/A04；若你要求严格 6 提交，我可以用中间版本重做（会重写这 1 个提交，不影响原有 9 个）。
+
+### RF1 — A03 Session 生命周期与 generation 所有权
+
+**问题一：shared_ptr 实际未跨 I/O 保活。** 已修复，但不是"在锁内复制一份"就够了——为了让设备路径与 Host Gate 跑**同一份生产代码**，把"当前会话 + 其 lease"抽成纯 C++ helper：
+
+- 新增 `firmware/main/sync/session_lease.h`
+  - `struct SessionLease { lease_id, generation }`（`lease_id` 单调递增，永不复用）
+  - `class SessionLeaseSource`（`currentLease()` / `isCurrent()`）
+  - `template <typename SessionT> class SessionLeaseHolder : public SessionLeaseSource`
+    - `borrow()` → **返回 shared_ptr 副本**，整个网络阶段保活
+    - `installWith(generation, factory)` → 先分配 lease 再用它构造会话（不存在"先构造后绑 lease"的窗口）
+    - `accepts(session, lease)` → 快照发布规则：只有**仍被安装且 lease 仍有效**的会话能发布
+- `integration/.../learning_runtime.{h,cpp}` 改为持有 `SessionLeaseHolder<LearningBackendSession>`
+  - `RunOnlineCycle()`：`borrow()` 拿 lease → **无锁**跑完整个 I/O 阶段 → 只有 `accepts(...)` 为真才发布 diagnostics 快照
+  - `ConfigureBackend()`：`beginNewSession()` 取新 generation → `installWith` 安装新会话并分发新 lease
+- 未通过延长 `state_mutex_` 解决（锁仍只在 prepare/apply 短事务里）。
+
+**问题二：generation 只保护 events，没保护 `/today`。** 已修复：generation 绑定到 **BackendSession 生命周期**。
+
+- `LearningBackendSession` 新增 `SessionLease lease_` + `const SessionLeaseSource* lease_source_`，`superseded()` = `lease_source_` 判定 **或** `lease_.generation != app_.generation()`
+- 门禁位置（全部落实）：
+  - `/today` **发起前**：superseded → 直接返回 false，不发请求，`last_operation = "today_superseded"`
+  - `/today` **apply 前**：superseded → 丢弃响应，**不写 coordinator 状态**
+  - events sync：`syncOnce()` / `syncOnceLocked()` 在 `EnsureAuthenticated()` 前与 exchange 开始前**各判一次**
+  - reauth：回调内先判 `superseded()`，已失效则**不做凭据刷新、不重试**
+  - `runOnlineCycle(lock, unlock)`：`/today` 后若已失效，**不再进入 events 阶段**
+  - diagnostics：由 `SessionLeaseHolder::accepts()` 判定，**旧 session 不能覆盖新 session 的快照**
+
+新增测试（`firmware/tests/unit/sync/session_lease_tests.cpp`，5 cases，latch/barrier，无 sleep）：
+`runtime_reconfigure_during_backend_io_keeps_old_session_alive`（重配后旧对象仍存活，worker 释放 lease 才析构）、`stale_today_response_after_reconfigure_is_rejected`（HTTP 桩在 `/today` 在途时重配；状态未写、`last_operation == "today_superseded"`）、`stale_session_cannot_start_new_sync_after_reconfigure`、`stale_reauth_cannot_resume_old_session`、`stale_diagnostics_do_not_overwrite_new_session`。
+
+### RF2 — ACK 只能推进"合法连续确认前缀"
+
+`AppCoordinator::scopeBatchToSent()` 重写：**不再**只看 `first_sent_sequence <= seq <= max_sent_sequence`，而是从 `first_sent_sequence` **顺序推进**，遇到任一情况立即停止并冻结 ACK：
+
+- 该 sequence 没有结果行（missing）
+- `event_id` 与实际发送的 envelope 不匹配（wrong/mismatched）
+- outcome 不是 `Accepted` / `Duplicate`（Conflict / Rejected / Gap）
+
+服务端的 `last_acked_sequence` 只作为**上界**；无任何连续确认时 ACK 完全不移动。范围内的合法行仍会转发（business 4xx 需要写 dead-letter 标记），但它们无法推进 ACK。
+
+针对审查给的例子（发送 1,2,3；返回 1 Accepted / 2 Conflict / 3 Accepted / last_acked=3）：新逻辑得到 `last_acked = 1`，seq2/seq3 全部保留。
+
+新增测试（`coordinator_tests.cpp`，5 cases）：`a03_ack_stops_before_conflict_gap`、`a03_ack_stops_on_missing_result`、`a03_ack_stops_on_wrong_event_id`、`a03_ack_handles_out_of_order_results_safely`、`a03_duplicate_response_is_idempotent`；原"并发新增 pending 不被旧 ACK 删除"测试保留并通过。
+
+### RF3 — A04 未 ACK 终态 tombstone
+
+审查指出的复活路径：`Completed未ACK → server空快照 → 本地行被删除 → server 旧 Ready 再次出现 → 作为"新任务"重新加入`。
+
+修复：`applyTodaySnapshot()` 中，**当任务不在服务端快照里且其终态事件仍未 ACK 时，保留该行**（不再按"服务端权威成员关系"删除）。保护来源是**已持久化的 pending 队列**，因此天然满足：跨多轮 snapshot 生效、**reboot 后仍成立**、ACK 落地即解除、新 revision 可合法 reopen。未引入新持久化字段（无迁移风险）。
+
+**必须说明的既有测试改动**：`snapshot_cleans_completed_after_session_ends` 原本断言"Complete 未 ACK 时空快照删除该行"——那正是 RF3 要禁止的行为。该用例**未被删除**，而是改名为 `snapshot_cleans_completed_after_terminal_acked` 并在其中**先同步 ACK 再断言删除**，保留其原意（已完成任务在服务端不再列出时会被清理），同时符合冻结语义。
+
+新增测试（4 cases）：`a04_complete_empty_snapshot_stale_ready_not_revived`、`a04_skip_empty_snapshot_stale_ready_not_revived`、`a04_terminal_protection_survives_restart`、`a04_terminal_protection_lifts_after_ack`；原有 active session 改期/删除用例继续 PASS。
+
+### RF4 — B02 Critical 与 deferred reminder 组合优先级
+
+优先级冻结为 `SystemCritical > LocalReminder > CloudTts > ProactiveAI`，在所有组合状态下成立：
+
+- reminder 在 Critical 播放期间到达 → **不设 3 秒预算**（`deferred_deadline_ms_ = 0`），置 `deferred_blocked_by_critical_`
+- `expireDeferredReminder()`：Critical 正在播放或 `deferred_blocked_by_critical_` 为真 → **直接返回 false，绝不抢占**
+- `playbackFinished()`：若结束的是 Critical 且有被阻塞的 reminder → **恢复该 reminder**（不受已作废的预算限制）
+- `beginSession()`：清理 stale deferred 与阻塞标记
+
+新增测试（3 cases）：`critical_blocks_deferred_reminder_expiry`、`deferred_reminder_runs_after_critical_finishes`、`session_reset_during_critical_clears_stale_deferred`；原"不双播 / 主动 AI 无授权 / ACK != Complete"继续 PASS。
+
+### RF5 — B03 Reminder Reliability 收口
+
+| 子项 | 冻结语义与实现 |
+| --- | --- |
+| 6.1 静默期与 grace | **静默期导致的延后不消耗普通 grace**。改为 quiet-first 判定：quiet 命中即 suppress + 置 `deferred_by_quiet`（**不做 grace 退休**）；离开 quiet 的**首次**允许窗口开启**一次有界补提醒**（`catch_up_deadline = now + quiet_grace_ms`），窗口内可投递，**超窗即退休**（不无限补历史） |
+| 6.2 Snooze/refresh | 同一 stable instance id 的 `upsert()` **默认保留 lifecycle**（`snooze_until_epoch_ms`、`delivered_epoch_ms`、quiet 补提醒状态）；新增 `reset_lifecycle` 字段用于**显式**重置 |
+| 6.3 容量 | `max_instances` 只约束 ACTIVE；新增 `max_records` 约束**持久化总量**；超出时按"先 prune inactive、再按 effective due 从旧到新"回收已完成记录，只剩 pending 时**显式拒绝**并计数；与 Learning outbox 是**各自独立的预算**，容量失败不会影响 `TaskCompleted` 等业务事件 |
+| 6.4 多提醒合并 | 新增 `collectDueBatches()`：同 child + 同 kind + effective due 落在 `merge_window_ms` 内 → 合并成 **ONE `ReminderBatch`**；每次最多 `max_batches_per_tick` 组。不是简单截断 |
+| 6.5 掉电语义 | **修正了原报告的结论**（见下） |
+| 6.6 WakePort | 新增 `nextWakeMonotonicMs()`（纯 Host 计算下一唤醒单调时刻）+ `syncWake(port, ...)`（有 pending 则 arm，无 pending 则 **cancel**）+ `fakes/fake_reminder_wake_port.h`；不引用 `esp_sleep` |
+
+**修正原报告结论**：原 §14.2 把整体语义写成"at-most-once"，这是**错的**。冻结后的准确描述是：
+
+- 已提交 `markDelivered` 的实例**不重响**
+- "呈现"与"delivered commit"之间掉电 → **允许有限重复**（重启后按 grace/quiet 规则再投递一次）
+- 超窗即退休，**不允许无限重响**
+- 存储损坏/保存失败 → **有界恢复**（内存不前进、不半应用）
+- 任务书不要求物理铃声 exactly-once，本次也未承诺
+
+新增测试（7 cases）：`rf5_quiet_delay_does_not_consume_grace`（**通过 TimeAuthority 真实推进 epoch**：22:00 suppressed → 06:59 suppressed → 07:00 允许；并断言 `07:00 - due > grace_ms`）、`rf5_quiet_catch_up_is_bounded`、`rf5_schedule_refresh_preserves_snooze`、`rf5_capacity_bounds_persisted_records`、`rf5_multiple_due_reminders_merge_into_one_batch`、`rf5_power_loss_recovery_semantics`（三类掉电）、`rf5_wake_port_scheduled_updated_and_cancelled`。既有 CP4 用例全部继续 PASS。
+
+### RF6 — CP5 联合 Gate 修订
+
+保留 `joint_loop_tests`（2 cases）。
+
+**新增** `firmware/tests/unit/v53/backend_session_gate_tests.cpp`（8 cases），覆盖
+`LearningBackendSession → BackendClient（真实 URL / JSON 编解码 / 状态分类 / 凭据流） → sync::HttpTransport → AppCoordinator/SyncExecutor/SessionLeaseHolder`：
+
+`authenticate`、`get_today`、`offline_terminal_merge`、`post_events_ack`、`401_one_reauth`、`duplicate_lost_response`、`stale_generation`、`reconfigure_while_in_flight`（HTTP 桩在 events 请求在途时触发重配，断言旧结果被拒、新 session 状态未被写、`lastAcked` 仍为 0）。
+
+**关于 loopback（必须如实说明）**：本机**无法运行建立网络 socket 的可执行文件**。实测证据：
+
+| 探测程序 | 结果 |
+| --- | --- |
+| 普通 exe（无 winsock） | 运行正常 |
+| 仅 `#include <winsock2.h>` 未导入 | 运行正常 |
+| 真实调用 `WSAStartup`（导入 WS2_32.dll） | 运行正常（rc=0） |
+| 仅 `std::thread` | 运行正常 |
+| 真实 `socket/bind/listen/accept/connect` 的服务端+客户端 | **每次 `Permission denied`（rc=126）**，`Start-Process` 亦被拒 |
+
+因此**只把 socket 层替换成桩**（同一 method/url/body/status 契约），其余全部是生产代码。任务书 §7.2 已授权该替代方案。**未建立 TCP loopback fixture，也未因此新增 `-lws2_32` 等链接依赖**（那会改动全局门禁链接参数）。如果 Codex 要求在具备 socket 权限的环境补做真实 loopback，请指定环境。
+
+### Host Gate（整改后完整结果）
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/dev/verify-host-cpp-tests.ps1 `
+  -CompilerPath E:/workbuddy/toolchains/w64devkit-2.9.1/bin/g++.exe `
+  -CrossCompilerPath E:/workbuddy/claw4-idf-tools/tools/riscv32-esp-elf/esp-14.2.0_20260121/riscv32-esp-elf/bin/riscv32-esp-elf-g++.exe `
+  -OutputDir out/rf-final
+```
+
+```
+common implementation objects: 18 (compiled once)
+unit summary : 27 / 27 PASS
+interface: exit=0 (see above; 0 == PASS)
+RESULT: NATIVE CPP TEST GATE PASS
+```
+
+**Local Host Gate PASS**（本仓库当前没有 GitHub Actions / commit status 独立 Gate，故不写 CI PASS）。
+
+- 套件数：25 → **27**（新增 `session_lease_tests` 5 cases、`backend_session_gate_tests` 8 cases）
+- 用例数：`coordinator_tests` 37 → **46**、`interaction_arbiter_tests` 10 → **13**、`reminder_core_tests` 10 → **17**
+- **本轮为单次运行直接通过，没有出现瞬时 `LAUNCH FAIL`**（此前记录的"链接后立即启动被应用控制策略拦截"属偶发，本轮的完整可重复 PASS 见上）
+- 未删除任何旧测试获得 PASS（唯一改动的旧用例见 RF3 说明）；未绕过策略；未改门禁链接参数
+
+### 相对原报告修正的结论
+
+| 原报告位置 | 原结论（不准确/不完整） | 修正 |
+| --- | --- | --- |
+| §11.2 | "`backend_` 改 `shared_ptr`，worker 在整个 I/O 期间持有对象" | 实际只做了 `backend_.get()`，**并未保活**。已改为 `SessionLeaseHolder::borrow()`，并有 Host 测试证明对象在重配后仍存活 |
+| §11.3 / §10.4 | "切换会话后迟到响应被拒 = PASS" | 当时只覆盖 events envelope；**`/today` 与 reauth 未覆盖**。RF1 补齐并有 5 个测试 |
+| §10.4 | "并发新增事件 + 旧 ACK = PASS" | 当时只约束 ACK **上界**，未约束"连续 + event_id 匹配"。RF2 补齐，并用审查给的 Conflict 样例验证 |
+| §12.4 | 把"服务端不再列出且终态未 ACK → 移除缓存行"当作**有意保留的边界** | 该边界正是**复活路径**。RF3 改为保留 tombstone，原用例改名并补 ACK 步骤 |
+| §14.2 | 掉电语义写成整体 `at-most-once` | **错误**。改为三类语义（见 RF5 6.5），原描述已作废 |
+| §14.2 | WakePort"只有接口与 Host fake" | 补充**真实 Host 调度逻辑**（`nextWakeMonotonicMs` / `syncWake`）+ Fake + 测试 |
+| §3.4 / §15.3 | `time` 模块未进镜像清单 | 仍然成立，且**本包新增的 `reminder` 同样未进入镜像 CMake 清单** |
+
+### 剩余 `HARDWARE_VERIFY_REQUIRED`
+
+- 断网/网络挂起下的触控 P95<100ms 与最大停顿（本包只证明 Host 层"持锁期间无 I/O"）
+- DNS / connect / headers / body / close 分段耗时与资源边界
+- 20 轮语音窗口无 watchdog / heap 损坏
+- 真实 NVS 上的 snooze / delivered / quiet 补提醒恢复与真掉电边界
+- 设备侧 `LearningRuntime` 的 lease 接线：`learning_runtime.{h,cpp}` 属设备 TU（含 FreeRTOS/ESP-IDF），**未进入 Host Gate**，本包只做源码级修改；其行为依赖 `session_lease_tests` 覆盖的同一 helper
+
+### 仍然存在的已知限制
+
+- **底层网络无总 deadline**：`EspTcp::Connect()` 不继承 HTTP timeout、`Disconnect()` 可能等待 10s。CP1/RF 只交付"UI 不堵"，**未解决**（沿用 §7.3）。
+- **镜像清单**：`time`、`sync_executor`、`single_flight_http_transport`、`interaction_arbiter`、`reminder` 均未登记进 CMake/image 清单；**不能声称固件已包含本包功能**，不得据此宣布 A05 / Device Gate PASS。
+- **本机 git 缺陷**（§7.1）仍未解决；本包全部提交使用无斜杠本地分支名 + 显式 URL push，未受影响。
+- `ScheduledHttpTransport` 按禁止事项**未删除**。
+
+### 最终状态
+
+`REVIEW_READY`（等待 Codex 第二轮按不可变 SHA 审查）。未标记 ACCEPTED、未合 main、未启动 A05、未做任何 Flash / 真实 NVS / partition / vendor 操作。
+
 ## 10. CP1a（A03 协调器核心）实施记录
 
 ### 10.1 状态
