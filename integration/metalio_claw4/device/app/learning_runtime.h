@@ -13,6 +13,7 @@
 #include <freertos/task.h>
 
 #include "sync/learning_backend_session.h"
+#include "sync/sync_executor.h"
 #include "metalio_claw4/device/ports/learning_clock.h"
 #include "metalio_claw4/device/ports/metalio_voice_session.h"
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
@@ -34,8 +35,10 @@ class LearningRuntime {
   LearningApp& app() { return *app_; }
   bool inited() const { return inited_; }
   bool bootReady() const { return inited_ && app_ != nullptr && app_->running(); }
-  // Screen callbacks and the backend worker must hold this lock while
-  // touching the shared LearningApp/coordinator state.
+  // Short critical section for UI reads/local commands and for the backend
+  // worker's prepare/apply phases. WB-V53-NEXT-001 CP1 (A03): it is NEVER held
+  // across a network wait any more — RunOnlineCycle() releases it before the
+  // I/O phase, so a dead network cannot block the LVGL task.
   std::recursive_mutex& stateMutex() { return state_mutex_; }
   claw4::ports::ClockPort& clock() { return clock_; }
 
@@ -62,19 +65,31 @@ class LearningRuntime {
   // Loads endpoint/identity/secret from the dedicated provisioning namespace
   // and creates the injected HMAC signer. Returns false when unprovisioned.
   bool ConfigureProvisionedBackend();
+  // Runs one full online cycle. The network phase executes with the state lock
+  // RELEASED; only prepare/apply take it briefly.
   bool RunOnlineCycle();
+  // Immutable, redacted diagnostics snapshot published after each cycle. Safe
+  // for the LVGL task: it performs no live query and no network access.
   claw4::sync::BackendSessionDiagnostics BackendDiagnostics() const;
 
  private:
-  LearningRuntime() = default;
+  LearningRuntime();
 
   NvsOutboxStorage storage_;
   EspTimerClock clock_;
   MetalioVoiceSessionPort voice_session_;
   std::unique_ptr<LearningApp> app_;
-  std::unique_ptr<claw4::sync::LearningBackendSession> backend_;
+  // shared_ptr so the worker keeps the session alive for the whole I/O phase
+  // even if ConfigureBackend() replaces it concurrently.
+  std::shared_ptr<claw4::sync::LearningBackendSession> backend_;
   TaskHandle_t backend_task_ = nullptr;
   mutable std::recursive_mutex state_mutex_;
+  // Lock callables injected into the sync executor/session so the state lock is
+  // taken only for short, I/O-free transactions.
+  claw4::sync::StateLockFn state_lock_;
+  claw4::sync::StateUnlockFn state_unlock_;
+  // Published under state_mutex_ by the worker; read by the UI.
+  claw4::sync::BackendSessionDiagnostics diagnostics_snapshot_;
   std::string device_id_ = "dev-claw4-l1";
   std::string child_id_ = "child-1";
   bool inited_ = false;

@@ -4,6 +4,12 @@
 // authenticate once, apply the authoritative today snapshot, then drain the
 // transactional outbox. It owns no thread and never sleeps; a device shell
 // calls runOnlineCycle() from a worker/task context, not from LVGL callbacks.
+//
+// WB-V53-NEXT-001 CP1 (A03): the session now offers a lock-injected cycle so
+// the device shell can keep the state-owner lock SHORT. In that mode every
+// network call (challenge/auth, today pull, batch sync, the one credential
+// retry) runs with NO lock held; only the two pure state writes
+// (applyTodaySnapshot and the ACK/backoff application) take the injected lock.
 #pragma once
 
 #include <cstdint>
@@ -15,6 +21,7 @@
 #include "learning_domain/ids.h"
 #include "sync/backend_client.h"
 #include "sync/backend_sync_transport.h"
+#include "sync/sync_executor.h"
 
 namespace claw4::sync {
 
@@ -53,16 +60,31 @@ class LearningBackendSession final {
   bool authenticate();
   bool pullToday();
   application::SyncOutcome syncOnce();
+
+  // Legacy single-threaded cycle (Host tests, wire fixtures). Performs no
+  // locking; callers must guarantee exclusive access.
   bool runOnlineCycle();
+
+  // A03 device cycle: all I/O happens with no lock held, every state write
+  // happens inside a short injected critical section.
+  bool runOnlineCycle(const StateLockFn& lock, const StateUnlockFn& unlock);
 
   const BackendSessionDiagnostics& diagnostics() const { return diagnostics_; }
   bool authenticated() const { return authenticated_; }
 
  private:
   void RefreshCounters();
-  void RecordError(SyncErrorClass error, int http_status,
-                   const char* operation);
+  // Reads coordinator counters through the storage; must not run without the
+  // state-owner lock while another task can commit.
+  void RefreshCountersLocked(const StateLockFn& lock, const StateUnlockFn& unlock);
+  void RecordError(SyncErrorClass error, int http_status, const char* operation);
+  void RecordErrorLocked(SyncErrorClass error, int http_status,
+                         const char* operation, const StateLockFn& lock,
+                         const StateUnlockFn& unlock);
   bool EnsureAuthenticated();
+  bool pullTodayLocked(const StateLockFn& lock, const StateUnlockFn& unlock);
+  application::SyncOutcome syncOnceLocked(const StateLockFn& lock,
+                                          const StateUnlockFn& unlock);
 
   application::AppCoordinator& app_;
   std::unique_ptr<HttpTransport> transport_;

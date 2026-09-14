@@ -29,6 +29,10 @@ LearningRuntime& LearningRuntime::Instance() {
   return rt;
 }
 
+LearningRuntime::LearningRuntime()
+    : state_lock_([this] { state_mutex_.lock(); }),
+      state_unlock_([this] { state_mutex_.unlock(); }) {}
+
 std::string LearningRuntime::NextEventId() {
   // Two independent 32-bit draws, formatted without printf-family 64-bit
   // specifiers (unsupported by the firmware's nano-newlib configuration).
@@ -48,7 +52,12 @@ bool LearningRuntime::ConfigureBackend(
   child_id_ = child_id;
   app_->setIdentity(claw4::domain::DeviceId{device_id_},
                     claw4::domain::ChildId{child_id_});
-  backend_ = std::make_unique<claw4::sync::LearningBackendSession>(
+  // WB-V53-NEXT-001 CP1 (A03): a reconfigured backend is a NEW session. Bump
+  // the coordinator generation so any worker result prepared against the old
+  // session is rejected by applySyncResult() instead of writing into the new
+  // one.
+  app_->coordinator().beginNewSession();
+  backend_ = std::make_shared<claw4::sync::LearningBackendSession>(
       app_->coordinator(), CreateMetalioHttpTransport(), std::move(base_url),
       claw4::domain::DeviceId{std::move(device_id)},
       claw4::domain::ChildId{std::move(child_id)},
@@ -76,18 +85,35 @@ bool LearningRuntime::ConfigureProvisionedBackend() {
 }
 
 bool LearningRuntime::RunOnlineCycle() {
-  std::lock_guard<std::recursive_mutex> lock(state_mutex_);
-  if (backend_ == nullptr) return false;
-  // The caller owns scheduling: this method must not be invoked from the
-  // LVGL event callback because the scheduled HTTP boundary waits for its
-  // main-loop callback to complete.
-  return backend_->runOnlineCycle();
+  // WB-V53-NEXT-001 CP1 (A03): the state lock is held ONLY for short, I/O-free
+  // transactions. The whole network cycle previously ran under state_mutex_,
+  // which blocked the LVGL task (and therefore touch and rendering) for the
+  // entire DNS/connect/read/close wait.
+  claw4::sync::LearningBackendSession* backend = nullptr;
+  {
+    // Phase A: resolve the session. shared_ptr keeps it alive for the whole
+    // cycle even if ConfigureBackend() swaps it out concurrently.
+    std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+    backend = backend_.get();
+  }
+  if (backend == nullptr) return false;
+
+  // Phase B: perform the cycle with NO state lock held. The session takes the
+  // injected lock only for its own short prepare/apply writes.
+  const bool ok = backend->runOnlineCycle(state_lock_, state_unlock_);
+
+  // Phase C: publish the immutable diagnostics snapshot the UI reads.
+  const claw4::sync::BackendSessionDiagnostics snapshot = backend->diagnostics();
+  {
+    std::lock_guard<std::recursive_mutex> lock(state_mutex_);
+    diagnostics_snapshot_ = snapshot;
+  }
+  return ok;
 }
 
 claw4::sync::BackendSessionDiagnostics LearningRuntime::BackendDiagnostics() const {
   std::lock_guard<std::recursive_mutex> lock(state_mutex_);
-  return backend_ ? backend_->diagnostics()
-                  : claw4::sync::BackendSessionDiagnostics{};
+  return diagnostics_snapshot_;
 }
 
 void LearningRuntime::StartBackendWorker() {

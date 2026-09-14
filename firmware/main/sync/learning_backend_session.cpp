@@ -39,6 +39,15 @@ void LearningBackendSession::RefreshCounters() {
   diagnostics_.last_acked_sequence = app_.lastAcked();
 }
 
+void LearningBackendSession::RefreshCountersLocked(
+    const StateLockFn& lock, const StateUnlockFn& unlock) {
+  // Counter reads go through the storage adapter, so they belong to the same
+  // short critical section as the state writes they describe.
+  lock();
+  RefreshCounters();
+  unlock();
+}
+
 void LearningBackendSession::RecordError(const SyncErrorClass error,
                                          const int http_status,
                                          const char* operation) {
@@ -47,6 +56,16 @@ void LearningBackendSession::RecordError(const SyncErrorClass error,
   diagnostics_.http_status = http_status;
   diagnostics_.last_operation = operation;
   RefreshCounters();
+}
+
+void LearningBackendSession::RecordErrorLocked(
+    const SyncErrorClass error, const int http_status, const char* operation,
+    const StateLockFn& lock, const StateUnlockFn& unlock) {
+  diagnostics_.network_online = false;
+  diagnostics_.last_error = error;
+  diagnostics_.http_status = http_status;
+  diagnostics_.last_operation = operation;
+  RefreshCountersLocked(lock, unlock);
 }
 
 bool LearningBackendSession::authenticate() {
@@ -117,6 +136,84 @@ application::SyncOutcome LearningBackendSession::syncOnce() {
 bool LearningBackendSession::runOnlineCycle() {
   if (!pullToday()) return false;
   const auto outcome = syncOnce();
+  return outcome == application::SyncOutcome::Synced ||
+         outcome == application::SyncOutcome::NoPending;
+}
+
+// ---------------------------------------------------------------------------
+// WB-V53-NEXT-001 CP1 (A03): lock-injected cycle. Every network wait below runs
+// with NO lock held; only the pure state writes and the counter reads are
+// wrapped in the injected short critical section.
+// ---------------------------------------------------------------------------
+
+bool LearningBackendSession::pullTodayLocked(const StateLockFn& lock,
+                                             const StateUnlockFn& unlock) {
+  // authenticate() performs the challenge/auth HTTP exchange — no lock held.
+  if (!EnsureAuthenticated()) {
+    RefreshCountersLocked(lock, unlock);
+    return false;
+  }
+  wire::TodayResponse today;
+  SyncErrorClass error = SyncErrorClass::None;
+  // GET /today: network wait with no lock held.
+  if (!client_.fetchToday(child_id_.value, today, error)) {
+    if (error == SyncErrorClass::Auth) authenticated_ = false;
+    RecordErrorLocked(error, 0, "today", lock, unlock);
+    return false;
+  }
+  // Short critical section: the ONLY state write of the pull.
+  bool applied = false;
+  lock();
+  applied = app_.applyTodaySnapshot(today.tasks);
+  unlock();
+  if (!applied) {
+    RecordErrorLocked(SyncErrorClass::Unknown, 0, "today_persist", lock, unlock);
+    return false;
+  }
+  diagnostics_.network_online = true;
+  diagnostics_.last_error = SyncErrorClass::None;
+  diagnostics_.http_status = 200;
+  diagnostics_.last_operation = "today";
+  RefreshCountersLocked(lock, unlock);
+  return true;
+}
+
+application::SyncOutcome LearningBackendSession::syncOnceLocked(
+    const StateLockFn& lock, const StateUnlockFn& unlock) {
+  if (!EnsureAuthenticated()) {
+    RefreshCountersLocked(lock, unlock);
+    return application::SyncOutcome::Backoff;
+  }
+  // SyncExecutor owns the three-phase discipline: prepare (locked), send (NO
+  // lock), apply (locked). The credential retry is also invoked unlocked.
+  SyncExecutor executor(app_, sync_transport_, lock, unlock);
+  const SyncCycleResult cycle =
+      executor.runCycle([this]() { return authenticate(); });
+
+  const auto outcome = cycle.outcome;
+  diagnostics_.network_online = outcome != application::SyncOutcome::Backoff;
+  RefreshCountersLocked(lock, unlock);
+  diagnostics_.auth_paused = app_.authPaused();
+  diagnostics_.last_operation = "events";
+  if (outcome == application::SyncOutcome::Backoff) {
+    diagnostics_.last_error = SyncErrorClass::Network;
+  } else if (outcome == application::SyncOutcome::PausedAuth) {
+    diagnostics_.last_error = SyncErrorClass::Auth;
+  } else if (outcome == application::SyncOutcome::StaleResult) {
+    // A late response from a superseded session: nothing was written and this
+    // is not a network error.
+    diagnostics_.last_error = SyncErrorClass::None;
+  } else {
+    diagnostics_.last_error = SyncErrorClass::None;
+    if (epoch_now_) diagnostics_.last_sync_epoch = epoch_now_();
+  }
+  return outcome;
+}
+
+bool LearningBackendSession::runOnlineCycle(const StateLockFn& lock,
+                                            const StateUnlockFn& unlock) {
+  if (!pullTodayLocked(lock, unlock)) return false;
+  const auto outcome = syncOnceLocked(lock, unlock);
   return outcome == application::SyncOutcome::Synced ||
          outcome == application::SyncOutcome::NoPending;
 }
