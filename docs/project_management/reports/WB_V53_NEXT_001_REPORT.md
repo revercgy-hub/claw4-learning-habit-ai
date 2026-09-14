@@ -16,7 +16,8 @@
 **全包状态：`REVIEW_READY`**
 
 - 第一轮整改 `REVIEW-FIX-001`（RF1–RF6）：见 `## REVIEW-FIX-001`
-- 第二轮整改 `REVIEW-FIX-002`（R7 / R8 / Final Gate）：见 `## REVIEW-FIX-002`；`Local Host Gate 28/28 PASS`
+- 第二轮整改 `REVIEW-FIX-002`（R7 / R8 / Final Gate）：见 `## REVIEW-FIX-002`
+- 第三轮收口 `FINAL-CONCURRENCY-CLEANUP`（FIX-1 diagnostics 发布原子化 / FIX-2 锁外 counters 读取）：见 `## FINAL-CONCURRENCY-CLEANUP`；`Local Host Gate 29/29 PASS`、`CI: NOT PRESENT`
 - 设备侧并发收益与触控 P95 仍需 A05 真机测量
 
 ## 1. 元信息
@@ -957,3 +958,188 @@ RESULT: NATIVE CPP TEST GATE PASS
 ### 最终状态
 
 `REVIEW_READY`。未标记 ACCEPTED、未合 main、未启动 A05、未做任何 Flash / 真实 NVS / partition / bootloader / OTA slot / eFuse / vendor / BSP / sdkconfig / SNTP / Light Sleep 设备实现 / NAS / MCP / AI 增强 / 真实家庭后端 / 真实儿童数据操作。
+
+---
+
+## FINAL-CONCURRENCY-CLEANUP
+
+> 针对 `WB-V53-NEXT-001-FINAL-CONCURRENCY-CLEANUP`（Codex 第三轮审查，结论 `CHANGES_REQUIRED`）。
+> 起点 `7646c65`。本轮**只**收口两个并发尾项：FIX-1（diagnostics 发布的 `accepts → publish` 非原子窗口）、FIX-2（lock-injected 路径中的锁外 counters 读取）。
+> 不重开 RF2/RF3/RF4/R7/R8/Final Gate 已通过项；未进入 A05；未动 CMake/image 清单。
+
+### C0. 提交链
+
+| SHA | 内容 |
+| --- | --- |
+| `7b080e0` | `fix(A03): make diagnostics publish atomic with session ownership`（FIX-1） |
+| `86db779` | `fix(A03): keep backend counter reads inside state transaction`（FIX-2） |
+| `6736fda` | `test(A03): cover final runtime concurrency cleanup`（6 cases） |
+| 报告提交 | `docs(WB-V53-NEXT-001): record final concurrency cleanup evidence`（本节；SHA 即远端分支 tip） |
+
+工作树 clean；只追加普通提交（无 rebase/reset/squash/force）。
+
+### FIX-1：diagnostics 发布与 session ownership 校验原子化
+
+**旧窗口（真实存在）**
+
+```text
+旧 Session A 完成网络周期
+        ↓
+backend_holder_.accepts(A) == true        ← 没有 state lock
+        ↓
+                    ConfigureBackend() → beginNewSession() → install Session B
+        ↓
+A 取得 state_mutex_
+        ↓
+diagnostics_snapshot_ = A.diagnostics()   ← 旧诊断覆盖新会话
+```
+
+任务状态本身不会被污染（A 的 `applyTodaySnapshot`/ACK 都有各自的锁内 generation 门禁），但 UI 读到的认证/网络/pending/ACK/`last_operation` 会被死会话短暂覆盖。
+
+**修复方式**：新增极小的纯 C++ helper
+`firmware/main/sync/session_snapshot_publisher.h`：
+
+```cpp
+template <typename SourceT, typename SessionT, typename SnapshotT>
+bool publishSessionSnapshot(const SourceT& source, const SessionT& session,
+                            const StateLockFn& lock, const StateUnlockFn& unlock,
+                            SnapshotT& slot, const SnapshotT& snapshot) {
+  InjectedStateLock guard(lock, unlock);                       // 先取锁
+  if (!source.accepts(&session, session.lease())) return false; // 再校验
+  slot = snapshot;                                             // 再写
+  return true;
+}
+```
+
+设备侧 `LearningRuntime::RunOnlineCycle()` 改为：
+
+```cpp
+const auto snapshot = backend->diagnostics();
+publishSessionSnapshot(backend_holder_, *backend, state_lock_, state_unlock_,
+                       diagnostics_snapshot_, snapshot);
+```
+
+- **锁顺序不变且唯一**：`state mutex → SessionLeaseHolder mutex`（helper 先取 state 锁，再调用 holder 的 `accepts()`）。全仓仍无反向嵌套。
+- **ownership check 与 publish 在同一临界区**：`accepts()` 与 `slot = snapshot` 之间不可能插入重配 —— 唯一能递增 generation 并换 lease 的 `ConfigureBackend()`/`install()` 必须先拿同一把 state 锁。
+
+**为什么新增这个文件（§7 要求说明必要性与边界）**
+
+- **必要性**：`learning_runtime.cpp` 是设备 TU（FreeRTOS/ESP-IDF 依赖），**不进 Host Gate**。若把 "check + publish" 直接写在设备里，这条规则就永远没有测试覆盖 —— 上一轮 `RF1` 的 `shared_ptr` 保活就是在这种"设备侧无法验证"的缝隙里出过问题。抽成 helper 后，设备与 Host Gate **跑同一份代码**，而不是两套行为。
+- **边界**：helper 只做三件事——取注入锁、调用 `accepts()`、赋值给 slot。**不做 I/O、不读 coordinator/storage、不改任何其他状态**；它不替换生产 mutex（调用方各自注入 `std::recursive_mutex` 或测试的 `std::mutex`）。`SessionLeaseHolder`（本轮冻结）**未修改**。
+
+**确定性竞态测试**
+
+| 用例 | 机制 | 结果 |
+| --- | --- | --- |
+| `diagnostics_publish_is_atomic_with_ownership_check` | 探针 lease source 记录"`accepts()` 被调用时 state 锁是否被持有" | PASS；**证伪下 FAIL** |
+| `stale_diagnostics_cannot_publish_after_reconfigure_between_check_and_write` | latch 把线程卡在 `accepts()` 内部 → 另一线程读 `lock_depth.held()` = true（证明重配无法插入）；随后做真重配 → 旧会话再次发布被拒、slot 保持新会话值 | PASS；**证伪下 FAIL** |
+
+两个用例都**不使用 sleep**（`std::thread` + `condition_variable` latch / 原子深度计数）。
+
+**关于"在 check 与 write 之间插入重配"的可测性（如实说明）**：修复后这段窗口在构造上就不存在了，所以无法再演一出"check 通过 → 重配 → 写"的真实交错。测试改为两个可观测等价物：(a) 卡在 `accepts()` 内证明锁被持有（互斥），(b) 重配完成后旧会话发布被拒。`diagnostics_publish_is_atomic_with_ownership_check` 里另外**内嵌了旧写法的回放**并断言探针把它判为"未持锁"，用来证明该断言不是恒真。
+
+### FIX-2：lock-injected 路径禁止锁外读 counters
+
+**被删除的锁外读取**
+
+| 位置 | 旧行为 | 现在 |
+| --- | --- | --- |
+| `authenticate()` 成功 | 末尾 `RefreshCounters()` → `auth_paused()` / `pendingCount()` / `lastAcked()`（后者两者进 storage），**整个凭据交换在锁外** | 只写本会话自身状态 + `SetDiagnostic()`，**零 counter 读取** |
+| `authenticate()` 失败 | `RecordError(error, 0, "authenticate")` → 同样带 `RefreshCounters()` | `SetDiagnostic(error, 0, "authenticate")`，零 counter 读取 |
+| `authenticate()` 未配置 | `RecordError(Unknown, ...)` | `SetDiagnostic(Unknown, ...)` |
+| `syncOnceLocked()` 尾部 | `RefreshCountersLocked(...)` 之后**又**执行 `diagnostics_.auth_paused = app_.authPaused()`（冗余的锁外 coordinator 读取） | 删除该行；`auth_paused` 由 `RefreshCountersLocked()` 在事务内统一读取 |
+
+新增的 `SetDiagnostic(error, status, operation)` 是**纯字段更新**（`network_online = (error == None)`、`last_error`、`http_status`、`last_operation`），不触碰 coordinator/storage。语义等价性已核对：`BackendClient` 的每一条 `return false` 都把 `error` 置为非 `None`（`Network` 或 `None→Unknown` 归一），因此失败路径的 `network_online=false` 与原行为逐点一致。
+
+**`authenticate()` 是否停止隐式 `RefreshCounters()`**：**是**。它现在只负责 ①challenge/auth 网络交互 ②更新 session 自身状态（`authenticated_`、token 所在的 `client_`）③写 4 个纯诊断字段。需要 counters 时由调用方显式走 `RefreshCountersLocked(lock, unlock)`。
+
+**legacy 单线程路径如何保持兼容**：`pullToday()`、`syncOnce()`、`runOnlineCycle()` 三个 legacy 入口仍可在无锁前提下读 counters（它们的调用约定就是"调用方保证独占"），并在各自结尾显式 `RefreshCounters()`；`RecordError()`（带 counters 的版本）**只被 legacy `pullToday()` 使用**。所有既有 legacy 测试（`learning_backend_session_tests`）原样通过。
+
+**device lock-injected path 如何保证全部 counter 读取在 state lock 内**
+
+- 代码审计后，`pullTodayLocked()` / `syncOnceLocked()` 里出现的 counter 读取**只有** `RefreshCountersLocked()` 这一条路径，它自己 `lock(); RefreshCounters(); unlock();`。
+- 构造期的那次 `RefreshCounters()`（会话 ctor）在设备上**本来就在 state 锁内**：`ConfigureBackend()` 持有 `state_mutex_` 才调用 `installWith()`，ctor 在锁内执行。
+- 会话自身的 `diagnostics_` 字段写入（如 `last_operation = "today_superseded"`）**不属于** coordinator/storage 读取，不受本轮约束。
+
+**判别性 probe 测试**：`firmware/tests/unit/v53/final_concurrency_cleanup_tests.cpp`，用**委托式 storage 探针**（`pendingCount()`/`lastAcked()` 都会经过 `OutboxStorage::load()`，因此覆盖全部 counter 读取；同时记录每个 storage 入口是否持锁）+ 记录"网络调用是否持锁"的 socket 桩。
+
+| 用例 | 场景 | 断言 | 结果 |
+| --- | --- | --- | --- |
+| `probe_cycle_initial_auth_and_today_reads_counters_locked` | 初次 authenticate + `/today`（无 pending） | `ops_unlocked == 0`、`ops_locked > 0`、`net_calls_while_locked == 0` | PASS；**证伪下 FAIL** |
+| `probe_cycle_events_ack_reads_counters_locked` | events 正常 ACK | 同上 | PASS；**证伪下 FAIL** |
+| `probe_cycle_401_reauth_reads_counters_locked` | 401 → 凭据刷新 → 重试成功（断言 `challenge_calls == 2`、`events_calls == 2` 证明刷新真的发生） | 同上 | PASS；**证伪下 FAIL**（这是最强判别项：旧代码正是在锁外的刷新里读了 counters） |
+| `probe_cycle_stale_session_reads_counters_locked` | stale session 分支 | `ops_unlocked == 0`、旧 socket `net_calls == 0` | PASS（该分支两种实现都**零** counter 读取，故不构成判别项，如实标注） |
+
+四个场景都跑**真实生产路径**：`LearningBackendSession::runOnlineCycle(lock, unlock)` → `pullTodayLocked`/`syncOnceLocked` → `SyncExecutor` → `BackendClient` → `HttpTransport`（仅 socket 为桩）→ `AppCoordinator`。
+
+**证伪检验（本轮实测）**：临时还原成修复前行为（`authenticate()` 加回 `RefreshCounters()`；helper 改回"先 check 再取锁"）后重编重跑，**6 个用例中 5 个失败**，且连续 5 次运行输出完全一致：
+
+```
+  assert fail: f.holder.probed_while_locked (line 407)
+FAIL: diagnostics_publish_is_atomic_with_ownership_check
+  assert fail: lock_held_during_check (line 468)
+FAIL: stale_diagnostics_cannot_publish_after_reconfigure_between_check_and_write
+  assert fail: f.storage.ops_unlocked == 0 (line 516 / 538 / 576)
+FAIL: probe_cycle_initial_auth_and_today_reads_counters_locked
+FAIL: probe_cycle_events_ack_reads_counters_locked
+FAIL: probe_cycle_401_reauth_reads_counters_locked
+cases=6 failures=5
+```
+
+恢复修复后 6/6 通过。
+
+**唯一没有测试覆盖的一项（不粉饰）**：`syncOnceLocked()` 里被删掉的那行 `diagnostics_.auth_paused = app_.authPaused()` 读的是 coordinator 的内存字段，**不经过 storage**，因此 storage 探针抓不到它。这一项只有**代码审计**证据（该行已被删除，`auth_paused` 由同一事务内的 `RefreshCountersLocked()` 读取）。请 Codex 按代码复核这一条。
+
+### 完整 Local Host Gate
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/dev/verify-host-cpp-tests.ps1 `
+  -CompilerPath E:/workbuddy/toolchains/w64devkit-2.9.1/bin/g++.exe `
+  -CrossCompilerPath E:/workbuddy/claw4-idf-tools/tools/riscv32-esp-elf/esp-14.2.0_20260121/riscv32-esp-elf/bin/riscv32-esp-elf-g++.exe `
+  -OutputDir out/fcc-final
+```
+
+```
+common implementation objects: 18 (compiled once)
+unit summary : 29 / 29 PASS
+interface: exit=0 (see above; 0 == PASS)
+RESULT: NATIVE CPP TEST GATE PASS
+```
+
+交叉编译语法门禁（`verify-interface-contracts.ps1`，RISC-V 目标）：
+
+```
+headers  : 49 / 49 PASS          <- 含本轮新增的 session_snapshot_publisher.h
+implsrcs : 5 / 5 PASS
+contract : 1/1 PASS
+RESULT: ALL INTERFACE CONTRACT CHECKS PASS
+```
+
+- **套件数：28 → 29**（新增 `final_concurrency_cleanup_tests`，6 cases）
+- 新增用例：6（FIX-1 两个、FIX-2 四个）；原 28 个套件**全部保留**并通过，`production_path_gate_tests` 现有 8 cases 未改动
+- 单次运行直接通过，本轮**没有**出现瞬时 `LAUNCH FAIL`
+- 未删除旧测试；未降低 `-Wall -Wextra -Werror`；未修改系统安全策略
+- **`Local Host Gate PASS`**
+- **`CI: NOT PRESENT`**（仓库无 `.github/workflows`，也不存在 commit-status gate → 不写 `CI PASS`）
+
+### 仍然保持的等级（本轮 PASS 不改变）
+
+- **TCP loopback：`ENV_VERIFY_REQUIRED`**（本机无法执行创建 socket 的 exe；socket 层仍为桩，Layer 边界已在测试文件头写明）
+- **Device / Hardware：`HARDWARE_VERIFY_REQUIRED`** —— 触控 P95、DNS/connect/headers/body/close 分段耗时、底层总 deadline 未解决、20 轮语音 watchdog/heap、真实 NVS、真掉电、Light Sleep 唤醒、设备镜像/CMake 未登记
+- **设备 TU 编译覆盖的限制（如实说明）**：`learning_runtime.cpp` 属 ESP-IDF TU，**不在 Host Gate 内**，本轮对它的改动是"新增一个 include + 3 行替换成 helper 调用"，其参数类型与 Host Gate 中已编译通过的那次调用**逐字相同**（同一个 helper、同一对 `StateLockFn/StateUnlockFn`、同一个 `SessionLeaseHolder<LearningBackendSession>`）；**但该 TU 本身未被任何门禁编译过**，真正的编译验证要等 A05-BUILD 的 ESP-IDF 构建。
+- 未因本轮 PASS 声称：A05 PASS / Device Gate PASS / 真机提醒 PASS / 真实 NVS PASS / 真掉电 PASS / TCP loopback PASS / Light Sleep PASS / 网络总 deadline 已解决 / firmware image 已包含全部 V5.3 模块。
+
+### 对应审查 §12 的最终复核对照
+
+| 审查关注点 | 结论 | 证据 |
+| --- | --- | --- |
+| 1 diagnostics ownership check 与 publish 是否同一 state transaction | 是 | `session_snapshot_publisher.h` + 两个 FIX-1 用例（含证伪） |
+| 2 是否保持唯一锁顺序 `state → lease holder` | 是 | helper 先取 state 锁再调 `accepts()`；全仓无反向嵌套 |
+| 3 lock-injected path 是否彻底禁止锁外 `RefreshCounters()` | 是 | 代码审计（locked 路径只剩 `RefreshCountersLocked`）+ 4 个 probe 用例 |
+| 4 `syncOnceLocked()` 是否不再锁外读 `authPaused()` | 是（已删除该行） | 代码审计（storage 探针覆盖不到，已如实标注） |
+| 5 新测试是否能真实证伪旧实现 | 是 | 证伪运行 5/6 FAIL，恢复后 6/6 PASS |
+| 6 原 28 suites 是否全部保留并通过 | 是（29/29） | Gate 日志 `out/fcc-final/host_result.txt` |
+
+### 最终状态
+
+`REVIEW_READY`（等待 Codex 最终复审）。未标记 ACCEPTED、未合 main、未启动 A05、**未改 CMake/image 清单**、未 Flash、未做真实 NVS / partition / bootloader / OTA slot / eFuse / vendor / BSP / sdkconfig / SNTP / Light Sleep / NAS / MCP / AI 增强 / 真实家庭后端 / 真实儿童数据操作。
