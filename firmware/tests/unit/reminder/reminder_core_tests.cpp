@@ -12,10 +12,13 @@
 #include "ports/clock_port.h"
 #include "reminder/reminder_core.h"
 #include "time/time_authority.h"
+#include "fakes/fake_reminder_wake_port.h"
 
 using claw4::domain::ChildId;
 using claw4::domain::TaskId;
+using claw4::fakes::FakeReminderWakePort;
 using claw4::ports::ClockPort;
+using claw4::reminder::ReminderBatch;
 using claw4::reminder::ReminderCore;
 using claw4::reminder::ReminderKind;
 using claw4::reminder::ReminderPolicy;
@@ -288,6 +291,260 @@ static bool run_case_save_failure_rolls_back() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// REVIEW-FIX-001 RF5: quiet vs grace, snooze-preserving refresh, capacity,
+// merging, power-loss recovery and the wake port.
+// ---------------------------------------------------------------------------
+
+// Aligned synthetic day: kDayBase is treated as 00:00 of the local day and the
+// authority is synced exactly at kDayBase, so
+//   epoch          == kDayBase + clock.mono
+//   local_of_day   == (epoch - kDayBase) % 24h
+// Every quiet-period assertion advances the real epoch through the authority.
+static constexpr int64_t kHour = 3600 * 1000;
+static constexpr int64_t kDay = 24 * kHour;
+static constexpr int64_t kDayBase = 1'756'771'200'000LL;  // divisible by 24 h
+
+struct QuietHarness {
+  FakeClock clock;
+  TimeAuthority authority{
+      clock, "boot-q",
+      TimeAuthorityConfig{40 * kHour, 48 * kHour, 60000, 100}};
+  FakeReminderStore store;
+  ReminderPolicy policy;
+  std::unique_ptr<ReminderCore> core;
+
+  QuietHarness() {
+    authority.acceptSync(kDayBase, "net", 1000);
+    core = std::make_unique<ReminderCore>(policy, store, authority);
+  }
+  void setEpoch(int64_t epoch) { clock.mono = epoch - kDayBase; }
+  static int64_t localOf(int64_t epoch) { return (epoch - kDayBase) % kDay; }
+};
+
+static bool run_case_rf5_quiet_delay_does_not_consume_grace() {
+  QuietHarness h;
+  const int64_t due = kDayBase + 22 * kHour;  // 22:00 local
+  ReminderRecord r;
+  r.kind = ReminderKind::TaskDue;
+  r.child_id = ChildId{"child-1"};
+  r.task_id = TaskId{"task-1"};
+  r.due_epoch_ms = due;
+  r.instance_id = ReminderCore::makeInstanceId(r.kind, r.child_id, r.task_id, due);
+  CHECK(h.core->upsert(r));
+
+  // 22:00 local — inside the quiet window: suppressed but kept pending.
+  h.setEpoch(due);
+  CHECK(h.core->collectDue(QuietHarness::localOf(due)).empty());
+  CHECK(h.core->activeCount() == 1);
+  CHECK(h.core->diagnostics().expired_total == 0);
+
+  // 06:59 next day — still quiet. The normal 5 min grace has long passed, but a
+  // quiet-induced delay must NOT retire the reminder.
+  const int64_t pre_0700 = kDayBase + kDay + 6 * kHour + 59 * 60 * 1000;
+  h.setEpoch(pre_0700);
+  CHECK(h.core->collectDue(QuietHarness::localOf(pre_0700)).empty());
+  CHECK(h.core->activeCount() == 1);
+  CHECK(h.core->diagnostics().expired_total == 0);
+
+  // 07:00 — the next allowed window performs exactly one bounded catch-up.
+  const int64_t at_0700 = kDayBase + kDay + 7 * kHour;
+  h.setEpoch(at_0700);
+  CHECK(at_0700 - due > h.policy.grace_ms);  // plain grace would have expired
+  const auto due_now = h.core->collectDue(QuietHarness::localOf(at_0700));
+  CHECK(due_now.size() == 1);
+  CHECK(due_now[0].instance_id == r.instance_id);
+  return true;
+}
+
+static bool run_case_rf5_quiet_catch_up_is_bounded() {
+  QuietHarness h;
+  const int64_t due = kDayBase + 22 * kHour;
+  ReminderRecord r;
+  r.kind = ReminderKind::TaskDue;
+  r.child_id = ChildId{"child-1"};
+  r.task_id = TaskId{"task-1"};
+  r.due_epoch_ms = due;
+  r.instance_id = ReminderCore::makeInstanceId(r.kind, r.child_id, r.task_id, due);
+  CHECK(h.core->upsert(r));
+
+  h.setEpoch(due);
+  CHECK(h.core->collectDue(QuietHarness::localOf(due)).empty());  // quiet
+
+  // First allowed observation opens the bounded catch-up window.
+  const int64_t at_0700 = kDayBase + kDay + 7 * kHour;
+  h.setEpoch(at_0700);
+  CHECK(h.core->collectDue(QuietHarness::localOf(at_0700)).size() == 1);
+  // The caller never presented / marked it.
+  const int64_t after_window =
+      at_0700 + h.policy.quiet_grace_ms + 60 * 1000;
+  h.setEpoch(after_window);
+  CHECK(h.core->collectDue(QuietHarness::localOf(after_window)).empty());
+  CHECK(h.core->activeCount() == 0);                 // retired
+  CHECK(h.core->diagnostics().expired_total == 1);   // no infinite backfill
+  return true;
+}
+
+static bool run_case_rf5_schedule_refresh_preserves_snooze() {
+  Harness h;
+  CHECK(h.trustTime());
+  const ReminderRecord r =
+      makeRecord(ReminderKind::TaskDue, "task-1", kBaseEpoch + 60'000);
+  CHECK(h.core->upsert(r));
+  CHECK(h.core->snooze(r.instance_id, kBaseEpoch));
+  const int64_t snoozed_to = h.core->records()[0].snooze_until_epoch_ms;
+  CHECK(snoozed_to == kBaseEpoch + h.policy.snooze_ms);
+
+  // The plan is rebuilt and the SAME stable reminder identity is refreshed with
+  // a record whose lifecycle fields are zero.
+  const ReminderRecord refresh =
+      makeRecord(ReminderKind::TaskDue, "task-1", kBaseEpoch + 60'000);
+  CHECK(h.core->upsert(refresh));
+  CHECK(h.core->records().size() == 1);              // no duplicate instance
+  CHECK(h.core->records()[0].snooze_until_epoch_ms == snoozed_to);  // preserved
+
+  // Delivered state is preserved the same way.
+  CHECK(h.core->markDelivered(r.instance_id, kBaseEpoch));
+  CHECK(h.core->upsert(refresh));
+  CHECK(h.core->records()[0].delivered_epoch_ms == kBaseEpoch);
+
+  // An EXPLICIT reset does wipe the lifecycle.
+  ReminderRecord reset = refresh;
+  reset.reset_lifecycle = true;
+  CHECK(h.core->upsert(reset));
+  CHECK(h.core->records()[0].snooze_until_epoch_ms == 0);
+  CHECK(h.core->records()[0].delivered_epoch_ms == 0);
+  return true;
+}
+
+static bool run_case_rf5_capacity_bounds_persisted_records() {
+  Harness h;
+  h.policy.max_instances = 4;
+  h.policy.max_records = 6;
+  h.build();
+  CHECK(h.trustTime());
+
+  // Four reminders that are delivered and therefore finished.
+  for (int i = 0; i < 4; ++i) {
+    const auto rec = makeRecord(ReminderKind::TaskDue,
+                                "task-" + std::to_string(i), kBaseEpoch + i);
+    CHECK(h.core->upsert(rec));
+    CHECK(h.core->markDelivered(rec.instance_id, kBaseEpoch));
+  }
+  CHECK(h.core->recordCount() == 4);  // finished rows are kept, but bounded
+
+  // Four more LIVE reminders: finished rows are GC'd to respect max_records.
+  for (int i = 4; i < 8; ++i) {
+    CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue,
+                                    "task-" + std::to_string(i), kBaseEpoch + i)));
+  }
+  CHECK(h.core->recordCount() <= h.policy.max_records);
+  CHECK(h.core->diagnostics().persisted_records <= h.policy.max_records);
+  CHECK(h.core->activeCount() == 4);           // pending rows never GC'd
+  CHECK(h.core->diagnostics().pruned_total >= 2);
+
+  // The ACTIVE ceiling is still refused explicitly rather than silently.
+  CHECK(!h.core->upsert(makeRecord(ReminderKind::TaskDue, "task-x",
+                                   kBaseEpoch + 99'999)));
+  CHECK(h.core->diagnostics().rejected_capacity >= 1);
+  // Reminder capacity is its own budget: it never touches the learning outbox.
+  CHECK(h.core->activeCount() == 4);
+  return true;
+}
+
+static bool run_case_rf5_multiple_due_reminders_merge_into_one_batch() {
+  Harness h;
+  // A 30 s merge window: three reminders a second apart collapse into ONE batch,
+  // a fourth one a minute earlier stays its own group. No clock jump is needed
+  // (the authority's holdover window stays valid).
+  h.policy.merge_window_ms = 30 * 1000;
+  h.policy.max_batches_per_tick = 2;
+  h.build();
+  CHECK(h.trustTime());
+
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "t-a", kBaseEpoch - 60'000)));
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "t-b", kBaseEpoch - 59'500)));
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "t-c", kBaseEpoch - 59'100)));
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "t-d", kBaseEpoch)));
+
+  const auto batches = h.core->collectDueBatches(kNoon);
+  CHECK(batches.size() == 2);           // merged group + separate reminder
+  CHECK(batches[0].items.size() == 3);  // the three close ones collapse into ONE
+  CHECK(batches[1].items.size() == 1);
+  CHECK(h.core->diagnostics().merged_batches == 1);
+  // The single-reminder helper still agrees on the due set.
+  CHECK(h.core->collectDue(kNoon).size() == 2);  // capped by max_deliveries_per_tick
+  return true;
+}
+
+static bool run_case_rf5_power_loss_recovery_semantics() {
+  FakeClock clock;
+  TimeAuthority authority(
+      clock, "boot-p", TimeAuthorityConfig{60000, 600000, 60000, 100});
+  CHECK(authority.acceptSync(kBaseEpoch, "net", 1000).outcome ==
+        claw4::time::SyncOutcome::Accepted);
+  FakeReminderStore store;
+  ReminderPolicy policy;
+
+  const ReminderRecord r =
+      makeRecord(ReminderKind::TaskDue, "task-1", kBaseEpoch - 1000);
+
+  // (1) collectDue happened, presentation did NOT, and we crash before it:
+  //     the reminder is still undelivered and must fire again after restart.
+  {
+    ReminderCore core(policy, store, authority);
+    CHECK(core.upsert(r));
+    CHECK(core.collectDue(kNoon).size() == 1);
+  }
+  {
+    ReminderCore core2(policy, store, authority);
+    CHECK(core2.load());
+    CHECK(core2.collectDue(kNoon).size() == 1);   // bounded re-fire, not lost
+    // (2) Presented but crashing BEFORE markDelivered commits: the same
+    //     bounded duplication is allowed (documented, not exactly-once).
+    CHECK(core2.markDelivered(r.instance_id, kBaseEpoch));
+  }
+  {
+    // (3) markDelivered was committed before the crash: never fires again.
+    ReminderCore core3(policy, store, authority);
+    CHECK(core3.load());
+    CHECK(core3.collectDue(kNoon).empty());
+    CHECK(core3.diagnostics().delivered_total == 1);
+  }
+  return true;
+}
+
+static bool run_case_rf5_wake_port_scheduled_updated_and_cancelled() {
+  Harness h;
+  CHECK(h.trustTime());
+  FakeReminderWakePort wake;
+
+  // Nothing pending: the platform wake is cancelled, not left armed.
+  CHECK(!h.core->syncWake(wake, kNoon));
+  CHECK(wake.cancel_calls == 1);
+  CHECK(!wake.wake_armed);
+
+  // A future reminder arms a wake at its due monotonic instant.
+  const ReminderRecord r =
+      makeRecord(ReminderKind::TaskDue, "task-1", kBaseEpoch + 60'000);
+  CHECK(h.core->upsert(r));
+  CHECK(h.core->syncWake(wake, kNoon));
+  CHECK(wake.wake_armed);
+  CHECK(wake.scheduled_deadline_ms == h.clock.mono + 60'000);
+
+  // Snoozing pushes the deadline out.
+  CHECK(h.core->snooze(r.instance_id, kBaseEpoch));
+  CHECK(h.core->syncWake(wake, kNoon));
+  CHECK(wake.scheduled_deadline_ms == h.clock.mono + h.policy.snooze_ms);
+
+  // Cancelling the reminder (reschedule / delete / complete) cancels the wake.
+  CHECK(h.core->cancelForTask(TaskId{"task-1"}));
+  CHECK(!h.core->syncWake(wake, kNoon));
+  CHECK(!wake.wake_armed);
+  CHECK(wake.cancel_calls == 2);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(stable_instance_id_dedupes_on_rebuild);
   CASE(rebuild_preserves_snooze);
@@ -299,6 +556,14 @@ static bool run_case_all() {
   CASE(quiet_period_suppresses_but_keeps_pending);
   CASE(delivery_is_capped_and_marked_once);
   CASE(save_failure_rolls_back);
+  // REVIEW-FIX-001 RF5
+  CASE(rf5_quiet_delay_does_not_consume_grace);
+  CASE(rf5_quiet_catch_up_is_bounded);
+  CASE(rf5_schedule_refresh_preserves_snooze);
+  CASE(rf5_capacity_bounds_persisted_records);
+  CASE(rf5_multiple_due_reminders_merge_into_one_batch);
+  CASE(rf5_power_loss_recovery_semantics);
+  CASE(rf5_wake_port_scheduled_updated_and_cancelled);
   return g_fail == 0;
 }
 

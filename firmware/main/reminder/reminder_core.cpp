@@ -6,13 +6,6 @@
 
 namespace claw4 {
 namespace reminder {
-namespace {
-
-bool sameInstance(const ReminderRecord& r, const std::string& id) {
-  return r.instance_id == id;
-}
-
-}  // namespace
 
 ReminderCore::ReminderCore(ReminderPolicy policy, ReminderStore& store,
                            claw4::time::TimeAuthority& time_authority)
@@ -34,19 +27,21 @@ std::string ReminderCore::makeSnoozeInstanceId(const std::string& base_instance_
   return base_instance_id + ":snooze:" + std::to_string(snooze_until_epoch_ms);
 }
 
+int64_t ReminderCore::effectiveDue(const ReminderRecord& r) {
+  return r.snooze_until_epoch_ms > 0 ? r.snooze_until_epoch_ms : r.due_epoch_ms;
+}
+
+bool ReminderCore::isFinished(const ReminderRecord& r) {
+  return !r.active || r.delivered_epoch_ms != 0;
+}
+
 void ReminderCore::recount() {
   int active = 0;
   for (const auto& r : records_) {
     if (r.active) ++active;
   }
   diagnostics_.active_instances = active;
-}
-
-ReminderRecord* ReminderCore::find(const std::string& instance_id) {
-  for (auto& r : records_) {
-    if (sameInstance(r, instance_id)) return &r;
-  }
-  return nullptr;
+  diagnostics_.persisted_records = static_cast<int>(records_.size());
 }
 
 bool ReminderCore::commit(std::vector<ReminderRecord> next) {
@@ -61,17 +56,41 @@ bool ReminderCore::commit(std::vector<ReminderRecord> next) {
   return true;
 }
 
+bool ReminderCore::pruneFinishedIfNeeded(std::vector<ReminderRecord>& records) {
+  // RF5.3: `max_instances` bounds the ACTIVE set; `max_records` bounds what is
+  // actually persisted, so finished/inactive rows cannot accumulate forever.
+  while (static_cast<int>(records.size()) > policy_.max_records) {
+    int victim = -1;
+    for (int i = 0; i < static_cast<int>(records.size()); ++i) {
+      if (!isFinished(records[static_cast<std::size_t>(i)])) continue;
+      if (victim < 0) {
+        victim = i;
+        continue;
+      }
+      const ReminderRecord& candidate = records[static_cast<std::size_t>(i)];
+      const ReminderRecord& current = records[static_cast<std::size_t>(victim)];
+      const bool candidate_inactive = !candidate.active;
+      const bool current_inactive = !current.active;
+      if (candidate_inactive != current_inactive) {
+        if (candidate_inactive) victim = i;
+        continue;
+      }
+      if (effectiveDue(candidate) < effectiveDue(current)) victim = i;
+    }
+    if (victim < 0) return false;  // only pending records left: refuse
+    records.erase(records.begin() + victim);
+    ++diagnostics_.pruned_total;
+  }
+  return true;
+}
+
 bool ReminderCore::load() {
   std::vector<ReminderRecord> loaded;
   if (!store_.load(loaded)) return false;
   records_ = std::move(loaded);
-  // A rebuild preserves snooze/delivered marks exactly; only counters reset.
-  diagnostics_.active_instances = 0;
-  diagnostics_.delivered_total = 0;
-  diagnostics_.expired_total = 0;
-  diagnostics_.rejected_capacity = 0;
-  diagnostics_.suppressed_quiet = 0;
-  diagnostics_.suppressed_untrusted_time = 0;
+  // A rebuild preserves snooze/delivered/deferred marks exactly; only the
+  // counters reset.
+  diagnostics_ = ReminderDiagnostics{};
   for (const auto& r : records_) {
     if (r.delivered_epoch_ms != 0) ++diagnostics_.delivered_total;
   }
@@ -83,13 +102,28 @@ bool ReminderCore::upsert(const ReminderRecord& record) {
   if (record.instance_id.empty()) return false;
   std::vector<ReminderRecord> next = records_;
   for (auto& r : next) {
-    if (sameInstance(r, record.instance_id)) {
-      r = record;  // update in place: identity is the instance id
-      return commit(std::move(next));
+    if (r.instance_id != record.instance_id) continue;
+    if (record.reset_lifecycle) {
+      r = record;  // explicit reset requested by the caller
+    } else {
+      // RF5.2: refreshing the SCHEDULE of the same stable reminder identity
+      // must not wipe the lifecycle: snooze, delivered/ack and quiet catch-up.
+      ReminderRecord merged = record;
+      if (record.snooze_until_epoch_ms == 0) {
+        merged.snooze_until_epoch_ms = r.snooze_until_epoch_ms;
+      }
+      if (record.delivered_epoch_ms == 0) {
+        merged.delivered_epoch_ms = r.delivered_epoch_ms;
+      }
+      merged.deferred_by_quiet = r.deferred_by_quiet;
+      merged.catch_up_deadline_epoch_ms = r.catch_up_deadline_epoch_ms;
+      merged.active = r.active;
+      r = merged;
     }
+    return commit(std::move(next));
   }
-  // New instance: bounded table. Reminder capacity is its OWN budget and can
-  // never consume the learning outbox budget.
+
+  // New instance: bounded ACTIVE set first.
   int active = 0;
   for (const auto& r : next) {
     if (r.active) ++active;
@@ -99,6 +133,11 @@ bool ReminderCore::upsert(const ReminderRecord& record) {
     return false;
   }
   next.push_back(record);
+  // RF5.3: then the bounded PERSISTED set (GC finished rows, refuse if full).
+  if (!pruneFinishedIfNeeded(next)) {
+    ++diagnostics_.rejected_capacity;
+    return false;
+  }
   return commit(std::move(next));
 }
 
@@ -137,10 +176,13 @@ bool ReminderCore::snooze(const std::string& instance_id,
   std::vector<ReminderRecord> next = records_;
   bool found = false;
   for (auto& r : next) {
-    if (!sameInstance(r, instance_id)) continue;
+    if (r.instance_id != instance_id) continue;
     r.snooze_until_epoch_ms = now_epoch_ms + policy_.snooze_ms;
     r.delivered_epoch_ms = 0;  // eligible to fire again at the new time
     r.active = true;
+    // A fresh snooze supersedes any quiet catch-up bookkeeping.
+    r.deferred_by_quiet = false;
+    r.catch_up_deadline_epoch_ms = 0;
     found = true;
     break;
   }
@@ -153,8 +195,11 @@ bool ReminderCore::markDelivered(const std::string& instance_id,
   std::vector<ReminderRecord> next = records_;
   bool found = false;
   for (auto& r : next) {
-    if (!sameInstance(r, instance_id)) continue;
+    if (r.instance_id != instance_id) continue;
     r.delivered_epoch_ms = now_epoch_ms;
+    r.active = false;  // delivered => finished, no longer an active instance
+    r.deferred_by_quiet = false;
+    r.catch_up_deadline_epoch_ms = 0;
     found = true;
     break;
   }
@@ -164,9 +209,11 @@ bool ReminderCore::markDelivered(const std::string& instance_id,
   return true;
 }
 
-std::vector<ReminderRecord> ReminderCore::collectDue(
-    const int64_t local_ms_of_day) {
-  std::vector<ReminderRecord> deliver;
+// ---------------------------------------------------------------------------
+// shared evaluation
+// ---------------------------------------------------------------------------
+ReminderCore::Evaluation ReminderCore::evaluate(const int64_t local_ms_of_day) {
+  Evaluation ev;
   // Reuse the B01 authority: this module never reads the raw RTC itself.
   const time::TimeStatus status = time_authority_.status();
   diagnostics_.last_evaluation_time_trusted = status.calendar_allowed;
@@ -175,59 +222,163 @@ std::vector<ReminderRecord> ReminderCore::collectDue(
   // stops a bad clock from ringing historical reminders after a jump.
   if (!status.calendar_allowed || !status.epoch_valid || !status.epoch_ms) {
     ++diagnostics_.suppressed_untrusted_time;
-    return deliver;
+    return ev;
   }
-  const int64_t now = *status.epoch_ms;
+  ev.usable = true;
+  ev.now = *status.epoch_ms;
+  ev.quiet = local_ms_of_day >= policy_.quiet_start_ms_of_day ||
+             local_ms_of_day < policy_.quiet_end_ms_of_day;
 
-  // Pass 1 (bounded mutation): retire reminders whose grace window has passed.
-  // A forward counter jump must not replay history.
   std::vector<ReminderRecord> next = records_;
-  bool retired = false;
+  bool dirty = false;
   for (auto& r : next) {
-    if (!r.active || r.delivered_epoch_ms != 0) continue;
-    const int64_t effective =
-        r.snooze_until_epoch_ms > 0 ? r.snooze_until_epoch_ms : r.due_epoch_ms;
-    if (now - effective > policy_.grace_ms) {
+    if (isFinished(r)) continue;
+    const int64_t eff = effectiveDue(r);
+    if (eff > ev.now) continue;  // not due yet
+
+    if (ev.quiet) {
+      // RF5.1 frozen semantics: the quiet period suppresses delivery but keeps
+      // the reminder pending, and a quiet-induced delay does NOT consume the
+      // normal grace window.
+      if (!r.deferred_by_quiet) {
+        r.deferred_by_quiet = true;
+        dirty = true;
+      }
+      ++diagnostics_.suppressed_quiet;
+      continue;
+    }
+
+    if (r.deferred_by_quiet) {
+      // First allowed window after quiet: open exactly ONE bounded catch-up.
+      if (r.catch_up_deadline_epoch_ms == 0) {
+        r.catch_up_deadline_epoch_ms = ev.now + policy_.quiet_grace_ms;
+        dirty = true;
+      }
+      if (ev.now <= r.catch_up_deadline_epoch_ms) {
+        ev.due.push_back(r);
+        continue;
+      }
+      // Catch-up window exhausted: retire. No infinite backfill of history.
+      r.active = false;
+      r.deferred_by_quiet = false;
+      r.catch_up_deadline_epoch_ms = 0;
+      ++diagnostics_.expired_total;
+      dirty = true;
+      continue;
+    }
+
+    if (ev.now - eff > policy_.grace_ms) {
+      // A forward counter jump must not replay history.
       r.active = false;
       ++diagnostics_.expired_total;
-      retired = true;
+      dirty = true;
+      continue;
+    }
+    ev.due.push_back(r);
+  }
+
+  if (dirty && !commit(next)) {
+    ev.due.clear();
+    ev.usable = false;
+    return ev;
+  }
+
+  std::stable_sort(ev.due.begin(), ev.due.end(),
+                   [](const ReminderRecord& a, const ReminderRecord& b) {
+                     const int64_t ea = effectiveDue(a);
+                     const int64_t eb = effectiveDue(b);
+                     if (ea != eb) return ea < eb;
+                     return a.instance_id < b.instance_id;
+                   });
+  return ev;
+}
+
+std::vector<ReminderRecord> ReminderCore::collectDue(const int64_t local_ms_of_day) {
+  const Evaluation ev = evaluate(local_ms_of_day);
+  std::vector<ReminderRecord> deliver;
+  if (!ev.usable) return deliver;
+  const int limit = std::min<int>(policy_.max_deliveries_per_tick,
+                                  static_cast<int>(ev.due.size()));
+  for (int i = 0; i < limit; ++i) {
+    deliver.push_back(ev.due[static_cast<std::size_t>(i)]);
+  }
+  return deliver;
+}
+
+std::vector<ReminderBatch> ReminderCore::collectDueBatches(
+    const int64_t local_ms_of_day) {
+  std::vector<ReminderBatch> out;
+  const Evaluation ev = evaluate(local_ms_of_day);
+  if (!ev.usable) return out;
+
+  // RF5.4: merge same child + same kind + due times inside the merge window
+  // into ONE group, so the caller presents a single message.
+  std::vector<ReminderBatch> groups;
+  for (const auto& r : ev.due) {
+    bool placed = false;
+    for (auto& g : groups) {
+      if (g.child_id == r.child_id && g.kind == r.kind &&
+          effectiveDue(r) - g.anchor_epoch_ms <= policy_.merge_window_ms) {
+        g.items.push_back(r);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      ReminderBatch batch;
+      batch.child_id = r.child_id;
+      batch.kind = r.kind;
+      batch.anchor_epoch_ms = effectiveDue(r);
+      batch.items.push_back(r);
+      groups.push_back(std::move(batch));
     }
   }
-  if (retired && !commit(next)) return deliver;  // save failed: report nothing
 
-  // Quiet period: suppressed but kept pending for the next allowed window.
-  const bool quiet = local_ms_of_day >= policy_.quiet_start_ms_of_day ||
-                     local_ms_of_day < policy_.quiet_end_ms_of_day;
-  if (quiet) {
-    ++diagnostics_.suppressed_quiet;
-    return deliver;
+  const int limit = std::min<int>(policy_.max_batches_per_tick,
+                                  static_cast<int>(groups.size()));
+  for (int i = 0; i < limit; ++i) {
+    if (groups[static_cast<std::size_t>(i)].items.size() > 1) {
+      ++diagnostics_.merged_batches;
+    }
+    out.push_back(groups[static_cast<std::size_t>(i)]);
   }
+  return out;
+}
 
-  // Pass 2 (pure): collect the currently due reminders in due order.
-  std::vector<const ReminderRecord*> due;
-  for (const auto& r : next) {
-    if (!r.active || r.delivered_epoch_ms != 0) continue;
-    const int64_t effective =
-        r.snooze_until_epoch_ms > 0 ? r.snooze_until_epoch_ms : r.due_epoch_ms;
-    if (effective > now) continue;
-    if (now - effective > policy_.grace_ms) continue;  // retired above
-    due.push_back(&r);
+std::optional<int64_t> ReminderCore::nextWakeMonotonicMs(
+    const int64_t local_ms_of_day) {
+  // Wake computation needs no local-of-day; the parameter keeps the API
+  // symmetric with collectDue(). No esp_sleep / IDF dependency here.
+  (void)local_ms_of_day;
+  const time::TimeStatus status = time_authority_.status();
+  if (!status.epoch_valid || !status.epoch_ms) return std::nullopt;
+
+  bool found = false;
+  int64_t best = 0;
+  for (const auto& r : records_) {
+    if (isFinished(r)) continue;
+    int64_t eff = effectiveDue(r);
+    if (r.deferred_by_quiet && r.catch_up_deadline_epoch_ms != 0) {
+      eff = std::min(eff, r.catch_up_deadline_epoch_ms);
+    }
+    if (!found || eff < best) {
+      best = eff;
+      found = true;
+    }
   }
-  std::stable_sort(due.begin(), due.end(),
-                   [](const ReminderRecord* a, const ReminderRecord* b) {
-                     const int64_t ea = a->snooze_until_epoch_ms > 0
-                                            ? a->snooze_until_epoch_ms
-                                            : a->due_epoch_ms;
-                     const int64_t eb = b->snooze_until_epoch_ms > 0
-                                            ? b->snooze_until_epoch_ms
-                                            : b->due_epoch_ms;
-                     if (ea != eb) return ea < eb;
-                     return a->instance_id < b->instance_id;
-                   });
-  const int limit = std::min<int>(policy_.max_deliveries_per_tick,
-                                  static_cast<int>(due.size()));
-  for (int i = 0; i < limit; ++i) deliver.push_back(*due[static_cast<std::size_t>(i)]);
-  return deliver;
+  if (!found) return std::nullopt;
+  const int64_t delta = best - *status.epoch_ms;
+  return status.monotonic_ms + (delta > 0 ? delta : 0);
+}
+
+bool ReminderCore::syncWake(claw4::ports::ReminderWakePort& wake,
+                            const int64_t local_ms_of_day) {
+  const auto deadline = nextWakeMonotonicMs(local_ms_of_day);
+  if (!deadline) {
+    wake.cancelWake();  // nothing pending: do not keep the platform awake
+    return false;
+  }
+  return wake.scheduleWakeAt(*deadline);
 }
 
 int ReminderCore::activeCount() const {
