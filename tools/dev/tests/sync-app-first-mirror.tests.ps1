@@ -102,10 +102,10 @@ foreach ($kind in @('comment', 'message', 'prefix', 'include', 'unused-variable'
     $missing = $validCmake.Replace('"learning/time/time.cpp"', '')
     switch ($kind) {
         'comment' { $missing += "`n#[=[ learning/time/time.cpp ]=]" }
-        'message' { $missing += '`nmessage("learning/time/time.cpp")' }
+        'message' { $missing += "`n" + 'message("learning/time/time.cpp")' }
         'prefix' { $missing = $missing.Replace('SRCS', 'SRCS "learning/time/time.cpp.bak"') }
         'include' { $missing = $missing.Replace(')', ' PRIV_INCLUDE_DIRS "learning/time/time.cpp")') }
-        'unused-variable' { $missing += '`nset(SOURCES "learning/time/time.cpp")' }
+        'unused-variable' { $missing += "`n" + 'set(SOURCES "learning/time/time.cpp")' }
     }
     Set-Content -LiteralPath $cmakePath -Value $missing
     & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
