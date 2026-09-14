@@ -270,6 +270,9 @@ if (Test-Path $unitRoot) {
         (Join-Path $RepoRoot "firmware\main\mcp"),
         (Join-Path $RepoRoot "firmware\main\ports"),
         (Join-Path $RepoRoot "firmware\main\time"),
+        # WB-V53-NEXT-001 CP4: reminder core + wake port are pure host C++
+        # (no esp_sleep / LVGL); the device adapters stay device-only.
+        (Join-Path $RepoRoot "firmware\main\reminder"),
         (Join-Path $RepoRoot "integration\metalio_claw4\host_glue"),
         # WB-LEARNING-V4-L1: outbox codec is pure C++17 (device core); the
         # NVS/clock adapters under device\ports include ESP-IDF and are NOT
