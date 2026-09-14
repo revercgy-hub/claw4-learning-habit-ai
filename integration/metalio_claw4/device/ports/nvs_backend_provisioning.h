@@ -4,8 +4,8 @@
 
 namespace claw4::metalio {
 
-// MVP storage adapter. It uses a dedicated namespace so ResetToSeed() cannot
-// delete credentials together with learning state. Production secure storage
+// MVP storage adapter. Credentials use a separate namespace from learning
+// state. Production secure storage
 // remains a separate hardening task; no secret is logged or exposed in UI.
 class NvsBackendProvisioning final : public claw4::sync::BackendProvisioning {
  public:

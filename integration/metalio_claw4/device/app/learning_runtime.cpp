@@ -132,6 +132,10 @@ void LearningRuntime::Init() {
              claw4::sync::ProvisioningStatus::NotConfigured) {
     disposition = ProvisioningDisposition::Unprovisioned;
   }
+  if (disposition == ProvisioningDisposition::InvalidOrUnavailable) {
+    ESP_LOGE(TAG, "provisioning unavailable: learning boot gate closed");
+    return;
+  }
   claw4::sync::OutboxState persisted;
   NvsOutboxStorage::StateReadStatus storage_status =
       NvsOutboxStorage::StateReadStatus::Error;

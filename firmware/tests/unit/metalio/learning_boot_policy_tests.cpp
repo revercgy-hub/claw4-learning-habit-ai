@@ -61,8 +61,16 @@ int main() {
       seed_failure_closed && invalid_rejected_before_load && read_failure_closed &&
       prepare_failure_closed && loads == 5 && prepares == 4 && seeds == 2 &&
       starts == 2;
+  // Existing formal data is preserved even after provisioning is removed.
+  int existing_seeds = 0;
+  int existing_starts = 0;
+  const bool existing_state_started = claw4::metalio::RunLearningBoot(
+      ProvisioningDisposition::Unprovisioned,
+      [] { return LearningStorageStatus::Present; }, [] { return true; },
+      [&] { ++existing_seeds; return true; }, [&] { ++existing_starts; });
   const bool ok = fresh_unpaired && provisioned_empty && formal_state_preserved &&
-                  unpaired_state_preserved && failed_read_closed && orchestration_ok;
+                  unpaired_state_preserved && failed_read_closed && orchestration_ok &&
+                  existing_state_started && existing_seeds == 0 && existing_starts == 1;
   std::printf("learning_boot_policy_tests: %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;
 }
