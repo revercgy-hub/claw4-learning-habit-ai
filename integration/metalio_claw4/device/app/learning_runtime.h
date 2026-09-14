@@ -13,6 +13,7 @@
 #include <freertos/task.h>
 
 #include "sync/learning_backend_session.h"
+#include "sync/session_lease.h"
 #include "sync/sync_executor.h"
 #include "metalio_claw4/device/ports/learning_clock.h"
 #include "metalio_claw4/device/ports/metalio_voice_session.h"
@@ -22,7 +23,7 @@
 namespace claw4 {
 namespace metalio {
 
-class LearningRuntime {
+class LearningRuntime : public claw4::sync::SessionLeaseSource {
  public:
   static LearningRuntime& Instance();
 
@@ -72,6 +73,10 @@ class LearningRuntime {
   // for the LVGL task: it performs no live query and no network access.
   claw4::sync::BackendSessionDiagnostics BackendDiagnostics() const;
 
+  // RF1: the runtime owns the single "current session" identity. A session is
+  // superseded the moment a newer lease is handed out (reconfigure / rebuild).
+  claw4::sync::SessionLease currentLease() const override;
+
  private:
   LearningRuntime();
 
@@ -79,9 +84,10 @@ class LearningRuntime {
   EspTimerClock clock_;
   MetalioVoiceSessionPort voice_session_;
   std::unique_ptr<LearningApp> app_;
-  // shared_ptr so the worker keeps the session alive for the whole I/O phase
-  // even if ConfigureBackend() replaces it concurrently.
-  std::shared_ptr<claw4::sync::LearningBackendSession> backend_;
+  // RF1: the lease holder is the single owner of "which backend session is
+  // current". It is production code shared with the Host gate.
+  claw4::sync::SessionLeaseHolder<claw4::sync::LearningBackendSession>
+      backend_holder_;
   TaskHandle_t backend_task_ = nullptr;
   mutable std::recursive_mutex state_mutex_;
   // Lock callables injected into the sync executor/session so the state lock is

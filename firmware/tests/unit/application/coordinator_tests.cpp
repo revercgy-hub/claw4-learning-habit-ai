@@ -230,7 +230,13 @@ static bool run_case_snapshot_empty_removes_non_active_tasks() {
   return true;
 }
 
-static bool run_case_snapshot_cleans_completed_after_session_ends() {
+static bool run_case_snapshot_cleans_completed_after_terminal_acked() {
+  // REVIEW-FIX-001 RF3 changed the frozen semantics: while the terminal event
+  // is UN-ACKed the local row is a tombstone and must survive an empty
+  // snapshot (see run_case_a04_complete_empty_snapshot_stale_ready_not_revived).
+  // Once the terminal event is ACKed the server is authoritative again, so a
+  // snapshot that no longer lists the task removes it. This case keeps its
+  // original purpose (completed rows ARE cleaned up) under the new rule.
   Env env;
   CHECK(seedTask(env, readyTask("task-1", 3)));
   auto c = env.make();
@@ -242,7 +248,11 @@ static bool run_case_snapshot_cleans_completed_after_session_ends() {
   CHECK(c.dispatchIntent(comp, env.ctx.make()).ok);  // Completed, session cleared
   CHECK(c.state().tasks.size() == 1);
   CHECK(c.state().tasks[0].status == TaskStatus::Completed);
-  // Next authoritative snapshot (server no longer lists it) may remove it.
+  // Confirm the terminal events with the server first.
+  FakeSyncTransport tr;
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  CHECK(c.pendingCount() == 0);
+  // Now the authoritative snapshot (server no longer lists it) may remove it.
   CHECK(c.applyTodaySnapshot({}));
   CHECK(c.state().tasks.empty());
   return true;
@@ -717,6 +727,27 @@ BatchSyncResult acceptRange(int64_t first, int64_t last) {
   return b;
 }
 
+// RF2 helpers: build arbitrary per-event result rows.
+PerEventResult mkRow(int64_t sequence, const std::string& event_id,
+                     EventOutcome outcome, int http_status = 200) {
+  PerEventResult per;
+  per.sequence = sequence;
+  per.event_id = EventId{event_id};
+  per.outcome = outcome;
+  per.http_status = http_status;
+  return per;
+}
+
+SyncClient::Response mkResponse(int64_t last_acked,
+                                std::vector<PerEventResult> rows) {
+  SyncClient::Response r;
+  r.error_class = SyncErrorClass::None;
+  r.http_status = 200;
+  r.batch.last_acked_sequence = last_acked;
+  r.batch.results = std::move(rows);
+  return r;
+}
+
 static bool run_case_a03_prepare_is_pure_and_frozen() {
   Env env;
   CHECK(seedTask(env, readyTask("task-1", 3)));
@@ -1009,6 +1040,213 @@ static bool run_case_a04_active_reschedule_and_delete_keep_session() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// REVIEW-FIX-001 RF2: the ACK may only advance a CONTIGUOUS, id-matched,
+// Accepted/Duplicate prefix — never just because the server raised
+// last_acked_sequence.
+// ---------------------------------------------------------------------------
+
+static bool run_case_a03_ack_stops_before_conflict_gap() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  CHECK(sent.request.events.size() == 2);
+  // Server claims last_acked = 2 but reports seq2 as a Conflict.
+  const SyncClient::Response resp = mkResponse(2, {
+      mkRow(1, "ev-1", EventOutcome::Accepted),
+      mkRow(2, "ev-2", EventOutcome::Conflict, 409),
+  });
+  const SyncApplyOutcome out = c.applySyncResult(sent, resp);
+  CHECK(out.outcome == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 1);       // stopped before the conflict
+  CHECK(c.pendingCount() == 1);    // seq2 kept
+  CHECK(env.disk->state.pending.front().sequence == 2);
+  return true;
+}
+
+static bool run_case_a03_ack_stops_on_missing_result() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  // seq2 has no row at all even though the server raised last_acked to 2.
+  const SyncClient::Response resp = mkResponse(2, {
+      mkRow(1, "ev-1", EventOutcome::Accepted),
+  });
+  const SyncApplyOutcome out = c.applySyncResult(sent, resp);
+  CHECK(out.outcome == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 1);
+  CHECK(c.pendingCount() == 1);
+  return true;
+}
+
+static bool run_case_a03_ack_stops_on_wrong_event_id() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  // seq1 is Accepted but carries an event_id this device never sent.
+  const SyncClient::Response resp = mkResponse(2, {
+      mkRow(1, "ev-forged", EventOutcome::Accepted),
+      mkRow(2, "ev-2", EventOutcome::Accepted),
+  });
+  const SyncApplyOutcome out = c.applySyncResult(sent, resp);
+  CHECK(out.outcome == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 0);      // the forged row cannot start the prefix
+  CHECK(c.pendingCount() == 2);   // nothing deleted
+  CHECK(env.disk->ack_calls == 0);
+  return true;
+}
+
+static bool run_case_a03_ack_handles_out_of_order_results_safely() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  // Rows delivered back-to-front; the walk must still form the full prefix.
+  const SyncClient::Response resp = mkResponse(2, {
+      mkRow(2, "ev-2", EventOutcome::Accepted),
+      mkRow(1, "ev-1", EventOutcome::Accepted),
+  });
+  const SyncApplyOutcome out = c.applySyncResult(sent, resp);
+  CHECK(out.outcome == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 2);
+  CHECK(c.pendingCount() == 0);
+  return true;
+}
+
+static bool run_case_a03_duplicate_response_is_idempotent() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  const SyncClient::Response resp = mkResponse(2, {
+      mkRow(1, "ev-1", EventOutcome::Duplicate),
+      mkRow(2, "ev-2", EventOutcome::Duplicate),
+  });
+  CHECK(c.applySyncResult(sent, resp).outcome == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 2);
+  CHECK(c.pendingCount() == 0);
+  // Replaying the very same response must not double-apply anything.
+  CHECK(c.applySyncResult(sent, resp).outcome == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 2);
+  CHECK(c.pendingCount() == 0);
+  // And a fresh envelope has nothing left to send.
+  CHECK(!c.prepareSync().has_work);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// REVIEW-FIX-001 RF3: an un-ACKed terminal state is a TOMBSTONE that survives
+// empty/stale snapshots and a reboot, and lifts only after the ACK.
+// ---------------------------------------------------------------------------
+
+static bool run_case_a04_complete_empty_snapshot_stale_ready_not_revived() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  env.ctx.advance(60'000);
+  IntentRequest comp;
+  comp.intent = Intent::Complete;
+  comp.task_id = TaskId{"task-1"};
+  CHECK(c.dispatchIntent(comp, env.ctx.make()).ok);
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);
+  // The server temporarily does not list the task at all.
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.size() == 1);                       // tombstone retained
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);
+  // Then the server's stale Ready revision shows up again: it must NOT be
+  // appended as a "new" task reviving the finished one.
+  Task stale = readyTask("task-1", 3);
+  stale.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({stale}));
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.state().tasks[0].status == TaskStatus::Completed);
+  return true;
+}
+
+static bool run_case_a04_skip_empty_snapshot_stale_ready_not_revived() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  IntentRequest skip;
+  skip.intent = Intent::Skip;
+  skip.task_id = TaskId{"task-1"};
+  CHECK(c.dispatchIntent(skip, env.ctx.make()).ok);
+  CHECK(c.state().tasks[0].status == TaskStatus::Skipped);
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.state().tasks[0].status == TaskStatus::Skipped);
+  Task stale = readyTask("task-1", 3);
+  stale.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({stale}));
+  CHECK(c.state().tasks[0].status == TaskStatus::Skipped);
+  return true;
+}
+
+static bool run_case_a04_terminal_protection_survives_restart() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  {
+    auto c = env.make();
+    CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+    env.ctx.advance(60'000);
+    IntentRequest comp;
+    comp.intent = Intent::Complete;
+    comp.task_id = TaskId{"task-1"};
+    CHECK(c.dispatchIntent(comp, env.ctx.make()).ok);
+    // The server drops the row before the terminal event is ACKed.
+    CHECK(c.applyTodaySnapshot({}));
+    CHECK(c.state().tasks.size() == 1);
+  }
+  // "Reboot": a fresh coordinator over the same persisted state. The
+  // protection is derived from the persisted pending queue, so it survives.
+  auto c2 = env.make();
+  CHECK(c2.state().tasks.size() == 1);
+  CHECK(c2.state().tasks[0].status == TaskStatus::Completed);
+  Task stale = readyTask("task-1", 3);
+  stale.status = TaskStatus::Ready;
+  CHECK(c2.applyTodaySnapshot({stale}));
+  CHECK(c2.state().tasks[0].status == TaskStatus::Completed);  // not revived
+  return true;
+}
+
+static bool run_case_a04_terminal_protection_lifts_after_ack() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  env.ctx.advance(60'000);
+  IntentRequest comp;
+  comp.intent = Intent::Complete;
+  comp.task_id = TaskId{"task-1"};
+  CHECK(c.dispatchIntent(comp, env.ctx.make()).ok);
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.size() == 1);   // protected while un-ACKed
+  // The terminal events are confirmed by the server.
+  FakeSyncTransport tr;
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  CHECK(c.pendingCount() == 0);
+  // Protection lifted: the empty snapshot now removes the row, and a NEW
+  // authoritative revision may legitimately reopen the task.
+  CHECK(c.applyTodaySnapshot({}));
+  CHECK(c.state().tasks.empty());
+  Task reopened = readyTask("task-1", 9);
+  reopened.status = TaskStatus::Ready;
+  CHECK(c.applyTodaySnapshot({reopened}));
+  CHECK(c.state().tasks.size() == 1);
+  CHECK(c.state().tasks[0].status == TaskStatus::Ready);
+  CHECK(c.state().tasks[0].version == 9);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(boot_clock_rebase_preserves_counters_and_pending);
   CASE(dispatch_start_publishes_after_commit);
@@ -1020,7 +1258,7 @@ static bool run_case_all() {
   CASE(snapshot_keeps_running_task_status);
   CASE(snapshot_active_retained_when_server_empty);
   CASE(snapshot_empty_removes_non_active_tasks);
-  CASE(snapshot_cleans_completed_after_session_ends);
+  CASE(snapshot_cleans_completed_after_terminal_acked);
   CASE(snapshot_persists_across_reboot);
   CASE(sync_sends_consecutive_prefix_only);
   CASE(sync_cleans_pending_on_success);
@@ -1049,6 +1287,17 @@ static bool run_case_all() {
   CASE(a04_terminal_applies_again_after_ack);
   CASE(a04_empty_snapshot_differs_from_request_failure);
   CASE(a04_active_reschedule_and_delete_keep_session);
+  // REVIEW-FIX-001 RF2 (contiguous scoped ACK prefix)
+  CASE(a03_ack_stops_before_conflict_gap);
+  CASE(a03_ack_stops_on_missing_result);
+  CASE(a03_ack_stops_on_wrong_event_id);
+  CASE(a03_ack_handles_out_of_order_results_safely);
+  CASE(a03_duplicate_response_is_idempotent);
+  // REVIEW-FIX-001 RF3 (terminal tombstone across snapshots / reboot)
+  CASE(a04_complete_empty_snapshot_stale_ready_not_revived);
+  CASE(a04_skip_empty_snapshot_stale_ready_not_revived);
+  CASE(a04_terminal_protection_survives_restart);
+  CASE(a04_terminal_protection_lifts_after_ack);
   return g_fail == 0;
 }
 

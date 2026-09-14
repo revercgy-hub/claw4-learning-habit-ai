@@ -52,17 +52,27 @@ bool LearningRuntime::ConfigureBackend(
   child_id_ = child_id;
   app_->setIdentity(claw4::domain::DeviceId{device_id_},
                     claw4::domain::ChildId{child_id_});
-  // WB-V53-NEXT-001 CP1 (A03): a reconfigured backend is a NEW session. Bump
-  // the coordinator generation so any worker result prepared against the old
-  // session is rejected by applySyncResult() instead of writing into the new
-  // one.
-  app_->coordinator().beginNewSession();
-  backend_ = std::make_shared<claw4::sync::LearningBackendSession>(
-      app_->coordinator(), CreateMetalioHttpTransport(), std::move(base_url),
-      claw4::domain::DeviceId{std::move(device_id)},
-      claw4::domain::ChildId{std::move(child_id)},
-      std::move(signer), [this] { return clock_.epochSeconds(); });
-  return backend_->diagnostics().configured;
+  // WB-V53-NEXT-001 CP1 (A03) / RF1: a reconfigured backend is a NEW session.
+  // Bump the coordinator generation AND install a fresh lease, so any worker
+  // result prepared against the old session is rejected by applySyncResult()
+  // and any in-flight old session is refused at its next gate.
+  const int64_t generation = app_->coordinator().beginNewSession();
+  backend_holder_.installWith(
+      generation, [&](const claw4::sync::SessionLease& lease) {
+        return std::make_shared<claw4::sync::LearningBackendSession>(
+            app_->coordinator(), CreateMetalioHttpTransport(),
+            std::move(base_url),
+            claw4::domain::DeviceId{std::move(device_id)},
+            claw4::domain::ChildId{std::move(child_id)},
+            std::move(signer), [this] { return clock_.epochSeconds(); }, lease,
+            this);
+      });
+  const auto backend = backend_holder_.borrow();
+  return backend != nullptr && backend->diagnostics().configured;
+}
+
+claw4::sync::SessionLease LearningRuntime::currentLease() const {
+  return backend_holder_.currentLease();
 }
 
 bool LearningRuntime::ConfigureProvisionedBackend() {
@@ -85,26 +95,25 @@ bool LearningRuntime::ConfigureProvisionedBackend() {
 }
 
 bool LearningRuntime::RunOnlineCycle() {
-  // WB-V53-NEXT-001 CP1 (A03): the state lock is held ONLY for short, I/O-free
-  // transactions. The whole network cycle previously ran under state_mutex_,
-  // which blocked the LVGL task (and therefore touch and rendering) for the
-  // entire DNS/connect/read/close wait.
-  claw4::sync::LearningBackendSession* backend = nullptr;
-  {
-    // Phase A: resolve the session. shared_ptr keeps it alive for the whole
-    // cycle even if ConfigureBackend() swaps it out concurrently.
-    std::lock_guard<std::recursive_mutex> lock(state_mutex_);
-    backend = backend_.get();
-  }
+  // WB-V53-NEXT-001 CP1 (A03) + REVIEW-FIX-001 RF1: the state lock is held ONLY
+  // for short, I/O-free transactions, and the session object is kept alive for
+  // the whole network phase by the lease holder's shared_ptr borrow (a bare
+  // pointer taken inside the lock would not survive ConfigureBackend()
+  // replacing the session).
+  const std::shared_ptr<claw4::sync::LearningBackendSession> backend =
+      backend_holder_.borrow();
   if (backend == nullptr) return false;
 
   // Phase B: perform the cycle with NO state lock held. The session takes the
-  // injected lock only for its own short prepare/apply writes.
+  // injected lock only for its own short prepare/apply writes, and refuses to
+  // send or apply anything once it has been superseded.
   const bool ok = backend->runOnlineCycle(state_lock_, state_unlock_);
 
-  // Phase C: publish the immutable diagnostics snapshot the UI reads.
+  // Phase C: publish the immutable diagnostics snapshot the UI reads — but only
+  // if this session is STILL installed and its lease is still current, so a
+  // late old session can never overwrite the new session's diagnostics.
   const claw4::sync::BackendSessionDiagnostics snapshot = backend->diagnostics();
-  {
+  if (backend_holder_.accepts(backend.get(), backend->lease())) {
     std::lock_guard<std::recursive_mutex> lock(state_mutex_);
     diagnostics_snapshot_ = snapshot;
   }
@@ -123,11 +132,8 @@ void LearningRuntime::StartBackendWorker() {
       [](void* arg) {
         auto* runtime = static_cast<LearningRuntime*>(arg);
         for (;;) {
-          bool has_backend = false;
-          {
-            std::lock_guard<std::recursive_mutex> lock(runtime->state_mutex_);
-            has_backend = runtime->backend_ != nullptr;
-          }
+          // The lease holder is internally synchronized; no state lock needed.
+          const bool has_backend = runtime->backend_holder_.borrow() != nullptr;
           if (!has_backend) {
             runtime->ConfigureProvisionedBackend();
           }

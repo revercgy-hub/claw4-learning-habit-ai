@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 namespace claw4 {
 namespace application {
@@ -212,22 +213,35 @@ bool AppCoordinator::applyTodaySnapshot(
     }
     // Non-active task: authoritative membership — drop when absent from the
     // server snapshot; keep when present (honouring the version guard).
+    bool listed = false;
     for (const auto& sv : server_tasks) {
-      if (sv.task_id == local.task_id) {
-        if (hasTerminalPending(local.task_id)) {
-          // A04: never let a stale (possibly older-revision) server row revive
-          // a locally completed/skipped task before its terminal event is
-          // ACKed. Descriptive fields may still refresh.
-          domain::Task merged = sv.version >= local.version ? sv : local;
-          merged.status = local.status;  // keep Completed / Skipped
-          out_tasks.push_back(merged);
-        } else {
-          out_tasks.push_back(sv.version >= local.version ? sv : local);
-        }
-        break;
+      if (sv.task_id != local.task_id) continue;
+      listed = true;
+      if (hasTerminalPending(local.task_id)) {
+        // A04 (RF3): never let a stale (possibly older-revision) server row
+        // revive a locally completed/skipped task before its terminal event is
+        // ACKed. Descriptive fields may still refresh.
+        domain::Task merged = sv.version >= local.version ? sv : local;
+        merged.status = local.status;  // keep Completed / Skipped
+        out_tasks.push_back(merged);
+      } else {
+        out_tasks.push_back(sv.version >= local.version ? sv : local);
       }
+      break;
     }
-    // absent from the server -> removed (cache row no longer authoritative)
+    if (!listed) {
+      // A04 (RF3) tombstone semantics: while the terminal event is still
+      // un-ACKed the local terminal row MUST survive a snapshot that
+      // temporarily omits the task. Dropping it here would let the server's
+      // next stale Ready row re-enter as a "new" task and revive the finished
+      // one. The protection is derived from the persisted pending queue, so it
+      // also survives reboot, and it lifts as soon as the ACK lands.
+      if (hasTerminalPending(local.task_id)) {
+        out_tasks.push_back(local);
+      }
+      // otherwise: absent from the server -> removed (cache row no longer
+      // authoritative)
+    }
   }
 
   // New tasks (present on the server, unknown locally).
@@ -253,23 +267,69 @@ bool AppCoordinator::applyTodaySnapshot(
   return true;
 }
 
-// A03: clamp a server batch result to the sequences this exchange really sent.
+// A03 (RF2): clamp a server batch result to the CONTIGUOUS, id-matched,
+// confirmed prefix this exchange actually sent.
+//
+// The server's own `last_acked_sequence` is treated as an upper bound only; it
+// is never sufficient on its own to delete local pending rows. The prefix is
+// walked from `first_sent_sequence` and the walk stops at the first violation:
+//   * no result row for that sequence            (missing)
+//   * event_id does not match the sent event     (wrong/mismatched row)
+//   * outcome is not Accepted / Duplicate        (Conflict / Rejected / Gap)
+// In-range rows that fail the walk are still forwarded (business 4xx rows need
+// their dead-letter marker) but they can never advance the ACK.
 sync::BatchSyncResult AppCoordinator::scopeBatchToSent(
     const SyncRequestEnvelope& envelope, const sync::BatchSyncResult& batch) {
   sync::BatchSyncResult scoped;
-  // The advertised consecutive prefix can never exceed what was sent.
-  scoped.last_acked_sequence =
-      std::min(batch.last_acked_sequence, envelope.max_sent_sequence);
   scoped.server_time = batch.server_time;
-  scoped.results.reserve(batch.results.size());
+
+  // Index the server rows by sequence. Rows outside the sent range or without a
+  // matching event_id are dropped: they do not describe this exchange.
+  std::map<int64_t, sync::PerEventResult> rows;
   for (const auto& row : batch.results) {
-    // A result may only describe an event from THIS request's consecutive
-    // prefix. Rows below it are already ACKed; rows above it were never sent,
-    // so an out-of-range or replayed ACK can never delete pending events that
-    // were queued after prepareSync() captured the envelope.
     if (row.sequence < envelope.first_sent_sequence) continue;
     if (row.sequence > envelope.max_sent_sequence) continue;
-    scoped.results.push_back(row);
+    bool id_matches = false;
+    for (const auto& ev : envelope.request.events) {
+      if (ev.sequence == row.sequence && ev.event_id == row.event_id) {
+        id_matches = true;
+        break;
+      }
+    }
+    if (!id_matches) continue;
+    rows.emplace(row.sequence, row);  // first row wins on duplicates
+  }
+
+  // Walk the consecutive prefix in send order.
+  bool any_confirmed = false;
+  for (const auto& ev : envelope.request.events) {
+    const auto it = rows.find(ev.sequence);
+    if (it == rows.end()) break;                        // missing result
+    const sync::PerEventResult& row = it->second;
+    if (row.outcome != sync::EventOutcome::Accepted &&
+        row.outcome != sync::EventOutcome::Duplicate) {
+      break;                                            // Conflict/Rejected/Gap
+    }
+    any_confirmed = true;
+    scoped.last_acked_sequence = ev.sequence;
+  }
+
+  if (!any_confirmed) {
+    // Nothing confirmed: the ACK must not move at all.
+    scoped.last_acked_sequence = envelope.request.last_acked_sequence;
+  } else {
+    // Never past what the server itself confirmed.
+    scoped.last_acked_sequence =
+        std::min(scoped.last_acked_sequence, batch.last_acked_sequence);
+  }
+
+  // Forward every in-range, id-matched row (dead-letter handling needs the
+  // Rejected business rows). OutboxCore only removes rows inside
+  // `last_acked_sequence`, so this cannot over-delete.
+  for (const auto& ev : envelope.request.events) {
+    const auto it = rows.find(ev.sequence);
+    if (it == rows.end()) continue;
+    scoped.results.push_back(it->second);
   }
   return scoped;
 }
@@ -427,7 +487,7 @@ SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
   return applied.outcome;
 }
 
-void AppCoordinator::beginNewSession() {
+int64_t AppCoordinator::beginNewSession() {
   // Any envelope prepared before this point carries the old generation and is
   // rejected by applySyncResult() instead of mutating the new session.
   ++generation_;
@@ -435,6 +495,7 @@ void AppCoordinator::beginNewSession() {
   reauth_attempted_ = false;
   pending_backoff_ms_ = 0;
   retry_count_ = 0;
+  return generation_;
 }
 
 void AppCoordinator::resetAuthPause() {

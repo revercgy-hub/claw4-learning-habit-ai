@@ -167,9 +167,10 @@ class AppCoordinator {
                                    const sync::SyncClient::Response& response);
 
   // Session generation: bumped by beginNewSession() whenever the runtime is
-  // reconfigured, torn down or a fresh backend session is built.
+  // reconfigured, torn down or a fresh backend session is built. Returns the
+  // NEW generation so the caller can bind it to the session lease (RF1).
   int64_t generation() const { return generation_; }
-  void beginNewSession();
+  int64_t beginNewSession();
 
   // --- accessors --------------------------------------------------------
   const domain::DomainState& state() const { return state_; }

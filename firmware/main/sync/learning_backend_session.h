@@ -21,6 +21,7 @@
 #include "learning_domain/ids.h"
 #include "sync/backend_client.h"
 #include "sync/backend_sync_transport.h"
+#include "sync/session_lease.h"
 #include "sync/sync_executor.h"
 
 namespace claw4::sync {
@@ -52,7 +53,9 @@ class LearningBackendSession final {
                          domain::DeviceId device_id,
                          domain::ChildId child_id,
                          Signer signer,
-                         EpochNow epoch_now = {});
+                         EpochNow epoch_now = {},
+                         SessionLease lease = {},
+                         const SessionLeaseSource* lease_source = nullptr);
 
   // Returns false without touching the network when endpoint or signer is
   // absent. Credentials are supplied by the caller; this class never embeds
@@ -71,6 +74,13 @@ class LearningBackendSession final {
 
   const BackendSessionDiagnostics& diagnostics() const { return diagnostics_; }
   bool authenticated() const { return authenticated_; }
+
+  // RF1: true when this session instance has been superseded by a newer one
+  // (runtime reconfigured / session rebuilt). A superseded session must not
+  // send NEW /today or events requests, must not apply a late response and must
+  // not publish diagnostics over the new session's.
+  bool superseded() const;
+  SessionLease lease() const { return lease_; }
 
  private:
   void RefreshCounters();
@@ -97,6 +107,9 @@ class LearningBackendSession final {
   EpochNow epoch_now_;
   bool authenticated_ = false;
   BackendSessionDiagnostics diagnostics_;
+  // RF1: identity + liveness of this session instance.
+  SessionLease lease_;
+  const SessionLeaseSource* lease_source_ = nullptr;
 };
 
 }  // namespace claw4::sync
