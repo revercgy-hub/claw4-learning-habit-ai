@@ -1,5 +1,13 @@
 # WorkBuddy 当前执行入口
 
+## A05方案审查后的当前指令（覆盖下方旧入口）
+
+只领取 `docs/project_management/tasks/WB-A05-BUILD-001.md` 的CP0；先读 `docs/project_management/reports/CODEX_A05_PLAN_REVIEW_2026-09-14.md`、当前看板和根AGENTS。源代码基线19fd979，使用包含本任务书的交接分支建立独立workbuddy/a05-build-m0。
+
+先收口前序Host运行证据、C5配置和依赖身份，不运行IDF构建。E:/c当前sdkconfig选择H2，不能默认继承。CP0提交后等Codex确认前序ACCEPTED和输入清单，再继续CP1～CP4。Codex只审查/编排/疑难定位，WorkBuddy实施与补测；禁止Flash/真实数据/未经列明的代码扩展。
+
+以下为上一流启动入口的历史记录，不再按它重新实施已完成CP。
+
 2026-09-14更新：A01/A02/B01子agent批次已完成代码与Host范围验收。后续由WorkBuddy实施，Codex负责代码审查、架构和疑难问题。旧WB-001入口归档于 `INSTRUCTIONS_PRE_V53_20260914.md`，仅作历史参考，不得领取。
 
 当前唯一工作流：**WB-V53-NEXT-001 / READY**。开始前完整阅读：

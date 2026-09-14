@@ -1,5 +1,21 @@
 # Claw4 当前任务看板
 
+## 2026-09-14 A05方案审查覆盖状态（当前有效）
+
+用户最新要求：WorkBuddy实施和补测；Codex只负责规划、代码/证据审查、疑难定位，不直接代替实施。以下状态覆盖后文首批收口时的历史队列。
+
+| 工作 | 当前状态 | 依据/下一步 |
+| --- | --- | --- |
+| WB-V53-NEXT-001 | REVIEW_READY，等待验收证据收口 | source `19fd979d4222093ff4ce7464e5b58407586594a2`；WorkBuddy29/29日志，本轮24/29实际运行，5项应用控制阻断；cleanup6 cases通过，非整流ACCEPTED |
+| WB-A05-BUILD-001 CP0 | READY（当前唯一可领取checkpoint） | 只做Host证据与C5配置/依赖取证报告 |
+| WB-A05-BUILD-001 CP1～CP4 | QUEUED，不得提前开始 | Codex记录前序ACCEPTED并认可CP0清单后放行 |
+| A05-DEVICE | HOLD | 唯一候选BUILD审查+用户批次授权 |
+| C01/C03及其后 | BACKLOG（本包不执行） | 另行编排；Host任务可不依赖设备连接，设备门禁不变 |
+
+任务入口：[修订版A05任务书](tasks/WB-A05-BUILD-001.md) · [审查依据与实测](reports/CODEX_A05_PLAN_REVIEW_2026-09-14.md)。不能使用E:/c当前H2 sdkconfig生成C5候选；历史C5配置hash及cache来源见报告。未进行本轮IDF构建/Flash。
+
+## 以下为首批收口时的历史快照（调度已由上节覆盖）
+
 更新时间：2026-09-14。维护者：Codex 主 agent。当前唯一可领取工作流：**WB-V53-NEXT-001 / READY**。CODEX-V53-WAVE1（A01/A02/B01，Luna/medium）已完成源码/Host范围验收。
 
 用户最新分工：当前子agent批次已收口；后续由WorkBuddy实施，Codex负责整体架构、代码审查、整合与疑难问题。历史验收不回溯修改。

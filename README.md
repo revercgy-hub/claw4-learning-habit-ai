@@ -1,5 +1,7 @@
 # Claw4 学习习惯培育 AI
 
+2026-09-14最新调度：[A05修订任务书](docs/project_management/tasks/WB-A05-BUILD-001.md) CP0可领取，完整构建等待前序验收与C5输入清单审定。[本轮审查](docs/project_management/reports/CODEX_A05_PLAN_REVIEW_2026-09-14.md)记录19fd979、24/29复跑及5项系统应用控制阻断。WorkBuddy实施；Codex编排、审查和疑难定位，不代替实施。下方首批收口信息保留为历史。
+
 本仓库是 Claw4 学习习惯养成终端的项目总控仓库。Metalio 官方源码和 ESP-IDF 工具链保留在本地独立目录中，不作为本仓库源码提交。
 
 ## 当前协作方式
