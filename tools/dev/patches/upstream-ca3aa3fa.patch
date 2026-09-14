@@ -1,0 +1,43 @@
+diff --git a/main/CMakeLists.txt b/main/CMakeLists.txt
+index 5d8955e..577bd14 100644
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -45,6 +45,14 @@ set(SOURCES "audio/audio_codec.cc"
+             "display/screen/vibrate_screen/vibrate_screen.cc"
+             "display/screen/backlight_screen/backlight_screen.cc"
+             "display/screen/settings_screen/settings_screen.cc"
++            "display/screen/settings_screen/settings_common.cc"
++            "display/screen/settings_screen/settings_brightness_tab.cc"
++            "display/screen/settings_screen/settings_standby_tab.cc"
++            "display/screen/settings_screen/settings_volume_tab.cc"
++            "display/screen/settings_screen/settings_language_tab.cc"
++            "display/screen/settings_screen/settings_charge_tab.cc"
++            "display/screen/settings_screen/settings_upgrade_tab.cc"
++            "display/screen/settings_screen/settings_bluetooth_tab.cc"
+             "display/screen/call_screen/call_screen.cc"
+             "display/screen/bluetooth_screen/bluetooth_screen.cc"
+             "display/screen/chat_screen/chat_screen.cc"
+@@ -292,6 +300,9 @@ idf_component_register(SRCS ${SOURCES}
+ 
+ target_link_libraries(${COMPONENT_LIB} PRIVATE idf::esp_driver_tsens)
+ 
++# panic 写 Flash coredump 分区（需 partitions 含 subtype=coredump）
++target_link_libraries(${COMPONENT_LIB} PRIVATE idf::espcoredump)
++
+ # USB 扩展副屏：把自定义 tusb_config / UAC 头注入 tinyusb，覆盖 esp_tinyusb 默认配置。
+ # uac_config.h 来自 usb_device_uac（本地 components/ 或 Component Manager）。
+ idf_build_get_property(build_components BUILD_COMPONENTS)
+diff --git a/main/display/lv_adapter_display.cc b/main/display/lv_adapter_display.cc
+index f17849f..5ab93fe 100644
+--- a/main/display/lv_adapter_display.cc
++++ b/main/display/lv_adapter_display.cc
+@@ -129,7 +129,8 @@ LVAdapterDisplay::LVAdapterDisplay(const esp_lcd_panel_handle_t panel,
+     esp_lv_adapter_touch_config_t touch_cfg =
+         ESP_LV_ADAPTER_TOUCH_DEFAULT_CONFIG(disp, touch_handle);
+     lv_indev_t* touch_indev = esp_lv_adapter_register_touch(&touch_cfg);
+-    // 40ms：与电源键/电量计共享 I2C，20ms 轮询易在总线抖动时拖垮 GT911/TCA/BQ
++    // 40ms：有 INT 时仅作「按下跟手」轮询间隔；无 INT 则整段周期轮询。
++    // 与电源键/电量计共享 I2C，过短间隔易在总线抖动时拖垮 GT911/TCA/BQ。
+     touch_feed_init(touch_handle, 40);
+     touch_feed_attach_indev(touch_indev);
+ 
