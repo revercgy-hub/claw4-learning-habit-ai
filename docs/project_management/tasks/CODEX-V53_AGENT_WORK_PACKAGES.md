@@ -1,5 +1,7 @@
 # CODEX-V53：子 agent 工作包
 
+> 2026-09-14用户更新：当前仅A01/A02/B01仍由Luna/medium子agent完成；后续工作包转由WorkBuddy实施，Codex审查。本文保留架构/范围/验收契约，下一阶段执行顺序与状态以看板和WorkBuddy交接任务书为准，不再自动启动其它子agent。
+
 基线：`7dd6511ab0125962d37f039955298819bdbb77be`，2026-09-13。统一架构：[ARCHITECTURE_V5_3.md](../../ARCHITECTURE_V5_3.md)。状态只在 [TASK_BOARD](../TASK_BOARD.md) 维护，本文不复制动态状态。
 
 ## 0. 派发规则

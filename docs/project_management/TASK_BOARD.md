@@ -1,8 +1,10 @@
 # Claw4 当前任务看板
 
-更新时间：2026-09-13。维护者：Codex 主 agent。当前唯一总工作流：**CODEX-V53 / IN_PROGRESS**（用户“继续任务”后已派发首批A01/A02/B01；子agent使用Luna/medium）。
+更新时间：2026-09-14。维护者：Codex 主 agent。当前唯一活动批次：**CODEX-V53-WAVE1 / IN_PROGRESS**（A01/A02/B01；子agent使用Luna/medium）。
 
 用户最新分工：子 agent 做具体开发；主 agent负责整体架构、任务审查、整合与疑难问题。历史“取消Codex复检/仅WorkBuddy实施”的调度约定对新任务由此取代；历史验收不回溯修改。
+
+> **9/14覆盖决定**：仅收口当前三个子agent任务；本批完成后，下一阶段由WorkBuddy实施、Codex审查，不再自动派发下一批子agent。下方角色列是原工作包专业分工，后续统一由WorkBuddy承担实施。
 
 ## 1. 基线与入口
 

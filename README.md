@@ -5,7 +5,7 @@
 ## 当前协作方式
 
 - Codex主agent：负责整体架构、任务调度与审查、整合、风险门禁和疑难问题。
-- 子agent：领取边界明确的工作包，在独立分支实现、验证并交付审查；WorkBuddy继续参与时也遵循同一队列。
+- 当前A01/A02/B01由Luna/medium子agent完成；按2026-09-14用户决定，下一阶段由WorkBuddy实施、Codex负责代码审查，不自动再开子agent批次。
 - 用户：确认产品方向、硬件操作、高风险变更和阶段放行。
 
 2026-09-13当前入口：[V5.3优化架构](docs/ARCHITECTURE_V5_3.md)、[任务看板](docs/project_management/TASK_BOARD.md)、[子agent工作包](docs/project_management/tasks/CODEX-V53_AGENT_WORK_PACKAGES.md)、[最新进展核验](docs/project_management/reports/CODEX_V53_FACT_SYNC_2026-09-13.md)。设备开发基线为 `workbuddy-app-first-l3-acceptance` @ `7dd6511`，main尚未整合该开发链。
