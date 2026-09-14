@@ -221,7 +221,7 @@ static bool run_case_cycle_holds_no_state_lock_during_network() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
 
   SyncCycleResult cycle;
   WorkerJoiner joiner;
@@ -280,7 +280,7 @@ static bool run_case_cycle_applies_ack_and_clears_pending() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
 
   const SyncCycleResult cycle = executor.runCycle([] { return false; });
   CHECK(cycle.outcome == SyncOutcome::Synced);
@@ -302,7 +302,7 @@ static bool run_case_cycle_rejects_stale_generation_without_writing() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
 
   SyncCycleResult cycle;
   WorkerJoiner joiner;
@@ -347,7 +347,7 @@ static bool run_case_cycle_auth_pause_never_calls_transport() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
 
   int reauth_calls = 0;
   const SyncCycleResult first =
@@ -391,7 +391,7 @@ static bool run_case_cycle_reauth_ok_retries_once_without_lock() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
 
   int reauth_calls = 0;
   const SyncCycleResult cycle =
@@ -420,7 +420,7 @@ static bool run_case_cycle_reauth_fail_pauses() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
 
   int reauth_calls = 0;
   const SyncCycleResult cycle =
@@ -443,7 +443,7 @@ static bool run_case_cycle_no_pending_never_touches_transport() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
 
   const SyncCycleResult cycle = executor.runCycle([] { return false; });
   CHECK(cycle.outcome == SyncOutcome::NoPending);

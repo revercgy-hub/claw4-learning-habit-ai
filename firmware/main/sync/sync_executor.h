@@ -17,6 +17,10 @@
 // the device shell and the host gate exercise the SAME production code path:
 // the device passes the same recursive mutex its UI reads use, the host test
 // passes a std::mutex plus a latch-blocked transport.
+//
+// REVIEW-FIX-002 R7.2/R7.3: the executor is BOUND to one session generation at
+// construction. Every attempt re-checks it, so a credential retry can never
+// "upgrade" a dying session to the generation of a session that replaced it.
 #pragma once
 
 #include <cstdint>
@@ -42,9 +46,12 @@ struct SyncCycleResult {
 
 class SyncExecutor {
  public:
+  // `expected_generation` is the session generation this executor was created
+  // for (frozen by the owning LearningBackendSession at construction). It is
+  // re-checked on EVERY attempt, including the one after a credential refresh.
   SyncExecutor(application::AppCoordinator& coord,
                application::SyncTransport& transport, StateLockFn lock,
-               StateUnlockFn unlock);
+               StateUnlockFn unlock, int64_t expected_generation);
 
   // Runs one full cycle. `max_attempts` bounds the number of network phases:
   // the extra attempt exists only for the one permitted credential retry.
@@ -52,10 +59,15 @@ class SyncExecutor {
                            int max_attempts = 2);
 
  private:
+  // True while this session still owns the coordinator state. Only callable
+  // inside the state critical section.
+  bool generationCurrentLocked() const;
+
   application::AppCoordinator& coord_;
   application::SyncTransport& transport_;
   StateLockFn lock_;
   StateUnlockFn unlock_;
+  int64_t expected_generation_ = 0;
 };
 
 }  // namespace sync

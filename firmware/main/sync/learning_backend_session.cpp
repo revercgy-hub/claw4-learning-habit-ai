@@ -30,7 +30,8 @@ LearningBackendSession::LearningBackendSession(
       signer_(std::move(signer)),
       epoch_now_(std::move(epoch_now)),
       lease_(lease),
-      lease_source_(lease_source) {
+      lease_source_(lease_source),
+      session_generation_(lease.generation) {
   diagnostics_.configured = !base_url_.empty() && static_cast<bool>(signer_);
   RefreshCounters();
 }
@@ -38,9 +39,27 @@ LearningBackendSession::LearningBackendSession(
 // RF1: only ONE session instance may mutate coordinator state. A session is
 // superseded as soon as the runtime hands out a newer lease (reconfigure /
 // session rebuild), or as soon as the coordinator generation moved on.
+//
+// REVIEW-FIX-002 R7.4: this predicate is called WITHOUT the state lock (the
+// fast reject before a network phase), so it may only read thread-safe state:
+//   * the lease source, which is internally synchronized, and
+//   * the coordinator's ATOMIC generation.
+// The plain-integer read that used to be here was an unsynchronized data race
+// with beginNewSession(). The AUTHORITATIVE ownership decision for a state
+// mutation is still taken inside the state critical section (see
+// pullTodayLocked / SyncExecutor::generationCurrentLocked) using the frozen
+// session_generation_, so the fast path is only an optimization.
 bool LearningBackendSession::superseded() const {
-  if (lease_source_ != nullptr && !lease_source_->isCurrent(lease_)) return true;
-  return lease_.generation != app_.generation();
+  if (!leaseStillCurrent()) return true;
+  return session_generation_ != app_.generation();
+}
+
+bool LearningBackendSession::leaseStillCurrent() const {
+  // Lock order: when this runs under the state lock the holder's mutex is the
+  // INNER lock (state -> lease), which is the same order
+  // LearningRuntime::ConfigureBackend() uses when it takes state_mutex_ and
+  // then installs the new lease. No reverse order exists anywhere.
+  return lease_source_ == nullptr || lease_source_->isCurrent(lease_);
 }
 
 void LearningBackendSession::RefreshCounters() {
@@ -189,16 +208,30 @@ bool LearningBackendSession::pullTodayLocked(const StateLockFn& lock,
     RecordErrorLocked(error, 0, "today", lock, unlock);
     return false;
   }
-  // RF1: the response was in flight; do not let a dead session write state.
-  if (superseded()) {
+  // R7.1: the final ownership re-check and the state write are ONE critical
+  // section. Previously the check ran BEFORE taking the state lock, which left
+  // a legal interleaving:
+  //     old: superseded() == false
+  //                          new: ConfigureBackend() bumps the generation
+  //     old: lock(); applyTodaySnapshot(stale_today)
+  // The coordinator generation (the final truth for state mutation) and the
+  // lease (object liveness) are both evaluated inside the transaction, and the
+  // only writer of the generation — ConfigureBackend() — must hold this same
+  // state lock before it can bump it, so it can no longer interleave.
+  bool applied = false;
+  bool rejected = false;
+  lock();
+  if (app_.generation() != session_generation_ || !leaseStillCurrent()) {
+    rejected = true;
+  } else {
+    applied = app_.applyTodaySnapshot(today.tasks);
+  }
+  unlock();
+  if (rejected) {
+    // A late/foreign snapshot: nothing was written and this is not an error.
     diagnostics_.last_operation = "today_superseded";
     return false;
   }
-  // Short critical section: the ONLY state write of the pull.
-  bool applied = false;
-  lock();
-  applied = app_.applyTodaySnapshot(today.tasks);
-  unlock();
   if (!applied) {
     RecordErrorLocked(SyncErrorClass::Unknown, 0, "today_persist", lock, unlock);
     return false;
@@ -230,14 +263,23 @@ application::SyncOutcome LearningBackendSession::syncOnceLocked(
   }
   // SyncExecutor owns the three-phase discipline: prepare (locked), send (NO
   // lock), apply (locked). The credential retry is also invoked unlocked.
-  SyncExecutor executor(app_, sync_transport_, lock, unlock);
-  const SyncCycleResult cycle =
-      executor.runCycle([this]() {
-        // RF1: never refresh credentials for a superseded session, and never
-        // let the retry run after the session was replaced.
-        if (superseded()) return false;
-        return authenticate();
-      });
+  // R7.2: the executor is BOUND to this session's frozen generation, so the
+  // retry after a credential refresh is re-gated and can never adopt the
+  // generation of a session that replaced this one.
+  SyncExecutor executor(app_, sync_transport_, lock, unlock,
+                        session_generation_);
+  const SyncCycleResult cycle = executor.runCycle([this]() {
+    // R7.3 credential-refresh lifecycle gate:
+    //   (1) before authenticate: never spend a refresh on a dead session;
+    //   (2) after the authenticate network wait: a reconfigure that landed
+    //       while we were on the wire must stop the retry, so no second POST
+    //       is ever issued and the new session's pause state is not touched.
+    // (3) before the retry prepare: enforced by the executor's own generation
+    //     gate at the top of the next attempt.
+    if (superseded()) return false;
+    if (!authenticate()) return false;
+    return !superseded();
+  });
 
   const auto outcome = cycle.outcome;
   diagnostics_.network_online = outcome != application::SyncOutcome::Backoff;

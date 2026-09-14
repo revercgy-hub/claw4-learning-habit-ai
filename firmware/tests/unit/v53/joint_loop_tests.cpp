@@ -191,7 +191,7 @@ static bool run_case_joint_startup_offline_stale_snapshot_sync_reminder() {
   std::mutex state_mutex;
   SyncExecutor executor(coord, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord.generation());
   const SyncCycleResult cycle = executor.runCycle([] { return false; });
   CHECK(cycle.outcome == SyncOutcome::Synced);
   CHECK(cycle.transport_calls == 1);
@@ -325,7 +325,7 @@ static bool run_case_joint_restart_convergence_is_idempotent() {
   std::mutex state_mutex;
   SyncExecutor executor(coord2, transport,
                         [&] { state_mutex.lock(); },
-                        [&] { state_mutex.unlock(); });
+                        [&] { state_mutex.unlock(); }, coord2.generation());
   CHECK(executor.runCycle([] { return false; }).outcome == SyncOutcome::Synced);
   CHECK(coord2.pendingCount() == 0);
   CHECK(coord2.lastAcked() == pending_before);

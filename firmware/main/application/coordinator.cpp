@@ -62,6 +62,23 @@ AppCoordinator::AppCoordinator(sync::OutboxStorage& storage,
   reloadState();
 }
 
+// REVIEW-FIX-002 R7.4: member-wise move, identical to the implicit one that
+// std::atomic<generation_> suppressed. Only the atomic needs an explicit
+// load; every other member moves exactly as before.
+AppCoordinator::AppCoordinator(AppCoordinator&& other) noexcept
+    : storage_(other.storage_),
+      outbox_(std::move(other.outbox_)),
+      reducer_(other.reducer_),
+      options_(other.options_),
+      state_(std::move(other.state_)),
+      last_failed_(std::move(other.last_failed_)),
+      retry_count_(other.retry_count_),
+      pending_backoff_ms_(other.pending_backoff_ms_),
+      reauth_attempted_(other.reauth_attempted_),
+      auth_paused_(other.auth_paused_),
+      last_sync_response_(std::move(other.last_sync_response_)),
+      generation_(other.generation_.load(std::memory_order_relaxed)) {}
+
 bool AppCoordinator::reloadState() {
   state_ = loadFrom(storage_).domain;
   return true;
@@ -490,12 +507,15 @@ SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
 int64_t AppCoordinator::beginNewSession() {
   // Any envelope prepared before this point carries the old generation and is
   // rejected by applySyncResult() instead of mutating the new session.
-  ++generation_;
+  // REVIEW-FIX-002 R7.4: an atomic fetch_add keeps the bump race-free with a
+  // worker's lock-free liveness read while still requiring the caller's state
+  // lock for the surrounding state reset.
+  const int64_t next = generation_.fetch_add(1, std::memory_order_acq_rel) + 1;
   auth_paused_ = false;
   reauth_attempted_ = false;
   pending_backoff_ms_ = 0;
   retry_count_ = 0;
-  return generation_;
+  return next;
 }
 
 void AppCoordinator::resetAuthPause() {

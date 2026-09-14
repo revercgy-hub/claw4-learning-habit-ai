@@ -22,6 +22,7 @@
 //   diagnostics never re-enter the business queue
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -101,6 +102,13 @@ class AppCoordinator {
                  const domain::DomainReducer& reducer,
                  const CoordinatorOptions& options = {});
 
+  // REVIEW-FIX-002 R7.4: `generation_` is now std::atomic, which suppresses the
+  // implicit move constructor. This class WAS movable (borrowed references plus
+  // value members) and host fixtures return a coordinator by value, so the
+  // capability is restored explicitly instead of being silently dropped.
+  // Moving is only valid while no other thread is using the source object.
+  AppCoordinator(AppCoordinator&& other) noexcept;
+
   // --- domain entry -----------------------------------------------------
   // Reducer -> outbox commit -> publish. Publishes ONLY after the outbox
   // committed; on reducer rejection or outbox failure the caller/UI never sees
@@ -169,7 +177,14 @@ class AppCoordinator {
   // Session generation: bumped by beginNewSession() whenever the runtime is
   // reconfigured, torn down or a fresh backend session is built. Returns the
   // NEW generation so the caller can bind it to the session lease (RF1).
-  int64_t generation() const { return generation_; }
+  //
+  // REVIEW-FIX-002 R7.4: the value is ATOMIC. A backend session reads it on its
+  // lock-free liveness fast path, which must not be an unsynchronized plain
+  // integer read. It stays a single scalar — this class is NOT an internally
+  // locking object; every state mutation still requires the caller's state
+  // lock, and the authoritative ownership check for a mutation happens inside
+  // that critical section.
+  int64_t generation() const { return generation_.load(std::memory_order_acquire); }
   int64_t beginNewSession();
 
   // --- accessors --------------------------------------------------------
@@ -207,8 +222,9 @@ class AppCoordinator {
   bool auth_paused_ = false;       // FIX-V4-01: transport short-circuit gate
   sync::SyncClient::Response last_sync_response_;
   // A03: bumped by beginNewSession(); a worker result carrying an older value
-  // is rejected before it can touch the new session's state.
-  int64_t generation_ = 0;
+  // is rejected before it can touch the new session's state. Atomic so the
+  // lock-free liveness fast path cannot data-race with the bump (R7.4).
+  std::atomic<int64_t> generation_{0};
 };
 
 }  // namespace application
