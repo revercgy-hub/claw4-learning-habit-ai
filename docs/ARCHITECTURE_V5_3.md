@@ -84,6 +84,8 @@ TimeStatus 设计至少保留 `epoch_seconds`（有效性显式）、`monotonic_
 
 日程使用 UTC 时刻并带家庭时区/业务日期解释；FocusEnd 使用单调截止时间。旧事件保留 timestamp_source 与原始值；不能把 received_at 伪装成真实发生时间。无锚点的历史事件只能标时间未知/估计，统计必须说明缺失覆盖率。
 
+B01 Host实现约定：`drift_upper_bound_ppm` 默认未知，此时误差界为空、`calendar_allowed=false`；不能把“有同步锚点”直接当“允许日历提醒”。已知漂移界时使用 `initial_uncertainty_ms + ceil(age_ms × ppm / 1,000,000)`，统一采用RV32可用的安全商余运算。同步质量、最大连续供电窗口和日历误差预算分别判定；UTC溢出显式无效。时区/业务日期转换仍由计划契约承担，TimeAuthority只输出UTC与单调时间，不依赖设备本地时区。
+
 时间 Gate 拆成 TIME_BASE（自动校时、重连、质量、跳变、离线）和 TIME_REMINDER（联合误差）。目标沿用 V5.3：正常联网实际本地提示启动误差 ≤30 秒；校时后连续供电离线 4 小时 ≤60 秒。1/4/8/24 小时覆盖运行与关屏；Light Sleep 独立测试，不阻塞 Host 实现。RTC 配置与实际时钟源在构建基线上核验；不由“内部 RC”直接推导正常运行误差。
 
 ## 5. Reminder 契约

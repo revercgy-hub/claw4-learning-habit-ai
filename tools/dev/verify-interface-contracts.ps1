@@ -78,6 +78,7 @@ Write-Log "== 2) -fsyntax-only over all interface headers =="
 $headers = Get-ChildItem -Path $MainDir -Filter *.h -Recurse
 $ok = 0
 foreach ($h in $headers) {
+    $global:LASTEXITCODE = -1
     $out = & $CompilerPath -std=c++17 -fsyntax-only -Wall -Wextra -I $MainDir $h.FullName 2>&1
     $code = $LASTEXITCODE
     if ($out) { $out | Out-File -Append -Encoding utf8 $HeaderErr }
@@ -97,6 +98,7 @@ foreach ($sub in $hostCppDirs) {
     $cppFiles = Get-ChildItem -Path $dir -Filter *.cpp -Recurse
     foreach ($cpp in $cppFiles) {
         $cppTotal++
+        $global:LASTEXITCODE = -1
         $outCpp = & $CompilerPath -std=c++17 -fsyntax-only -Wall -Wextra -I $MainDir $cpp.FullName 2>&1
         $codeCpp = $LASTEXITCODE
         if ($outCpp) { $outCpp | Out-File -Append -Encoding utf8 $ContractErr }
@@ -111,6 +113,7 @@ Write-Log "implsrcs : $cppOk / $cppTotal PASS (interaction/mcp on target ISA)"
 Write-Log ""
 Write-Log "== 3) -fsyntax-only over contract tests =="
 $testCpp = Join-Path $TestsDir "contract_tests.cpp"
+$global:LASTEXITCODE = -1
 $out2 = & $CompilerPath -std=c++17 -fsyntax-only -Wall -Wextra -I $MainDir $testCpp 2>&1
 $code2 = $LASTEXITCODE
 if ($out2) { $out2 | Out-File -Append -Encoding utf8 $ContractErr }

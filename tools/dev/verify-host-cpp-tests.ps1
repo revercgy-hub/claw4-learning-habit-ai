@@ -90,6 +90,7 @@ Write-Log ""
 Write-Log "== 2) compile (C++17, warnings-as-errors) =="
 $obj = Join-Path $OutDir "smoke_test.obj"
 Remove-Item $obj -ErrorAction SilentlyContinue
+$global:LASTEXITCODE = -1
 $cout = & $cc -std=c++17 -Wall -Wextra -Werror -I (Join-Path $RepoRoot "firmware\main") `
                -c $SmokeSrc -o $obj 2>&1
 $ccode = $LASTEXITCODE
@@ -106,6 +107,7 @@ Write-Log ""
 Write-Log "== 3) link =="
 $exe = Join-Path $OutDir "smoke_test.exe"
 Remove-Item $exe -ErrorAction SilentlyContinue
+$global:LASTEXITCODE = -1
 $lout = & $cc $obj -o $exe 2>&1
 $lcode = $LASTEXITCODE
 if ($lout) { $lout | Out-File -Append -Encoding utf8 $Log }
@@ -293,6 +295,7 @@ if (Test-Path $unitRoot) {
     foreach ($source in $implSrcs) {
         $object = Join-Path $OutDir ("common-{0}.o" -f $objectIndex++)
         $compileArgs = @("-std=c++17", "-Wall", "-Wextra", "-Werror") + $includeArgs + @("-c", $source, "-o", $object)
+        $global:LASTEXITCODE = -1
         $compileOutput = & $cc @compileArgs 2>&1
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $object)) {
             if ($compileOutput) { $compileOutput | Out-File -Append -Encoding utf8 $Log }
@@ -313,6 +316,7 @@ if (Test-Path $unitRoot) {
         Remove-Item $exe, $errf -ErrorAction SilentlyContinue
         $args = @("-std=c++17", "-Wall", "-Wextra", "-Werror") + $includeArgs +
                 @($tf.FullName) + $implObjects + @("-o", $exe)
+        $global:LASTEXITCODE = -1
         $cout = & $cc @args 2>&1
         $ccode = $LASTEXITCODE
         if ($ccode -ne 0 -or -not (Test-Path $exe)) {
@@ -350,11 +354,13 @@ if (Test-Path $ifaceScript) {
         if (Test-Path $probe) { $cross = $probe }
     }
     if ($cross) {
+        $global:LASTEXITCODE = -1
         & $ifaceScript -CompilerPath $cross -OutputDir (Join-Path $OutDir "interface") *>> $Log
         Write-Log "interface: exit=$LASTEXITCODE (see above; 0 == PASS)"
         if ($LASTEXITCODE -ne 0) { $hostGateFailed = $true }
     } else {
         # fall back to PATH resolution inside the interface script
+        $global:LASTEXITCODE = -1
         & $ifaceScript -OutputDir (Join-Path $OutDir "interface") *>> $Log
         Write-Log "interface: exit=$LASTEXITCODE (PATH-resolved cross compiler)"
         if ($LASTEXITCODE -ne 0) { $hostGateFailed = $true }

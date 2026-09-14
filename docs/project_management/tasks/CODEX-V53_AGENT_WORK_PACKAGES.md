@@ -10,7 +10,7 @@
 
 用户指定的实现与审查子agent模型统一为 `gpt-5.6-luna`、推理强度 `medium`；主agent保留原配置。具体Base和运行状态以看板为准。
 
-本轮完成规划，以下是后续可领取任务，不表示产品实现已启动。只读审计 agent 不等于实现包已领取。初始允许原生 Host 修复、测试与规划；设备代码/BUILD ONLY 必须匹配明确白名单；vendor、sdkconfig、硬件操作不能借“派发”自动扩大授权。
+本文定义任务契约，实际已领取/已验收状态只看当前看板。初始允许原生 Host 修复、测试与规划；设备代码/BUILD ONLY 必须匹配明确白名单；vendor、sdkconfig、硬件操作不能借“派发”自动扩大授权。
 
 每个实现包的共通输入：根 AGENTS、本任务包、架构、现状报告、最新看板、作用域下规则、对应源码和既有测试。不得执行历史报告中的 reset/清库/刷机命令。
 
@@ -36,6 +36,7 @@
 - 负责人：Data agent；数据恢复方案由主 agent负责。
 - 允许修改：`integration/metalio_claw4/device/app/learning_runtime.{h,cpp}`、`device/learning_screen/learning_screen.cc` 的 reset 入口；新增 `device/core/` 纯 reset 策略；对应 `firmware/tests/unit/metalio/` 测试；专属报告。
 - 设备文件本包只做源码最小修复与 Host 可验证策略，不运行设备、不操作实际 NVS；不得修改其它学习屏/语音逻辑。
+- 主agent在A02审查中补充白名单：`device/ports/nvs_outbox_storage.{h,cpp}` 的只读Missing/Present/Error契约、`nvs_backend_provisioning.cpp` 的错误分类，以及实际启动编排所需的纯core helper与对应测试。此扩展不含真实NVS操作。
 - 行为：全部任务完成后显示完成态/等待新计划，不清库、不回 demo。已 provisioned 模式禁用演示重置；后台身份和 outbox 不变。若保留开发模式 reset，先明确隔离条件，不能清除正式 pending。
 - 验收：历史 ACK>0、pending>0、在线/离线完成、重复点击、切页、重启、存储失败均不删除事件/重置 sequence；原 ID formatter 与 codec 重启测试仍通过；正式任务不会被 DemoTodaySnapshot 替换。
 - 不在本包：自动修复既有损坏队列、修改后端 sequence 规则、删除数据库记录、实际 NVS 擦除。
