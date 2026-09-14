@@ -30,6 +30,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $Log = Join-Path $OutDir "host_result.txt"
 Remove-Item $Log -ErrorAction SilentlyContinue
 function Write-Log([string]$m) { $m | Out-File -Append -Encoding utf8 $Log }
+. (Join-Path $scriptDir "invoke-host-test.ps1")
 $hostGateFailed = $false
 
 Write-Log "== WB-STREAM-002 CP0: native C++17 test gate =="
@@ -121,8 +122,9 @@ Write-Log "== 4) run =="
 if ($hostGateFailed) {
     Write-Log "run     : SKIPPED (compile/link failed)"
 } else {
-    $rout = & $exe 2>&1
-    $rcode = $LASTEXITCODE
+    $runResult = Invoke-HostTest $exe
+    $rout = $runResult.Output
+    $rcode = $runResult.ExitCode
     if ($rout) { $rout | Out-File -Append -Encoding utf8 $Log }
     if ($rcode -eq 0) {
         Write-Log "run     : PASS (exit=0)"
@@ -195,7 +197,7 @@ if ($uiViol.Count -eq 0) {
 #            LVGL / ESP-IDF / FreeRTOS / BSP / Metalio)
 Write-Log ""
 Write-Log "== 4b3) interaction/mcp/ports forbidden-include scan =="
-$hostSafeDirs = @("interaction", "mcp", "ports")
+$hostSafeDirs = @("interaction", "mcp", "ports", "time")
 $ForbiddenHost = @("lvgl", "esp_", "freertos", "driver/", "bsp", "wifi", "nvs",
                    "hal", "metalio")
 $hostViol = @()
@@ -265,6 +267,7 @@ if (Test-Path $unitRoot) {
         (Join-Path $RepoRoot "firmware\main\interaction"),
         (Join-Path $RepoRoot "firmware\main\mcp"),
         (Join-Path $RepoRoot "firmware\main\ports"),
+        (Join-Path $RepoRoot "firmware\main\time"),
         (Join-Path $RepoRoot "integration\metalio_claw4\host_glue"),
         # WB-LEARNING-V4-L1: outbox codec is pure C++17 (device core); the
         # NVS/clock adapters under device\ports include ESP-IDF and are NOT
@@ -318,8 +321,9 @@ if (Test-Path $unitRoot) {
             $hostGateFailed = $true
             continue
         }
-        $rout = & $exe 2>&1
-        $rcode = $LASTEXITCODE
+        $runResult = Invoke-HostTest $exe
+        $rout = $runResult.Output
+        $rcode = $runResult.ExitCode
         if ($rout) { $rout | Out-File -Append -Encoding utf8 $Log }
         if ($rcode -eq 0) {
             $unitPass++

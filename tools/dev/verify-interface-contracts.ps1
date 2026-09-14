@@ -88,7 +88,7 @@ Write-Log "headers  : $ok / $($headers.Count) PASS"
 # 2.5) Host implementation sources under interaction/mcp; 3) contract tests.
 Write-Log ""
 Write-Log "== 2.5) -fsyntax-only over host implementation sources (interaction/mcp) =="
-$hostCppDirs = @("interaction", "mcp")
+$hostCppDirs = @("interaction", "mcp", "time")
 $cppOk = 0
 $cppTotal = 0
 foreach ($sub in $hostCppDirs) {
