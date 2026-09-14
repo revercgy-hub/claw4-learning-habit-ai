@@ -545,6 +545,136 @@ static bool run_case_rf5_wake_port_scheduled_updated_and_cancelled() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// REVIEW-FIX-002 R8: the platform wake must obey the SAME calendar/quiet policy
+// as delivery — otherwise a device would wake into a reminder it may not
+// present (and, with a due-but-quiet reminder, re-arm an immediate wake,
+// producing a wake storm).
+// ---------------------------------------------------------------------------
+
+// R8.1: no wake may be armed while the authority forbids calendar work.
+static bool run_case_stale_or_untrusted_calendar_does_not_arm_wake() {
+  Harness h;
+  FakeReminderWakePort wake;
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "task-1",
+                                  kBaseEpoch + 60'000)));
+
+  // (a) Unsynced: epoch_valid and calendar_allowed are both false.
+  CHECK(!h.core->nextWakeMonotonicMs(kNoon).has_value());
+  CHECK(!h.core->syncWake(wake, kNoon));
+  CHECK(wake.cancel_calls == 1);
+  CHECK(!wake.wake_armed);
+
+  // (b) Synced, but the holdover window has expired: the epoch stays derivable
+  //     while calendar work is refused.
+  CHECK(h.trustTime());
+  CHECK(h.core->nextWakeMonotonicMs(kNoon).has_value());  // trusted -> armed
+  h.clock.mono = 700'000;                                 // > max_holdover_ms
+  const auto stale = h.authority.status();
+  CHECK(stale.epoch_valid);            // an epoch is still derivable...
+  CHECK(!stale.calendar_allowed);      // ...but no calendar work is allowed
+  CHECK(!h.core->nextWakeMonotonicMs(kNoon).has_value());
+  CHECK(!h.core->syncWake(wake, kNoon));
+  CHECK(wake.cancel_calls == 2);
+
+  // (c) Epoch valid AND inside the holdover window, but the calendar
+  //     uncertainty exceeds the policy cap: still no wake.
+  {
+    FakeClock clock;
+    TimeAuthority auth(clock, "boot-u",
+                       TimeAuthorityConfig{60000, 600000, 60000, 100});
+    CHECK(auth.acceptSync(kBaseEpoch, "net", 10'000'000).outcome ==
+          claw4::time::SyncOutcome::Accepted);
+    FakeReminderStore store;
+    ReminderPolicy policy;
+    ReminderCore core(policy, store, auth);
+    CHECK(core.upsert(makeRecord(ReminderKind::TaskDue, "task-1",
+                                 kBaseEpoch + 60'000)));
+    const auto uncertain = auth.status();
+    CHECK(uncertain.epoch_valid);
+    CHECK(uncertain.holdover_window);
+    CHECK(uncertain.uncertainty_ms.has_value());
+    CHECK(*uncertain.uncertainty_ms > 60000);
+    CHECK(!uncertain.calendar_allowed);
+    CHECK(!core.nextWakeMonotonicMs(kNoon).has_value());
+  }
+  return true;
+}
+
+// R8.1: an ALREADY armed wake is cancelled the moment trust is lost, so the
+// platform is never left waiting for an instant the core cannot act on.
+static bool run_case_wake_cancelled_when_calendar_not_allowed() {
+  Harness h;
+  CHECK(h.trustTime());
+  FakeReminderWakePort wake;
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "task-1",
+                                  kBaseEpoch + 60'000)));
+  CHECK(h.core->syncWake(wake, kNoon));
+  CHECK(wake.wake_armed);
+  const int scheduled_before = wake.schedule_calls;
+
+  h.clock.mono = 700'000;  // holdover expired -> calendar work refused
+  CHECK(!h.core->syncWake(wake, kNoon));
+  CHECK(wake.cancel_calls == 1);
+  CHECK(!wake.wake_armed);
+  CHECK(wake.schedule_calls == scheduled_before);  // never re-armed
+  return true;
+}
+
+// R8.2: a reminder that is due INSIDE the quiet period must wake at quiet_end,
+// not immediately (otherwise: wake -> suppressed -> immediate wake -> storm).
+static bool run_case_quiet_deferred_reminder_wakes_at_quiet_end() {
+  QuietHarness h;
+  const int64_t due = kDayBase + 22 * kHour;  // 22:00 local, inside quiet
+  ReminderRecord r;
+  r.kind = ReminderKind::TaskDue;
+  r.child_id = ChildId{"child-1"};
+  r.task_id = TaskId{"task-1"};
+  r.due_epoch_ms = due;
+  r.instance_id = ReminderCore::makeInstanceId(r.kind, r.child_id, r.task_id, due);
+  CHECK(h.core->upsert(r));
+
+  h.setEpoch(due);
+  const int64_t lod = QuietHarness::localOf(due);
+  CHECK(lod == 22 * kHour);
+  CHECK(h.core->collectDue(lod).empty());  // suppressed by quiet
+  CHECK(h.core->activeCount() == 1);       // ...but kept pending
+
+  // quiet_start (21:00) has passed, so quiet_end is 07:00 of the NEXT day:
+  // 22:00 + 9 h = 31 h in monotonic milliseconds.
+  FakeReminderWakePort wake;
+  CHECK(h.core->syncWake(wake, lod));
+  CHECK(wake.wake_armed);
+  CHECK(wake.scheduled_deadline_ms == 31 * kHour);
+  CHECK(wake.scheduled_deadline_ms > h.clock.mono);  // never immediate
+  return true;
+}
+
+// R8.2: before quiet_end the period ends on the SAME local day.
+static bool run_case_quiet_after_midnight_wakes_same_day_quiet_end() {
+  QuietHarness h;
+  const int64_t due = kDayBase + kDay + 30 * 60 * 1000;  // 00:30 local
+  ReminderRecord r;
+  r.kind = ReminderKind::TaskDue;
+  r.child_id = ChildId{"child-1"};
+  r.task_id = TaskId{"task-1"};
+  r.due_epoch_ms = due;
+  r.instance_id = ReminderCore::makeInstanceId(r.kind, r.child_id, r.task_id, due);
+  CHECK(h.core->upsert(r));
+
+  h.setEpoch(due);
+  const int64_t lod = QuietHarness::localOf(due);
+  CHECK(lod == 30 * 60 * 1000);
+  CHECK(h.core->collectDue(lod).empty());
+
+  // 00:30 -> 07:00 of the day already begun = 6.5 h, i.e. 31 h monotonic.
+  FakeReminderWakePort wake;
+  CHECK(h.core->syncWake(wake, lod));
+  CHECK(wake.wake_armed);
+  CHECK(wake.scheduled_deadline_ms == 31 * kHour);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(stable_instance_id_dedupes_on_rebuild);
   CASE(rebuild_preserves_snooze);
@@ -564,6 +694,11 @@ static bool run_case_all() {
   CASE(rf5_multiple_due_reminders_merge_into_one_batch);
   CASE(rf5_power_loss_recovery_semantics);
   CASE(rf5_wake_port_scheduled_updated_and_cancelled);
+  // REVIEW-FIX-002 R8
+  CASE(stale_or_untrusted_calendar_does_not_arm_wake);
+  CASE(wake_cancelled_when_calendar_not_allowed);
+  CASE(quiet_deferred_reminder_wakes_at_quiet_end);
+  CASE(quiet_after_midnight_wakes_same_day_quiet_end);
   return g_fail == 0;
 }
 

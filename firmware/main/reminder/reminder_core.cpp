@@ -6,10 +6,34 @@
 
 namespace claw4 {
 namespace reminder {
+namespace {
+
+constexpr int64_t kDayMs = 24 * 3600 * 1000;
+
+}  // namespace
 
 ReminderCore::ReminderCore(ReminderPolicy policy, ReminderStore& store,
                            claw4::time::TimeAuthority& time_authority)
     : policy_(policy), store_(store), time_authority_(time_authority) {}
+
+// R8.2: one definition of "is this local time inside the quiet period", used by
+// BOTH delivery (evaluate) and wake scheduling (nextWakeMonotonicMs).
+bool ReminderCore::quietActive(const int64_t local_ms_of_day) const {
+  const int64_t qs = policy_.quiet_start_ms_of_day;
+  const int64_t qe = policy_.quiet_end_ms_of_day;
+  if (qs == qe) return false;  // zero-length quiet period
+  if (qs < qe) return local_ms_of_day >= qs && local_ms_of_day < qe;
+  // Wraps midnight (the default 21:00 -> 07:00 window).
+  return local_ms_of_day >= qs || local_ms_of_day < qe;
+}
+
+int64_t ReminderCore::quietEndDeltaMs(const int64_t local_ms_of_day) const {
+  const int64_t qe = policy_.quiet_end_ms_of_day;
+  // Before quiet_end: the period ends later on the SAME local day.
+  // At/after quiet_end: the period started yesterday, so it ends the NEXT day.
+  return local_ms_of_day < qe ? qe - local_ms_of_day
+                              : (qe + kDayMs) - local_ms_of_day;
+}
 
 std::string ReminderCore::makeInstanceId(ReminderKind kind,
                                          const claw4::domain::ChildId& child_id,
@@ -226,8 +250,7 @@ ReminderCore::Evaluation ReminderCore::evaluate(const int64_t local_ms_of_day) {
   }
   ev.usable = true;
   ev.now = *status.epoch_ms;
-  ev.quiet = local_ms_of_day >= policy_.quiet_start_ms_of_day ||
-             local_ms_of_day < policy_.quiet_end_ms_of_day;
+  ev.quiet = quietActive(local_ms_of_day);
 
   std::vector<ReminderRecord> next = records_;
   bool dirty = false;
@@ -347,27 +370,47 @@ std::vector<ReminderBatch> ReminderCore::collectDueBatches(
 
 std::optional<int64_t> ReminderCore::nextWakeMonotonicMs(
     const int64_t local_ms_of_day) {
-  // Wake computation needs no local-of-day; the parameter keeps the API
-  // symmetric with collectDue(). No esp_sleep / IDF dependency here.
-  (void)local_ms_of_day;
   const time::TimeStatus status = time_authority_.status();
-  if (!status.epoch_valid || !status.epoch_ms) return std::nullopt;
+  // R8.1: the wake must obey the SAME trust gate as delivery. If the authority
+  // does not allow calendar work (Unsynced / holdover expired / uncertainty
+  // over the calendar error cap) the core cannot present anything, so arming a
+  // wake would only produce a wake that immediately suppresses everything.
+  // nullopt makes the caller cancel any previously armed wake.
+  if (!status.calendar_allowed || !status.epoch_valid || !status.epoch_ms) {
+    return std::nullopt;
+  }
 
+  const int64_t now_epoch = *status.epoch_ms;
   bool found = false;
-  int64_t best = 0;
+  int64_t best_epoch = 0;
   for (const auto& r : records_) {
     if (isFinished(r)) continue;
-    int64_t eff = effectiveDue(r);
+    int64_t candidate = effectiveDue(r);
     if (r.deferred_by_quiet && r.catch_up_deadline_epoch_ms != 0) {
-      eff = std::min(eff, r.catch_up_deadline_epoch_ms);
+      candidate = std::min(candidate, r.catch_up_deadline_epoch_ms);
     }
-    if (!found || eff < best) {
-      best = eff;
+    if (candidate <= now_epoch) candidate = now_epoch;  // due (or overdue) now
+
+    // R8.2: waking at an instant that is still inside the quiet period is
+    // useless — the reminder would be suppressed again and the core would
+    // re-arm an immediate wake, i.e. a wake storm once Light Sleep lands. Push
+    // the deadline to the END of the quiet period instead.
+    const int64_t delta_to_candidate = candidate - now_epoch;
+    // Reduce the delta to a day offset first so the addition cannot overflow on
+    // a far-future due time.
+    const int64_t local_at_candidate =
+        (local_ms_of_day + delta_to_candidate % kDayMs) % kDayMs;
+    if (quietActive(local_at_candidate)) {
+      candidate += quietEndDeltaMs(local_at_candidate);
+    }
+
+    if (!found || candidate < best_epoch) {
+      best_epoch = candidate;
       found = true;
     }
   }
   if (!found) return std::nullopt;
-  const int64_t delta = best - *status.epoch_ms;
+  const int64_t delta = best_epoch - now_epoch;
   return status.monotonic_ms + (delta > 0 ? delta : 0);
 }
 

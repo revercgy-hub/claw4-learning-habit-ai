@@ -145,7 +145,13 @@ class ReminderCore {
   std::vector<ReminderBatch> collectDueBatches(int64_t local_ms_of_day);
 
   // RF5.6: monotonic deadline of the next reminder that still needs to fire, or
-  // nullopt when nothing is pending. Pure Host logic; no esp_sleep.
+  // nullopt when nothing is pending.
+  //
+  // REVIEW-FIX-002 R8: the wake obeys the SAME trust and quiet policy as
+  // delivery. When the authority does not allow calendar work the wake is NOT
+  // armed (nullopt -> the caller cancels it), and a wake that would land inside
+  // the quiet period is pushed to the end of that period instead of firing
+  // immediately. Pure Host logic; no esp_sleep.
   std::optional<int64_t> nextWakeMonotonicMs(int64_t local_ms_of_day);
   // Applies that deadline to the platform wake port (schedule or cancel).
   // Returns true when a wake was scheduled.
@@ -181,6 +187,13 @@ class ReminderCore {
     std::vector<ReminderRecord> due;
   };
   Evaluation evaluate(int64_t local_ms_of_day);
+  // R8.2: quiet-period geometry, shared by evaluate() and nextWakeMonotonicMs()
+  // so delivery and wake can never disagree about what "quiet" means.
+  bool quietActive(int64_t local_ms_of_day) const;
+  // Milliseconds from `local_ms_of_day` to the END of the current quiet period
+  // (next day when we are past quiet_start; same day when we are before
+  // quiet_end). Only meaningful while quietActive() is true.
+  int64_t quietEndDeltaMs(int64_t local_ms_of_day) const;
 
   ReminderPolicy policy_;
   ReminderStore& store_;
