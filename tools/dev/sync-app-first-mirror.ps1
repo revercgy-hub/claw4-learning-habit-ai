@@ -68,6 +68,10 @@ $previous = @{}
 if (Test-Path -LiteralPath $ManifestPath) {
     try { $old = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json }
     catch { throw "Manifest is unreadable; refusing to continue: $ManifestPath" }
+    if (-not $old.mirror_root) { throw "Manifest has no mirror_root; refusing unsafe migration: $ManifestPath" }
+    $oldMirror = [IO.Path]::GetFullPath([string]$old.mirror_root).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $canonicalMirror = $mirror.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    if (-not $oldMirror.Equals($canonicalMirror, [StringComparison]::OrdinalIgnoreCase)) { throw "Manifest belongs to a different mirror; refusing to continue: $oldMirror" }
     foreach ($f in @($old.files) + @($old.stale_manifest_records)) {
         if (-not $f.repo_path -or -not $f.mirror_path) { throw "Manifest entry is incomplete; refusing to continue: $ManifestPath" }
         $mp = ([string]$f.mirror_path).Replace('\', '/')
@@ -97,16 +101,20 @@ function Get-CmakeSource([string]$mirrorPath) {
     return $Matches[1]
 }
 $cmakeText = Get-Content -Raw -LiteralPath $cmake
-$cmakeCode = [regex]::Replace($cmakeText, '(?s)/\*.*?\*/', '')
+$cmakeCode = [regex]::Replace($cmakeText, '(?s)#\[=*\[.*?\]\=*\]', '')
+$cmakeCode = [regex]::Replace($cmakeCode, '(?s)/\*.*?\*/', '')
 $cmakeCode = [regex]::Replace($cmakeCode, '(?m)#.*$', '')
 function Test-CmakeToken([string]$text, [string]$token) {
     return $text -match ('(?<![A-Za-z0-9_./-])' + [regex]::Escape($token) + '(?![A-Za-z0-9_./-])')
 }
+$registrationCode = @([regex]::Matches($cmakeCode, '(?is)(?:idf_component_register\s*\(|set\s*\(\s*SOURCES\b|list\s*\(\s*APPEND\s+SOURCES\b)') | ForEach-Object {
+    $tail = $cmakeCode.Substring($_.Index + $_.Length); $close = $tail.IndexOf(')'); if ($close -ge 0) { $tail.Substring(0, $close) }
+}) -join "`n"
 $cmakeMissing = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object {
     $source = Get-CmakeSource $_.MirrorPath
-    if ($source -and -not (Test-CmakeToken $cmakeCode $source)) { $_.MirrorPath }
+    if ($source -and -not (Test-CmakeToken $registrationCode $source)) { $_.MirrorPath }
 })
-$registeredSources = @([regex]::Matches($cmakeCode, '(?<![A-Za-z0-9_./-])((?:learning|display/screen/learning_screen)/[^\s()"]+\.(?:cpp|cc|c))(?![A-Za-z0-9_./-])') | ForEach-Object { $_.Groups[1].Value.Replace('\', '/') })
+$registeredSources = @([regex]::Matches($registrationCode, '(?<![A-Za-z0-9_./-])((?:learning|display/screen/learning_screen)/[^\s()"]+\.(?:cpp|cc|c))(?![A-Za-z0-9_./-])') | ForEach-Object { $_.Groups[1].Value.Replace('\', '/') })
 $expectedSources = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object { (Get-CmakeSource $_.MirrorPath) })
 $cmakeExtra = @($registeredSources | Where-Object { $_ -notin $expectedSources })
 

@@ -47,19 +47,33 @@ if ((Get-Content -Raw -LiteralPath $target) -ne "new-content`r`n") { throw 'chan
 if ((Get-Item -LiteralPath $target).LastWriteTimeUtc -le $oldStamp) { throw 'changed content did not refresh mtime' }
 
 $unknown = Join-Path $mirror 'main/learning/learning_domain/user-note.txt'
+$cmakePath = Join-Path $mirror 'main/CMakeLists.txt'
 Set-Content -LiteralPath $unknown -Value 'keep me'
 Remove-Item -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp')
 & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
 if ($LASTEXITCODE -eq 0) { throw 'stale CMake registration was not detected' }
 if (-not (Test-Path -LiteralPath $target)) { throw 'stale controlled file was unexpectedly deleted' }
 if (-not (Test-Path -LiteralPath $unknown)) { throw 'unknown file was removed' }
+$cmake = @'
+idf_component_register(SRCS "learning/learning_domain/reducer.cpp"
+        "learning/sync/wire_codec.cpp"
+        "learning/metalio_claw4/device/app/runtime.cpp"
+        "learning/time/time.cpp" "learning/reminder/reminder.cpp")
+'@
+Set-Content -LiteralPath $cmakePath -Value $cmake
+Set-Content -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp') -Value 'restored'
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
+if ($LASTEXITCODE -ne 0) { throw 'stale manifest did not recover after source/CMake restoration' }
 $sentinel = Join-Path $root 'sentinel.txt'; Set-Content -LiteralPath $sentinel -Value 'outside'
 $badManifest = Join-Path $root 'bad-manifest.json'
 Set-Content -LiteralPath $badManifest -Value '{"files":[{"repo_path":"firmware/main/sync/wire_codec.cpp","mirror_path":"../sentinel.txt"}]}'
 & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $badManifest
 if ($LASTEXITCODE -eq 0 -or (Get-Content -Raw -LiteralPath $sentinel) -ne "outside`r`n") { throw 'unsafe manifest path was not blocked' }
+$otherMirror = Join-Path $root 'other-mirror'; New-Item -ItemType Directory -Force -Path (Join-Path $otherMirror 'main') | Out-Null
+Copy-Item -LiteralPath (Join-Path $mirror 'main/CMakeLists.txt') -Destination (Join-Path $otherMirror 'main/CMakeLists.txt')
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $otherMirror -Mode Check -ManifestPath $manifest
+if ($LASTEXITCODE -eq 0) { throw 'manifest for a different mirror was accepted' }
 
-$cmakePath = Join-Path $mirror 'main/CMakeLists.txt'
 Set-Content -LiteralPath $cmakePath -Value @'
 idf_component_register(SRCS "learning/sync/wire_codec.cpp" "learning/sync/wire_codec.cpp.bak")
 '@
