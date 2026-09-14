@@ -27,7 +27,7 @@ static int failures = 0;
 #define CHECK(x) do { if (!(x)) { std::printf("  assert %s line %d\n", #x, __LINE__); return false; } } while (0)
 
 static TimeAuthority make(FakeClock& c) {
-  return TimeAuthority(c, "boot-a", TimeAuthorityConfig{1000, 3000, 3000});
+  return TimeAuthority(c, "boot-a", TimeAuthorityConfig{1000, 3000, 3000, 100});
 }
 
 static bool unsynced_has_no_epoch() {
@@ -45,14 +45,14 @@ static bool initial_sync_and_age() {
   CHECK(s.quality == TimeQuality::Synced && s.epoch_ms == 1'700'000'000'500);
   CHECK(s.age_ms == 500 && s.last_sync_epoch_ms == 1'700'000'000'000);
   CHECK(s.last_sync_monotonic_ms == 100 && s.last_sync_source == "rtc");
-  CHECK(s.uncertainty_ms == 520 && s.calendar_allowed); return true;
+  CHECK(s.uncertainty_ms == 21 && s.calendar_allowed); return true;
 }
 
 static bool holdover_then_stale_and_calendar_budget() {
   FakeClock c; auto t = make(c); CHECK(t.acceptSync(1000, "net", 100).outcome == SyncOutcome::Accepted);
   c.mono = 500; auto s = t.status(); CHECK(s.quality == TimeQuality::Synced);
-  c.mono = 2200; s = t.status(); CHECK(s.quality == TimeQuality::Holdover);
-  CHECK(s.calendar_allowed); // uncertainty 2300 remains within the configured error budget
+  c.mono = 2200; s = t.status(); CHECK(s.quality == TimeQuality::Stale);
+  CHECK(s.holdover_window && s.calendar_allowed);
   c.mono = 4001; s = t.status(); CHECK(s.quality == TimeQuality::Stale); CHECK(!s.calendar_allowed);
   return true;
 }
@@ -77,6 +77,37 @@ static bool invalid_sync_inputs() {
   CHECK(t.status().quality == TimeQuality::Unsynced); return true;
 }
 
+static bool rollback_before_sync_recovers_with_anchor() {
+  FakeClock c; auto t = make(c); c.mono = 500; (void)t.status();
+  c.mono = 400; auto bad = t.status(); CHECK(bad.monotonic_regressed && !bad.epoch_valid);
+  c.mono = 600; auto r = t.acceptSync(9000, "trusted", 1);
+  CHECK(r.outcome == SyncOutcome::Accepted); CHECK(t.status().epoch_valid); return true;
+}
+
+static bool unknown_drift_disables_calendar() {
+  FakeClock c; TimeAuthority t(c, "boot", TimeAuthorityConfig{1000, 3000, 60000, std::nullopt});
+  CHECK(t.acceptSync(1000, "trusted", 10).outcome == SyncOutcome::Accepted);
+  c.mono = 2000; auto s = t.status();
+  CHECK(s.quality == TimeQuality::Stale && !s.uncertainty_ms.has_value());
+  CHECK(s.holdover_window && !s.calendar_allowed); return true;
+}
+
+static bool four_hours_at_100ppm_rounds_up() {
+  FakeClock c; TimeAuthority t(c, "boot", TimeAuthorityConfig{1000, 20000000, 5000, 100});
+  CHECK(t.acceptSync(1000, "trusted", 17).outcome == SyncOutcome::Accepted);
+  c.mono = 4 * 60 * 60 * 1000; auto s = t.status();
+  CHECK(s.uncertainty_ms == 1457); // 17 ms + ceil(1,440 ms)
+  CHECK(s.calendar_allowed); return true;
+}
+
+static bool empty_identity_rejected_without_state_change() {
+  FakeClock c; TimeAuthority t(c, "", TimeAuthorityConfig{});
+  CHECK(t.acceptSync(1000, "trusted", 0).outcome == SyncOutcome::RejectedInvalidInput);
+  TimeAuthority good(c, "boot");
+  CHECK(good.acceptSync(1000, "", 0).outcome == SyncOutcome::RejectedInvalidInput);
+  CHECK(!good.status().epoch_valid); return true;
+}
+
 static bool restart_boot_isolation() {
   FakeClock c; auto old = make(c); c.mono = 9000; CHECK(old.acceptSync(5000, "a", 0).outcome == SyncOutcome::Accepted);
   c.mono = 0; TimeAuthority fresh(c, "boot-b"); auto s = fresh.status();
@@ -84,15 +115,18 @@ static bool restart_boot_isolation() {
 }
 
 static bool overflow_is_safe() {
-  FakeClock c; auto t = make(c); c.mono = std::numeric_limits<int64_t>::max();
-  CHECK(t.acceptSync(std::numeric_limits<int64_t>::max(), "a", 0).outcome == SyncOutcome::Accepted);
-  auto s = t.status(); CHECK(s.epoch_ms == std::numeric_limits<int64_t>::max()); return true;
+  FakeClock c; auto t = make(c);
+  CHECK(t.acceptSync(std::numeric_limits<int64_t>::max() - 10, "a", 0).outcome == SyncOutcome::Accepted);
+  c.mono = 20; auto s = t.status(); CHECK(!s.epoch_valid && !s.calendar_allowed); return true;
 }
 
 int main() {
   CASE(unsynced_has_no_epoch); CASE(initial_sync_and_age);
   CASE(holdover_then_stale_and_calendar_budget); CASE(reconcile_forward_and_backward);
   CASE(monotonic_rollback_rejected); CASE(invalid_sync_inputs);
+  CASE(rollback_before_sync_recovers_with_anchor);
+  CASE(unknown_drift_disables_calendar); CASE(empty_identity_rejected_without_state_change);
+  CASE(four_hours_at_100ppm_rounds_up);
   CASE(restart_boot_isolation); CASE(overflow_is_safe);
   std::printf("TimeAuthority: %d cases, %d failures\n", cases, failures);
   return failures == 0 ? 0 : 1;

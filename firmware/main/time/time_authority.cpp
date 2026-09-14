@@ -12,6 +12,8 @@ TimeAuthority::TimeAuthority(ports::ClockPort& clock, std::string boot_id,
   if (config_.max_holdover_ms < config_.stale_after_ms)
     config_.max_holdover_ms = config_.stale_after_ms;
   if (config_.max_calendar_error_ms < 0) config_.max_calendar_error_ms = 0;
+  if (config_.drift_upper_bound_ppm && *config_.drift_upper_bound_ppm < 0)
+    config_.drift_upper_bound_ppm.reset();
 }
 
 int64_t TimeAuthority::saturatingAdd(const int64_t a, const int64_t b) {
@@ -29,6 +31,13 @@ int64_t TimeAuthority::saturatingSub(const int64_t a, const int64_t b) {
   return saturatingAdd(a, -b);
 }
 
+bool TimeAuthority::checkedAdd(const int64_t a, const int64_t b, int64_t& out) {
+  if ((b > 0 && a > std::numeric_limits<int64_t>::max() - b) ||
+      (b < 0 && a < std::numeric_limits<int64_t>::min() - b)) return false;
+  out = a + b;
+  return true;
+}
+
 TimeStatus TimeAuthority::status() { return readStatus(); }
 
 TimeStatus TimeAuthority::readStatus() {
@@ -36,10 +45,11 @@ TimeStatus TimeAuthority::readStatus() {
   out.boot_id = boot_id_;
   const int64_t mono = clock_.monotonicMs();
   out.monotonic_ms = mono;
-  if (mono < 0 || (have_sync_ && mono < last_mono_ms_)) {
+  if (mono < 0 || (have_mono_ && mono < last_mono_ms_)) {
     monotonic_regressed_ = true;
   } else {
     last_mono_ms_ = mono;
+    have_mono_ = true;
   }
   out.monotonic_regressed = monotonic_regressed_;
   if (!have_sync_ || monotonic_regressed_ || mono < 0) return out;
@@ -49,21 +59,33 @@ TimeStatus TimeAuthority::readStatus() {
   out.last_sync_epoch_ms = sync_epoch_ms_;
   out.last_sync_monotonic_ms = sync_mono_ms_;
   out.last_sync_source = sync_source_;
-  out.uncertainty_ms = saturatingAdd(uncertainty_ms_, age);
-  out.epoch_valid = true;
-  out.epoch_ms = saturatingAdd(sync_epoch_ms_, age);
+  if (config_.drift_upper_bound_ppm) {
+    const auto ppm = *config_.drift_upper_bound_ppm;
+#if defined(__SIZEOF_INT128__)
+    const __int128 wide = static_cast<__int128>(age) * ppm;
+    const __int128 rounded = (wide + 999999) / 1000000;
+    const int64_t drift = rounded > std::numeric_limits<int64_t>::max()
+                              ? std::numeric_limits<int64_t>::max()
+                              : static_cast<int64_t>(rounded);
+#else
+    const int64_t drift = saturatingAdd(age / 1000000 * ppm,
+                                        (age % 1000000 && ppm) ? ppm : 0);
+#endif
+    out.uncertainty_ms = saturatingAdd(uncertainty_ms_, drift);
+  }
+  int64_t epoch = 0;
+  out.epoch_valid = checkedAdd(sync_epoch_ms_, age, epoch);
+  if (out.epoch_valid) out.epoch_ms = epoch;
   if (age <= config_.stale_after_ms) {
     out.quality = TimeQuality::Synced;
-  } else if (age <= config_.max_holdover_ms) {
-    out.quality = TimeQuality::Holdover;
   } else {
     out.quality = TimeQuality::Stale;
   }
-  // Calendar use is a separate decision: holdover is allowed only while the
-  // configured error budget remains bounded.
-  out.calendar_allowed =
-      out.quality != TimeQuality::Stale &&
-      out.uncertainty_ms <= config_.max_calendar_error_ms;
+  out.holdover_window = out.quality != TimeQuality::Unsynced &&
+                        age <= config_.max_holdover_ms;
+  out.calendar_allowed = out.epoch_valid && out.holdover_window &&
+      out.uncertainty_ms.has_value() &&
+      *out.uncertainty_ms <= config_.max_calendar_error_ms;
   return out;
 }
 
@@ -71,14 +93,15 @@ SyncResult TimeAuthority::acceptSync(const int64_t epoch_ms, std::string source,
                                      const int64_t uncertainty_ms) {
   SyncResult result;
   result.source = source;
-  if (epoch_ms < 0 || uncertainty_ms < 0) return result;
+  if (epoch_ms < 0 || uncertainty_ms < 0 || boot_id_.empty() || source.empty()) return result;
   const int64_t mono = clock_.monotonicMs();
-  if (mono < 0 || (have_sync_ && mono < last_mono_ms_)) {
+  if (mono < 0 || (have_mono_ && mono < last_mono_ms_)) {
     monotonic_regressed_ = true;
     result.outcome = SyncOutcome::RejectedMonotonicRollback;
     return result;
   }
   last_mono_ms_ = mono;
+  have_mono_ = true;
   const int64_t predicted = have_sync_ ? saturatingAdd(sync_epoch_ms_,
                                                        saturatingSub(mono, sync_mono_ms_))
                                        : epoch_ms;
