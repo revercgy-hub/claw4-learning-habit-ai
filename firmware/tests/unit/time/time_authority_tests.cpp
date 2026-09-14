@@ -130,6 +130,19 @@ static bool overflow_is_safe() {
   c.mono = 20; auto s = t.status(); CHECK(!s.epoch_valid && !s.calendar_allowed); return true;
 }
 
+static bool exact_policy_boundaries_and_invalid_sync_preserve_anchor() {
+  FakeClock c; TimeAuthority t(c, "boot", TimeAuthorityConfig{1000, 2000, 2, 1000});
+  CHECK(t.acceptSync(86'399'500, "trusted", 0).outcome == SyncOutcome::Accepted);
+  c.mono = 1000; auto s = t.status();
+  CHECK(s.quality == TimeQuality::Synced && s.epoch_ms == 86'400'500);
+  CHECK(t.acceptSync(1, "", 0).outcome == SyncOutcome::RejectedInvalidInput);
+  CHECK(t.status().last_sync_source == "trusted");
+  c.mono = 2000; s = t.status();
+  CHECK(s.quality == TimeQuality::Stale && s.calendar_allowed && s.uncertainty_ms == 2);
+  c.mono = 2001; CHECK(!t.status().calendar_allowed);
+  return true;
+}
+
 int main() {
   CASE(unsynced_has_no_epoch); CASE(initial_sync_and_age);
   CASE(holdover_then_stale_and_calendar_budget); CASE(reconcile_forward_and_backward);
@@ -139,6 +152,7 @@ int main() {
   CASE(four_hours_at_100ppm_rounds_up);
   CASE(drift_extremes_saturate_without_bad_rounding);
   CASE(restart_boot_isolation); CASE(overflow_is_safe);
+  CASE(exact_policy_boundaries_and_invalid_sync_preserve_anchor);
   std::printf("TimeAuthority: %d cases, %d failures\n", cases, failures);
   return failures == 0 ? 0 : 1;
 }
