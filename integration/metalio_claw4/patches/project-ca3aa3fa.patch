@@ -1,0 +1,152 @@
+--- a/main/display/screen/home_screen/home_screen.cc
++++ b/main/display/screen/home_screen/home_screen.cc
+@@ -51,6 +51,7 @@
+ #include "sd_card_screen/sd_card_screen.h"
+ #include "theme_screen/theme_screen.h"
+ #include "info_screen/info_screen.h"
++#include "learning_screen/learning_screen.h"
+ #include "theme_manager.h"
+ #include "wifi_required_dialog.h"
+ 
+@@ -801,6 +802,31 @@
+         ESP_LOGI(TAG_HOME, "unload: info_screen");
+     }
+     InfoScreen::LifecycleCallback(event);
++}
++
++
++
++void LaunchLearning(screen_lifecycle_cb_t lifecycle_cb) {
++    lv_obj_t* old_scr = lv_screen_active();
++    lv_obj_t* app = LearningScreen::Create();
++    if (app == nullptr) {
++        ESP_LOGE(TAG_HOME, "LearningScreen::Create() failed");
++        return;
++    }
++    screen_attach_lifecycle(app, lifecycle_cb);
++    lv_screen_load(app);
++    if (old_scr != nullptr && old_scr != app) {
++        lv_obj_delete_async(old_scr);
++    }
++}
++
++void learning_lifecycle_cb(screen_lifecycle_event_t event) {
++    if (event == SCREEN_LIFECYCLE_LOAD) {
++        ESP_LOGI(TAG_HOME, "load: learning_screen");
++    } else {
++        ESP_LOGI(TAG_HOME, "unload: learning_screen");
++    }
++    LearningScreen::LifecycleCallback(event);
+ }
+ 
+ // 主屏 app 表。icon_suffix 对应 ic_app_home_theme{N}_{suffix}.spng 的
+@@ -831,6 +857,7 @@
+     {"theme",          "主题",     LaunchTheme,         theme_lifecycle_cb,         false},
+     {"test",           "测试",     LaunchTest,          test_lifecycle_cb,          false},
+     {"settings",       "设置",     LaunchSettings,      settings_lifecycle_cb,      false},
++    {"learning",       "学习",     LaunchLearning,      learning_lifecycle_cb,      false},
+     {"radio",          "电台",     LaunchRadio,         radio_lifecycle_cb,         true},
+     // 录音本地可用；仅「录音转写」按钮需要联网（见 recording_screen）。
+     {"recording",      "录音",     LaunchRecording,     recording_lifecycle_cb,     false},
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -30,6 +30,26 @@
+             "display/screen/home_screen/home_screen.cc"
+             "display/screen/theme_screen/theme_screen.cc"
+             "display/screen/info_screen/info_screen.cc"
++            "display/screen/learning_screen/learning_screen.cc"
++            "learning/learning_domain/reducer.cpp"
++            "learning/sync/outbox_core.cpp"
++    "learning/sync/wire_codec.cpp"
++    "learning/sync/backend_client.cpp"
++    "learning/sync/learning_backend_session.cpp"
++    "learning/metalio_claw4/device/ports/nvs_backend_provisioning.cpp"
++    "learning/metalio_claw4/device/ports/metalio_hmac_signer.cpp"
++    "learning/metalio_claw4/device/ports/metalio_voice_session.cpp"
++            "learning/sync/scheduled_http_transport.cpp"
++            "learning/application/coordinator.cpp"
++            "learning/interaction/dispatcher.cpp"
++            "learning/interaction/stt_mapper.cpp"
++            "learning/mcp/learning_mcp_host.cpp"
++            "learning/ui/presenters.cpp"
++            "learning/metalio_claw4/device/core/outbox_codec.cpp"
++            "learning/metalio_claw4/device/ports/learning_clock.cpp"
++            "learning/metalio_claw4/device/ports/nvs_outbox_storage.cpp"
++            "learning/metalio_claw4/device/ports/metalio_http_transport.cpp"
++            "learning/metalio_claw4/device/app/learning_runtime.cpp"
+             "display/screen/standby_screen/standby_screen.cc"
+             "display/screen/game_2048_screen/game_2048_screen.cc"
+             "display/screen/calculator_screen/calculator_screen.cc"
+@@ -124,6 +144,7 @@
+ # Add board common files
+ file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
+ list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
++list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/learning)
+ list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+ 
+ idf_build_get_property(build_components BUILD_COMPONENTS)
+@@ -528,4 +549,4 @@
+     MMAP_SPLIT_HEIGHT 16
+ ) 
+ 
+-spiffs_create_partition_image(factory_test ./factory-test-assets FLASH_IN_PROJECT DEPENDS)
+\ No newline at end of file
++spiffs_create_partition_image(factory_test ./factory-test-assets FLASH_IN_PROJECT DEPENDS)
+--- a/main/display/lv_adapter_display.cc
++++ b/main/display/lv_adapter_display.cc
+@@ -17,6 +17,7 @@
+ #include "screen/chat_screen/chat_screen.h"
+ #include "screen/digital_people_screen/digital_people_screen.h"
+ #include "screen/home_screen/home_screen.h"
++#include "screen/learning_screen/learning_screen.h"
+ 
+ #include "application.h"
+ 
+@@ -223,9 +224,21 @@
+     // 路由策略：
+     //   1) 聊天屏在前台 -> 历史滚动气泡（双侧）。
+     //   2) 数字人屏在前台 -> user 走底部气泡，bot 走 gif 左上方气泡。
+-    //   3) 其它屏 -> 直接丢弃，避免在后台无界堆积。
+-    const bool chat_active = ChatScreen::IsActive();
+-    const bool dp_active   = DigitalPeopleScreen::IsActive();
++    //   3) 学习屏在前台 -> user 文本**入队**交给学习域做确定性语音命令
++    //      （L4 / P25 Voice STT）；bot 文本丢弃 —— 学习页不做自由对话。
++    //      ⚠️ 本函数运行在**协议任务**上下文，而 LVGL 非线程安全：此处绝不能
++    //      直接操作 LVGL。只调 QueueVoicePhrase()（仅 std::mutex + deque），
++    //      由学习屏的 LVGL 定时器在 LVGL 任务上下文取出执行。
++    //   4) 其它屏 -> 直接丢弃，避免在后台无界堆积。
++    const bool chat_active  = ChatScreen::IsActive();
++    const bool dp_active    = DigitalPeopleScreen::IsActive();
++    const bool learn_active = LearningScreen::IsActive();
++    if (learn_active) {
++        if (is_user) {
++            LearningScreen::QueueVoicePhrase(content);
++        }
++        return;
++    }
+     if (!chat_active && !dp_active) {
+         return;
+     }
+--- a/main/audio/audio_service.cc
++++ b/main/audio/audio_service.cc
+@@ -239,10 +239,17 @@
+             if (samples > 0) {
+                 std::vector<int16_t> data;
+                 if (ReadAudioData(data, 16000, samples)) {
+-                    std::lock_guard<std::mutex> lock(wake_word_mutex_);
+-                    if (wake_word_initialized_ && wake_word_) {
+-                        wake_word_->Feed(data);
++                    {
++                        std::lock_guard<std::mutex> lock(wake_word_mutex_);
++                        if (wake_word_initialized_ && wake_word_) {
++                            wake_word_->Feed(data);
++                        }
+                     }
++                    // 让步点：AFE ringbuffer 满时 Feed() 会立即返回，若此处直接
++                    // continue，本任务将退化为忙循环并饿死同核 IDLE0 —— 实测触发
++                    // task_wdt（CPU 0: audio_input）导致全系统卡死。
++                    // 锁已在内层作用域释放，此处 sleep 不会阻塞 wake_word_ 访问。
++                    vTaskDelay(pdMS_TO_TICKS(1));
+                     continue;
+                 }
+             }

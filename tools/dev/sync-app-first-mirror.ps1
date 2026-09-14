@@ -62,8 +62,7 @@ foreach ($tree in $trees) {
     Add-Tree $entries $tree.source $tree.target $tree.optional
 }
 
-# Only files recorded by a previous manifest are eligible for removal. This
-# prevents an unrelated file placed in a mapped directory from being deleted.
+# Previous controlled records detect stale mirror files; nothing is deleted.
 $previous = @{}
 if (Test-Path -LiteralPath $ManifestPath) {
     try { $old = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json }
@@ -72,7 +71,11 @@ if (Test-Path -LiteralPath $ManifestPath) {
     $oldMirror = [IO.Path]::GetFullPath([string]$old.mirror_root).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
     $canonicalMirror = $mirror.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
     if (-not $oldMirror.Equals($canonicalMirror, [StringComparison]::OrdinalIgnoreCase)) { throw "Manifest belongs to a different mirror; refusing to continue: $oldMirror" }
-    foreach ($f in @($old.files) + @($old.stale_manifest_records)) {
+    $oldRecords = @($old.files)
+    if ($old.PSObject.Properties.Name -contains 'stale_manifest_records') {
+        $oldRecords += @($old.stale_manifest_records)
+    }
+    foreach ($f in $oldRecords) {
         if ($null -eq $f) { continue }
         if (-not $f.repo_path -or -not $f.mirror_path) { throw "Manifest entry is incomplete; refusing to continue: $ManifestPath" }
         $mp = ([string]$f.mirror_path).Replace('\', '/')
@@ -108,12 +111,18 @@ $cmakeCode = [regex]::Replace($cmakeCode, '(?m)#.*$', '')
 function Test-CmakeToken([string]$text, [string]$token) {
     return $text -match ('(?<![A-Za-z0-9_./-])' + [regex]::Escape($token) + '(?![A-Za-z0-9_./-])')
 }
+$srBlocks = @([regex]::Matches($cmakeCode, '(?is)idf_component_register\s*\(([^)]*)\)') | ForEach-Object {
+    $sr = [regex]::Match($_.Groups[1].Value, '(?is)\bSRCS\b(.*?)(?=\b(?:INCLUDE_DIRS|PRIV_INCLUDE_DIRS|REQUIRES|PRIV_REQUIRES|SRC_DIRS|EXCLUDE_SRCS|WHOLE_ARCHIVE|EMBED_FILES|EMBED_TXTFILES)\b|$)')
+    if ($sr.Success) { $sr.Groups[1].Value }
+})
+if ($srBlocks.Count -ne 1) { throw 'Expected one statically parseable idf_component_register SRCS declaration' }
+$usesSources = $srBlocks[0].Contains('${SOURCES}')
 $registrationCode = @([regex]::Matches($cmakeCode, '(?is)(?:idf_component_register\s*\(|set\s*\(\s*SOURCES\b|list\s*\(\s*APPEND\s+SOURCES\b)') | ForEach-Object {
     $tail = $cmakeCode.Substring($_.Index + $_.Length); $close = $tail.IndexOf(')'); if ($close -ge 0) {
         $body = $tail.Substring(0, $close)
         if ($_.Value -match '(?i)idf_component_register') {
             $sr = [regex]::Match($body, '(?is)\bSRCS\b(.*?)(?=\b(?:INCLUDE_DIRS|PRIV_INCLUDE_DIRS|REQUIRES|PRIV_REQUIRES|SRC_DIRS|EXCLUDE_SRCS|WHOLE_ARCHIVE|EMBED_FILES|EMBED_TXTFILES)\b|$)'); if ($sr.Success) { $sr.Groups[1].Value } else { throw "idf_component_register has no statically parseable SRCS argument" }
-        } else { $body }
+        } elseif ($usesSources) { $body }
     }
 }) -join "`n"
 $cmakeMissing = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object {

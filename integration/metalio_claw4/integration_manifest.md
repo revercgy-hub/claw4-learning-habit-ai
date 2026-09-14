@@ -1,5 +1,11 @@
 # Metalio 集成改动登记表（integration_manifest）
 
+## 2026-09-14 精确补丁取证补充
+
+历史 #1–#6 及 AF3/APP2 的现存四文件集成变化，已从固定 upstream `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950` 与只读 `E:/c` 比较保存为 [project-ca3aa3fa.patch](patches/project-ca3aa3fa.patch)，对应 [SHA清单](patches/project-ca3aa3fa.json)。主agent已在临时fixture验证应用、四文件hash及反向恢复。它是既有改动的取证，不代表新增部署/音频变更授权或本批IDF构建通过。
+
+历史表内整文件checkout回滚命令仅保留为原始记录；`E:/c` 无可用Git元数据，本轮不得执行。后续候选使用固定upstream和精确补丁重建，回滚先核对同一候选，再在隔离工作树使用补丁反向校验；不覆盖他人完整文件。现存CMake尚未登记新TimeAuthority等源码，A05必须补齐注册并重新构建。验证脚本：`tools/dev/tests/verify-metalio-patch.py`。
+
 > 政策：`docs/METALIO_ADAPTER_BRIDGE_PLAN_P17.md` §2B（底层少动，上层深做）。
 > 任何 **Metalio 官方文件**改动必须在触碰前登记本表并满足：
 > - 仅限允许范围（Home App Registry / Learning Screen registration / CMake component·source registration / 必要 include·build glue）；

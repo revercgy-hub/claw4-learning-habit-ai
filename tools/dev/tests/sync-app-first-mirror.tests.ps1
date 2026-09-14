@@ -86,4 +86,39 @@ idf_component_register(SRCS "learning/sync/wire_codec.cpp" "learning/sync/wire_c
 if ($LASTEXITCODE -eq 0) { throw 'missing CMake registration was not detected' }
 & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
 if ($LASTEXITCODE -eq 0) { throw 'stale/missing CMake failure did not persist on repeat' }
+$validCmake = @'
+idf_component_register(SRCS "learning/sync/wire_codec.cpp"
+ "learning/metalio_claw4/device/app/runtime.cpp" "learning/time/time.cpp"
+ "learning/reminder/reminder.cpp")
+'@
+Set-Content -LiteralPath $cmakePath -Value $validCmake
+# A real older manifest has no stale_manifest_records property.
+$legacy = Get-Content -Raw -LiteralPath $manifest | ConvertFrom-Json
+$legacy.PSObject.Properties.Remove('stale_manifest_records')
+$legacy | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifest
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
+if ($LASTEXITCODE -ne 0) { throw 'old manifest without optional stale property rejected' }
+foreach ($kind in @('comment', 'message', 'prefix', 'include', 'unused-variable')) {
+    $missing = $validCmake.Replace('"learning/time/time.cpp"', '')
+    switch ($kind) {
+        'comment' { $missing += "`n#[=[ learning/time/time.cpp ]=]" }
+        'message' { $missing += '`nmessage("learning/time/time.cpp")' }
+        'prefix' { $missing = $missing.Replace('SRCS', 'SRCS "learning/time/time.cpp.bak"') }
+        'include' { $missing = $missing.Replace(')', ' PRIV_INCLUDE_DIRS "learning/time/time.cpp")') }
+        'unused-variable' { $missing += '`nset(SOURCES "learning/time/time.cpp")' }
+    }
+    Set-Content -LiteralPath $cmakePath -Value $missing
+    & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
+    if ($LASTEXITCODE -eq 0) { throw "CMake false registration accepted: $kind" }
+}
+Set-Content -LiteralPath $cmakePath -Value $validCmake
+# Exercise the path rejection itself, with a valid mirror binding.
+foreach ($badPath in @('../sentinel.txt', $sentinel)) {
+    @{ mirror_root = $mirror; files = @(@{repo_path='firmware/main/sync/wire_codec.cpp'; mirror_path=$badPath}) } |
+        ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $badManifest
+    & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $badManifest
+    if ($LASTEXITCODE -eq 0 -or (Get-Content -Raw -LiteralPath $sentinel).Trim() -ne 'outside') {
+        throw 'unsafe path with valid mirror root was not rejected'
+    }
+}
 Write-Output 'sync-app-first-mirror fixture tests: PASS'

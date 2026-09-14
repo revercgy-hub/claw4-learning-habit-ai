@@ -1,0 +1,30 @@
+{
+  "upstream_commit": "ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950",
+  "patch_sha256": "58bfbe5266a9fa00980be5e5078b570b9915165e199981e6dd54dcb21aa81937",
+  "files": [
+    {
+      "path": "main/display/screen/home_screen/home_screen.cc",
+      "upstream_sha256": "de052ffdeaf656e9bf4c4a75a35dcc31391a209591d86c2dc2ce2bb87ec18a62",
+      "mirror_raw_sha256": "1bb0eef2e03467f2dcf50c648c65193dc5a167913d4658de723680090eba30c8",
+      "patched_lf_sha256": "0c99f5ed52d8ff394707b00a5bd7b2987f09dbcc678a0db1abfccacc7fa36f8d"
+    },
+    {
+      "path": "main/CMakeLists.txt",
+      "upstream_sha256": "877740137ac27c2c337d1c3baa9e0b60f569827a271776492cd38ee36e4b7a74",
+      "mirror_raw_sha256": "9f7098e02694397984e688a8416042c26efdeb9357cbbbba1ecf340d58d35a92",
+      "patched_lf_sha256": "9f7098e02694397984e688a8416042c26efdeb9357cbbbba1ecf340d58d35a92"
+    },
+    {
+      "path": "main/display/lv_adapter_display.cc",
+      "upstream_sha256": "6afe1dfc2a294a6fd8341e25f605bc5c93da6cea6a2563d39760ec0f884cf000",
+      "mirror_raw_sha256": "c4aab117ee03f75183a50a9bfbd33843ce7d26db74aa46dcda16f3431408521b",
+      "patched_lf_sha256": "e3a66e7613a1f9b3a1a9ac669c5bbe491a801a3968f9aeb449622b38f0f5b26b"
+    },
+    {
+      "path": "main/audio/audio_service.cc",
+      "upstream_sha256": "5e96816fdda11b5d9657fe46ffe07f1623bc0da5e472e6fd205067428bef5ad7",
+      "mirror_raw_sha256": "3bbea83d4477ad783ae4f064101a6a39d91987d7906ecc34f93be07141696bed",
+      "patched_lf_sha256": "f406e12a2fde1209e6e103727d2d0e107b0c41a2ffa8d22346a69d6c66cc58a2"
+    }
+  ]
+}

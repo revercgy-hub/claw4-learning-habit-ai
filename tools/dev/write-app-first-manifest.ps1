@@ -8,10 +8,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 if (-not $RepoRoot) { $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
+$RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 $outDir = if ([IO.Path]::IsPathRooted($OutputDir)) { $OutputDir } else { Join-Path $RepoRoot $OutputDir }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $git = git -C $RepoRoot -c safe.directory=$RepoRoot rev-parse HEAD
 if ($LASTEXITCODE -ne 0 -or -not $git) { throw "git provenance unavailable; refusing to write manifest" }
+$dirty = git -C $RepoRoot -c safe.directory=$RepoRoot status --porcelain
+if ($LASTEXITCODE -ne 0) { throw "git working tree status unavailable; refusing to write manifest" }
 $paths = @(
     "firmware/main/sync/wire_codec.h",
     "firmware/main/sync/wire_codec.cpp",
@@ -27,12 +30,15 @@ $paths = @(
 $roots = @("firmware/main/learning_domain", "firmware/main/sync", "firmware/main/application", "firmware/main/interaction", "firmware/main/mcp", "firmware/main/ui", "firmware/main/ports", "firmware/main/time", "firmware/main/reminder", "integration/metalio_claw4/host_glue", "integration/metalio_claw4/device/core", "integration/metalio_claw4/device/ports", "integration/metalio_claw4/device/app", "integration/metalio_claw4/device/learning_screen")
 foreach ($root in $roots) {
     $full = Join-Path $RepoRoot $root
+    if (-not (Test-Path -LiteralPath $full) -and $root -notin @('firmware/main/time', 'firmware/main/reminder')) {
+        throw "required manifest source tree missing: $root"
+    }
     if (Test-Path -LiteralPath $full) { $paths += Get-ChildItem -LiteralPath $full -File -Recurse | ForEach-Object { [IO.Path]::GetRelativePath($RepoRoot, $_.FullName).Replace('\', '/') } }
 }
-$patchRoot = Join-Path $PSScriptRoot 'patches'
-if (Test-Path -LiteralPath $patchRoot) { $paths += Get-ChildItem -LiteralPath $patchRoot -File -Filter '*.patch' | ForEach-Object { [IO.Path]::GetRelativePath($RepoRoot, $_.FullName).Replace('\', '/') } }
+$patchRoot = Join-Path $RepoRoot 'integration/metalio_claw4/patches'
+if (Test-Path -LiteralPath $patchRoot) { $paths += Get-ChildItem -LiteralPath $patchRoot -File | ForEach-Object { [IO.Path]::GetRelativePath($RepoRoot, $_.FullName).Replace('\', '/') } }
 $files = @()
-foreach ($relative in $paths) {
+foreach ($relative in ($paths | Sort-Object -Unique)) {
     $full = Join-Path $RepoRoot $relative
     if (-not (Test-Path -LiteralPath $full)) { throw "manifest input missing: $relative" }
     $hash = Get-FileHash -LiteralPath $full -Algorithm SHA256
@@ -49,9 +55,10 @@ $manifest = [ordered]@{
     checkpoint = "AF3b"
     git_commit = $git.Trim()
     generated_at = (Get-Date).ToString("o")
-    git_dirty = [bool](git -C $RepoRoot -c safe.directory=$RepoRoot status --porcelain)
+    git_dirty = [bool]$dirty
     source_files = $files
     build_binary = $binary
+    build_binary_provenance = 'Provided file hash only; source-to-build correspondence requires A05 build evidence.'
     forbidden_operations = @("flash", "erase_flash", "partition_change", "bootloader_change", "ota_1_change", "eFuse")
 }
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $outDir "app-first-manifest.json") -Encoding utf8
