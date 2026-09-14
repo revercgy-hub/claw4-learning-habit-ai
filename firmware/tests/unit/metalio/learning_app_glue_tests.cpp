@@ -293,12 +293,58 @@ static bool run_case_app_auth_pause_passthrough() {
   return true;
 }
 
+static bool run_case_formal_completion_preserves_outbox_across_restart() {
+  Env e;
+  e.addTask("formal", "正式任务", 15, TaskStatus::Ready);
+  CHECK(e.app.mcpHost().invoke(mcp(LearningMcpHost::kToolStartTask, "formal")).ok);
+  CHECK(e.storage.removeAcked(1) == CommitStatus::Committed);
+  CHECK(e.app.pendingCount() == 1);
+  const auto pending_before_complete = e.app.pendingCount();
+  CommandPayload complete_payload;
+  complete_payload.kind = CommandKind::CompleteTask;
+  complete_payload.task_id = TaskId{"formal"};
+  const auto complete = e.app.dispatcher().dispatch(
+      CommandSource::Touch, complete_payload);
+  CHECK(complete.status == DispatchStatus::Emitted);
+  CHECK(e.app.state().tasks[0].status == TaskStatus::Completed);
+  CHECK(e.app.pendingCount() >= pending_before_complete);
+  CHECK(e.disk->state.last_acked_sequence == 1);
+  const auto next_sequence = e.disk->state.next_sequence;
+
+  FakeClockPort reboot_clock;
+  reboot_clock.mono = 2'000'000;
+  LearningApp rebooted{e.storage, reboot_clock};
+  CHECK(rebooted.state().tasks[0].status == TaskStatus::Completed);
+  CHECK(rebooted.pendingCount() >= pending_before_complete);
+  CHECK(rebooted.coordinator().lastAcked() == 1);
+  CHECK(e.disk->state.next_sequence == next_sequence);
+  return true;
+}
+
+static bool run_case_formal_transition_storage_failure_is_atomic() {
+  Env e;
+  e.addTask("formal-fail", "保存失败任务", 10, TaskStatus::Ready);
+  e.disk->fail_next_commit = true;
+  CommandPayload start;
+  start.kind = CommandKind::StartTask;
+  start.task_id = TaskId{"formal-fail"};
+  const auto result = e.app.dispatcher().dispatch(CommandSource::Touch, start);
+  CHECK(result.intent_result == IntentResult::PersistFailed);
+  CHECK(e.app.state().tasks[0].status == TaskStatus::Ready);
+  CHECK(!e.app.state().active_session.has_value());
+  CHECK(e.app.pendingCount() == 0);
+  CHECK(e.disk->state.next_sequence == 1);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(app_lifecycle_and_start_task);
   CASE(app_authoritative_snapshot_and_reboot);
   CASE(app_codec_reboot_old_pending_then_pause);
   CASE(app_mcp_complete_gate_via_confirm);
   CASE(app_auth_pause_passthrough);
+  CASE(formal_completion_preserves_outbox_across_restart);
+  CASE(formal_transition_storage_failure_is_atomic);
   return g_fail == 0;
 }
 

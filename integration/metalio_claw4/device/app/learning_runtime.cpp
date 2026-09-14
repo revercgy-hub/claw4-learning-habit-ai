@@ -132,6 +132,9 @@ void LearningRuntime::Init() {
              claw4::sync::ProvisioningStatus::NotConfigured) {
     disposition = ProvisioningDisposition::Unprovisioned;
   }
+  claw4::sync::OutboxState persisted;
+  NvsOutboxStorage::StateReadStatus storage_status =
+      NvsOutboxStorage::StateReadStatus::Error;
   app_ = std::make_unique<LearningApp>(storage_, clock_);
   app_->setIdentity(claw4::domain::DeviceId{device_id_},
                     claw4::domain::ChildId{child_id_});
@@ -141,39 +144,39 @@ void LearningRuntime::Init() {
   app_->setSessionIdFactory([this] {
     return claw4::domain::SessionId{NextSessionId()};
   });
-  // A reboot resets esp_timer's monotonic epoch. Rebase any persisted live
-  // session before exposing the app to the screen; on failure keep the app
-  // stopped so an uncommitted recovery can never be presented as success.
-  if (!app_->coordinator().prepareAfterBoot(clock_.monotonicMs())) {
-    ESP_LOGE(TAG, "boot recovery failed: keeping LearningApp stopped");
+  const bool boot_ok = RunLearningBoot(
+      disposition,
+      [&] {
+        storage_status = storage_.loadWithPresence(persisted);
+        if (storage_status == NvsOutboxStorage::StateReadStatus::Error)
+          return LearningStorageStatus::Error;
+        return storage_status == NvsOutboxStorage::StateReadStatus::Present
+                   ? LearningStorageStatus::Present
+                   : LearningStorageStatus::Missing;
+      },
+      [&] {
+        return app_->coordinator().prepareAfterBoot(clock_.monotonicMs());
+      },
+      [&] {
+        const bool ok = app_->applyTodaySnapshot(DemoTodaySnapshot());
+        ESP_LOGI(TAG, "first boot: demo today snapshot seeded=%d", ok ? 1 : 0);
+        return ok;
+      },
+      [&] {
+        if (storage_status == NvsOutboxStorage::StateReadStatus::Present) {
+          ESP_LOGI(TAG,
+                   "boot with committed state: tasks=%u pending=%d active=%d",
+                   static_cast<unsigned>(app_->state().tasks.size()),
+                   app_->pendingCount(),
+                   app_->state().active_session.has_value() ? 1 : 0);
+        }
+        app_->start();
+      });
+  if (!boot_ok) {
+    ESP_LOGE(TAG, "learning boot gate closed");
     app_.reset();
     return;
   }
-  claw4::sync::OutboxState persisted;
-  if (!storage_.load(persisted)) {
-    ESP_LOGE(TAG, "learning state read failed: keeping LearningApp stopped");
-    app_.reset();
-    return;
-  }
-  const LearningBootAction boot_action = DecideLearningBootAction(
-      disposition, storage_.hasState());
-  if (boot_action == LearningBootAction::ClosedBootGate) {
-    ESP_LOGE(TAG,
-             "provisioning unavailable/invalid: keeping LearningApp stopped");
-    app_.reset();
-    return;
-  }
-  if (boot_action == LearningBootAction::SeedDemo) {
-    const bool ok = app_->applyTodaySnapshot(DemoTodaySnapshot());
-    ESP_LOGI(TAG, "first boot: demo today snapshot seeded=%d", ok ? 1 : 0);
-  } else {
-    ESP_LOGI(TAG,
-             "boot with committed state: tasks=%u pending=%d active=%d",
-             static_cast<unsigned>(app_->state().tasks.size()),
-             app_->pendingCount(),
-             app_->state().active_session.has_value() ? 1 : 0);
-  }
-  app_->start();
   inited_ = true;
   // Configuration is local-only and does not contact the network. The worker
   // performs challenge/auth, today pull, and outbox event sync off the LVGL

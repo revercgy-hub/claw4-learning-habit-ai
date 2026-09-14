@@ -264,7 +264,8 @@ void RefreshUi() {
     }
   } else if (first_ready == nullptr) {
     if (AllFinished(st)) {
-      primary_text = "重新生成演示任务";
+      primary_text = "等待新计划";
+      primary_en = false;
     } else {
       primary_en = false;  // nothing runnable (empty snapshot)
     }

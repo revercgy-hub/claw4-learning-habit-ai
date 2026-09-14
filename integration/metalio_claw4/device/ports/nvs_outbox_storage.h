@@ -17,10 +17,14 @@ namespace metalio {
 
 class NvsOutboxStorage final : public claw4::sync::OutboxStorage {
  public:
+  enum class StateReadStatus { Missing, Present, Error };
   NvsOutboxStorage() = default;
   ~NvsOutboxStorage() override = default;
 
   bool load(claw4::sync::OutboxState& out) override;
+  // Single-read presence probe for boot policy; distinguishes an absent blob
+  // from a read/decode failure without a second NVS lookup.
+  StateReadStatus loadWithPresence(claw4::sync::OutboxState& out);
 
   claw4::sync::CommitStatus commit(
       const claw4::domain::DomainState& next_domain,

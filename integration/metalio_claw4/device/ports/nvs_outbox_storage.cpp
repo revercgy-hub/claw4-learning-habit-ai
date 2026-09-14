@@ -31,39 +31,49 @@ bool OpenReadWrite(nvs_handle_t& h) {
 
 }  // namespace
 
-bool NvsOutboxStorage::load(claw4::sync::OutboxState& out) {
+NvsOutboxStorage::StateReadStatus NvsOutboxStorage::loadWithPresence(
+    claw4::sync::OutboxState& out) {
   nvs_handle_t h;
-  if (!OpenReadWrite(h)) return false;
+  const esp_err_t open_rc = nvs_open(kNvsNamespace, NVS_READONLY, &h);
+  if (open_rc == ESP_ERR_NVS_NOT_FOUND) {
+    out = claw4::sync::OutboxState{};
+    return StateReadStatus::Missing;
+  }
+  if (open_rc != ESP_OK) return StateReadStatus::Error;
   size_t len = 0;
   const esp_err_t peek = nvs_get_blob(h, kStateKey, nullptr, &len);
   ESP_LOGI(TAG, "load peek=%d len=%u", (int)peek, (unsigned)len);
   if (peek == ESP_ERR_NVS_NOT_FOUND) {
     nvs_close(h);
     out = claw4::sync::OutboxState{};  // first boot: pristine state
-    return true;
+    return StateReadStatus::Missing;
   }
   if (peek != ESP_OK) {
     ESP_LOGE(TAG, "nvs_get_blob len err=%d", peek);
     nvs_close(h);
-    return false;
+    return StateReadStatus::Error;
   }
   if (len == 0 || len > kOutboxCodecMaxBytes) {
     ESP_LOGE(TAG, "stored blob size invalid: %u", (unsigned)len);
     nvs_close(h);
-    return false;
+    return StateReadStatus::Error;
   }
   std::vector<char> buf(len);
   const esp_err_t rc = nvs_get_blob(h, kStateKey, buf.data(), &len);
   nvs_close(h);
   if (rc != ESP_OK) {
     ESP_LOGE(TAG, "nvs_get_blob read err=%d", rc);
-    return false;
+    return StateReadStatus::Error;
   }
   if (!decodeOutboxState(std::string(buf.data(), len), out)) {
     ESP_LOGE(TAG, "stored state failed to decode (schema drift?)");
-    return false;
+    return StateReadStatus::Error;
   }
-  return true;
+  return StateReadStatus::Present;
+}
+
+bool NvsOutboxStorage::load(claw4::sync::OutboxState& out) {
+  return loadWithPresence(out) != StateReadStatus::Error;
 }
 
 claw4::sync::CommitStatus NvsOutboxStorage::Save(claw4::sync::OutboxState cur) {
