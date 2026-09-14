@@ -60,17 +60,23 @@ TimeStatus TimeAuthority::readStatus() {
   out.last_sync_monotonic_ms = sync_mono_ms_;
   out.last_sync_source = sync_source_;
   if (config_.drift_upper_bound_ppm) {
-    const auto ppm = *config_.drift_upper_bound_ppm;
-#if defined(__SIZEOF_INT128__)
-    const __int128 wide = static_cast<__int128>(age) * ppm;
-    const __int128 rounded = (wide + 999999) / 1000000;
-    const int64_t drift = rounded > std::numeric_limits<int64_t>::max()
-                              ? std::numeric_limits<int64_t>::max()
-                              : static_cast<int64_t>(rounded);
-#else
-    const int64_t drift = saturatingAdd(age / 1000000 * ppm,
-                                        (age % 1000000 && ppm) ? ppm : 0);
-#endif
+    const int64_t ppm = *config_.drift_upper_bound_ppm;
+    // age*ppm/1e6, rounded up, without any wide integer dependency:
+    // q*ppm + ceil(r*ppm/1e6), with ppm split so every product is bounded.
+    const int64_t q = age / 1000000;
+    const int64_t r = age % 1000000;
+    int64_t whole = 0;
+    if (ppm != 0 && q > std::numeric_limits<int64_t>::max() / ppm)
+      whole = std::numeric_limits<int64_t>::max();
+    else
+      whole = q * ppm;
+    const int64_t ppm_q = ppm / 1000000;
+    const int64_t ppm_r = ppm % 1000000;
+    int64_t remainder = (ppm_q != 0 && r > std::numeric_limits<int64_t>::max() / ppm_q)
+                             ? std::numeric_limits<int64_t>::max()
+                             : r * ppm_q;
+    if (ppm_r != 0) remainder = saturatingAdd(remainder, (r * ppm_r + 999999) / 1000000);
+    const int64_t drift = saturatingAdd(whole, remainder);
     out.uncertainty_ms = saturatingAdd(uncertainty_ms_, drift);
   }
   int64_t epoch = 0;
