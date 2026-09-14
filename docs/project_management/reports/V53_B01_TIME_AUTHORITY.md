@@ -38,8 +38,9 @@ epoch 明确失效，避免计算跨回绕或倒退的年龄。
 
 ```powershell
 $env:PATH = 'E:\workbuddy\toolchains\w64devkit-2.9.1\bin;' + $env:PATH
-& 'E:\workbuddy\toolchains\w64devkit-2.9.1\bin\g++.exe' -std=c++17 -Wall -Wextra -Werror -Ifirmware/main firmware/main/time/time_authority.cpp firmware/tests/unit/time/time_authority_tests.cpp -o time_authority_tests.exe
-& .\time_authority_tests.exe
+New-Item -ItemType Directory -Force -Path out\b01-time | Out-Null
+& 'E:\workbuddy\toolchains\w64devkit-2.9.1\bin\g++.exe' -std=c++17 -Wall -Wextra -Werror -Ifirmware/main firmware/main/time/time_authority.cpp firmware/tests/unit/time/time_authority_tests.cpp -o out\b01-time\time_authority_tests.exe
+& .\out\b01-time\time_authority_tests.exe
 ```
 
 结果：`TimeAuthority: 12 cases, 0 failures`。
