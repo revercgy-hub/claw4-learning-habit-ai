@@ -15,6 +15,8 @@
 #include "metalio_claw4/device/ports/metalio_http_transport.h"
 #include "metalio_claw4/device/ports/metalio_hmac_signer.h"
 #include "metalio_claw4/device/ports/nvs_backend_provisioning.h"
+// FINAL-CONCURRENCY-CLEANUP FIX-1: shared atomic ownership-check + publish.
+#include "sync/session_snapshot_publisher.h"
 
 namespace claw4 {
 namespace metalio {
@@ -109,14 +111,15 @@ bool LearningRuntime::RunOnlineCycle() {
   // send or apply anything once it has been superseded.
   const bool ok = backend->runOnlineCycle(state_lock_, state_unlock_);
 
-  // Phase C: publish the immutable diagnostics snapshot the UI reads — but only
-  // if this session is STILL installed and its lease is still current, so a
-  // late old session can never overwrite the new session's diagnostics.
+  // Phase C: publish the immutable diagnostics snapshot the UI reads. The
+  // ownership check and the write are ONE state critical section (FIX-1): the
+  // same pure-C++ helper the Host gate exercises holds the injected state lock
+  // across `accepts()` + publish, so a reconfigure can no longer land between
+  // them and let this dead session overwrite the new session's diagnostics.
   const claw4::sync::BackendSessionDiagnostics snapshot = backend->diagnostics();
-  if (backend_holder_.accepts(backend.get(), backend->lease())) {
-    std::lock_guard<std::recursive_mutex> lock(state_mutex_);
-    diagnostics_snapshot_ = snapshot;
-  }
+  claw4::sync::publishSessionSnapshot(backend_holder_, *backend, state_lock_,
+                                      state_unlock_, diagnostics_snapshot_,
+                                      snapshot);
   return ok;
 }
 
