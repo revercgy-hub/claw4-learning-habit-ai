@@ -222,27 +222,45 @@ bool AppCoordinator::applyTodaySnapshot(
   return true;
 }
 
-SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
-                                        const ReauthFn& reauth) {
-  // FIX-V4-01 auth-pause gate: while paused the transport is short-circuited —
-  // no send, no re-auth, pending untouched. Only resetAuthPause() resumes.
+// A03: clamp a server batch result to the sequences this exchange really sent.
+sync::BatchSyncResult AppCoordinator::scopeBatchToSent(
+    const SyncRequestEnvelope& envelope, const sync::BatchSyncResult& batch) {
+  sync::BatchSyncResult scoped;
+  // The advertised consecutive prefix can never exceed what was sent.
+  scoped.last_acked_sequence =
+      std::min(batch.last_acked_sequence, envelope.max_sent_sequence);
+  scoped.server_time = batch.server_time;
+  scoped.results.reserve(batch.results.size());
+  for (const auto& row : batch.results) {
+    // A result may only describe an event from THIS request's consecutive
+    // prefix. Rows below it are already ACKed; rows above it were never sent,
+    // so an out-of-range or replayed ACK can never delete pending events that
+    // were queued after prepareSync() captured the envelope.
+    if (row.sequence < envelope.first_sent_sequence) continue;
+    if (row.sequence > envelope.max_sent_sequence) continue;
+    scoped.results.push_back(row);
+  }
+  return scoped;
+}
+
+SyncRequestEnvelope AppCoordinator::prepareSync() const {
+  SyncRequestEnvelope env;
   if (auth_paused_) {
-    return SyncOutcome::PausedAuth;
+    env.auth_paused = true;
+    return env;
   }
 
   const sync::OutboxState os = loadFrom(storage_);
-  if (os.pending.empty()) {
-    pending_backoff_ms_ = 0;
-    retry_count_ = 0;
-    return SyncOutcome::NoPending;
-  }
+  if (os.pending.empty()) return env;  // has_work stays false -> NoPending
 
-  // Batch only the pending CONSECUTIVE prefix starting at last_acked+1.
-  sync::SyncClient::Request req;
-  req.device_id = state_.active_session.has_value()
-                      ? state_.active_session->device_id
-                      : os.pending.front().device_id;
-  req.last_acked_sequence = os.last_acked_sequence;
+  env.has_work = true;
+  env.generation = generation_;
+  env.request.device_id = state_.active_session.has_value()
+                              ? state_.active_session->device_id
+                              : os.pending.front().device_id;
+  env.request.last_acked_sequence = os.last_acked_sequence;
+  env.first_sent_sequence = os.last_acked_sequence + 1;
+
   int64_t expected = os.last_acked_sequence + 1;
   for (const auto& row : os.pending) {
     if (row.sequence != expected) break;  // gap: stop at the first discontinuity
@@ -256,30 +274,54 @@ SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
     ev.type = row.type;
     ev.version = row.version;
     ev.payload = row.payload;
-    req.events.push_back(ev);
+    env.request.events.push_back(ev);
     expected = row.sequence + 1;
   }
+  // When the queue head is not the next consecutive sequence the prefix is
+  // legitimately empty and max_sent_sequence stays at last_acked, so the scope
+  // guard refuses every ACK.
+  env.max_sent_sequence = expected - 1;
+  return env;
+}
 
-  sync::SyncClient::Response resp = transport.send(req);
-  last_sync_response_ = resp;
+SyncApplyOutcome AppCoordinator::applySyncResult(
+    const SyncRequestEnvelope& envelope,
+    const sync::SyncClient::Response& response) {
+  SyncApplyOutcome out;
 
-  // Auth (401/403): at most one injected re-auth, then pause; pending untouched.
-  if (resp.error_class == sync::SyncErrorClass::Auth ||
-      resp.http_status == 401 || resp.http_status == 403) {
-    if (!reauth_attempted_ && reauth && reauth()) {
-      reauth_attempted_ = true;
-      return SyncOutcome::ReauthOk;
-    }
-    reauth_attempted_ = true;  // pause sync until resetAuthPause()
-    auth_paused_ = true;       // FIX-V4-01: transport short-circuits now
-    outbox_.setDiagnostic(true, false);
-    return SyncOutcome::PausedAuth;
+  // (1) Session ownership: a worker that was in flight while the runtime was
+  //     reconfigured, torn down or given a fresh session must not write into
+  //     the new session.
+  if (envelope.generation != generation_) {
+    out.outcome = SyncOutcome::StaleResult;
+    out.stale = true;
+    out.applied = false;
+    return out;
   }
 
-  // Network / 5xx: deterministic backoff capped at 60 s (never sleeps).
-  if (resp.error_class == sync::SyncErrorClass::Network ||
-      resp.error_class == sync::SyncErrorClass::Server ||
-      resp.http_status >= 500) {
+  // (2) Auth: at most ONE re-auth per pause. This function performs no I/O and
+  //     never invokes the caller's credential refresh; on the first auth
+  //     failure it only reports ReauthOk so the caller can refresh outside the
+  //     state lock and then re-run the exchange.
+  if (response.error_class == sync::SyncErrorClass::Auth ||
+      response.http_status == 401 || response.http_status == 403) {
+    if (!reauth_attempted_) {
+      reauth_attempted_ = true;
+      out.outcome = SyncOutcome::ReauthOk;
+      out.applied = false;
+      return out;
+    }
+    auth_paused_ = true;
+    outbox_.setDiagnostic(true, false);
+    out.outcome = SyncOutcome::PausedAuth;
+    out.applied = true;
+    return out;
+  }
+
+  // (3) Network / 5xx: deterministic backoff capped at 60 s (never sleeps).
+  if (response.error_class == sync::SyncErrorClass::Network ||
+      response.error_class == sync::SyncErrorClass::Server ||
+      response.http_status >= 500) {
     ++retry_count_;
     int64_t base = options_.backoff_base_ms;
     for (int i = 0; i < retry_count_ - 1 && base < options_.backoff_max_ms; ++i) {
@@ -288,18 +330,26 @@ SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
     base = std::min(base, options_.backoff_max_ms);
     // Deterministic jitter from the injected seed (no RNG).
     const int64_t amp = options_.jitter_amplitude_ms;
-    const int64_t jitter = ((options_.jitter_seed + retry_count_ * 7919) % (2 * amp + 1)) - amp;
+    const int64_t jitter =
+        ((options_.jitter_seed + retry_count_ * 7919) % (2 * amp + 1)) - amp;
     pending_backoff_ms_ = base + jitter;
     outbox_.setDiagnostic(true, false);
-    return SyncOutcome::Backoff;
+    out.outcome = SyncOutcome::Backoff;
+    out.applied = true;
+    return out;
   }
 
-  // Transport-level outcome was fine; the per-event results decide cleanup.
-  const sync::PersistResult pr = outbox_.applyBatchResult(resp.batch);
+  // (4) Scoped ACK cleanup: only rows actually sent AND confirmed inside the
+  //     consecutive prefix are removed; anything queued after prepareSync()
+  //     keeps its pending row.
+  const sync::PersistResult pr =
+      outbox_.applyBatchResult(scopeBatchToSent(envelope, response.batch));
   if (!pr.committed()) {
     ++retry_count_;
     pending_backoff_ms_ = options_.backoff_max_ms;  // storage trouble: slow down
-    return SyncOutcome::Backoff;
+    out.outcome = SyncOutcome::Backoff;
+    out.applied = false;
+    return out;
   }
   // Success path resets backoff/reauth state and marks the diagnostic
   // recovered (mergeable slot; never enters the business queue).
@@ -309,7 +359,51 @@ SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
   auth_paused_ = false;
   outbox_.setDiagnostic(false, true);
   reloadState();
-  return SyncOutcome::Synced;
+  out.outcome = SyncOutcome::Synced;
+  out.applied = true;
+  return out;
+}
+
+// Legacy synchronous wrapper. Kept byte-for-byte compatible with the pre-CP1
+// contract so every existing Host test, the Virtual Device fault matrix and the
+// backend wire fixtures keep working unchanged.
+SyncOutcome AppCoordinator::runSyncOnce(SyncTransport& transport,
+                                        const ReauthFn& reauth) {
+  const SyncRequestEnvelope env = prepareSync();
+  // FIX-V4-01 auth-pause gate: while paused the transport is short-circuited —
+  // no send, no re-auth, pending untouched. Only resetAuthPause() resumes.
+  if (env.auth_paused) return SyncOutcome::PausedAuth;
+  if (!env.has_work) {
+    pending_backoff_ms_ = 0;
+    retry_count_ = 0;
+    return SyncOutcome::NoPending;
+  }
+
+  const sync::SyncClient::Response resp = transport.send(env.request);
+  last_sync_response_ = resp;
+
+  const SyncApplyOutcome applied = applySyncResult(env, resp);
+  if (applied.outcome == SyncOutcome::ReauthOk) {
+    // The credential refresh happens here — deliberately OUTSIDE
+    // applySyncResult() — so a device shell can perform it without holding the
+    // state lock across the network wait.
+    if (reauth && reauth()) return SyncOutcome::ReauthOk;
+    reauth_attempted_ = true;  // pause sync until resetAuthPause()
+    auth_paused_ = true;       // FIX-V4-01: transport short-circuits now
+    outbox_.setDiagnostic(true, false);
+    return SyncOutcome::PausedAuth;
+  }
+  return applied.outcome;
+}
+
+void AppCoordinator::beginNewSession() {
+  // Any envelope prepared before this point carries the old generation and is
+  // rejected by applySyncResult() instead of mutating the new session.
+  ++generation_;
+  auth_paused_ = false;
+  reauth_attempted_ = false;
+  pending_backoff_ms_ = 0;
+  retry_count_ = 0;
 }
 
 void AppCoordinator::resetAuthPause() {

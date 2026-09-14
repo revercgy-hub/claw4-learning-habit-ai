@@ -122,6 +122,7 @@ const char* SyncOutcomeName(const SyncOutcome outcome) {
     case SyncOutcome::PausedAuth: return "paused_auth";
     case SyncOutcome::Backoff: return "backoff";
     case SyncOutcome::NoPending: return "no_pending";
+    case SyncOutcome::StaleResult: return "stale_result";
   }
   return "unknown";
 }

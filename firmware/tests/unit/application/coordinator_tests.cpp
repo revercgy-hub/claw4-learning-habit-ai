@@ -695,6 +695,199 @@ static bool run_case_boot_clock_rebase_preserves_counters_and_pending() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// WB-V53-NEXT-001 CP1 (A03): prepare / I-O / apply separation, session
+// generation ownership and ACK scoping. These drive the split API directly —
+// the exact path the device worker uses once the network wait is moved off the
+// shared state lock. All deterministic: no threads and no sleeps.
+// ---------------------------------------------------------------------------
+
+// A server batch that accepts exactly the consecutive range [first, last].
+BatchSyncResult acceptRange(int64_t first, int64_t last) {
+  BatchSyncResult b;
+  b.last_acked_sequence = last;
+  for (int64_t s = first; s <= last; ++s) {
+    PerEventResult per;
+    per.event_id = EventId{"ev-" + std::to_string(s)};
+    per.sequence = s;
+    per.outcome = EventOutcome::Accepted;
+    per.http_status = 200;
+    b.results.push_back(per);
+  }
+  return b;
+}
+
+static bool run_case_a03_prepare_is_pure_and_frozen() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope e = c.prepareSync();
+  CHECK(e.has_work);
+  CHECK(!e.auth_paused);
+  CHECK(e.generation == c.generation());
+  CHECK(e.first_sent_sequence == 1);
+  CHECK(e.max_sent_sequence == 2);
+  CHECK(e.request.events.size() == 2);
+  CHECK(e.request.last_acked_sequence == 0);
+  // prepareSync() is pure: no I/O, no state or counter mutation.
+  CHECK(c.pendingCount() == 2);
+  CHECK(c.lastAcked() == 0);
+  return true;
+}
+
+static bool run_case_a03_old_ack_keeps_events_queued_after_prepare() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  CHECK(sent.max_sent_sequence == 2);
+  const int sent_rows = c.pendingCount();                 // == 2
+  // While the worker is on the wire the state owner commits MORE events.
+  env.ctx.advance(30'000);
+  IntentRequest pause = startOf();
+  pause.intent = Intent::Pause;
+  CHECK(c.dispatchIntent(pause, env.ctx.make()).ok);
+  const int queued_after_prepare = c.pendingCount();
+  CHECK(queued_after_prepare > sent_rows);
+  // The late response only describes the prefix that was actually sent.
+  SyncClient::Response resp;
+  resp.error_class = SyncErrorClass::None;
+  resp.http_status = 200;
+  resp.batch = acceptRange(1, 2);
+  const SyncApplyOutcome out = c.applySyncResult(sent, resp);
+  CHECK(out.outcome == SyncOutcome::Synced);
+  CHECK(out.applied);
+  CHECK(!out.stale);
+  CHECK(c.lastAcked() == 2);                             // confirmed prefix only
+  CHECK(c.pendingCount() == queued_after_prepare - sent_rows);
+  CHECK(env.disk->state.pending.front().sequence == 3);  // post-prepare events kept
+  return true;
+}
+
+static bool run_case_a03_out_of_range_ack_cannot_delete_unsent_events() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  CHECK(sent.max_sent_sequence == 2);
+  env.ctx.advance(30'000);
+  IntentRequest pause = startOf();
+  pause.intent = Intent::Pause;
+  CHECK(c.dispatchIntent(pause, env.ctx.make()).ok);      // never transmitted
+  const int queued = c.pendingCount();
+  CHECK(queued > 2);
+  // A buggy/replayed server ACKs sequences this device never transmitted.
+  SyncClient::Response resp;
+  resp.error_class = SyncErrorClass::None;
+  resp.http_status = 200;
+  resp.batch = acceptRange(1, 4);
+  resp.batch.last_acked_sequence = 4;
+  const SyncApplyOutcome out = c.applySyncResult(sent, resp);
+  CHECK(out.outcome == SyncOutcome::Synced);
+  CHECK(c.lastAcked() == 2);        // capped at max_sent_sequence
+  CHECK(c.pendingCount() == queued - 2);  // only the genuinely sent prefix went away
+  CHECK(env.disk->state.pending.front().sequence == 3);
+  return true;
+}
+
+static bool run_case_a03_stale_generation_result_is_rejected() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);  // seq 1,2
+  const SyncRequestEnvelope sent = c.prepareSync();
+  CHECK(sent.generation == 0);
+  // Runtime reconfigured / session rebuilt while the request was in flight.
+  c.beginNewSession();
+  CHECK(c.generation() == 1);
+  SyncClient::Response resp;
+  resp.error_class = SyncErrorClass::None;
+  resp.http_status = 200;
+  resp.batch = acceptRange(1, 2);
+  const SyncApplyOutcome out = c.applySyncResult(sent, resp);
+  CHECK(out.outcome == SyncOutcome::StaleResult);
+  CHECK(out.stale);
+  CHECK(!out.applied);
+  CHECK(c.pendingCount() == 2);   // nothing written into the new session
+  CHECK(c.lastAcked() == 0);
+  CHECK(env.disk->ack_calls == 0);  // ACK cleanup never even attempted
+  // A fresh envelope from the new generation applies normally.
+  const SyncRequestEnvelope fresh = c.prepareSync();
+  CHECK(fresh.generation == 1);
+  CHECK(fresh.has_work);
+  const SyncApplyOutcome ok = c.applySyncResult(fresh, resp);
+  CHECK(ok.outcome == SyncOutcome::Synced);
+  CHECK(c.pendingCount() == 0);
+  CHECK(c.lastAcked() == 2);
+  return true;
+}
+
+static bool run_case_a03_apply_never_performs_reauth() {
+  Env env;
+  CHECK(seedTask(env, readyTask("task-1", 3)));
+  auto c = env.make();
+  CHECK(c.dispatchIntent(startOf(), env.ctx.make()).ok);
+  const SyncRequestEnvelope sent = c.prepareSync();
+  SyncClient::Response auth_fail;
+  auth_fail.error_class = SyncErrorClass::Auth;
+  auth_fail.http_status = 401;
+  // First auth failure only SIGNALS: no state written, no credential refresh
+  // performed from inside the state transaction.
+  const SyncApplyOutcome first = c.applySyncResult(sent, auth_fail);
+  CHECK(first.outcome == SyncOutcome::ReauthOk);
+  CHECK(!first.applied);
+  CHECK(c.pendingCount() == 2);
+  CHECK(!c.authPaused());
+  // Second failure inside the same attempt budget pauses the transport.
+  const SyncApplyOutcome second = c.applySyncResult(sent, auth_fail);
+  CHECK(second.outcome == SyncOutcome::PausedAuth);
+  CHECK(second.applied);
+  CHECK(c.authPaused());
+  CHECK(c.pendingCount() == 2);   // pending untouched by auth failures
+  // While paused prepareSync() reports the gate instead of work (no send).
+  const SyncRequestEnvelope paused = c.prepareSync();
+  CHECK(paused.auth_paused);
+  CHECK(!paused.has_work);
+  // beginNewSession() clears the pause gate for the rebuilt session.
+  c.beginNewSession();
+  CHECK(!c.authPaused());
+  CHECK(c.prepareSync().has_work);
+  return true;
+}
+
+static bool run_case_a03_prepare_apply_matches_wrapper_outcome() {
+  // The legacy synchronous wrapper must stay equivalent to the explicit
+  // prepare -> send -> apply path, so existing Host tests, the Virtual Device
+  // fault matrix and the wire fixtures keep their contract.
+  Env a;
+  Env b;
+  CHECK(seedTask(a, readyTask("task-1", 3)));
+  CHECK(seedTask(b, readyTask("task-1", 3)));
+  auto ca = a.make();
+  auto cb = b.make();
+  CHECK(ca.dispatchIntent(startOf(), a.ctx.make()).ok);
+  CHECK(cb.dispatchIntent(startOf(), b.ctx.make()).ok);
+
+  FakeSyncTransport tra;
+  const SyncOutcome wrapper = ca.runSyncOnce(tra, [] { return true; });
+
+  const SyncRequestEnvelope sent = cb.prepareSync();
+  FakeSyncTransport trb;
+  const SyncClient::Response resp = trb.send(sent.request);
+  const SyncApplyOutcome split = cb.applySyncResult(sent, resp);
+
+  CHECK(wrapper == split.outcome);
+  CHECK(ca.pendingCount() == cb.pendingCount());
+  CHECK(ca.lastAcked() == cb.lastAcked());
+  CHECK(tra.requests.size() == 1);
+  CHECK(trb.requests.size() == 1);
+  CHECK(tra.requests[0].events.size() == trb.requests[0].events.size());
+  return true;
+}
+
 static bool run_case_all() {
   CASE(boot_clock_rebase_preserves_counters_and_pending);
   CASE(dispatch_start_publishes_after_commit);
@@ -722,6 +915,13 @@ static bool run_case_all() {
   CASE(sync_diagnostic_slot_set_on_success);
   CASE(end_to_end_start_complete_sync);
   CASE(dispatch_retry_same_event_id_after_outbox_failure);
+  // WB-V53-NEXT-001 CP1 (A03)
+  CASE(a03_prepare_is_pure_and_frozen);
+  CASE(a03_old_ack_keeps_events_queued_after_prepare);
+  CASE(a03_out_of_range_ack_cannot_delete_unsent_events);
+  CASE(a03_stale_generation_result_is_rejected);
+  CASE(a03_apply_never_performs_reauth);
+  CASE(a03_prepare_apply_matches_wrapper_outcome);
   return g_fail == 0;
 }
 

@@ -62,6 +62,37 @@ enum class SyncOutcome : uint8_t {
   PausedAuth,        // auth failed and re-auth failed; sync paused, pending kept
   Backoff,           // network/5xx; retry after backoffDelayMs()
   NoPending,         // nothing to sync
+  // WB-V53-NEXT-001 CP1 (A03): the response belonged to a session generation
+  // that has already been superseded (reconfigure / teardown / new runtime
+  // session). Nothing was written: a late worker result must never mutate the
+  // new session's state.
+  StaleResult,
+};
+
+// --- A03 prepare / I-O / apply separation (WB-V53-NEXT-001 CP1) ------------
+//
+// An immutable request envelope produced by prepareSync() inside a SHORT state
+// transaction. It freezes the device identity, the session generation and the
+// EXACT consecutive pending prefix a worker is allowed to send. The worker owns
+// this value for the whole network wait; it carries no reference into mutable
+// coordinator or outbox state, so no lock may be held while I/O is in flight.
+struct SyncRequestEnvelope {
+  bool has_work = false;        // false => nothing to send (NoPending)
+  bool auth_paused = false;     // true  => the transport must NOT be contacted
+  int64_t generation = 0;       // session generation captured at prepare time
+  int64_t first_sent_sequence = 0;  // == last_acked_sequence + 1
+  int64_t max_sent_sequence = 0;    // last sequence actually placed in `request`
+  sync::SyncClient::Request request;
+};
+
+// Result of applying a worker response inside another SHORT state transaction.
+// `applied` is true only when the coordinator committed an ACK, backoff or
+// diagnostic transition; `stale` is true when the generation/scope check
+// rejected the response and nothing was written.
+struct SyncApplyOutcome {
+  SyncOutcome outcome = SyncOutcome::NoPending;
+  bool applied = false;
+  bool stale = false;
 };
 
 class AppCoordinator {
@@ -111,6 +142,35 @@ class AppCoordinator {
   // Never sleeps; returns an outcome and (when Backoff) the suggested delay.
   SyncOutcome runSyncOnce(SyncTransport& transport, const ReauthFn& reauth);
 
+  // --- A03 split API (WB-V53-NEXT-001 CP1) -------------------------------
+  // prepareSync() must be called inside a SHORT critical section owned by the
+  // caller's state-owner lock. It performs no I/O, allocates no lock-holding
+  // reference and never blocks. The returned envelope is safe to hand to a
+  // worker task that will hold it across the whole DNS/connect/read/close.
+  SyncRequestEnvelope prepareSync() const;
+
+  // applySyncResult() must be called inside another SHORT critical section
+  // after the worker returned. It never performs I/O and never invokes the
+  // re-auth callback: on an auth failure with no attempt spent yet it returns
+  // SyncOutcome::ReauthOk so the CALLER can refresh credentials outside the
+  // lock and then re-run the exchange.
+  //
+  // Guarantees:
+  //   * a response prepared against an older generation is rejected
+  //     (StaleResult, applied == false, no state written);
+  //   * ACK cleanup is clamped to the sequence range this worker actually
+  //     sent, so an out-of-range or duplicated ACK can never delete events
+  //     that were queued after the request was prepared;
+  //   * auth_pause / single re-auth / deterministic backoff / dead-letter
+  //     failure semantics are unchanged.
+  SyncApplyOutcome applySyncResult(const SyncRequestEnvelope& envelope,
+                                   const sync::SyncClient::Response& response);
+
+  // Session generation: bumped by beginNewSession() whenever the runtime is
+  // reconfigured, torn down or a fresh backend session is built.
+  int64_t generation() const { return generation_; }
+  void beginNewSession();
+
   // --- accessors --------------------------------------------------------
   const domain::DomainState& state() const { return state_; }
   int64_t backoffDelayMs() const { return pending_backoff_ms_; }
@@ -126,6 +186,12 @@ class AppCoordinator {
   // Shared commit-then-publish pipeline used by both entry points.
   domain::TransitionResult commitAndPublish(domain::TransitionResult r);
   domain::TransitionResult persistOrFail(sync::PendingTransition t);
+  // A03: clamp a server batch result to the sequences this exchange actually
+  // sent. Rows outside [first_sent_sequence, max_sent_sequence] are dropped and
+  // last_acked_sequence is capped at max_sent_sequence, so a wrong/duplicated/
+  // out-of-range ACK cannot remove events queued after prepareSync().
+  static sync::BatchSyncResult scopeBatchToSent(
+      const SyncRequestEnvelope& envelope, const sync::BatchSyncResult& batch);
   bool reloadState();
   sync::OutboxStorage& storage_;
   sync::OutboxCore outbox_;
@@ -139,6 +205,9 @@ class AppCoordinator {
   bool reauth_attempted_ = false;  // one re-auth attempt per sync pause
   bool auth_paused_ = false;       // FIX-V4-01: transport short-circuit gate
   sync::SyncClient::Response last_sync_response_;
+  // A03: bumped by beginNewSession(); a worker result carrying an older value
+  // is rejected before it can touch the new session's state.
+  int64_t generation_ = 0;
 };
 
 }  // namespace application
