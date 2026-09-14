@@ -25,7 +25,10 @@
 epoch 明确失效，避免计算跨回绕或倒退的年龄。
 
 `TimeStatus` 分离 epoch 有效性、epoch/年龄 optional、最近同步 epoch 与本 boot 单调锚点、
-质量（`Unsynced`、`Synced`、`Holdover`、`Stale`）、不确定度和 `calendar_allowed`。
+三态质量（`Unsynced`、`Synced`、`Stale`）、不确定度和 `calendar_allowed`。Stale
+期间另以 `holdover_window` 表示年龄仍在策略窗口内。漂移上界通过可选
+`drift_upper_bound_ppm` 配置；未知时 uncertainty 为失效 optional，不能许可日历。
+已知上界按 `initial_uncertainty + ceil(age_ms * ppm / 1,000,000)` 计算，使用宽中间值。
 默认策略阈值为 stale 1h、最大 holdover 24h、日历误差预算 60s，均可配置，属于待硬件
 漂移实测确认的策略值；不对停电期间的未知时间作补算。
 
@@ -39,10 +42,11 @@ $env:PATH = 'E:\workbuddy\toolchains\w64devkit-2.9.1\bin;' + $env:PATH
 & .\time_authority_tests.exe
 ```
 
-结果：`TimeAuthority: 8 cases, 0 failures`。
+结果：`TimeAuthority: 12 cases, 0 failures`。
 
-逐项覆盖：Unsynced 无 epoch、同步及年龄、Holdover 到 Stale、误差预算独立判定、
-校时前跳/回拨 DTO、单调回退拒绝、重启 boot 隔离、无效输入和 int64 饱和边界。
+逐项覆盖：Unsynced 无 epoch、同步及年龄、4 小时/100ppm 漂移误差、未知漂移拒绝日历、
+Stale 与 holdover 窗口、误差预算、校时前跳/回拨 DTO、单调回退拒绝与可信锚点恢复、
+重启 boot 隔离、空身份/无效输入和 epoch 溢出失效边界。
 
 ## 5. 风险与边界
 
