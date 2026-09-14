@@ -4,9 +4,11 @@
 
 本任务包由Codex准备，**不表示已向WorkBuddy应用发送消息或启动外部执行**。领取条件和最终基线以当前看板为准；CODEX-V53-WAVE1未收口前不得领取。
 
+**2026-09-14收口更新：A01/A02/B01已在源码/Host范围ACCEPTED，本包READY。** 冻结代码SHA：`e70c2830d1f7ea43629a61ce01a33f78b6f11128`。[收口报告](../reports/CODEX_V53_WAVE1_CLOSEOUT_2026-09-14.md)包含验证与边界。实际工作分支从包含本更新的远端交接HEAD建立并记录完整Base SHA；相对冻结代码SHA只允许本次文档/看板收口变化，额外代码变化须先报告。
+
 ## 1. 基线与工作方式
 
-输入分支：`origin/codex/v53-foundation-wave1`；以Codex首批收口报告记录的不可变SHA为代码基线。领取时fetch核对并记录实际Base SHA；若发现该SHA后有新代码，先报告差异，不能自行更换任务基线。新建独立 `workbuddy/v53-next-001-reliability` 分支/工作区；不写原HEAD损坏目录，不占用现有E:/c镜像。
+输入分支：`origin/codex/v53-foundation-wave1`；代码基线与实际交接Base按上段执行。领取时fetch核对并记录实际Base SHA；若发现冻结SHA后有新代码，先报告差异，不能自行更换任务基线。新建独立 `workbuddy/v53-next-001-reliability` 分支/工作区；不写原HEAD损坏目录，不占用现有E:/c镜像。
 
 必读：根AGENTS、TASK_BOARD、ARCHITECTURE_V5_3、首批收口报告、A01/A02/B01报告、`V53_A03_RUNTIME_CONCURRENCY_ADR.md`、旧工作包对应A03/A04/B02/B03，以及实际源码和测试。历史报告中的Flash/reset/清库命令只是证据，不执行。
 
