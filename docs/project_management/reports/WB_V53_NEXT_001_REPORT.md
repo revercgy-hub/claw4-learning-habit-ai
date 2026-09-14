@@ -448,6 +448,37 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/dev/verify-host-cp
 
 见 §16。
 
+## 16. 提交链（Codex 按不可变 SHA 复审）
+
+远端分支：`workbuddy/v53-next-001-reliability`，Base `7b3df6c`。
+
+| 顺序 | SHA | 内容 |
+| --- | --- | --- |
+| 1 | `78c2963` | docs：CP0 基线、A03 范围、环境缺陷记录 |
+| 2 | `7624546` | feat：CP1a 协调器 prepare/apply + generation + ACK 作用域 |
+| 3 | `ed046b8` | docs：CP1a 报告 |
+| 4 | `f9c1cf6` | feat：CP1b 设备侧无锁 I/O（sync_executor / single_flight / session / runtime） |
+| 5 | `15d0adc` | fix：CP2 A04 旧快照不复活未 ACK 终态 |
+| 6 | `97f4a79` | feat：CP3 B02 交互仲裁器 |
+| 7 | `7370a0c` | feat：CP4 B03 提醒核心 + 唤醒端口 + 门禁登记 |
+| 8 | `69cd313` | test：CP5 联合 Gate + 本报告 |
+| 9 | 本报告 §16 的提交 | docs：补提交链（分支 tip） |
+
+工作树 clean；未提交工具链、构建产物、固件、vendor 或设备日志；`out/` 全部在 `.gitignore` 内。
+
+## 17. 范围偏差汇总
+
+| 项 | 类型 | 说明 |
+| --- | --- | --- |
+| 本地分支名无斜杠 | 环境强制 | §1 / §7.1。远端分支名与任务书一致 |
+| `firmware/main/sync/scheduled_http_transport.*` 保留未删 | 有意保留 | §11.5-1，需 Codex 决策 |
+| `firmware/main/ports/reminder_wake_port.h` 新增 | 白名单内 | 任务书 §6 明确"平台无关 ReminderWakePort" |
+| DTO 放在 `coordinator.h` 而非新 `sync/` 头 | 常量级偏差 | §10.2，需 Codex 确认 |
+| `tools/dev/verify-host-cpp-tests.ps1` 加 3 行 | 白名单内 | 任务书允许"验证脚本注册"；仅登记 `firmware\main\reminder` |
+| `firmware/tests/host/virtual_device_app.cpp` 加 1 个 case 标签 | 必要连带 | `SyncOutcome` 新增枚举值，`-Werror` 下 switch 必须穷尽 |
+| `learning_screen.cc` 未改 | 有意 | §11.2 / §11.5-3 |
+| 未做真机/Flash/NVS/vendor/sdkconfig/partition | 遵守禁区 | 无任何此类操作 |
+
 ## 10. CP1a（A03 协调器核心）实施记录
 
 ### 10.1 状态
