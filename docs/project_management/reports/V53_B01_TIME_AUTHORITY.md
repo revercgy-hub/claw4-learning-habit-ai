@@ -43,11 +43,13 @@ New-Item -ItemType Directory -Force -Path out\b01-time | Out-Null
 & .\out\b01-time\time_authority_tests.exe
 ```
 
-结果：`TimeAuthority: 12 cases, 0 failures`。
+结果：`TimeAuthority: 13 cases, 0 failures`。
+
+目标平台语法检查：`riscv32-esp-elf-g++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/main -fsyntax-only firmware/main/time/time_authority.cpp firmware/tests/unit/time/time_authority_tests.cpp`，exit 0。
 
 逐项覆盖：Unsynced 无 epoch、同步及年龄、4 小时/100ppm 漂移误差、未知漂移拒绝日历、
 Stale 与 holdover 窗口、误差预算、校时前跳/回拨 DTO、单调回退拒绝与可信锚点恢复、
-重启 boot 隔离、空身份/无效输入和 epoch 溢出失效边界。
+重启 boot 隔离、空身份/无效输入、epoch 溢出失效、极大 ppm 饱和与非整秒向上取整边界。
 
 ## 5. 风险与边界
 

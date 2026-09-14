@@ -100,6 +100,16 @@ static bool four_hours_at_100ppm_rounds_up() {
   CHECK(s.calendar_allowed); return true;
 }
 
+static bool drift_extremes_saturate_without_bad_rounding() {
+  FakeClock c; TimeAuthority t(c, "boot", TimeAuthorityConfig{1000, std::numeric_limits<int64_t>::max(), std::numeric_limits<int64_t>::max(), std::numeric_limits<int64_t>::max()});
+  CHECK(t.acceptSync(1000, "trusted", 0).outcome == SyncOutcome::Accepted);
+  c.mono = std::numeric_limits<int64_t>::max(); auto s = t.status(); CHECK(s.uncertainty_ms == std::numeric_limits<int64_t>::max());
+  FakeClock d; TimeAuthority u(d, "boot", TimeAuthorityConfig{1000, 10000000, 5000, 1});
+  CHECK(u.acceptSync(1000, "trusted", 0).outcome == SyncOutcome::Accepted);
+  d.mono = 1; CHECK(u.status().uncertainty_ms == 1); // ceil(1*1/1e6)
+  return true;
+}
+
 static bool empty_identity_rejected_without_state_change() {
   FakeClock c; TimeAuthority t(c, "", TimeAuthorityConfig{});
   CHECK(t.acceptSync(1000, "trusted", 0).outcome == SyncOutcome::RejectedInvalidInput);
@@ -127,6 +137,7 @@ int main() {
   CASE(rollback_before_sync_recovers_with_anchor);
   CASE(unknown_drift_disables_calendar); CASE(empty_identity_rejected_without_state_change);
   CASE(four_hours_at_100ppm_rounds_up);
+  CASE(drift_extremes_saturate_without_bad_rounding);
   CASE(restart_boot_isolation); CASE(overflow_is_safe);
   std::printf("TimeAuthority: %d cases, %d failures\n", cases, failures);
   return failures == 0 ? 0 : 1;
