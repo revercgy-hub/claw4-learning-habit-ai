@@ -73,6 +73,7 @@ if (Test-Path -LiteralPath $ManifestPath) {
     $canonicalMirror = $mirror.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
     if (-not $oldMirror.Equals($canonicalMirror, [StringComparison]::OrdinalIgnoreCase)) { throw "Manifest belongs to a different mirror; refusing to continue: $oldMirror" }
     foreach ($f in @($old.files) + @($old.stale_manifest_records)) {
+        if ($null -eq $f) { continue }
         if (-not $f.repo_path -or -not $f.mirror_path) { throw "Manifest entry is incomplete; refusing to continue: $ManifestPath" }
         $mp = ([string]$f.mirror_path).Replace('\', '/')
         $rp = ([string]$f.repo_path).Replace('\', '/')
@@ -94,7 +95,7 @@ if (Test-Path -LiteralPath $ManifestPath) {
 }
 $currentByMirror = @{}
 foreach ($entry in $entries) { $currentByMirror[$entry.MirrorPath] = $entry.RepoPath }
-$stale = @($previous.Keys | Where-Object { -not $currentByMirror.ContainsKey($_) })
+$stale = @($previous.Keys | Where-Object { -not $currentByMirror.ContainsKey($_) -and (Test-Path -LiteralPath (Join-Path $mirror $_)) })
 
 function Get-CmakeSource([string]$mirrorPath) {
     if (-not ($mirrorPath -match '^main/(.*)$')) { return $null }
@@ -108,7 +109,12 @@ function Test-CmakeToken([string]$text, [string]$token) {
     return $text -match ('(?<![A-Za-z0-9_./-])' + [regex]::Escape($token) + '(?![A-Za-z0-9_./-])')
 }
 $registrationCode = @([regex]::Matches($cmakeCode, '(?is)(?:idf_component_register\s*\(|set\s*\(\s*SOURCES\b|list\s*\(\s*APPEND\s+SOURCES\b)') | ForEach-Object {
-    $tail = $cmakeCode.Substring($_.Index + $_.Length); $close = $tail.IndexOf(')'); if ($close -ge 0) { $tail.Substring(0, $close) }
+    $tail = $cmakeCode.Substring($_.Index + $_.Length); $close = $tail.IndexOf(')'); if ($close -ge 0) {
+        $body = $tail.Substring(0, $close)
+        if ($_.Value -match '(?i)idf_component_register') {
+            $sr = [regex]::Match($body, '(?is)\bSRCS\b(.*?)(?=\b(?:INCLUDE_DIRS|PRIV_INCLUDE_DIRS|REQUIRES|PRIV_REQUIRES|SRC_DIRS|EXCLUDE_SRCS|WHOLE_ARCHIVE|EMBED_FILES|EMBED_TXTFILES)\b|$)'); if ($sr.Success) { $sr.Groups[1].Value } else { throw "idf_component_register has no statically parseable SRCS argument" }
+        } else { $body }
+    }
 }) -join "`n"
 $cmakeMissing = @($entries | Where-Object { $_.MirrorPath -match '\.(cpp|cc|c)$' } | ForEach-Object {
     $source = Get-CmakeSource $_.MirrorPath

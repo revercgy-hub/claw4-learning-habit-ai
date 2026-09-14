@@ -64,6 +64,11 @@ Set-Content -LiteralPath $cmakePath -Value $cmake
 Set-Content -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp') -Value 'restored'
 & pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Sync -ManifestPath $manifest
 if ($LASTEXITCODE -ne 0) { throw 'stale manifest did not recover after source/CMake restoration' }
+Remove-Item -LiteralPath (Join-Path $root 'firmware/main/learning_domain/reducer.cpp'), $target
+$cmake = $cmake.Replace('idf_component_register(SRCS "learning/learning_domain/reducer.cpp"', 'idf_component_register(SRCS')
+Set-Content -LiteralPath $cmakePath -Value $cmake
+& pwsh -NoProfile -File $script -RepoRoot $root -MirrorRoot $mirror -Mode Check -ManifestPath $manifest
+if ($LASTEXITCODE -ne 0) { throw 'cleaned source/mirror/CMake removal did not recover' }
 $sentinel = Join-Path $root 'sentinel.txt'; Set-Content -LiteralPath $sentinel -Value 'outside'
 $badManifest = Join-Path $root 'bad-manifest.json'
 Set-Content -LiteralPath $badManifest -Value '{"files":[{"repo_path":"firmware/main/sync/wire_codec.cpp","mirror_path":"../sentinel.txt"}]}'

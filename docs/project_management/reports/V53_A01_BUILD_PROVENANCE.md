@@ -52,7 +52,7 @@ Result: exit code `0`; source hashes and byte counts emitted. No generated manif
 ## Risks and boundaries
 
 - No IDF build, device operation, Flash/NVS operation, or vendor/upstream write was performed. `E:/c` and vendor sources were not modified.
-- A stale controlled CMake registration makes Sync return nonzero after performing safe file cleanup; the CMake edit remains a separately reviewed integration patch.
+- A stale controlled CMake registration makes Sync return nonzero; the CMake edit remains a separately reviewed integration patch.
 - Optional time/reminder directories are skipped when absent; once present, their files participate in mirror and CMake checks.
 - CMake validation is source-registration validation for the controlled learning paths. It does not claim a complete vendor build or hardware result.
 
@@ -64,6 +64,6 @@ Scope deviation: review fixes intentionally remove the earlier auto-delete behav
 
 ## Fixed upstream patch evidence
 
-The pinned upstream reference is `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950`. Read-only `git show` from `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4` was successful. Against first parent, the merge changes `main/CMakeLists.txt` (11 added lines) and `main/display/lv_adapter_display.cc` (2 added, 1 removed); the four-file read-only comparison against `E:/c` recorded `27/0`, `22/1`, `16/3`, and `10/3` added/removed lines respectively for `home_screen.cc`, `CMakeLists.txt`, `lv_adapter_display.cc`, and `audio_service.cc`. Blob SHA-1s at the pinned commit are: `home_screen.cc` `27f55af84e2740cc0f82d406d9711f695b322df8`, `CMakeLists.txt` `577bd14d859aa0cf1861608f88341af52606410a`, `lv_adapter_display.cc` `5ab93fe7f8f03b45132960869acaec42a2326ae1`, `audio_service.cc` `2e24746587804d9031249427ae60a15bf692a309`. No vendor file was modified. The comparison is evidence of source differences, not a claim of a completed IDF build.
+The pinned upstream reference is `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950`. Read-only `git show` from `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4` was successful. The reproducible upstream commit patch is stored at `tools/dev/patches/upstream-ca3aa3fa.patch` (generated from first parent to the pinned merge and limited to `main/CMakeLists.txt` and `main/display/lv_adapter_display.cc`; apply/reverse must be run in a parent fixture). Against first parent, the merge changes `main/CMakeLists.txt` (11 added lines) and `main/display/lv_adapter_display.cc` (2 added, 1 removed); the four-file read-only comparison against `E:/c` recorded `27/0`, `22/1`, `16/3`, and `10/3` added/removed lines respectively for `home_screen.cc`, `CMakeLists.txt`, `lv_adapter_display.cc`, and `audio_service.cc`. Blob SHA-1s at the pinned commit are: `home_screen.cc` `27f55af84e2740cc0f82d406d9711f695b322df8`, `CMakeLists.txt` `577bd14d859aa0cf1861608f88341af52606410a`, `lv_adapter_display.cc` `5ab93fe7f8f03b45132960869acaec42a2326ae1`, `audio_service.cc` `2e24746587804d9031249427ae60a15bf692a309`. No vendor file was modified. The comparison is evidence of source differences, not a claim of a completed IDF build.
 
 Please review the fixed manifest mapping boundary, path normalization on Windows, CMake registration parsing, and the distinction between host tooling evidence and vendor/device build evidence.
