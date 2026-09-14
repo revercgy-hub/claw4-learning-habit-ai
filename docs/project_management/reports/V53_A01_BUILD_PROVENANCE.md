@@ -12,8 +12,9 @@
 
 - `sync-app-first-mirror.ps1` now accepts an explicit repository root for fixture/reproducible use, includes optional `time` and `reminder` trees, and hashes before copying.
 - A mismatched file gets a fresh destination mtime even when its source mtime is older, while equal content is not copied and keeps its mtime.
-- Stale files are detected from the previous manifest and retained; Sync and Check fail until a separately reviewed mapping/CMake update resolves them. Unknown files are never deleted.
-- The script reports missing and stale controlled CMake registrations and fails the run when registration and the current source inventory disagree. It does not edit the vendor CMake file.
+- Stale files are detected from the previous manifest and retained; Sync and Check fail until the source/CMake mapping is corrected. Unknown files are never deleted.
+- The script validates the canonical `mirror_root`, rejects unreadable, legacy-without-root, cross-mirror, incomplete, or unsafe manifest entries, and preserves stale records across repeated failures.
+- CMake validation strips CMake line, C-style, and bracket comments, then only parses static source arguments in `idf_component_register(SRCS ...)`, `set(SOURCES ...)`, and `list(APPEND SOURCES ...)`. It does not treat `message(...)` or filename prefixes as registration.
 - `write-app-first-manifest.ps1` includes optional time/reminder files and emits normalized lowercase SHA-256 values.
 - `sync-app-first-mirror.tests.ps1` exercises equal-content mtime stability, changed-content with old source mtime, persistent stale failure, unknown-file preservation, unsafe manifest paths, optional modules, and comment/prefix CMake false positives.
 
@@ -45,7 +46,7 @@ Result: exit code `0`; source hashes and byte counts emitted. No generated manif
 | Older source mtime cannot hide changed content | Fixture changes content, sets source mtime to 2020, and verifies destination mtime advances |
 | Added/removed files are detectable | Hash mismatch and persistent previous-manifest stale inventory are reported; stale files are not auto-deleted |
 | Unknown files are not deleted | Fixture places `user-note.txt` beside a stale controlled file and verifies retention |
-| CMake and source inventory agree | Missing and extra controlled registrations are detected; vendor CMake is never edited |
+| CMake and source inventory agree | Missing and extra controlled registrations are detected from supported static declarations; vendor CMake is never edited |
 | SHA manifest covers optional modules | Mirror allowlist and candidate manifest enumerate `firmware/main/time` and `firmware/main/reminder` when present |
 
 ## Risks and boundaries
@@ -63,6 +64,6 @@ Scope deviation: review fixes intentionally remove the earlier auto-delete behav
 
 ## Fixed upstream patch evidence
 
-The pinned upstream reference is `ca3aa3fa` (vendor HEAD as supplied). A read-only probe of `E:/c` found no usable `.git` repository, so a commit diff could not be reproduced there. The repository-side `integration_manifest.md` records four relevant registered files: `main/display/screen/home_screen/home_screen.cc`, `main/CMakeLists.txt`, `main/display/lv_adapter_display.cc`, and `main/audio/audio_service.cc`. Their exact patch content and hashes remain an evidence gap; no patch was reconstructed or applied, and no vendor file was modified. The fixture only validates the controlled mapping/registration behavior, not upstream firmware equivalence.
+The pinned upstream reference is `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950`. Read-only `git show` from `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4` was successful. Against first parent, the merge changes `main/CMakeLists.txt` (11 added lines) and `main/display/lv_adapter_display.cc` (2 added, 1 removed); the four-file read-only comparison against `E:/c` recorded `27/0`, `22/1`, `16/3`, and `10/3` added/removed lines respectively for `home_screen.cc`, `CMakeLists.txt`, `lv_adapter_display.cc`, and `audio_service.cc`. Blob SHA-1s at the pinned commit are: `home_screen.cc` `27f55af84e2740cc0f82d406d9711f695b322df8`, `CMakeLists.txt` `577bd14d859aa0cf1861608f88341af52606410a`, `lv_adapter_display.cc` `5ab93fe7f8f03b45132960869acaec42a2326ae1`, `audio_service.cc` `2e24746587804d9031249427ae60a15bf692a309`. No vendor file was modified. The comparison is evidence of source differences, not a claim of a completed IDF build.
 
 Please review the fixed manifest mapping boundary, path normalization on Windows, CMake registration parsing, and the distinction between host tooling evidence and vendor/device build evidence.
