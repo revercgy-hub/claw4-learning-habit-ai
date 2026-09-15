@@ -1009,6 +1009,122 @@ verify-partition-table.py（自测：CSV→BIN→比对，app 用 8 MB 占位，
 
 ---
 
+## 15. CP2：隔离根完整构建（**BLOCKED**，含根因定位）
+
+### 15.0 结论先行
+
+**CP2 未完成：`idf.py build` 在 configure 阶段失败，原因是工具链环境缺失，不是源码问题。** 已按任务书「环境问题由 WorkBuddy 整理证据、Codex 定位并给处理意见，**不私自绕过策略**」停下。**未使用任何绕过手段**：没有安装/伪造工具、没有改 `idf_tools` 元数据、没有传 `-DCMAKE_MAKE_PROGRAM`、没有照抄旧 ninja 命令、没有改项目 sdkconfig/CMake/分区。
+
+越门禁授权与 §14.0 同源（用户授权覆盖 Codex 门禁），此处不重复；Codex 原裁定未改。
+
+### 15.1 执行记录（已按任务书要求全部留档）
+
+| 项 | 值 |
+| --- | --- |
+| 构建根 | `E:/claw4-a05-19fd979/build`（**新建，无任何旧 CMakeCache/object/ELF**） |
+| 源码 | `E:/claw4-a05-19fd979/src`（CP1 重放树） |
+| SDKCONFIG | `E:/claw4-a05-19fd979/src/sdkconfig`，**显式 `-D SDKCONFIG=<abs>` 传入** |
+| 命令 | `idf.py -C <src> -B <build> -D SDKCONFIG=<abs> build`（**不是** ninja 直调） |
+| 运行器 | `tools/dev/run-a05-cp2-build.ps1`（已提交 `4b4bc71`） |
+| 日志 | `E:/claw4-a05-19fd979/logs/cp2-build-20260915-115131.log` |
+| 结果 | **exit=2，elapsed 00:00:11.9**；configure 失败，**未生成任何构件**（app/bootloader/partition-table 全部 ABSENT） |
+
+**环境（与文档记载的 recipe 一致，逐条落实并记录）**：`IDF_PATH`、`IDF_TOOLS_PATH`、`IDF_PYTHON_ENV_PATH` 均设；`ESP_IDF_VERSION=5.5`（**不是 5.5.4** —— 5.5.4 会静默丢 `esp_wifi_remote` 的 Kconfig 变体从而丢失 Wi-Fi 符号）；`IDF_VERSION=5.5.4`；剥离 `PYTHONPATH` 与 9 个 `CODEBUDDY_SAFE_DELETE_*`；PATH 前置 venv/cmake/ninja/riscv32。
+
+**构建前复验**：`verify-build-inputs.py --check` → **5/5 PASS，0 failures**（见 §15.3）。仓库工作树在构建前 **clean**（提交 `4b4bc71`）。
+
+### 15.2 失败点与根因（本轮新证据，比既往记录更精确）
+
+失败输出：
+
+```text
+-- IDF_TARGET is not set, guessed 'esp32p4' from sdkconfig 'E:/claw4-a05-19fd979/src/sdkconfig'   <-- 目标识别正确
+CMake Error: CMake was unable to find a build program corresponding to "Ninja".
+             CMAKE_MAKE_PROGRAM is not set.
+-- Configuring incomplete, errors occurred!
+cmake failed with exit code 1
+```
+
+**第一步：确认不是"机器上没有 ninja"**
+
+| 检查 | 结果 |
+| --- | --- |
+| `ninja.exe` 存在性 | `E:/workbuddy/claw4-idf-tools/tools/ninja/1.12.1/ninja.exe` ✅ |
+| `ninja --version` | `1.12.1` ✅ |
+| `Get-Command ninja`（用我搭的环境） | 解析到上述路径 ✅ |
+| **`cmake -G Ninja <tiny project>`（同一环境）** | **cmake 完全没抱怨 Ninja，直接进入编译器探测** ✅ |
+
+⇒ **cmake 用我的环境能找到 ninja。** 所以失败不是"环境变量没配好"。
+
+**第二步：定位真正的失败源 —— `idf_tools.py export` 失败**
+
+```text
+$ python tools/idf_tools.py export
+rc=1
+ERROR: tool xtensa-esp-elf-gdb has no installed versions. ...
+ERROR: tool xtensa-esp-elf     has no installed versions. ...
+ERROR: tool esp32ulp-elf       has no installed versions. ...
+ERROR: tool dfu-util           has no installed versions. ...
+```
+
+四个工具在 `IDF_TOOLS_PATH` 下的目录**确实不存在**：
+
+| 工具 | 目录 | 对 esp32p4 的相关性 |
+| --- | --- | --- |
+| `xtensa-esp-elf` | ABSENT | Xtensa 目标工具链，**与 esp32p4（RISC-V）无关** |
+| `xtensa-esp-elf-gdb` | ABSENT | 同上，且是**调试器** |
+| `esp32ulp-elf` | ABSENT | ULP 协处理器，esp32p4 不用 |
+| `dfu-util` | ABSENT | USB DFU，属 S2/S3 系 |
+
+⇒ `idf_tools.py export` **整体 rc=1**（它不区分目标），因此 `idf.py` 构造给 cmake 的子环境**不含** ninja/cmake/交叉编译器条目 → cmake 找不到 Ninja。**这是我搭的环境与 `idf.py` 内部重建环境之间的差异，不是配置缺失。**
+
+**第三步：这条路以前为什么"能跑"？—— 查到了原因**
+
+文档里反复提到的「已固化脚本」`C:/Users/rever/AppData/Local/Temp/claw4_rebuild.sh` **仍在**，其内容显示：该脚本**直接调用 `ninja -j 8`**（对已存在的 build 目录做增量），并自行 `export` 环境变量，**完全绕过 `idf.py`**。
+
+⇒ 这与既往记录一致且互为印证：**历史成功构建是 warm/incremental 的 ninja 直调；而任务书要求的 cold `idf.py build` 从未真正跑通**（`CODEX_APP_FIRST_AF4_HOST_2026-09-05.md:69` 早已记录该阻塞，并明确「不得通过修改项目配置绕过，应修复工具链环境后再跑一次 cold build」）。
+
+**另有一条线索**：`E:/workbuddy/claw4-idf-tools/idf-env.json` 记录了另一个 **esp32p4 专用** IDF 安装（`E:/workbuddy/学习习惯培育AI/toolchains/esp-idf-v5.5.4`，`targets: ["esp32p4"]`），其 `.espressif/tools` 同样**不含**上述 4 个工具 → 换用该环境**不能**解决 export 失败。
+
+### 15.3 构建输入 manifest（本轮已交付）
+
+`integration/metalio_claw4/a05_build_input_manifest.json`（已提交），工具 `tools/dev/verify-build-inputs.py`。
+
+| 输入 | 用途 | 身份（本轮实测） |
+| --- | --- | --- |
+| IDF 树 | `IDF_PATH` | 树哈希 `9979c6c36539dd7c7021a881…` |
+| 工具链根 | `IDF_TOOLS_PATH` | 树哈希 `78ad1256ef07b11b92e90392…` |
+| `managed_components`（已装入隔离树） | 组件 | 源/目标树哈希一致 `83c759c8306b11193feebd06…`（82 目录 / 14656 文件 / 666,122,132 B） |
+| 冻结 C5 `sdkconfig` | 显式 SDKCONFIG | `a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26` **== 批准值** ✅ |
+| 隔离源码树 | `-C` | 树哈希 `f72e868b21680e38c3e817fd…` |
+
+- **`dependencies.lock` 无需决策**：pin 自带的那份与 `E:/c` 的**逐字节相同**（`90af1addf9daf8ae1ec3094a798d7ab56cd12a4fef5702696d08a524458f91e1`），因此组件集合只有一个权威版本。
+- 工具对**不可读/符号链接**条目（如 `claw4-idf-tools/msys64/etc/mtab`）输出确定性标记并在 manifest 中列出，而不是崩溃或静默跳过。
+- 检出 `git archive`/`git apply` 带来的 CRLF 干扰：manifest 树哈希按**原始字节**计算（这些树不受 git 管理，字节即事实）。
+
+### 15.4 CP2 需要的决策（不自行选择）
+
+| 方案 | 内容 | 代价 / 风险 |
+| --- | --- | --- |
+| **A（请假裁定）** | 安装 `xtensa-esp-elf` / `xtensa-esp-elf-gdb` / `esp32ulp-elf` / `dfu-util`，使 `export` 可成功 —— 即文档所说"修复工具链环境" | 需网络；**会改动被冻结的工具链目录**（manifest 中 `idf_tools` 树哈希随之变化，须重新冻结）；4 个工具对 esp32p4 构建在功能上**无用**，纯为满足 export 的严格性 |
+| **B** | 改由 Codex 定位是否有受支持的"仅 esp32p4 工具集"导出路径（IDF 5.5.4 的 `export` **不支持 `--targets`**，已实测报 `unrecognized arguments`） | 属 Codex 的定位工作；我未找到官方开关 |
+| **C** | 显式传 `-D CMAKE_MAKE_PROGRAM=<ninja>` 等，绕过 export | **任务书明确禁止绕过**（「不得通过修改项目配置绕过」）；且会改变 configure 命令，影响可复现声明 —— **我未执行** |
+| **D** | 接受"cold build 在本机不可得"，按位置证据降级（例如复现 warm 构建并如实标注为**非 cold**） | 与任务书 §3「只在新隔离根执行完整 idf.py build」的要求不符，需 Codex 明确降级授权 |
+
+**我的建议**：先走 **B**（让 Codex 判是否有受支持的 target 限定导出），若确无，则走 **A** 但在安装**前**先固定工具链目录的可回滚快照并重冻结 manifest。**不建议 C**。
+
+### 15.5 CP2 明确未完成的部分
+
+- **未生成任何构件**：app bin / ELF / map、bootloader、`partition-table.bin` **全部不存在**。因此：
+  - `verify-partition-table.py` **没有真实输入可跑**（CP1 里那次是 CSV 往返自测，已在 §14.3 标注）；
+  - **本候选 app 的真实字节数与 ota_0 余量未知**；
+  - `compile_commands.json`、对象/归档清单、最终 ELF 的符号保留证据 —— 全部留待 CP3。
+- 「configure 前后各记一次 sdkconfig 哈希」只完成了**前**（`a901f204…`）；**后**无法取得（configure 未完成）。
+- 未做「IDF/components/dependencies.lock 前后核对」中的**后**（构建未发生）。
+- 未 Flash / erase / monitor / 执行 flasher_args（这一条是**遵守**，不是未完成）。
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
