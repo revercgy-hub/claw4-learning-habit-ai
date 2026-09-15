@@ -1,0 +1,42 @@
+{
+  "layer": "A05",
+  "sequence": 1,
+  "title": "register the five new learning sources in the upstream main component",
+  "target": "main/CMakeLists.txt",
+  "apply_order": [
+    "project-ca3aa3fa.patch",
+    "a05-0001-cmake-source-registration.patch"
+  ],
+  "base": {
+    "upstream_commit": "ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950",
+    "after_patch": "project-ca3aa3fa.patch",
+    "a01_patch_sha256": "58bfbe5266a9fa00980be5e5078b570b9915165e199981e6dd54dcb21aa81937",
+    "base_sha256": "9f7098e02694397984e688a8416042c26efdeb9357cbbbba1ecf340d58d35a92",
+    "base_sha256_lf": "9f7098e02694397984e688a8416042c26efdeb9357cbbbba1ecf340d58d35a92"
+  },
+  "expected": {
+    "result_sha256_lf": "14ffc5c3466849179915813c413950b16b2f037a683477c9bf1c7881f0964b6d",
+    "result_bytes_lf": 24255,
+    "lines_added": 5,
+    "added_sources": [
+      "learning/sync/sync_executor.cpp",
+      "learning/sync/single_flight_http_transport.cpp",
+      "learning/time/time_authority.cpp",
+      "learning/interaction/interaction_arbiter.cpp",
+      "learning/reminder/reminder_core.cpp"
+    ]
+  },
+  "patch_sha256": "51e2db0411917176c0cbdaafa927d579f7c3547b60e16f838acb753ba463ec5e",
+  "rollback": {
+    "method": "git apply -R",
+    "command": "git apply -R -p1 --whitespace=nowarn \"<repo>/integration/metalio_claw4/patches/a05-0001-cmake-source-registration.patch\"",
+    "restores": {
+      "sha256_lf": "9f7098e02694397984e688a8416042c26efdeb9357cbbbba1ecf340d58d35a92"
+    }
+  },
+  "constraints": [
+    "source registration only",
+    "no dummy calls / whole-archive / forced symbol retention / -ffunction-sections off",
+    "no vendor / BSP / sdkconfig / partition / bootloader / ota_1 / eFuse change"
+  ]
+}

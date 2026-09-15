@@ -1,0 +1,15 @@
+diff --git a/main/CMakeLists.txt b/main/CMakeLists.txt
+--- a/main/CMakeLists.txt
++++ b/main/CMakeLists.txt
+@@ -50,6 +50,11 @@
+             "learning/metalio_claw4/device/ports/nvs_outbox_storage.cpp"
+             "learning/metalio_claw4/device/ports/metalio_http_transport.cpp"
+             "learning/metalio_claw4/device/app/learning_runtime.cpp"
++            "learning/sync/sync_executor.cpp"
++            "learning/sync/single_flight_http_transport.cpp"
++            "learning/time/time_authority.cpp"
++            "learning/interaction/interaction_arbiter.cpp"
++            "learning/reminder/reminder_core.cpp"
+             "display/screen/standby_screen/standby_screen.cc"
+             "display/screen/game_2048_screen/game_2048_screen.cc"
+             "display/screen/calculator_screen/calculator_screen.cc"

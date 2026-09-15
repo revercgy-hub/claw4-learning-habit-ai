@@ -1,5 +1,23 @@
 # Metalio 集成改动登记表（integration_manifest）
 
+## 2026-09-15 A05 补丁层：新增五个 learning 源登记
+
+`A05` 层在 A01 之上只做一件事：把本包新增的五个实现单元登记进上游 `main/CMakeLists.txt` 的 `SOURCES`。补丁与元数据：
+
+- [a05-0001-cmake-source-registration.patch](patches/a05-0001-cmake-source-registration.patch)（sha256 `51e2db0411917176c0cbdaafa927d579f7c3547b60e16f838acb753ba463ec5e`）
+- [a05-0001-cmake-source-registration.json](patches/a05-0001-cmake-source-registration.json)（base / 应用顺序 / 前后 hash / 回滚）
+
+| 序号 | 上游 commit | file | 变更 | 原因 | 回滚 | 风险 | 状态 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A05-1 | `ca3aa3fa` | `main/CMakeLists.txt` | `SOURCES` 追加 5 行：`learning/sync/sync_executor.cpp`、`learning/sync/single_flight_http_transport.cpp`、`learning/time/time_authority.cpp`、`learning/interaction/interaction_arbiter.cpp`、`learning/reminder/reminder_core.cpp` | WB-A05-BUILD-001 CP1：本包新增的 5 个实现单元此前不在镜像 CMake 清单内，固件未包含其代码 | `git apply -R -p1 <repo>/integration/metalio_claw4/patches/a05-0001-cmake-source-registration.patch` | 低：源列表仅追加；未改任何语义、未加 dummy 调用/whole-archive/强制符号/关节裁剪 | **PATCH READY**（隔离 fixture 前向/反向均 rc=0，结果 hash 命中；`main/CMakeLists.txt` 补丁后 `14ffc5c3…`） |
+
+**应用顺序（不可颠倒）**：`project-ca3aa3fa.patch` → `a05-0001-cmake-source-registration.patch`。
+A05 的 base 是 **A01 补丁之后**的 `main/CMakeLists.txt`（`9f7098e0…`，与 `E:/c` 当前该文件逐字节相同）；A05 只对 `main/CMakeLists.txt` 生效，不改 BSP / 驱动 / sdkconfig / 分区 CSV / bootloader / ota_1 / eFuse。
+
+**隔离重放树**：`E:/claw4-a05-19fd979/src`，构造顺序 = `pin ca3aa3fa 归档 → LF 归一 → A01 → 19fd979 学习源码同步（90 文件）→ 冻结 C5 sdkconfig → A05`。
+
+**同步缺口（19fd979 相对旧镜像 `E:/c`）**：29 个学习文件与 19fd979 不一致，其中 **13 个真实内容差异**、16 个仅行尾差异；**17 个文件在镜像里不存在**（`time/`、`reminder/`、`interaction/interaction_arbiter.*`、`sync/{sync_executor,single_flight_http_transport,session_lease,session_snapshot_publisher}.*`、`ports/reminder_wake_port.h`、`assistant/command*.h`、`telemetry/logger.h`、`metalio_claw4/device/core/learning_boot_policy.h`）；**镜像侧没有任何文件缺少 repo 来源（零未解释漂移）**。完整账目见实施报告 §CP1。
+
 ## 2026-09-14 精确补丁取证补充
 
 历史 #1–#6 及 AF3/APP2 的现存四文件集成变化，已从固定 upstream `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950` 与只读 `E:/c` 比较保存为 [project-ca3aa3fa.patch](patches/project-ca3aa3fa.patch)，对应 [SHA清单](patches/project-ca3aa3fa.json)。主agent已在临时fixture验证应用、四文件hash及反向恢复。它是既有改动的取证，不代表新增部署/音频变更授权或本批IDF构建通过。
