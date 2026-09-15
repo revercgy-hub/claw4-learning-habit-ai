@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复，待复核** |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -1599,6 +1599,147 @@ fix1 drift probe (on a copy) : pre != drifted = True    ← 证明该比对**可
 | --- | --- |
 | `tools/dev/run-a05-cp2-build.ps1` | 三处修复 + 修复 3 附带的前置检查；头部注明 `CP2-RUNNER-FIX-001` 三点与三条退出码语义不变 |
 | `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md` | 本节 |
+
+---
+
+## 20. CP2 第二次 cold build（宿主环境修复后）：**环境问题已解决，暴露出上游源码缺陷**
+
+用户按 Codex §8 方案 1，在**从开始菜单直开的普通终端**执行了 `run-a05-cp2-build.ps1`（`-Build build-cp2-002 -Fresh`）。
+
+### 20.0 结论先行
+
+| 项 | 结果 |
+| --- | --- |
+| **宿主 PATH 失同步** | ✅ **已解决** —— `PATH_GUARD: OK -- os.environ['PATH'] == Win32 PATH (len 874)`；4 个工具目录齐全；`shutil.which(cmake/ninja/riscv32-esp-elf-g++)` 均可解析；`path guard rc = 0` |
+| **Ninja / `CMAKE_MAKE_PROGRAM` 错误** | ✅ **未复现**（runner 的 DIAGNOSIS 行确认）—— §17.4 的根因与方案 1 的正确性**同时被验证** |
+| configure | ✅ **PASS**（`cmake -G Ninja … -DSDKCONFIG=…` 实际执行，命令已留档） |
+| 交叉编译器 | ✅ **实际被调用**（日志含完整 `riscv32-esp-elf-g++` 命令行与 RISC-V 目标参数） |
+| 编译 | ⚠️ 2,643 个目标跑到 **2,494** 停下；**恰好 1 个 TU 失败** |
+| 构件 | **2 / 5**：`bootloader.bin`、`partition-table.bin`；`xiaozhi.bin/.elf/.map` 缺失（链接从未开始） |
+| sdkconfig | ✅ pre == post（`a901f204…`），**configure 未改写输入** |
+| **CP2 判定** | ⛔ 仍 **BLOCKED**，但**原因已由"宿主环境"换成"上游源码缺陷"** |
+
+**已被本次运行排除的原因**：宿主 PATH 失同步、CMake/生成器、工具链缺失、sdkconfig、分区表、`idf_tools.py export` rc=1。
+**新的唯一阻塞原因**：仓库 revision `19fd979` 的 `learning_screen.cc` **不可编译**。
+
+### 20.1 唯一失败点（精确到行）
+
+```text
+FAILED: esp-idf/main/CMakeFiles/__idf_main.dir/display/screen/learning_screen/learning_screen.cc.obj
+E:/claw4-a05-19fd979/src/main/display/screen/learning_screen/learning_screen.cc:497:9:
+    error: 's_selftest_timer' was not declared in this scope
+  497 |     if (s_selftest_timer != nullptr) {
+  498 |       lv_timer_del(s_selftest_timer);
+  499 |       s_selftest_timer = nullptr;
+ninja: build stopped: subcommand failed.
+```
+
+全文件 `grep` 结果：`s_selftest_timer` **仅这 3 处引用，零声明**。
+
+### 20.2 根因链（逐层排除后定位到"不完整删除"）
+
+1. **不是环境** —— 同上，`PATH_GUARD: OK`。
+2. **不是 CMake / 生成器 / 工具链** —— configure PASS，交叉编译器被真正调用。
+3. **不是 sdkconfig / 分区** —— pre==post；真实分区表逐行校验 PASS（§20.4）。
+4. **是源码，且缺陷在仓库自身 revision** —— 隔离树内该文件与仓库 blob `19fd979:integration/metalio_claw4/device/learning_screen/learning_screen.cc` **LF 归一化后逐字节相同**（`34447f0b…`，27,469 B）⇒ 重放是忠实的，**不是同步走样**。
+5. **具体形态：一次"不完整删除"**。仓库版 **700 行** vs `E:/c` 镜像版 **761 行**，diff 显示仓库版删掉了**整个一次性自检功能块**（`@@ -89,59 +89,7 @@`，净 -53 行）：`RefreshUi()` 前向声明、`s_selftest_step`、`s_selftest_ok[4]`、**`lv_timer_t* s_selftest_timer = nullptr;`**、`RunSelfTestStep()`、以及 pending-self-test 的创建点（镜像版 754-757 行）；**但漏删了 lifecycle unload 里那 3 行清理引用** → 悬空标识符。
+6. 该符号声明位于**匿名 namespace 内**（文件局部），**不可能由任何头文件补足** ⇒ **该文件单独就不可编译**，与其它 2,642 个目标的编译结果无关。
+
+### 20.3 与 CP1-D 对账结论的关系（不推翻，但需重新裁定同步方向）
+
+`learning_screen.cc` 正是 CP1-D 记录的 **13 个「REAL CONTENT DIFFERS」之一**，当时记为"V5.3 NEXT-001 改动过的文件 → 可解释"，并按 §14.4 既定规则**同步为仓库 blob**。
+
+> ⚠️ **"可解释"不等于"可编译"**：那次对账核的是**来源可追溯**，并未（也无法）核到**该 revision 是否可编译**。本条不构成对 CP1-D 结论的推翻，但说明**"13 个差异一律取仓库侧"这一同步方向需要重新裁定** —— 至少对 `learning_screen.cc`，镜像侧（761 行，含功能、历史上 warm build 过）与仓库侧（700 行，功能被删且删漏）**不是等价的两个修订**。
+
+### 20.4 本次运行已取得的 §9 证据（构建未完成，逐项如实标注）
+
+| §9 项 | 结果 |
+| --- | --- |
+| 1 输入 5/5 PASS | ✅ runner 硬前置通过 |
+| 2 新 build root | ✅ `E:/claw4-a05-19fd979/build-cp2-002`（`-Fresh`） |
+| 3 `idf.py build` exit=0 | ❌ exit=2（耗时 00:03:36） |
+| 4 configure PASS | ✅ |
+| 5 compile PASS | ❌ **1 / 2,643 TU 失败**（`learning_screen.cc`） |
+| 6 link PASS | ⛔ 未开始 |
+| 7–11 五个构件 | ⚠️ **2 / 5**：`bootloader/bootloader.bin` 20,416 B `f11b3e01…`；`partition_table/partition-table.bin` 3,072 B `ef0039b6…`；`xiaozhi.bin/.elf/.map` **ABSENT**（另生成 `factory_test.bin` 614,400 B、`ota_data_initial.bin` 8,192 B） |
+| 12 size + SHA256 | ✅ 见上 |
+| 13 sdkconfig pre/post | ✅ `a901f204…` == `a901f204…`，**无漂移** |
+| 14 真实分区表反解 + 逐行比对 | ✅ **PASS** —— 见下 |
+| 15 app 字节数 / `ota_0` 余量 | ⛔ **不适用**（app 不存在） |
+| 16 构建后输入复核 | 见 §20.5 |
+| 17 NO FLASH | ✅ runner 打印 |
+
+**§9-14 详情（用已入库的 `verify-partition-table.py` 对真实生成物执行，rc=0）**：
+
+```text
+approved CSV      : E:/claw4-a05-19fd979/src/partitions/v1/32m_dual.csv
+  sha256          : c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b
+generated BIN     : E:/claw4-a05-19fd979/build-cp2-002/partition_table/partition-table.bin
+  sha256          : ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f
+13 行逐行比对     : 全部 OK（ota_0 0x00200000 / 9437184；ota_1 0x00b00000 / 4194304）
+last end          : 0x01fa6000   尾部未分配 368640 B
+RESULT: PASS -- generated partition table matches the approved input, no overlap, in range
+app image         : **合成 1 MiB 占位（非候选）→ ota_0 余量/ota_1 结论无候选意义**
+```
+
+**交叉印证（强证据）**：真实生成的 `partition-table.bin` 的 sha256 `ef0039b6…` 与 §16 里**由批准 CSV 往返生成的 bin** 的 sha256 **完全相同** ⇒ 构建产物中的分区布局与批准输入解析后的布局**逐字节一致**。因此 §9-14 的结论对**真实构件**成立（app 相关部分除外）。
+
+### 20.5 构建后输入复核（本次手工补跑）——**发现：构建会写入隔离源码树**
+
+runner 的 `[16]` 只在 `rc == 0` 时才执行，本次构建未成功故未跑到该步。已**手工补跑** `verify-build-inputs.py --check`：
+
+```text
+entries : 5 checked      failures : 3
+  FAIL isolated_src: origin_tree_sha256 changed  manifest=f72e868b21680e38c3e817fd…  now=3c086bf8d4253c5287bcf0f8…
+  FAIL isolated_src: origin_file_count changed   manifest=1354                        now=1356
+  FAIL isolated_src: origin_bytes changed        manifest=72529007                    now=72560858
+RESULT: FAIL -- do NOT build; fix or re-freeze the inputs first
+```
+
+**定位：本次构建在隔离源码树内新写/改写了 3 个头文件**（`E:\claw4-a05-19fd979\src`，排除 `managed_components`/`build`，按 mtime 筛出）：
+
+| 文件 | 大小 | 时间 | 性质 |
+| --- | --- | --- | --- |
+| `main/i18n/i18n_strings_gen.h` | 78,840 B | 14:46:56 | 已存在、被**改写**（文件数不变） |
+| `main/assets/lang_config.h` | 10,639 B | 14:46:56 | **新增**（`gen_lang.py` 生成） |
+| `main/mmap_generate_resources.h` | 18,246 B | 14:46:59 | **新增**（`build_default_assets.py` 生成） |
+
+**必须记录的三个后果**：
+
+1. **隔离树不是"构建只读"的** —— ESP-IDF 的资源/语言生成按设计把结果写回**项目源码目录**（这也正是 `E:/c` 镜像里存在这两个"生成物"的原因）。
+2. **§9 第 16 项（构建后外部输入复核）在现有 manifest 定义下永远不可能 PASS** —— `isolated_src` 的树定义**包含了这些会被构建重写的路径**。要么把生成路径从 `isolated_src` 的定义里排除，要么明确"构建后复核对 `isolated_src` 只做'非生成文件'比对"，要么在首次构建后重冻结该条目。**这是定义问题，需要裁定，不是我该自行改的**（manifest 不在本轮白名单内）。
+3. ⚠️ **下一次构建会被 runner 自己的硬前置拦下**：冻结值 `f72e868b…` 已被 `3c086bf8…` 取代，`--check` 现在会 `exit 3`、拒绝构建。因此**在下一次 cold build 之前必须先解决第 2 条**（重冻结 / 改排除定义 / 或把树恢复到冻结态 —— 但恢复到冻结态也只能让"构建前"通过，"构建后"仍会再次分歧）。
+
+### 20.6 本轮明确未做
+
+**未修改任何源码 / CMake / sdkconfig / 分区**（`learning_screen.cc` 不在任何白名单内）；**未修改冻结的隔离树**（改它会作废 manifest 的 `isolated_src` 树哈希，属 CP 级决策）；未 Flash / erase / monitor；未进 CP3；未安装任何工具。
+
+### 20.7 待 Codex 裁定的两条路线（我不自行选择）
+
+| 路线 | 内容 | 代价 / 风险 |
+| --- | --- | --- |
+| **A（推荐）** | 判"自检功能应保留"→ 在**仓库** `integration/metalio_claw4/device/learning_screen/learning_screen.cc` 上补回被漏删的 3 行引用（或补回整个自检块），形成新的仓库提交 → **重新同步隔离树** → **重冻结** manifest 的 `isolated_src` 哈希 → 再跑一次全新 cold build | 需授权动 `integration/**`（不在 A05 白名单）+ 重冻结哈希（CP 级决策）。与"镜像侧历史上能 warm build"一致 |
+| **B** | 判"删除自检功能才是本意"→ 则改为**删掉那 3 行漏删的清理引用**；同样必须走上游仓库提交 + 重放 | 同上；但会主动移除一个 debug 能力，需业务侧确认 |
+
+**共同前提**：无论 A/B，都**只能改上游仓库再重放**，不得直接改冻结的隔离树（否则 CP2 的"可复现"声明失效）。**请裁定后我再动手。**
+
+**另需一并裁定（否则下一次构建跑不起来）**：§20.5 的 `isolated_src` 定义问题 —— 该条目当前把"构建会重写的 3 个生成头文件"也算进树哈希，导致
+
+- **构建后**复核必然 FAIL（§9-16 永远不可能 PASS）；
+- **构建前**复核现在也已 FAIL（`f72e868b…` → `3c086bf8…`）→ runner 会 `exit 3` 拒绝构建。
+
+可选处置（都属 CP 级决策，我不自行选择）：① 把 3 个生成路径从 `isolated_src` 的树定义中排除；② 首次构建后重冻结该条目（并说明"生成物随后由构建再生"）；③ 保留严格口径，但把 `[16]` 明确限定为"非生成文件"的比对。
+
+### 20.8 本次运行留档
+
+| 产物 | 内容 |
+| --- | --- |
+| `logs/cp2-build-20260915-144326.log` | 完整运行日志（6,401 行 / 400 KB），含 guard、ENV-DIAG、输入校验、全部编译输出、唯一失败点 |
+| `logs/envdiag-20260915-144326.txt` | ENV-DIAG 专段（`PATH_GUARD: OK`、双份路径解析） |
+| `logs/envdiag-cmake-command-20260915-144326.txt` | idf.py 实际执行的 cmake 命令 |
+| `logs/envdiag-artifacts-20260915-144326/` | `CMakeCache.txt`、`CMakeConfigureLog.yaml`、`idf_py_{stdout,stderr}_output_{13516,37008}` |
+| `E:/claw4-a05-cp1-fix-recon/logs/real-partition-verify.log` | 真实 `partition-table.bin` 的逐行校验输出（rc=0） |
+| `E:/claw4-a05-cp1-fix-recon/{repo_learning_screen.cc,diff-mirror-vs-repo.txt}` | 仓库 blob 副本与"镜像 vs 仓库"差异 |
 
 ---
 
