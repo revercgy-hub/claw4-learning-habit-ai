@@ -1035,6 +1035,8 @@ verify-partition-table.py（自测：CSV→BIN→比对，app 用 8 MB 占位，
 
 ### 15.2 失败点与根因（本轮新证据，比既往记录更精确）
 
+> ⚠️ **本节第「第二步」的结论已在 §17（ENV-DIAG-001）中被实测推翻，请注意更正。** `idf_tools.py export` rc=1 是**真实存在的独立问题，但不是本次冷构建失败的成因**：`tools/idf_py_actions/tools.py` 构造给 cmake 的环境是 `env_copy = dict(os.environ)` + 一个极小的补充字典（第 338–339 行），调用点是第 685 行 `RunTool('cmake', cmake_args, cwd=args.build_dir, env=env, ...)`，**并不消费 `export` 的输出**；`export` 只被 `tools/export_utils/activate_venv.py` 用于 Python 版本加载器。真正的成因见 **§17.4**。
+
 失败输出：
 
 ```text
@@ -1260,6 +1262,157 @@ $ python tools/dev/verify-partition-table.py --csv <approved.csv> --self-test
 
 ---
 
+## 17. ENV-DIAG-001：同进程路径取证 → **根因定位（已由最小复现证明）**
+
+### 17.0 结论先行
+
+| 项 | 结果 |
+| --- | --- |
+| 授权边界 | **不安装** Xtensa/ULP/DFU 工具；**不进 CP3**；不改 CMake / sdkconfig / partition；不做任何绕过 |
+| 冷构建结果 | **同一错误复现**：`exit=2`、12.08 s、**零构件**（新根 `build-envdiag-001` 内无 `CMakeCache.txt`、无 bin/ELF） |
+| 是否按要求停下 | **是**。已保存「idf.py 实际 cmake 命令」与「完整 configure 日志」后停止，未做第二次尝试 |
+| 根因 | **已定位并已用最小复现证明**：`idf.py` 所在 Python 进程里，**`os.environ['PATH']` 与真实 Win32 进程 PATH 不一致** —— 四个 IDF 工具目录**只在真实块里**，而 `subprocess` 传给 cmake 的正是 `dict(os.environ)`。详见 §17.4 |
+| 旧结论 | **§15.2「第二步」的 `idf_tools.py export` 归因被推翻**（export rc=1 仍属实，但**非成因**） |
+
+### 17.1 四项要求逐条落地
+
+| 要求 | 落地 |
+| --- | --- |
+| 在同一 build runner 进程中记录 cmake/ninja/riscv32 的 PowerShell 与 Python 实际解析路径 | ✅ runner 内置 `ENV-DIAG-001` 段，**在同一进程内**做两套取证（PowerShell `Get-Command`/`where.exe`/PATH 逐条；IDF venv Python `shutil.which` + 真实执行），并落盘 `envdiag-<stamp>.txt` |
+| 把 `verify-build-inputs --check` 变成 build 的**硬前置** | ✅ 内嵌进 runner，**fail-closed**：非零即 `exit 3`，**不构建**。本轮实测 `rc=0`（5/5 PASS）后才继续 |
+| 用**全新 build root** 再执行一次 cold `idf.py build` | ✅ `E:\claw4-a05-19fd979\build-envdiag-001`（新建、无旧 cache），命令与上一轮**完全一致**（未加 `-v`，保持可比） |
+| 若仍报 CMAKE_MAKE_PROGRAM → 保存 cmake 命令 + 完整 configure 日志后停止 | ✅ 见 §17.3；**额外**做了根因定位（只读取证，未改动任何工程文件） |
+
+### 17.2 同一进程内的实测解析路径（关键：两套结果**不一致**）
+
+**PowerShell 侧（runner 进程自身）** —— 一切正常：
+
+```text
+prepend 候选 4 个：Test-Path 全为 True → kept 4 of 4
+PATH 长度 989，24 条，前四条正是 4 个 IDF 工具目录
+Get-Command cmake            -> E:\workbuddy\claw4-idf-tools\tools\cmake\3.30.2\bin\cmake.exe
+Get-Command ninja            -> E:\workbuddy\claw4-idf-tools\tools\ninja\1.12.1\ninja.exe
+Get-Command riscv32-esp-elf-g++ -> ...\riscv32-esp-elf\esp-14.2.0_20260121\riscv32-esp-elf\bin\riscv32-esp-elf-g++.exe
+where.exe ninja / cmake     -> 均命中 IDF 工具目录
+```
+
+**IDF venv Python 侧（runner 的子解释器，即 idf.py 的实际运行环境）** —— **全部落空**：
+
+```text
+len(os.environ['PATH'])               = 833      <- 21 条，且不含任何 IDF 工具目录
+shutil.which('cmake')                = None
+shutil.which('ninja')                = None
+shutil.which('riscv32-esp-elf-g++')  = None
+but:  subprocess.run(['ninja','--version'])  rc=0 -> '1.12.1'
+      subprocess.run(['cmake','--version'])  rc=0 -> 'cmake version 3.30.2'
+```
+
+**同一个 Python 进程内的自我矛盾**（`kernel32!GetEnvironmentVariableW` vs `os.environ`）：
+
+```text
+len(os.environ['PATH'])              = 833
+len(GetEnvironmentVariableW('PATH')) = 989        <-- 真实 Win32 进程环境块
+IDENTICAL                            = False
+
+只在「真实块」而 os.environ 里没有的：
+  + E:\workbuddy\claw4-idf-tools\python_env\idf5.5_py3.12_env\Scripts
+  + E:\workbuddy\claw4-idf-tools\tools\cmake\3.30.2\bin
+  + E:\workbuddy\claw4-idf-tools\tools\ninja\1.12.1
+  + E:\workbuddy\claw4-idf-tools\tools\riscv32-esp-elf\esp-14.2.0_20260121\riscv32-esp-elf\bin
+只在 os.environ 而真实块里没有的：
+  - C:\Users\rever\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\cli\vendor\shim\safe-bin
+```
+
+- **对照组（不做前置）**：`os.environ=833`、真实块 `732` —— **分歧本来就存在**（os.environ = 真实块 + `shim\safe-bin`），**与我们的前置无关**。
+- **`-S` / `-E -S` / 删除 `PYTHONPATH` 三组变体**：全部**不变**（`shim on sys.path` 已为 `False` 时分歧依旧）→ **不是 Python 的 `site`/环境变量级钩子**；分歧在解释器启动**之前**就由宿主进程的启动环境决定。
+- `idf_tools.py export`：`rc=1`、**stdout 0 行**、stderr 为 4 个缺失工具（与 §15.2 一致）—— **已留档，但非成因**。
+
+### 17.3 冷构建结果与留档
+
+```text
+build root : E:\claw4-a05-19fd979\build-envdiag-001   （新建，-Fresh）
+前置校验   : verify-build-inputs.py --check -> entries 5 checked / failures 0 / PASS
+invoking   : idf.py -C <src> -B <build> -D SDKCONFIG=<abs> build
+exit=2   elapsed=00:00:12.08   零构件（app/bootloader/partition-table 全部 ABSENT）
+
+CMake Error: CMake was unable to find a build program corresponding to "Ninja".
+             CMAKE_MAKE_PROGRAM is not set.
+-- Configuring incomplete, errors occurred!
+```
+
+**idf.py 实际执行的 cmake 命令（已单独落盘）**：
+
+```text
+Executing "cmake -G Ninja -DPYTHON_DEPS_CHECKED=1
+  -DPYTHON=E:\workbuddy\claw4-idf-tools\python_env\idf5.5_py3.12_env\Scripts\python.exe
+  -DESP_PLATFORM=1 -DSDKCONFIG=E:\claw4-a05-19fd979\src\sdkconfig -DCCACHE_ENABLE=0
+  E:\claw4-a05-19fd979\src"
+```
+
+留档清单：
+
+| 产物 | 内容 |
+| --- | --- |
+| `E:/claw4-a05-19fd979/logs/cp2-build-20260915-125426.log` | 完整运行日志（含 ENV-DIAG 段与全部 configure 输出） |
+| `.../logs/envdiag-20260915-125426.txt` | ENV-DIAG-001 专段（双份解析路径 + 逐条 PATH） |
+| `.../logs/envdiag-cmake-command-20260915-125426.txt` | **idf.py 实际 cmake 命令** |
+| `.../logs/envdiag-artifacts-20260915-125426/` | `idf_py_stdout_output_36216`、`idf_py_stderr_output_36216`、`CMakeConfigureLog.yaml` |
+| `.../logs/envdiag-idf-tools-export.{out,err}.txt` | `export` 的 rc / stdout / stderr |
+| `E:/claw4-a05-cp1-fix-recon/logs/probe-*.txt` | 判别探针：`probe-realenv-{PREPEND,NOPREPEND}`、`probe-site-variants`、`probe-minimal-repro`、`probe-path-dump*` |
+
+### 17.4 根因（最小复现证明，不依赖任何工程改动）
+
+**机制**：`idf.py` 把 cmake 作为子进程启动时，显式传入 `env = dict(os.environ)`（`tools/idf_py_actions/tools.py:338-339`，调用点 `:685`）。因此 **cmake 进程的 PATH 就是 `os.environ['PATH']`，而不是本机真实的 Win32 PATH**。而在这台机器上：
+
+- `os.environ['PATH']` **不含**四个 IDF 工具目录；
+- 「cmake 可执行文件本身」却仍能被启动 —— 因为可执行文件的解析走的是**父进程真实 PATH**；
+- 于是出现了本包反复看到的**非对称现象**：`cmake` 起来了，但 CMake 用自己的 `FindProgram` 在**子进程 PATH** 里找不到 `ninja` → `CMake was unable to find a build program corresponding to "Ninja"`。
+
+这也同时解释了 §15.2「第一步」的另一半疑点：`cmake -G Ninja` 在**独立 PowerShell 会话**里能跑通（PowerShell 不显式传 env，Windows 继承真实块），而在 `idf.py` 里必失败。**§15.2 之前的「同一环境可行」结论正是这条差异造成的误判。**
+
+**最小复现（同进程、同 cmake、同 tiny 工程，只改 env 传递方式）**：
+
+```text
+len(os.environ['PATH']) = 732     len(real PATH) = 1090     shutil.which ninja=None cmake=None
+
+--- env=dict(os.environ)   <-- idf.py 交给 cmake 的方式
+    rc = 1
+      CMake Error: CMake was unable to find a build program corresponding to "Ninja".
+                   CMAKE_MAKE_PROGRAM is not set.
+--- env=None                <-- 继承真实 Win32 块
+    rc = 0
+      -- Configuring done / -- Generating done / Build files have been written to: ...\bB
+
+where.exe ninja with env=dict(os.environ)  rc=1 out=''
+where.exe ninja with env=None              rc=0 out='E:\workbuddy\claw4-idf-tools\tools\ninja\1.12.1\ninja.exe'
+```
+
+⇒ **一句话根因：本机宿主环境（WorkBuddy 沙箱/shim 的启动环境注入）使 Python 进程内 `os.environ['PATH']` 成为一份不含 IDF 工具目录的副本；凡是用 `os.environ` 显式传 env 的工具链（ESP-IDF 的 `RunTools` 正是如此）都看不到工具链。这是环境/宿主问题，不是 IDF、项目 CMake、sdkconfig、分区或 runner 脚本的问题。**
+
+### 17.5 因此对既有结论的两处更正
+
+| 位置 | 原结论 | 更正 |
+| --- | --- | --- |
+| §15.2「第二步」 | 失败源于 `idf_tools.py export` rc=1 剥离了 idf.py 的子环境 | **不成立**（`export` 输出不参与 cmake 的 env 构造）。export rc=1 只是**并存的独立问题** |
+| §15.4 方案 A | 「安装 4 个缺失工具」= 修复工具链环境 | **与本失败无因果关系** —— 装了也仍然失败。用户已明确**不得安装**，本轮未安装 |
+
+**方案 B/C/D 的评价不变**（B 仍属 Codex 定位；C 任务书禁止且本轮未用；D 需显式降级授权）。**新增待裁定项**：如何在「`os.environ` 与真实 PATH 不一致」的宿主环境下获得受支持的构建路径 —— 这是**环境启动方式**层面的问题，需 Codex 裁定，我未擅自改动任何构建配置。
+
+### 17.6 本轮明确未做（边界）
+
+- **未安装**任何工具；**未**改 CMake / sdkconfig / 分区 / 项目源码；**未**用 `-DCMAKE_MAKE_PROGRAM` 或任何绕过；**未**做第二次构建尝试（按要求停止）；**未**进入 CP3。
+- 仍**零构件** → `verify-partition-table.py` 依旧没有候选分区表可验；候选 app 字节数/余量、`compile_commands.json`、对象与符号保留证据一律不存在。
+- `RISC-V 交叉编译器` 是否真能在该 PATH 传递方式下被 CMake 找到，**未验证**（Ninja 都没过）。
+
+### 17.7 本轮修改产物
+
+| 路径 | 变更 |
+| --- | --- |
+| `tools/dev/run-a05-cp2-build.ps1` | 新增 `ENV-DIAG-001` 段（同进程 PowerShell/Python 双份取证、`idf_tools.py export` 留档）；`verify-build-inputs.py --check` 变为**硬前置**（`exit 3` fail-closed）；新增**失败证据自动收割**（cmake 命令、configure 日志、`CMakeConfigureLog.yaml`）；显式记录退出码契约 0/2/3/n |
+| `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md` | 本节；§15.2 顶部加更正指引；附录 A 增列本轮取证目录 |
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -1275,6 +1428,9 @@ $ python tools/dev/verify-partition-table.py --csv <approved.csv> --self-test
 | `E:/workbuddy/claw4-a05-cp0-recon/component-content-verify.{txt,json}`、`component-content-negative-control.txt` | §13.2 82 组件内容哈希校验 + 单比特篡改负向对照 |
 | `E:/claw4-a05-build-m0/out/a05-cp0-host/` | 本轮完整 Host 门禁日志、逐套件输出、`host_result.txt` |
 | `E:/claw4-a05-cp1-fix-recon/` | §16 取证：`HEAD_verify-partition-table.py`（修复前版本）、`FALSIFIED_verify-partition-table.py`（证伪副本）、`normal.bin`/`mutated.bin`（批准 CSV 与其单行变异各自生成的真实分区表）、`logs/*.log`（修复前后对照、自测、证伪、指纹复核） |
+| `E:/claw4-a05-cp1-fix-recon/logs/probe-*.{py,txt}` | §17（ENV-DIAG-001）取证：`probe-realenv-{PREPEND,NOPREPEND}.txt`（`os.environ` vs `GetEnvironmentVariableW` 对照）、`probe-site-variants.txt`（`-S`/`-E -S`/去 `PYTHONPATH` 判别）、`probe-minimal-repro.txt`（最小复现）、`probe-path-dump*`、`probe-shim-listing.txt` |
+| `E:/claw4-a05-19fd979/build-envdiag-001/` | §17 全新构建根（**零构件**，仅 configure 残留）：`CMakeFiles/CMakeConfigureLog.yaml`、`log/idf_py_{stdout,stderr}_output_36216`、`toolchain/` |
+| `E:/claw4-a05-19fd979/logs/envdiag-*` | §17 ENV-DIAG 专段、idf.py 实际 cmake 命令、`export` rc/stdout/stderr、收割的 configure 日志目录 |
 
 ## 附录 B. 报告口径
 
