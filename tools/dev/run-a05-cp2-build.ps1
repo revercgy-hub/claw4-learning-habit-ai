@@ -22,13 +22,22 @@
 #     failure the full configure logs + CMakeConfigureLog.yaml are harvested.
 #   * still NO tool installation, NO CMake/sdkconfig/partition edits.
 #
-# ENV-DIAG-001 invocation:
-#   powershell -File tools\dev\run-a05-cp2-build.ps1 -Build E:\claw4-a05-19fd979\build-envdiag-001
+# Authorised remediation run (Codex CP2 review 2026-09-15 §8, option 1):
+#   run this from an ORDINARY host terminal that is NOT under the WorkBuddy
+#   shim/sandbox environment injection, e.g.
+#     powershell -File tools\dev\run-a05-cp2-build.ps1 -Build E:\claw4-a05-19fd979\build-cp2-002 -Fresh
+#   The P0 guard refuses to build while `os.environ['PATH']` still disagrees with
+#   the real Win32 process PATH, so a wasted build attempt is impossible.
+#   Still forbidden and still NOT used here: editing CMake / sdkconfig /
+#   partition, -D CMAKE_MAKE_PROGRAM, ninja warm build, installing unrelated
+#   Xtensa/ULP/DFU tools.
 #
 # Exit codes:
-#   0  idf.py succeeded
+#   0  idf.py succeeded AND every post-build verification passed
 #   2  setup fatal (missing IDF/idf.py/paths)
 #   3  build-input manifest check FAILED -> fail closed, NO build attempted
+#   4  host PATH desynchronisation still present -> fail closed, NO build attempted
+#   5  build succeeded but a post-build verification FAILED
 #   n  otherwise the exit code of idf.py
 #
 # Deliberately avoids `Get-ChildItem Env:` (throws ArgumentException under
@@ -41,6 +50,7 @@ param(
   [string]$LogDir   = "E:\claw4-a05-19fd979\logs",
   [string]$IdfPath  = "E:\workbuddy\esp-idf-5.5.4-ascii",
   [string]$IdfTools = "E:\workbuddy\claw4-idf-tools",
+  [string]$PartitionCsv = "E:\c\partitions\v1\32m_dual.csv",
   [switch]$Fresh
 )
 
@@ -212,6 +222,58 @@ foreach ($l in @(Get-Content -LiteralPath $expErr -ErrorAction SilentlyContinue)
 SayDiag "=== end ENV-DIAG-001 ==="
 Say ""
 
+# ========= P0 guard: host PATH desynchronisation (fail closed) ==============
+# Codex CP2 review 2026-09-15 §8 option 1 requires confirming, BEFORE building,
+# that the Python that runs idf.py agrees with the real Win32 process PATH.
+# If it does not, idf_py_actions/tools.py will hand cmake a PATH without the
+# toolchain (env_copy = dict(os.environ)) and ninja will not be found.
+Say "== P0 guard: os.environ['PATH'] vs real Win32 process PATH =="
+$guardPy = Join-Path $LogDir "envdiag-pathguard.py"
+@'
+import ctypes, os, shutil, sys
+
+need_dirs = [d for d in sys.argv[1:] if d]
+buf = ctypes.create_unicode_buffer(65536)
+ctypes.windll.kernel32.GetEnvironmentVariableW("PATH", buf, 65536)
+real = buf.value
+env = os.environ.get("PATH") or ""
+
+problems = []
+if env != real:
+    problems.append("os.environ['PATH'] != Win32 GetEnvironmentVariableW('PATH')  (len %d vs %d)"
+                    % (len(env), len(real)))
+for d in need_dirs:
+    if d.lower() not in env.lower():
+        problems.append("tool dir absent from os.environ['PATH']: %s" % d)
+for name in ("cmake", "ninja", "riscv32-esp-elf-g++"):
+    if shutil.which(name) is None:
+        problems.append("shutil.which(%r) is None" % name)
+
+if problems:
+    print("PATH_GUARD: DESYNC -- this process cannot see the toolchain; refusing to build")
+    for p in problems:
+        print("  - " + p)
+    print("  fix: run this script from an ordinary host terminal")
+    print("       (Codex CP2 review 2026-09-15 sec.8 option 1)")
+    sys.exit(1)
+
+print("PATH_GUARD: OK -- os.environ['PATH'] == Win32 PATH (len %d)" % len(env))
+print("            all %d tool dirs present; cmake/ninja/riscv32-esp-elf-g++ all resolvable"
+      % len(need_dirs))
+sys.exit(0)
+'@ | Set-Content -LiteralPath $guardPy -Encoding UTF8
+
+& $idfPy $guardPy $prependAll *>&1 | ForEach-Object { Say ([string]$_) }
+$guardRc = $LASTEXITCODE
+Say ("path guard rc = " + $guardRc)
+if ($guardRc -ne 0) {
+  Say "HARD STOP: host PATH desynchronisation is STILL PRESENT -> no build attempted."
+  Say "  Codex CP2 review 2026-09-15: RC = HOST ENVIRONMENT PATH DESYNCHRONIZATION"
+  Say ("log: " + $log)
+  exit 4
+}
+Say ""
+
 # ===================== HARD precondition (fail closed) =====================
 Say "== HARD precondition: verify-build-inputs.py --check =="
 Say ("manifest : " + $Manifest)
@@ -280,9 +342,11 @@ if ($errHit.Count -gt 0) {
   Say "DIAGNOSIS: the CMAKE_MAKE_PROGRAM / Ninja-not-found error did NOT recur."
 }
 
-# --- post checks (report only; NO flash) ---------------------------------
+# --- post checks: artifacts (Codex CP2 review §9 items 7-13) ---------------
+$preHashNow = (Get-FileHash -LiteralPath $sdkconfig -Algorithm SHA256).Hash.ToLower()
 $sdkAfter = Join-Path $Build "config\sdkconfig"
 $postHash = if (Test-Path -LiteralPath $sdkAfter) { (Get-FileHash -LiteralPath $sdkAfter -Algorithm SHA256).Hash.ToLower() } else { "ABSENT" }
+Say ("sdkconfig sha256 (pre-configure)  : " + $preHashNow)
 Say ("sdkconfig sha256 (post-configure) : " + $postHash)
 
 foreach ($a in @("xiaozhi.bin","xiaozhi.elf","xiaozhi.map",
@@ -297,4 +361,49 @@ foreach ($a in @("xiaozhi.bin","xiaozhi.elf","xiaozhi.map",
 }
 Say "NO flash / erase / monitor / flasher_args was executed."
 Say "log: $log"
-exit $rc
+if ($rc -ne 0) { exit $rc }
+
+# ===== post-build verification (Codex CP2 review §9 items 13-16) ============
+Say ""
+Say "== post-build verification (Codex CP2 review 2026-09-15 sec.9) =="
+$postFail = @()
+
+if ($postHash -eq "ABSENT") {
+  $postFail += "[13] post-configure sdkconfig ABSENT"
+} elseif ($postHash -ne $preHashNow) {
+  $postFail += "[13] sdkconfig DRIFTED across configure ($preHashNow -> $postHash)"
+} else {
+  Say ("  [13] sdkconfig pre == post (" + $postHash + ") -- no drift")
+}
+
+Say "  [16] re-verify the external inputs AFTER the build"
+& $idfPy $VerifyInputs --manifest $Manifest --check *>&1 | ForEach-Object { Say ("       " + [string]$_) }
+if ($LASTEXITCODE -ne 0) {
+  $postFail += "[16] external inputs drifted across the build"
+} else {
+  Say "       -> still 5/5 PASS"
+}
+
+$ptBin = Join-Path $Build "partition_table\partition-table.bin"
+$appBin = Join-Path $Build "xiaozhi.bin"
+$ptTool = Join-Path $RepoRoot "tools\dev\verify-partition-table.py"
+if ((Test-Path -LiteralPath $ptBin) -and (Test-Path -LiteralPath $appBin) -and (Test-Path -LiteralPath $ptTool)) {
+  Say "  [14/15] decode the GENERATED partition-table.bin and compare with the approved CSV"
+  & $idfPy $ptTool --csv $PartitionCsv --bin $ptBin --app $appBin *>&1 | ForEach-Object { Say ("       " + [string]$_) }
+  if ($LASTEXITCODE -ne 0) {
+    $postFail += "[14/15] real partition / app verification FAILED"
+  } else {
+    Say "       -> real layout matches, no overlap, in range; headroom from THIS candidate"
+  }
+} else {
+  $postFail += "[14/15] partition-table.bin, app bin or verifier missing -> real partition verification not possible"
+}
+
+Say ""
+if ($postFail.Count -gt 0) {
+  Say ("POST-BUILD VERIFICATION: FAIL (" + $postFail.Count + ")")
+  foreach ($f in $postFail) { Say ("  - " + $f) }
+  exit 5
+}
+Say "POST-BUILD VERIFICATION: PASS (items 7-16 satisfied; NO FLASH)"
+exit 0

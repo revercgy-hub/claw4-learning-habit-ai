@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 裁定仍为 QUEUED**；本报告的 CP1 章节是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改） |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18 |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -1410,6 +1410,119 @@ where.exe ninja with env=None              rc=0 out='E:\workbuddy\claw4-idf-tool
 | --- | --- |
 | `tools/dev/run-a05-cp2-build.ps1` | 新增 `ENV-DIAG-001` 段（同进程 PowerShell/Python 双份取证、`idf_tools.py export` 留档）；`verify-build-inputs.py --check` 变为**硬前置**（`exit 3` fail-closed）；新增**失败证据自动收割**（cmake 命令、configure 日志、`CMakeConfigureLog.yaml`）；显式记录退出码契约 0/2/3/n |
 | `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md` | 本节；§15.2 顶部加更正指引；附录 A 增列本轮取证目录 |
+
+---
+
+## 18. Codex CP2 完成情况校验（2026-09-15）的落实
+
+审查输入：`CODEX_A05_CP2_COMPLETION_REVIEW_2026-09-15.md`，审查对象 `workbuddy/a05-build-m0` @ `7fdf5fa`。
+
+### 18.0 逐项裁定（照抄 Codex，不改口径）
+
+| 项 | Codex 裁定 |
+| --- | --- |
+| CP1-REVIEW-FIX-001 | ✅ **ACCEPTED**（不再阻塞 CP2） |
+| CP2 构建输入冻结 | ✅ ACCEPT |
+| `verify-build-inputs` 硬前置 | ✅ ACCEPT（fail-closed 设计符合原则） |
+| 全新隔离 build root | ✅ ACCEPT |
+| 正式 `idf.py build` 口径 | ✅ ACCEPT（无 ninja 直调/warm/set-target/menuconfig/`CMAKE_MAKE_PROGRAM`） |
+| 失败边界处理 | ✅ ACCEPT（无 Flash/erase/monitor/flasher_args；未装额外工具；未进 CP3） |
+| 前一轮 export 归因已撤回 | ✅ **修正正确** —— 不批准为当前问题安装无关 Xtensa/ULP/DFU 工具，不把 export rc=1 当作本次 cold build 根因 |
+| Ninja 失败根因 | ✅ **CONFIRMED**（`ENV-DIAG-001 ROOT CAUSE CONFIRMED`：Python 显式传递的 `os.environ` 与真实 Win32 进程环境不一致） |
+| 最小复现 | ✅ 认为**已把变量缩到**该分歧，具判别力 |
+| **CP2 最终判定** | ⛔ **BLOCKED / NOT ACCEPTED** |
+| **CP3** | ⛔ **NOT AUTHORIZED**（须待 CP2 ACCEPTED） |
+| `CI` | 仍须写 `CI: NOT PRESENT`（GitHub 无 commit status / CI Gate），**不得写 `CI PASS`** |
+
+### 18.1 按 Codex §7 统一的状态命名
+
+```text
+A05 CP2
+BUILD GATE: BLOCKED
+ROOT CAUSE: CONFIRMED
+ARTIFACTS: NONE
+CP3: NOT AUTHORIZED
+
+CP2 = BLOCKED
+Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION
+ENV-DIAG-001 = ACCEPTED
+```
+
+并明确：**不是** Claw4 业务代码失败、**不是** A05 CMake 补丁被证明错误、**不是** partition/sdkconfig 问题、**不是**"缺 Xtensa/ULP/DFU 工具"导致的已证实问题。**在完成一次真正成功的 cold `idf.py build` 前：不得进入 CP3、不得冻结 M0 Candidate、不得 Flash。**
+
+### 18.2 本轮已实施（只做被授权的部分）
+
+**（a）P0 守卫：把"环境是否已修好"变成构建前的硬闸门**（对应 Codex §8 方案 1 要求的"启动后先确认"）
+
+新增 `P0 guard`：在**要跑 idf.py 的那个 Python 进程**里检查
+
+```text
+os.environ['PATH'] == kernel32!GetEnvironmentVariableW('PATH')
+4 个工具目录都在 os.environ['PATH'] 里
+shutil.which('cmake' / 'ninja' / 'riscv32-esp-elf-g++') 均非 None
+```
+
+任一不满足 → **`exit 4`，不构建**。于是"环境未修好就白跑一次构建"在结构上不可能发生。
+
+**实测（本轮，在我这个仍被宿主注入的 shell 里）**：
+
+```text
+== P0 guard: os.environ['PATH'] vs real Win32 process PATH ==
+PATH_GUARD: DESYNC -- this process cannot see the toolchain; refusing to build
+  - os.environ['PATH'] != Win32 GetEnvironmentVariableW('PATH')  (len 732 vs 1090)
+  - tool dir absent from os.environ['PATH']: ...\python_env\idf5.5_py3.12_env\Scripts
+  - tool dir absent from os.environ['PATH']: ...\tools\cmake\3.30.2\bin
+  - tool dir absent from os.environ['PATH']: ...\tools\ninja\1.12.1
+  - tool dir absent from os.environ['PATH']: ...\tools\riscv32-esp-elf\...\bin
+  - shutil.which('cmake') is None   / ('ninja') is None   / ('riscv32-esp-elf-g++') is None
+HARD STOP: host PATH desynchronisation is STILL PRESENT -> no build attempted.
+path guard rc = 1        exit 4
+```
+
+同一次运行中 `grep -c "invoking: idf.py" = 0` —— **确认未发起任何构建**。
+
+**（b）构建后验证（Codex §9 第 13–16 项）内嵌进 runner，fail-closed（`exit 5`）**：
+
+- **[13]** `sdkconfig` pre/post 哈希比对，漂移即失败（`pre == post` 才通过）；
+- **[14/15]** 调用 `verify-partition-table.py` 反解**真实生成**的 `partition_table/partition-table.bin` 并与批准 CSV 逐行比对，app 尺寸/`ota_0` 余量由**本候选镜像**算出；
+- **[16]** 构建**后**重跑 `verify-build-inputs.py --check`，输入漂移即失败；
+- **[17]** 始终打印 `NO flash / erase / monitor / flasher_args was executed`。
+
+**（c）退出码契约**：`0` 成功且构建后验证全过｜`2` 安装性致命｜`3` 输入校验失败（不构建）｜**`4` 宿主 PATH 失同步（不构建）**｜**`5` 构建成功但构建后验证失败**｜`n` 其余为 idf.py 的退出码。
+
+**（d）明确未实施**：**方案 2（build-environment launcher：把真实 Win32 PATH 同步进 `os.environ` 后再跑原生 `idf.py build`）未实施** —— Codex 写明"不应无授权直接实施"，故**等明确批准**。本轮同样**未**安装任何工具、**未**改 CMake/sdkconfig/partition/源码、**未**使用 `-DCMAKE_MAKE_PROGRAM`、**未**做 warm ninja、**未**再发起一次注定失败的构建。
+
+### 18.3 Codex §9「下一次重跑的最低验收证据」→ runner 落地映射
+
+| §9 项 | 由谁产生 | 现状 |
+| --- | --- | --- |
+| 1 `verify-build-inputs` 5/5 PASS | runner 硬前置 | ✅ 已实现 |
+| 2 新 build root | `-Build` + `-Fresh` | ✅ 已实现 |
+| 3 `idf.py build` exit=0 | idf.py | ⛔ 待环境修复后重跑 |
+| 4 configure PASS ／ 5 compile PASS ／ 6 link PASS | idf.py | ⛔ 未开始 |
+| 7–11 `xiaozhi.bin`/`.elf`/`.map`、`bootloader.bin`、`partition-table.bin` | idf.py | ⛔ 不存在 |
+| 12 每个 artifact 的 size + SHA256 | runner 已逐项打印 | ✅ 已实现 |
+| 13 sdkconfig pre/post + equality | runner §18.2(b) | ✅ 本轮新增 |
+| 14 真实分区表反解 + 逐行比对 + ota_0/ota_1 + 无重叠/在界内 | runner 调 `verify-partition-table.py` | ✅ 本轮新增 |
+| 15 app 真实字节数 + `ota_0` 余量 + `ota_1` fits | 同上（工具输出） | ✅ 本轮新增 |
+| 16 构建后外部输入复核 | runner 重跑 `--check` | ✅ 本轮新增 |
+| 17 明确 `NO FLASH` | runner 始终打印 | ✅ 已实现 |
+
+即：**一次性重跑即可自动产出 §9 全部 17 项证据**，不需要再补一轮人工取证。
+
+### 18.4 环境修复的两条路径（Codex §8）与已授权边界
+
+| 路径 | 内容 | 状态 |
+| --- | --- | --- |
+| **方案 1（优先）** | 从**不经过 WorkBuddy shim / sandbox 环境注入的普通宿主终端**启动同一个 `run-a05-cp2-build.ps1`；启动后 P0 守卫会**自动确认** `os.environ['PATH'] == Win32 PATH` 且 `shutil.which(cmake/ninja/riscv32-esp-elf-g++)` 非空，再执行全新 cold build | **已就绪**（需在普通宿主终端执行；本会话的 shell 被注入，实测仍 DESYNC） |
+| **方案 2（需明确批准）** | 增加 build-environment launcher：仅把被宿主破坏的 PATH 同步回 `os.environ['PATH']`，不碰 IDF 源码/项目 CMake/sdkconfig，不指定 `CMAKE_MAKE_PROGRAM`，完整记录同步前后 PATH 与哈希，之后仍执行**原生** `idf.py build` | **未实施**（Codex：不应无授权直接实施） |
+
+### 18.5 本轮修改产物
+
+| 路径 | 变更 |
+| --- | --- |
+| `tools/dev/run-a05-cp2-build.ps1` | 新增 `P0 guard`（`exit 4`，fail-closed）；新增构建后验证 `[13]/[14/15]/[16]`（`exit 5`）；退出码契约扩为 0/2/3/4/5/n；头部注明方案 1 的调用方式与仍被禁止的手段 |
+| `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md` | 本节；首部「报告状态」按 Codex §7 统一口径更新 |
 
 ---
 
