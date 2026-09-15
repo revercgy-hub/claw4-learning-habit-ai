@@ -1847,7 +1847,7 @@ unit learning_mcp_host_tests : RUN FAIL (exit=-1)
 
 1. **本轮全部日志中 `failures=[1-9]` 出现 0 次** ⇒ 没有任何断言失败；该套件是**启动阶段**被 OS 拦下（`exit=-1`），测试代码一行都没跑。
 2. **同一套件在 CP0 基线里是通过的**：`out/a05-cp0-host/host_result.txt` 里 `unit learning_mcp_host_tests : RUN PASS (exit=0)`、`unit summary : 29 / 29 PASS`。而本轮改动**完全没触及 MCP host 代码**（只改了 `learning_screen.cc`、输入校验器、manifest）。
-3. **共 5 次重跑**（含**改名强制重链接**后再跑）仍被拦截；首轮 26/29 的另两个被拦套件在后续重跑中自行放行 ⇒ 属"新链接 exe 被应用控制策略瞬时/持续拦截"这一本机已知现象。
+3. **共 6 次重跑**（含**改名强制重链接**后再跑）仍被拦截；首轮 26/29 的另两个被拦套件在后续重跑中自行放行 ⇒ 属"新链接 exe 被应用控制策略瞬时/持续拦截"这一本机已知现象。第 6 次为最终值，结果与第 5 次逐字相同。
 
 ⇒ 因此**我不能声称本轮拿到 29/29**；如实记为 **28/29 + interface PASS**，并把该项列为**环境遗留项**（不阻塞 CP2 构建）。若 Codex 需要 29/29 原始证据，可在该 exe 被策略放行后重跑门禁（命令见 §21.8）。
 
@@ -1902,7 +1902,7 @@ powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05
 | `E:/workbuddy/claw4-a05-cp0-recon/cp2_clean_replay.py`、`cp2-clean-replay.{json,txt}` | §21.3 干净重放脚本与逐步断言日志（pin → LF → A01 → sync @ `2c8f58f` → A05 → components） |
 | `E:/workbuddy/claw4-a05-cp0-recon/host-fingerprint-cp2-sourcefix.json` | §21.5 重算后的 Host 指纹基线（`eec141fd…`） |
 | `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-exclude-files.py` | §21.2 `exclude_files` 的判别性自测（9 例含反向用例 + 目录级排除 + 排除生效的反向对照） |
-| `E:/claw4-a05-build-m0/out/a05-cp2-sourcefix-host/` | §21.5 Host 门禁日志（含 `host_result.txt` 与 6 次运行的留档副本 `host_result-run{2..5}.txt`，位于 recon/logs 下） |
+| `E:/claw4-a05-build-m0/out/a05-cp2-sourcefix-host/` | §21.5 Host 门禁日志（含 `host_result.txt` 与 6 次运行的留档副本 `host_result-run{2..6}.txt`，位于 recon/logs 下） |
 | `E:/claw4-a05-19fd979/logs/cp2-build-20260915-13*.log` | §18/§19 守卫拒绝构建的实跑日志（`invoking: idf.py` = 0） |
 
 ## 附录 B. 报告口径
