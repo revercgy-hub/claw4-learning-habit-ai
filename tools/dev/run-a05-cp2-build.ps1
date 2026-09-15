@@ -45,10 +45,21 @@
 #      sha256 are logged, because the in-tree copy is LF while the E:\c mirror is
 #      CRLF -- the two differ only in line endings, same 13-row layout.
 #
+# CP2-SOURCE-FIX-001 follow-up (harness gap found 2026-09-15 16:52):
+#   The CP2 run at 16:52 passed verify-build-inputs 5/5 yet failed again with the
+#   SAME learning_screen.cc:497 error, because -Src still defaulted to the
+#   un-fixed tree E:\claw4-a05-19fd979\src while the re-frozen manifest now
+#   describes E:\claw4-a05-19fd979\src-cp2-003. verify-build-inputs cannot catch
+#   this: it validates the paths written INSIDE the manifest, not the tree the
+#   runner builds from. Two changes:
+#     a) the -Src default now points at the current authoritative replay tree;
+#     b) a fail-closed binding check (below) requires -Src == manifest
+#        isolated_src.origin, so the two can never silently diverge again.
+#
 # Exit codes:
 #   0  idf.py succeeded AND every post-build verification passed
 #   2  setup fatal (missing IDF/idf.py/paths)
-#   3  build-input manifest check FAILED -> fail closed, NO build attempted
+#   3  build-input manifest check or source binding FAILED -> fail closed, NO build
 #   4  host PATH desynchronisation still present -> fail closed, NO build attempted
 #   5  build succeeded but a post-build verification FAILED
 #   n  otherwise the exit code of idf.py
@@ -58,7 +69,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$Src      = "E:\claw4-a05-19fd979\src",
+  [string]$Src      = "E:\claw4-a05-19fd979\src-cp2-003",
   [string]$Build    = "E:\claw4-a05-19fd979\build",
   [string]$LogDir   = "E:\claw4-a05-19fd979\logs",
   [string]$IdfPath  = "E:\workbuddy\esp-idf-5.5.4-ascii",
@@ -304,6 +315,36 @@ Say ("manifest : " + $Manifest)
 Say ("verifier : " + $VerifyInputs)
 if (-not (Test-Path -LiteralPath $Manifest)) { Say "FATAL manifest missing: $Manifest"; exit 3 }
 if (-not (Test-Path -LiteralPath $VerifyInputs)) { Say "FATAL input verifier missing: $VerifyInputs"; exit 3 }
+
+# --- source/tree binding (fail closed) -------------------------------------
+# The 16:52 run proved the input check ALONE is not enough: it passed 5/5 while
+# the build compiled a tree the manifest does not describe. Bind -Src to the
+# manifest's isolated_src.origin here, before anything expensive happens.
+function ConvertTo-NormPath([string]$p) {
+  [System.IO.Path]::GetFullPath($p).TrimEnd([char]92).ToLowerInvariant()
+}
+Say "-- source/tree binding (-Src vs manifest isolated_src.origin) --"
+try {
+  $mj  = Get-Content -LiteralPath $Manifest -Raw -Encoding UTF8 | ConvertFrom-Json
+  $iso = @($mj.entries | Where-Object { $_.id -eq "isolated_src" })
+  if ($iso.Count -ne 1) { throw ("expected exactly 1 isolated_src entry, found " + $iso.Count) }
+  $mOrigin = [string]$iso[0].origin
+  Say ("  manifest isolated_src.origin : " + $mOrigin)
+  Say ("  -Src (tree that would build)  : " + $Src)
+  if ((ConvertTo-NormPath $mOrigin) -ne (ConvertTo-NormPath $Src)) {
+    Say "HARD STOP: -Src is NOT the tree the frozen manifest describes."
+    Say "  The input check cannot catch this (it validates the manifest's own paths)."
+    Say ("  re-run with: -Src " + $mOrigin)
+    Say ("log: " + $log)
+    exit 3
+  }
+  Say "  OK -- -Src == manifest isolated_src.origin"
+} catch {
+  Say ("HARD STOP: source binding check failed: " + $_.Exception.Message)
+  Say ("log: " + $log)
+  exit 3
+}
+Say ""
 
 # CP2-RUNNER-FIX-001 (fix 3, fail-closed): the approved partition CSV now lives
 # inside the isolated source tree. Check it up front so a long build can never

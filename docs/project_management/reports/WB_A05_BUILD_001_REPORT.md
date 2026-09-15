@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行** |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -1880,6 +1880,119 @@ powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05
 
 ---
 
+## 22. E 首次执行（2026-09-15 16:52）：**构建了错误的树** —— harness 缺口，非源码问题
+
+### 22.0 结论先行
+
+用户按 §21.6 的命令执行，`PATH_GUARD: OK`、Ninja 错误未复现、configure PASS、sdkconfig 无漂移 —— **宿主环境侧仍然正常**。但构建**在同一个 `learning_screen.cc:497` 再次失败**，3 分 27 秒即停，2/5 构件。
+
+**原因不是修复无效，而是这次构建根本没有编译修复后的树。** 我给出的命令漏了 `-Src`，而 runner 的 `-Src` 默认值仍指向**旧树**：
+
+| 项 | 值 |
+| --- | --- |
+| 实际编译的源（构建日志第 9 行） | `source : E:\claw4-a05-19fd979\src` ← **旧树，未修** |
+| manifest 描述的树 | `E:\claw4-a05-19fd979\src-cp2-003` ← 已修 |
+| `-Src` 参数 | **未传** → 取默认值（旧树） |
+
+⇒ **这是我的指令错误**（命令不完整），由此暴露 runner 的一个真实缺口。
+
+### 22.1 两棵树的实测差异（同一文件）
+
+| 树 | 字节 | sha256（前 16） | `s_selftest_timer` 出现次数 |
+| --- | --- | --- | --- |
+| 旧 `src`（本次被编译） | 27,469 | `34447f0b93942624` | **3**（即那 3 行悬空引用） |
+| 新 `src-cp2-003` | 27,352 | `a41aeed7b10dfab5` | **0** |
+
+旧树该处上下文实测（第 497 行即失败点）：
+
+```
+    if (s_selftest_timer != nullptr) {
+      lv_timer_del(s_selftest_timer);
+      s_selftest_timer = nullptr;
+    }
+```
+
+⇒ 与 §20 记录的失败逐字相同：**同一棵树、同一处缺陷**。
+
+### 22.2 为什么硬前置没能拦住这次错误（这是本轮唯一的实质性发现）
+
+构建日志第 111–134 行显示：
+
+```
+== HARD precondition: verify-build-inputs.py --check ==
+entries  : 5 checked
+RESULT: PASS -- every external input matches the frozen manifest
+input check rc = 0
+input check PASS -> cold build follows
+```
+
+**输入校验 5/5 通过，而构建用的是另一棵树。** 原因是结构性的：`verify-build-inputs.py` 校验的是**它自己从 manifest 里读到的路径**（`origin`/`dest`），它**不知道 runner 实际用 `-Src` 传了哪棵树**。C 步把 manifest 的 `isolated_src.origin` 改成了新树，但 runner 的 `-Src` 默认值没跟着改 ⇒ 两者静默分叉。
+
+**结论：`--check` 通过 ≠ "被构建的树 = 被冻结的树"。** 这是一个真实的 harness 缺口，不是纪律问题。
+
+### 22.3 修复（CP2-SOURCE-FIX-001 follow-up，仅 runner 一个文件）
+
+| # | 修复 | 内容 |
+| --- | --- | --- |
+| 1 | `-Src` 默认值 | `E:\claw4-a05-19fd979\src` → **`E:\claw4-a05-19fd979\src-cp2-003`** |
+| 2 | **源树绑定守卫（新，fail-closed）** | 构建前读取 manifest 的 `isolated_src.origin`，要求 `-Src` 与之逐字一致（归一化后比较：绝对化 + 去尾反斜杠 + 小写）；不一致 → **`exit 3`，不构建**，并打印正确的 `-Src` 供直接复制。`isolated_src` 条目缺失/重复也判失败 |
+
+守卫插在 **PATH 守卫之后、输入校验之前**，因此一次跑动最多花几秒就能判定，不会浪费一次冷构建。
+
+### 22.4 守卫的判别性自测（**直接抽取脚本内真实片段执行**，非等价重写）
+
+把 runner 中真实的守卫代码块（文件内 13,864–16,258 字节区段）原样抽出，包进最小外壳后在**子 PowerShell 进程**里执行，共 5 例：
+
+| 输入 `-Src` | 结果 | 判定 |
+| --- | --- | --- |
+| `E:\claw4-a05-19fd979\src-cp2-003`（新默认） | `rc=0` | 放行 → 会构建 ✅ |
+| `E:\claw4-a05-19fd979\src`（**本次实际编译的树**） | **`rc=3`** | **拒建** ✅ |
+| `...\src-cp2-003\`（尾反斜杠） | `rc=0` | 归一化后放行 ✅ |
+| `E:\CLAW4-A05-19FD979\Src-Cp2-003`（大小写混杂） | `rc=0` | Windows 语义放行 ✅ |
+| `E:\c`（无关树） | **`rc=3`** | **拒建** ✅ |
+
+**关键**：第 2 例正是本次失败的那次输入 —— 若上一轮就有这道守卫，**那次注定跑错的构建会被 3 秒内拦下，不会浪费 3 分 27 秒**。这就是该守卫存在的意义。
+
+脚本语法：`SYNTAX OK`（506 行）。
+
+### 22.5 新树自足性核验（下次构建不会再因缺件失败）
+
+| 项 | 结果 |
+| --- | --- |
+| `managed_components` | **82 目录 / 14,656 文件**（在树内，与 manifest `dest` 一致） |
+| `sdkconfig` | 127,103 B（批准冻结值 `a901f204…`） |
+| `partitions\v1\32m_dual.csv` | 810 B（树内批准副本） |
+| `main\CMakeLists.txt` | 24,812 B（A05 补丁后 `14ffc5c3…`） |
+| `learning_screen.cc` | 27,352 B = `a41aeed7…`（已修） |
+| 树文件数（不含 `managed_components`） | 1,354 |
+
+### 22.6 本次运行的状态判定（不粉饰）
+
+**这次运行不构成一次有效的 CP2 尝试** —— 它没有编译被修复的树，因此既不能算"修复后仍失败"，也不能算"通过"。如实记为：
+
+```
+CP2 = BLOCKED / Reason = INVALID RUN (built the wrong tree; harness gap, now fixed)
+ARTIFACTS: 2/5 (bootloader.bin, partition-table.bin) -- 无效候选，不作为 CP2 证据
+```
+
+§9 证据方面仍只新增了 `partition-table.bin`（`ef0039b6…`，与 §20 那次逐字节相同，再次印证分区布局由批准 CSV 决定，与源码树无关）。**不主张任何新的候选证据。**
+
+### 22.7 下一步：重跑（命令已修正）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05-cp2-build.ps1 -Build E:\claw4-a05-19fd979\build-cp2-004 -Fresh
+```
+
+新默认值已指向 `src-cp2-003`，**不传 `-Src` 也正确**；若哪天传错，守卫会在 3 秒内 `exit 3` 拒建。等价写法（显式指定，双保险）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05-cp2-build.ps1 -Src E:\claw4-a05-19fd979\src-cp2-003 -Build E:\claw4-a05-19fd979\build-cp2-004 -Fresh
+```
+
+**F 停止条件不变**：出现**新**的 compile/link error → 立即停、存日志、不扩大源码修改；`exit=0` + 后验证 PASS → 写 `CP2 REVIEW_READY` 并停止；不进 CP3、不 Flash。
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -1904,6 +2017,8 @@ powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05
 | `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-exclude-files.py` | §21.2 `exclude_files` 的判别性自测（9 例含反向用例 + 目录级排除 + 排除生效的反向对照） |
 | `E:/claw4-a05-build-m0/out/a05-cp2-sourcefix-host/` | §21.5 Host 门禁日志（含 `host_result.txt` 与 6 次运行的留档副本 `host_result-run{2..6}.txt`，位于 recon/logs 下） |
 | `E:/claw4-a05-19fd979/logs/cp2-build-20260915-13*.log` | §18/§19 守卫拒绝构建的实跑日志（`invoking: idf.py` = 0） |
+| `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-binding.txt` + `harness-binding.ps1` | §22.4 源树绑定守卫判别性自测：`harness-binding.ps1` 是**从 runner 原样抽取**的真实守卫片段，5 例输入（新树/旧树/尾反斜杠/大小写/无关树）逐例退出码 |
+| `E:/claw4-a05-19fd979/logs/cp2-build-20260915-165252.log` + `build-cp2-003/log/idf_py_{stdout,stderr}_output_*` | §22 E 首次执行的完整日志：第 9 行 `source = ...\src`（旧树）证明本次构建了错误的树；`learning_screen.cc:497` 为失败点 |
 
 ## 附录 B. 报告口径
 
