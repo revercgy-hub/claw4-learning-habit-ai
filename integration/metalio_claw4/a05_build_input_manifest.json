@@ -1,0 +1,70 @@
+{
+  "purpose": "A05 build inputs: repo-external inputs frozen by hash; re-verify before each build",
+  "tree_hash_definition": "sha256(\"\\n\".join(\"<sha256>  <relpath>\" sorted by relpath))",
+  "policy_ref": "WB-A05-BUILD-001 §3 (input manifest) and reviewer ruling #1",
+  "entries": [
+    {
+      "id": "idf",
+      "kind": "external-tree",
+      "origin": "E:\\workbuddy\\esp-idf-5.5.4-ascii",
+      "version": "5.5.4 (tools/cmake/version.cmake; no git metadata -> no SHA claim)",
+      "used_as": "IDF_PATH",
+      "origin_tree_sha256": "9979c6c36539dd7c7021a881c7602a333801c49586b55cc651914ed84d3d5381",
+      "origin_file_count": 27364,
+      "origin_bytes": 471178574
+    },
+    {
+      "id": "idf_tools",
+      "kind": "external-tree",
+      "origin": "E:\\workbuddy\\claw4-idf-tools",
+      "version": "cmake 3.30.2 / ninja 1.12.1 / riscv32-esp-elf esp-14.2.0_20260121 / python 3.12.14",
+      "used_as": "IDF_TOOLS_PATH",
+      "origin_tree_sha256": "78ad1256ef07b11b92e903920c3f5f1a3d49d60887ad2b874f110b51cf1c2f44",
+      "origin_file_count": 39722,
+      "origin_bytes": 6805470719,
+      "unreadable_or_symlink": [
+        "msys64/etc/mtab  [UNREADABLE:22]"
+      ],
+      "unreadable_count": 1
+    },
+    {
+      "id": "managed_components",
+      "kind": "external-tree-installed",
+      "origin": "E:\\c\\managed_components",
+      "version": "82 components, per E:\\c\\dependencies.lock (sha256 90af1add...)",
+      "used_as": "<isolated src>/managed_components",
+      "origin_tree_sha256": "83c759c8306b11193feebd061cd8752bfe7db4384e752132a078f312395a9af4",
+      "origin_file_count": 14656,
+      "origin_bytes": 666122132,
+      "dest": "E:\\claw4-a05-19fd979\\src\\managed_components",
+      "dest_tree_sha256": "83c759c8306b11193feebd061cd8752bfe7db4384e752132a078f312395a9af4",
+      "dest_file_count": 14656,
+      "dest_bytes": 666122132
+    },
+    {
+      "id": "sdkconfig",
+      "kind": "external-file-installed",
+      "origin": "E:\\workbuddy\\claw4-idf-cold-c5-20260906-frozen-20260912\\sdkconfig",
+      "version": "frozen C5 configuration",
+      "used_as": "SDKCONFIG (explicit)",
+      "origin_sha256": "a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26",
+      "dest": "E:\\claw4-a05-19fd979\\src\\sdkconfig",
+      "dest_sha256": "a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26",
+      "bytes": 127103
+    },
+    {
+      "id": "isolated_src",
+      "kind": "replayed-tree",
+      "origin": "E:\\claw4-a05-19fd979\\src",
+      "version": "pin ca3aa3fa + A01 + 19fd979 learning sync + A05 patch + frozen sdkconfig",
+      "used_as": "project source (-C)",
+      "exclude_dirs": [
+        "managed_components",
+        "build"
+      ],
+      "origin_tree_sha256": "f72e868b21680e38c3e817fdac6f9cfd4d884ef0229006438a2922eec7d635fb",
+      "origin_file_count": 1354,
+      "origin_bytes": 72529007
+    }
+  ]
+}
