@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑** |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑**。**§23：E 第二次执行（17:09）用的树正确（`src-cp2-003`、绑定守卫 OK、输入校验 5/5）且 §20 的编译错误已消失、推进到 2,439/2,643 —— 但撞上 Windows `CreateProcess` 32,767 字符命令行上限（失败命令 33,505）。用真实 `compile_commands.json` 证明：旧命名 `src` 最长 31,759（余量 1,008、超限 0/2,422），我选的 `src-cp2-003` 最长 33,463（**超限 195/2,422**）⇒ 是树目录名太长所致；缩短到 `E:\a05c\s` 可获 4,255 余量。**方案待裁定（改动冻结输入路径，属 CP 级）** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -1993,6 +1993,120 @@ powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05
 
 ---
 
+## 23. E 第二次执行（2026-09-15 17:09）：**Windows 命令行长度上限**被路径长度顶破
+
+### 23.0 这次终于是对的树 —— 但撞上另一堵墙
+
+本次运行（`cp2-build-20260915-170947.log`）**所有闸门都对**：
+
+```
+source       : E:\claw4-a05-19fd979\src-cp2-003     ← 修复后的树 ✅
+PATH_GUARD: OK -- os.environ['PATH'] == Win32 PATH (len 874)
+-- source/tree binding (-Src vs manifest isolated_src.origin) --
+  manifest isolated_src.origin : E:\claw4-a05-19fd979\src-cp2-003
+  OK -- -Src == manifest isolated_src.origin        ← §22 新增的守卫生效 ✅
+input check PASS -> cold build follows              ← 硬前置 5/5 ✅
+```
+
+**§20 的 `learning_screen.cc:497` 编译错误没有再出现** —— 源码修复确实生效了。构建推进到 **2,439 / 2,643**，随后失败：
+
+```
+CreateProcess failed. Command attempted:
+"E:\workbuddy\...\riscv32-esp-elf-g++.exe ... -c E:/claw4-a05-19fd979/src-cp2-003/main/audio/audio_codec.cc"
+ninja: fatal: CreateProcess: The parameter is incorrect.
+ (is the command line too long?)
+```
+
+**这不是编译错误、不是链接错误、不是源码缺陷，也不是环境注入** —— 是 **Windows `CreateProcess` 的 32,767 字符命令行上限**。
+
+### 23.1 精确测量
+
+| 项 | 值 |
+| --- | --- |
+| 失败命令行长度 | **33,505** 字符 |
+| `CreateProcess` 上限 | 32,767 |
+| **超出** | **738 字符** |
+| `-I` 段数 | **379** |
+| 该 TU | `main/audio/audio_codec.cc` |
+| 错误码语义 | `ERROR_INVALID_PARAMETER`(87)，ninja 自己都提示 "is the command line too long?" |
+
+### 23.2 根因：**是我的树路径命名把它顶过去的**（用全量 `compile_commands.json` 证明）
+
+用本次构建**真实生成**的 `build-cp2-004/compile_commands.json`（2,422 条）逐条计算：
+
+| 树路径 | 最长命令 | 距上限余量 | **超限条目数** |
+| --- | --- | --- | --- |
+| `E:/claw4-a05-19fd979/src`（**旧命名**） | **31,759** | 1,008 | **0 / 2,422** |
+| `E:/claw4-a05-19fd979/src-cp2-003`（本次） | **33,463** | **−696** | **195 / 2,422** |
+
+- 长命令的 TU 全部含 **212 个树路径引用**（379 个 `-I` 里绝大多数带树前缀）。
+- 树路径从 `src`(3) 变成 `src-cp2-003`(11)，**每条 +8 字符 × 212 ≈ +1,700** ⇒ 把原本只剩 1,008 字符余量的整条分布**整体推过悬崖**。
+- 交叉印证：`build-cp2-003`（旧命名）的 `compile_commands.json` 最长 **31,759**、**超限 0 条** —— 旧命名确实一直活得下去；是**我在 §21.3 选的目录名 `src-cp2-003` 太长了**。
+
+⚠️ 另需点明：旧命名只剩 1,008 字符余量本身就是**隐患**（任何一个新增 include 都会再爆），所以"改回 `src`"不是好方案。
+
+### 23.3 投影：缩短路径即可彻底解除（同一份真实数据计算）
+
+| 候选（source / build） | 最长命令 | 余量 | 超限条目数 |
+| --- | --- | --- | --- |
+| `E:\a05c\s` / `E:\a05c\b` | **28,512** | **+4,255** | **0 / 2,422** |
+| `E:\a05s` / `E:\a05b` | 28,082 | +4,685 | 0 / 2,422 |
+| `E:\a05c\src` / `E:\a05c\build` | 28,948 | +3,819 | 0 / 2,422 |
+
+**强烈建议取 `E:\a05c\s` + `E:\a05c\b`**：一次性拿到 4,255 字符余量，两个路径都短，且不依赖任何系统开关。
+
+**这一改动是内容中性的**：manifest 的树摘要是**按相对路径**计算的，与树放在哪里无关 ⇒ 移树/重放后摘要应仍为 `36bc3d4d…`（应用时会实测验证）。
+
+### 23.4 次要发现（必须记录）
+
+本次构建把 3 个生成文件写入了 `src-cp2-003`，其中**两个连读都读不到**：
+
+| 文件 | 字节 | 可读性 |
+| --- | --- | --- |
+| `main/i18n/i18n_strings_gen.h` | 78,840 | 可读，sha256 `b58d35a0…` |
+| `main/assets/lang_config.h` | 10,639 | **读被拒（Permission denied）** |
+| `main/mmap_generate_resources.h` | 18,246 | **读被拒（Permission denied）** |
+
+⇒ §21.2 的 B 要求"记录这 3 个生成路径的 post existence/hash"这一步**在本机算不出那两个文件的哈希**。实测 `verify-build-inputs.py` 的处理是**如实记为 `sha256=UNREADABLE:13` 并继续**（不报错、不影响判定），因此**不阻塞**；但"post hash"对有 ACL 限制的两个文件而言等于"只有 bytes + exists"。这需要一并裁定（可能与本机应用控制策略同源）。
+
+### 23.5 构建后输入复核（本轮手工补跑）：**PASS，无漂移**
+
+runner 的 `[16]` 只在 `rc == 0` 时才跑，本次未跑到，故手工补跑（`inputcheck-after-cp2004.log`）：
+
+```
+-- generated paths excluded from the tree digest (state now; NOT compared) --
+    main/assets/lang_config.h        exists=True  bytes=10639  sha256=UNREADABLE:13
+    main/i18n/i18n_strings_gen.h     exists=True  bytes=78840  sha256=b58d35a0…
+    main/mmap_generate_resources.h   exists=True  bytes=18246  sha256=UNREADABLE:13
+entries  : 5 checked
+failures : 0
+RESULT: PASS -- every external input matches the frozen manifest
+```
+
+**意义**：① 报 20/§21 担心的"构建写入隔离树 ⇒ 下次会被硬前置拦下"**已消除** —— 排除 3 个生成路径后，`--check` 在**被构建写过的树上依然 PASS**，硬前置可用；② 除这 3 个生成路径外，**树的其余部分逐字节未变**（摘要仍等于冻结值）；③ 顺带证明 §21.2 的 `exclude_files` 在真实构建后场景下按设计工作。
+
+### 23.6 状态与所需裁定
+
+```
+CP2 = BLOCKED / Reason = WINDOWS COMMAND-LINE LENGTH LIMIT (32,767) EXCEEDED
+                         caused by the replay-tree directory name chosen in 21.3
+ARTIFACTS: 2/5 (bootloader.bin, partition-table.bin) -- 非候选证据
+```
+
+**本次运行也不构成有效的 CP2 尝试**：它证明了源码修复有效（旧错误消失），但**没有跑到链接阶段**，因而仍未产出 5/5 构件。
+
+**请裁定（属 CP 级：改动冻结输入的路径）**：
+
+| 方案 | 内容 | 评估 |
+| --- | --- | --- |
+| **A（推荐）** | 重放到短路径：source `E:\a05c\s`、build `E:\a05c\b`；同步更新 manifest 与 runner 默认值 | 内容中性、余量 4,255、实测可证；一次性解决 |
+| B | 只把目录名改回 `src` | 仅 1,008 余量，隐患仍在；不推荐 |
+| C | 传 `-D CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES=ON` 让 include 走响应文件 | **属修改 CMake 配置，任务书禁止**；未获授权不得实施 |
+
+**未做**：未移动/改名任何树、未改 manifest、未改 runner、未改 CMake/sdkconfig/partition/源码、未装工具、未 Flash、未进 CP3。
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -2019,6 +2133,9 @@ powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05
 | `E:/claw4-a05-19fd979/logs/cp2-build-20260915-13*.log` | §18/§19 守卫拒绝构建的实跑日志（`invoking: idf.py` = 0） |
 | `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-binding.txt` + `harness-binding.ps1` | §22.4 源树绑定守卫判别性自测：`harness-binding.ps1` 是**从 runner 原样抽取**的真实守卫片段，5 例输入（新树/旧树/尾反斜杠/大小写/无关树）逐例退出码 |
 | `E:/claw4-a05-19fd979/logs/cp2-build-20260915-165252.log` + `build-cp2-003/log/idf_py_{stdout,stderr}_output_*` | §22 E 首次执行的完整日志：第 9 行 `source = ...\src`（旧树）证明本次构建了错误的树；`learning_screen.cc:497` 为失败点 |
+| `E:/claw4-a05-19fd979/build-cp2-004/compile_commands.json`（+ `build-cp2-003/compile_commands.json`） | §23 命令行长度的**全量实测依据**（2,422 条），两个命名下的最长命令/超限条目数均由它直接算出 |
+| `E:/claw4-a05-19fd979/build-cp2-004/log/idf_py_stderr_output_42124` | §23 失败原文：`CreateProcess failed ... ninja: fatal: ... (is the command line too long?)` |
+| `E:/claw4-a05-cp1-fix-recon/logs/inputcheck-after-cp2004.log` | §23.5 构建后输入复核 PASS（含 `UNREADABLE:13` 的如实记录） |
 
 ## 附录 B. 报告口径
 
