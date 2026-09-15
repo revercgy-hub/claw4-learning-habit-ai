@@ -1,5 +1,7 @@
 # WB-A05-BUILD-001：M0隔离总装与唯一候选冻结（审查修订版）
 
+> 2026-09-15 当前覆盖：CP0 ACCEPTED；CP1/CP2 已由 WorkBuddy 实施，本次 `00b27e7` 的冷构建成功事实已核实，工具与交付 CHANGES_REQUIRED。先执行 [WB-A05-CP2-REVIEW-FIX-002](../reports/CODEX_A05_CP2_REVIEW_2026-09-15.md) 的 R1–R4，保护既有产物、不重复构建；CP3/CP4 保持 QUEUED。CP3 仍按本文 §4 做无硬件审计，A05-DEVICE 另定。下方 CP0 启动及旧门禁文字只作历史基线，当前入口以本覆盖和看板为准。
+
 编排日期：2026-09-14。实施：WorkBuddy；审查/架构/疑难定位：Codex。用户本轮明确Codex不直接实施。本包替代Downloads同名方案，原文作为参考保留。必读[本轮审查](../reports/CODEX_A05_PLAN_REVIEW_2026-09-14.md)、根AGENTS、看板、上一流报告、V5.3架构、A01证据和集成登记表。
 
 ## 0. 领取状态与基线

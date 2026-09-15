@@ -1,5 +1,9 @@
 # WorkBuddy 当前执行入口
 
+## 2026-09-15 CP2 审查：当前执行覆盖
+
+只领取 `docs/project_management/reports/CODEX_A05_CP2_REVIEW_2026-09-15.md` §四的 `WB-A05-CP2-REVIEW-FIX-002`（R1→R2→R3→R4）。CP0 已验收，现有 CP2 冷构建成功证据保留，交付为 CHANGES_REQUIRED。只改白名单内的工具、测试和报告；不改产品、不重建、不删除现有构建树/候选、不刷机、不进入 CP3。CP3 是链接/来源/缺陷审计，不是设备验证。此条覆盖下方历史启动文本，完成后提交 REVIEW_READY 等 Codex 复核。
+
 ## A05方案审查后的当前指令（覆盖下方旧入口）
 
 只领取 `docs/project_management/tasks/WB-A05-BUILD-001.md` 的CP0；先读 `docs/project_management/reports/CODEX_A05_PLAN_REVIEW_2026-09-14.md`、当前看板和根AGENTS。源代码基线19fd979，使用包含本任务书的交接分支建立独立workbuddy/a05-build-m0。
