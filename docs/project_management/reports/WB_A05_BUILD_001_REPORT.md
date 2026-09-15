@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 未放行** —— 阻塞项：前序 `WB-V53-NEXT-001` 整体代码验收（见 §11） |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 裁定仍为 QUEUED**；本报告的 CP1 章节是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改） |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -864,6 +864,146 @@ integration/metalio_claw4/device/ports/metalio_http_transport.cpp:52  return std
 | `E:/workbuddy/claw4-a05-cp0-recon/component-content-verify.{txt,json}` | 82 组件内容哈希逐项结果（含 esp_hosted） |
 | `E:/workbuddy/claw4-a05-cp0-recon/component-content-negative-control.txt` | 单比特篡改被检出的负向对照 |
 | `E:/workbuddy/claw4-a05-cp0-recon/verify_component_content.py`、`negative_control.py` | 校验与对照脚本（待 CP1 决定是否入库 `tools/dev/`） |
+
+---
+
+## 14. CP1：可重放的最小构建登记
+
+### 14.0 门禁状态与越门禁授权（必读，先看这段）
+
+**CP1 是在门禁未放行的情况下、经用户明确授权后执行的。** 事实如下，不做粉饰：
+
+| 事实 | 依据 |
+| --- | --- |
+| Codex 于 2026-09-15 正式裁定 **A05 CP0 ACCEPTED（前置取证范围）**，同时明确 **CP1 仍为 QUEUED** | `docs/project_management/reports/CODEX_A05_CP0_VERIFICATION_2026-09-15.md`（分支 `codex/a05-cp0-verification` @ `70738dd1`） |
+| 该裁定要求：等待 Codex 完成前序 `WB-V53-NEXT-001` 整流验收；**WorkBuddy 保持等待，不开始 CP1/CP2** | 同上；并见 `TASK_BOARD.md` 顶部「2026-09-15 CP0正式复核」段与 `.workbuddy/INSTRUCTIONS.md` 覆盖指令 |
+| 任务书 §0 原文亦写明「**CP1～CP4 QUEUED，未经下述放行不得开始构建**」 | `WB-A05-BUILD-001.md` §0 |
+| **用户随后明确指示：开始 CP1，并选择「授权我越门禁开工」** | 本轮对话，用户答复 `你授权我越门禁开工` |
+
+**因此：本节的产出是在用户授权覆盖 Codex 门禁的前提下完成的。** 保留此记录以便追溯；Codex 的原始裁定**未被修改**，任务书/看板/INSTRUCTIONS 也**未被改写**。若要回到原门禁状态，请以 Codex 的前序整流验收结论为准。
+
+**本轮仍未做**（与本包一贯纪律一致）：未运行 IDF `configure`/`build`，未产出候选产物，**未 Flash / erase / monitor**，未改 vendor / BSP / sdkconfig 内容 / 分区 CSV / bootloader / ota_1 / eFuse，未加 dummy 调用 / whole-archive / 强制保留符号 / 关闭节裁剪。
+
+### 14.1 CP1-A 隔离重放树（pin → A01 → 19fd979 → 冻结配置）
+
+工作区根 `E:/claw4-a05-19fd979/`，重放源码树 `src/`。
+
+| 步骤 | 命令/依据 | 结果 |
+| --- | --- | --- |
+| 1. 取 pin | `git archive ca3aa3fa`（源 `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4`） | 1264 文件 / 72 MB，**无 `.git`、无 `managed_components`、无 `build`** |
+| 2. 归一到 canonical LF | 见下「行尾口径」说明 | 434 个文本文件 CRLF→LF；0 个二进制被误改 |
+| 3. 校验 pin | 4 个 A01 目标文件 vs `upstream_sha256` | **4/4 MATCH** |
+| 4. 应用 A01 补丁 | `git apply -p1 --whitespace=nowarn`（`--check` rc=0，apply rc=0） | 结果 canonical LF **4/4 == `patched_lf_sha256`** |
+| 5. 同步 19fd979 学习源码 | 从 `82337fb` 的 **blob** 写入（精确同路径映射） | **90 文件写入**（learning 87 + learning_screen 3） |
+| 6. 安装冻结 C5 配置 | `claw4-idf-cold-c5-20260906-frozen-20260912/sdkconfig` → `src/sdkconfig` | 源/目标 sha256 均 `a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26` **与批准输入一致** |
+| 7. 应用 A05 补丁 | §14.2 | `main/CMakeLists.txt` → `14ffc5c3…` |
+
+**最终重放树**：`E:/claw4-a05-19fd979/src`，1354 文件。
+
+**行尾口径（本轮踩到的真实坑，已固化）**：本仓库 `core.autocrlf=true` 且 `.gitattributes` 声明 `* text=auto`，因此**工作树是 CRLF、而提交的 blob 是 LF**。于是 (a) `git archive` 直接产出 CRLF；(b) `git apply` 会把打补丁后的结果**再转成 CRLF**。A01 记录里的 `upstream_sha256` / `patched_lf_sha256` 都是 **LF 口径**。若拿 raw 或工作树字节去比，会得出"4/4 不匹配"的**假失败**（本次首轮即如此）。因此重放树以 **canonical LF** 为准，每步之后重新归一。
+
+### 14.2 CP1-B A05 补丁层
+
+| 项 | 值 |
+| --- | --- |
+| 补丁 | `integration/metalio_claw4/patches/a05-0001-cmake-source-registration.patch` |
+| 补丁 sha256 | `51e2db0411917176c0cbdaafa927d579f7c3547b60e16f838acb753ba463ec5e` |
+| 元数据 | `.../a05-0001-cmake-source-registration.json`（base / 应用顺序 / 前后 hash / 回滚 / 约束） |
+| 目标 | **仅** `main/CMakeLists.txt` |
+| base | A01 之后（`9f7098e0…`，与 `E:/c` 当前该文件**逐字节相同**） |
+| 结果（canonical LF） | `14ffc5c3466849179915813c413950b16b2f037a683477c9bf1c7881f0964b6d` |
+| 追加的 5 行 | `learning/sync/sync_executor.cpp`、`learning/sync/single_flight_http_transport.cpp`、`learning/time/time_authority.cpp`、`learning/interaction/interaction_arbiter.cpp`、`learning/reminder/reminder_core.cpp` |
+| 应用顺序 | `project-ca3aa3fa.patch` → `a05-0001-...patch`（不可颠倒） |
+| 回滚 | `git apply -R -p1 --whitespace=nowarn <patch>`，恢复 `9f7098e0…` |
+
+**未做的事**（避免"伪装成链接实现"）：头文件只靠既有 `list(APPEND INCLUDE_DIRS .../learning)` 解析（第 152 行），**未**新增 include 路径；**未**加 dummy 调用、whole-archive、强制符号保留、关节裁剪。
+
+**登记一致性核对**：`main/CMakeLists.txt` 中 `"learning/...` 条目共 **24** 条，逐个核对文件存在性 → **缺失 0**。
+
+### 14.3 CP1-C 工具三件套（`tools/dev/`）
+
+| 工具 | 作用 | 退出码 |
+| --- | --- | --- |
+| `verify-component-content.py` | 用 **IDF 自己的算法**（`hash_dir` + `validate_hash_eq_hashdir`）重算 managed_components 的**内容**哈希并与锁文件比对；附 `--negative-control` | **任何失败类别均非零**：锁文件缺失 / 组件目录缺失 / 解析到 0 个组件 / 磁盘缺目录 / 缺 lock hash / 内容不匹配 / 单组件异常。仅允许跳过 `idf` 伪条目 |
+| `host-reuse-fingerprint.py` | Host 证据复用判定：文件集（`firmware/** ∪ integration/** ∪ tools/dev/**`）+ **工具链身份** + 编译链接参数 → 合成指纹；`--write-baseline` / `--check` | 0 相同、1 不同或基线不可读、2 用法错误 |
+| `verify-partition-table.py` | 反解**生成的** `partition-table.bin`，与批准 CSV 的解析结果逐行比对；重叠/越界检查；`ota_0`/`ota_1` 显式断言；余量**只由本候选 app 镜像**计算 | 任一断言失败即非零 |
+
+**实测结果**
+
+```text
+verify-component-content.py --negative-control
+  lock entries 83 / content verified OK 82 / failures 0 / rc=0
+  negative control: detects a single-bit change = True
+  失败类别实测：lock missing rc=1；components dir missing rc=1；
+                lock 解析 0 组件 rc=1（空文件与垃圾文件各一次）
+
+host-reuse-fingerprint.py（工具链身份 34 项：原生/交叉 程序 19、编译器内部 6、运行库/归档 9；缺失 0）
+  文件数 161 / trees_hash 3a238c26… / args_hash 69018d2e… / toolchain_hash 80c46973…
+  HOST_REUSE_FINGERPRINT = 63f106e5f80000333580d2051e2380e975e04c2ee962c1fbacb2ee4aade7018c
+  --check → SAME（rc=0）
+
+verify-partition-table.py（自测：CSV→BIN→比对，app 用 8 MB 占位，非候选）
+  13 行逐行比对全部 OK；last end 0x01fa6000；尾部未分配 368640
+  ota_0 余量 1437184 (15.23%)；app > ota_1 → 正确输出「双槽 OTA 不可用」提示
+  RESULT: PASS / rc=0
+```
+
+**按裁定 #2 重建基线**：新增 `host-reuse-fingerprint.py` 本身进入了输入集，所以**基线已重建**（不是沿用旧值），旧基线 `133ffedb…` 作废、新基线 `63f106e5…`。**按裁定 #5**：组件校验工具已按"空输入/缺目录/缺锁 hash/异常/不匹配必须非零退出"实现并逐类实测。
+
+**工具里发现并修正的两个真实缺陷**
+
+1. **`gen_esp32part.py` 的输出格式跟随"输入"格式，而不是输出文件名后缀**：CSV 进 → **二进制**出；BIN 进 → CSV 出。所以"CSV→CSV"这种模式**不存在**，请求它会静默得到二进制（首轮自测即因此报 `utf-8 codec can't decode byte 0xaa`，0xAA 正是 ESP 分区表魔数）。已改为**两步**：CSV→BIN→CSV 才能拿到解析后的布局。
+2. **w64devkit 是静态链接发行版，树内没有任何 DLL**（`g++ -print-file-name=libstdc++-6.dll` 只回显裸名）。因此"原生运行库身份"**不能**用 DLL 表示。已改为：原生/交叉的**编译器内部程序**（`cc1`、`cc1plus`、`collect2`）+ **静态归档**（`libstdc++.a`/`libgcc.a`/`libsupc++.a`/`libwinpthread.a`、交叉 `libgcc.a`/`libstdc++.a`/`libm.a`/`libc.a`）。
+
+### 14.4 CP1-D 同步账目与 fixture 验证
+
+**同步 Check（镜像 `E:/c` vs 19fd979 的 canonical blob）** —— 基准必须是 **blob 字节（LF）**，用工作树或把行尾差异算进"内容差异"都会误报：
+
+| 类别 | 数量 |
+| --- | --- |
+| IDENTICAL（与 blob 逐字节相同） | 16 |
+| EOL ONLY（内容相同，镜像为 CRLF） | 44 |
+| **REAL CONTENT DIFFERS** | **13** |
+| mirror-only（无 repo 来源 = 未解释漂移） | **0** |
+| repo-only（镜像缺失） | **17** |
+
+- 对账：16+44+13 = 73 = 镜像文件数；+17 = 90 = repo 候选文件数 → **完全闭合**。
+- 13 个真实差异（`learning_screen.cc`、`application/coordinator.{h,cpp}`、`device/app/learning_runtime.{h,cpp}`、`device/ports/{metalio_http_transport,nvs_backend_provisioning,nvs_outbox_storage}.{h,cpp}`、`sync/learning_backend_session.{h,cpp}`）**正是 V5.3 NEXT-001 改动过的文件** → 全部可解释。
+- 17 个缺失**正是本包新增模块**（含 A05 要登记的那 5 个 cpp）→ 全部可解释。
+- **结论：无未解释差异**（`mirror-only = 0` 是关键判据）。
+
+**fixture 验证**（`E:/claw4-a05-19fd979/fixture/`）
+
+| 测试 | 结果 |
+| --- | --- |
+| A05 补丁 `apply --check` / `apply` / `apply -R` | 全部 **rc=0** |
+| 应用后 canonical LF 哈希 == 元数据声明值 | **True** |
+| 反向恢复后 == base | **True** |
+| A01 在重放树上的前向应用 | rc=0，4/4 命中 `patched_lf_sha256` |
+
+**任务书 §2 的四条 CP1 验证项**：补丁应用/反向/hash **通过**；同步 Check **无未解释差异**；配置关键项——冻结配置副本哈希与批准输入**一致**（逐键枚举沿用 CP0 §4 证据，真正"configure 前后各记一次哈希"属于 CP2）；提交后工作树保持 clean（见提交记录）。
+
+### 14.5 CP1 明确**未**完成的部分
+
+- **未做任何 IDF configure/build**（CP2 范围）。因此：`compile_commands.json`、对象清单、`partition-table.bin` 的真实反解、app 镜像真实字节数与余量、ELF 链接证据——**全部尚不存在**。§14.3 的分区工具只是**自测**（用 CSV 往返生成的 bin + 8 MB 占位 app），**不是候选验证**。
+- 三个工具已入库但**尚未接入 Host 门禁**（`tools/dev/verify-host-cpp-tests.ps1` 未改动）。是否纳入需 Codex 裁定。
+- **`time` / `reminder` / `interaction_arbiter` 三个模块在设备侧仍无调用点**（§8 复查：`integration/` 内 0 命中）→ 预期 `COMPILED_NOT_WIRED`；`single_flight` 与 `sync_executor` 则**必须**给出最终 ELF 保留证据。
+- 本机 `E:\workbuddy\**` 斜杠引用缺陷依旧（§1.3）；本地分支名仍为无斜杠。
+- `TCP loopback: ENV_VERIFY_REQUIRED`、`CI: NOT PRESENT` 不变；Device/Hardware 项一律 `HARDWARE_VERIFY_REQUIRED`。
+
+### 14.6 CP1 新增/修改的仓库文件
+
+| 路径 | 类型 |
+| --- | --- |
+| `integration/metalio_claw4/patches/a05-0001-cmake-source-registration.patch` | 新增（补丁） |
+| `integration/metalio_claw4/patches/a05-0001-cmake-source-registration.json` | 新增（元数据） |
+| `integration/metalio_claw4/integration_manifest.md` | 追加 A05 补丁层与同步缺口登记 |
+| `tools/dev/verify-component-content.py` | 新增 |
+| `tools/dev/host-reuse-fingerprint.py` | 新增 |
+| `tools/dev/verify-partition-table.py` | 新增 |
+| `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md` | 本节 |
+
+隔离工作产物（**不入库**）：`E:/claw4-a05-19fd979/{src,fixture}`、`E:/workbuddy/claw4-a05-cp0-recon/{cp1-*,host-fingerprint-v2.json,pt-*}`。
 
 ---
 
