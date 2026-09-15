@@ -3,15 +3,15 @@
 | 项 | 值 |
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
-| 本轮范围 | **仅 CP0**（含 §12 复审意见落实）。CP1～CP4 未开始 |
-| 报告状态 | `CP0 REPORT READY`（CP0 已获 Codex 复审通过；§12 补齐 3 处执行规则的精确判据，等待放行 CP1） |
+| 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
+| 报告状态 | `CP0 REPORT READY (REVISION 2)`。**Codex 尚未作出任何验收/放行结论**（见 §11） |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
 | Base（交接 HEAD，含本任务书） | `82337fbf0654b78501241323d6ac4d0f1d7deaeb` |
 | 上游代码 SHA | `19fd979d4222093ff4ce7464e5b58407586594a2` |
 | vendor pin | `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950` |
-| 日期 | 2026-09-14（首版 CP0）；2026-09-15（追加 §12 复审意见落实） |
+| 日期 | 2026-09-14（首版 CP0）；2026-09-15（追加 §12 复审 1 落实）；2026-09-15（追加 §13 复审 2 修正 = REVISION 2） |
 
 **本轮未做**：未改任何代码 / CMake / 配置；未运行 IDF `configure`/`build`；未 flash / erase / monitor；未升级或重下任何组件；未关系统应用控制、未重命名或改写二进制以绕过阻断。
 
@@ -299,7 +299,7 @@ JSON 记录的 4 文件三态哈希（`upstream_sha256` / `mirror_raw_sha256` / 
 
 对 `E:/c` 当前 4 个文件计算 (raw sha256, LF 归一 sha256)：
 
-| 文件 | raw sha256（实测） | lf sha256（实测） | = `patched_lf`？ | = `upstream_raw`？ |
+| 文件 | raw sha256（实测） | lf sha256（实测） | = `patched_lf_sha256`？ | = `upstream_sha256`(LF)？ |
 | --- | --- | --- | --- | --- |
 | `main/display/screen/home_screen/home_screen.cc` | `1bb0eef2e03467f2dcf50c648c65193dc5a167913d4658de723680090eba30c8` | `0c99f5ed52d8ff394707b00a5bd7b2987f09dbcc678a0db1abfccacc7fa36f8d` | **YES** | NO |
 | `main/CMakeLists.txt` | `9f7098e02694397984e688a8416042c26efdeb9357cbbbba1ecf340d58d35a92` | `9f7098e02694397984e688a8416042c26efdeb9357cbbbba1ecf340d58d35a92` | **YES** | NO |
@@ -308,27 +308,54 @@ JSON 记录的 4 文件三态哈希（`upstream_sha256` / `mirror_raw_sha256` / 
 
 （`raw` = 磁盘原始字节；`lf` = 将 CRLF 归一为 LF 后；两列均与 A01 JSON 的 `mirror_raw_sha256` / `patched_lf_sha256` **逐字命中**，`upstream_sha256` 均不命中——即补丁确已应用。）
 
-### 5.3 本地树相对"参考上游树"的额外差异（含重要限制）
+### 5.3 `E:/c` 相对**真实 pin** 的完整差异账目（REVISION 2 更正）
 
-本机存在一份**疑似纯净上游树** `E:/workbuddy/MetalioClaw4-ascii`（1,266 文件，无 `main/learning`）。以它为参照与 `E:/c` 逐文件比对（排除 `build/.git/managed_components` 与二进制扩展名）：
+> **更正说明（首版结论有误）**：首版据 `E:/workbuddy/MetalioClaw4-ascii` 与 `E:/c` 的比对，判定"本机没有 pin 的等价副本、无法证明字节级差异"。**该比对本应用 LF 归一化哈希，首版用的是 raw（CRLF）哈希**，而 A01 JSON 里的 `upstream_sha256` 本身就是 **LF 归一化**口径 —— 口径不一致使 4/4 被误判为"不同"。按 LF 口径复算，参考树 4 文件全部命中。更关键的是：**pin 的权威来源本来就在本机**。
+
+| 项 | 实测 |
+| --- | --- |
+| pin 源路径 | `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4` |
+| 是否 git 仓库 | **是**（`.git` 存在；git 2.53.0.windows.1） |
+| HEAD | `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950` = **pin 本身** |
+| 分支 / 工作树 | `main` / **clean**（无未提交改动） |
+| commit 标题 | `Merge pull request #22 from vaemc/main` |
+| remote | `https://github.com/CloudZao/MetalioClaw4.git` |
+| 四文件 LF 哈希 | **4/4 == A01 `upstream_sha256`** ✅ |
+
+**补丁完整重放（本轮独立重做，不引用他人的结论）**
+
+| 步骤 | 结果 |
+| --- | --- |
+| `project-ca3aa3fa.patch` SHA256 | `58bfbe5266a9fa00980be5e5078b570b9915165e199981e6dd54dcb21aa81937` = A01 记录 ✅ |
+| `git apply --check -p1` | rc=0 |
+| `git apply` → 4 文件 LF 哈希 | **4/4 == `patched_lf_sha256`** ✅ |
+| `git apply -R` → 4 文件 LF 哈希 | **4/4 == `upstream_sha256`**（完全恢复）✅ |
+
+**`E:/c` vs 真实 pin 的逐文件账目**（排除 `.git` / `build` / `managed_components` / 二进制类扩展名）
 
 ```text
-identical        : 1261
-different        : 5      -> main/CMakeLists.txt, main/audio/audio_service.cc,
-                            main/display/lv_adapter_display.cc,
-                            main/display/screen/home_screen/home_screen.cc, sdkconfig
-only in E:/c     : 73     -> main/display/screen/learning_screen/{README.md,learning_screen.cc,learning_screen.h}
-                            + main/learning/**（application / interaction / learning_domain / mcp /
-                              metalio_claw4{device/{app,core,ports},host_glue} / ports / sync / ui）= 70
-only in ascii    : 0
-components/      : 两树无差异（各 14 文件）
+pin 文件数            : 477
+E:/c 文件数           : 552
+identical             : 472
+different             : 5    -> main/CMakeLists.txt
+                               main/audio/audio_service.cc
+                               main/display/lv_adapter_display.cc
+                               main/display/screen/home_screen/home_screen.cc
+                               sdkconfig
+only in E:/c          : 75   -> main/learning/**                        70
+                               main/display/screen/learning_screen/**    3
+                               main/assets/lang_config.h                 1
+                               main/mmap_generate_resources.h            1
+only in pin           : 0    <- 关键：没有任何 pin 文件在镜像中缺失
 ```
 
-即：`E:/c` = 参考上游树 + A01 四文件补丁 + `sdkconfig` 替换 + learning 特性（73 文件）。
+- `different` 的 5 个文件 = **A01 补丁的 4 个目标文件 + `sdkconfig`**，与 "pin + 补丁重放" 完全吻合（§5.2 已逐字节核对 `patched_lf_sha256`）。
+- `only in E:/c` 的 75 个文件**全部已定性**：**73 个 learning 特性文件** + **2 个构建生成头文件**
+  - `main/assets/lang_config.h` —— 由 `scripts/gen_lang.py` 生成（脚本内注释自述"output_path 通常是 main/assets/lang_config.h"）
+  - `main/mmap_generate_resources.h` —— 由 `scripts/build_default_assets.py:405` / `scripts/spiffs_assets/spiffs_assets_gen.py` 生成 `mmap_generate_<asset>.h`；被 `main/display/lv_adapter_display.cc:14` include
+- **`only in pin = 0`** → 镜像未丢失任何上游文件，**无未知漂移**。
 
-**⚠️ 限制（必须如实标注）**：`MetalioClaw4-ascii` 的 4 个补丁目标文件**并不等于** A01 JSON 记录的 `upstream_sha256`（实测 4/4 不同），因此它**不是 pin `ca3aa3fa` 的字节等价副本**，只能作为"额外文件/额外目录"的**参照物**，**不能**当作 pin 的重放源。
-
-→ 结论：**"完整镜像相对 pin 的字节级差异"在本机无法证明**（本机没有 pin 的 git 对象库或等价副本）。CP1 应按任务书 §2 的既定路径推进：**pin + 已认可 A01 补丁重放**，再同步 `19fd979` 的 `firmware/main` 镜像，而不是从 `E:/c` 整树继承。**请 Codex 明确 pin 的可获取来源**（见 §10）。
+→ 结论（更正版）：**"完整镜像相对 pin 的差异"在本机已完全解释，零未知漂移**。CP1 的重放源即 `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4` @ `ca3aa3fa`，**不需要 Codex 另行提供来源**。CP1 仍按任务书 §2 的既定路径推进：pin + 已认可 A01 补丁重放 → 再同步 `19fd979` 的镜像与 learning 特性，**不从 `E:/c` 整树继承**。
 
 ---
 
@@ -368,16 +395,20 @@ components/      : 两树无差异（各 14 文件）
 | SHA256 | `90af1addf9daf8ae1ec3094a798d7ab56cd12a4fef5702696d08a524458f91e1`（**与审查一致**） |
 | 大小 / 条目 | 39,731 B / **83 条目**（82 个组件 + `idf`） |
 
-### 7.2 锁文件 ↔ 本地组件的一致性（本轮新证据，直接回答审查 §2 的未决项）
+### 7.2 锁文件 ↔ 本地组件的一致性（REVISION 2 已升级为内容校验）
 
-| 检查 | 结果 |
-| --- | --- |
-| 版本一致性（82 个组件 vs `E:/c/managed_components` 各目录 `idf_component.yml`） | **82/82 匹配，0 版本差异** |
-| 目录多余性 | **0 个磁盘目录不在锁文件中** |
-| **组件哈希（字节级）**：锁文件 `component_hash` vs 磁盘 `<dir>/.component_hash` | **82/82 完全一致，0 失配** |
-| `idf` 条目 | 无对应 managed_components 目录（外部依赖，正常） |
+| 检查 | 结果 | 强度 |
+| --- | --- | --- |
+| 版本一致性（82 个组件 vs `E:/c/managed_components` 各目录 `idf_component.yml`） | **82/82 匹配，0 版本差异** | 记录级 |
+| 目录多余性 | **0 个磁盘目录不在锁文件中** | 记录级 |
+| 锁文件 `component_hash` vs 磁盘 `<dir>/.component_hash` | **82/82 一致，0 失配** | ⚠️ **仅记录一致** |
+| **组件目录内容哈希重算**（IDF 管理器自己的 `hash_dir` + `validate_hash_eq_hashdir`） | **82/82 MATCH，0 MISMATCH，0 ERROR** | ✅ **内容级**（§13.2） |
+| 负向对照：翻转 1 bit 后是否被检出 | **被检出**（MISMATCH） | ✅ 证明检查可失败 |
+| `idf` 条目 | 无对应 managed_components 目录（外部依赖，正常） | — |
 
-→ 审查报告 §6/§2 中"尚未证明 `dependencies.lock` 与历史 C5 `managed_components` 完全匹配"这一项，**在版本与组件哈希两个维度上已得到证明**（同一目录树上的自洽性）。仍未证明的是"这份 `E:/c` 组件集合与历史 C5 构建当时所用的组件集合逐字节相同"——历史构建目录内没有独立的组件清单快照可比对，**故仍列为待 Codex 裁决项**（见 §10）。
+> ⚠️ **口径更正（REVISION 2）**：首版把"锁文件 `component_hash` ↔ 磁盘 `.component_hash` 一致"当作内容证据，**这是错的** —— 两者都是**记录**，一致只能说明记录未被改，**不能证明组件文件未被修改**。本轮补上了真正的**内容级**校验（重算目录内容哈希 + 负向对照），结论由 82/82 内容 MATCH 支撑。详见 §13.2。
+
+→ 审查报告 §6/§2 中"尚未证明 `dependencies.lock` 与历史 C5 `managed_components` 完全匹配"：**在当前"版本 + 内容哈希"两个维度上已证明自洽**。仍未证明的是"这份 `E:/c` 组件集合与历史 C5 构建当时所用的组件集合逐字节相同"——历史构建目录内没有独立的组件清单快照可比对，**仍列为待 Codex 裁决项**（见 §10 第 5 项）。
 
 ### 7.3 C5 协处理器组件
 
@@ -404,8 +435,8 @@ components/      : 两树无差异（各 14 文件）
 
 | 模块 | 源（仓库 `firmware/main/…`） | 当前设备调用点 | 需要的 CMake 项 | 后续接线边界 |
 | --- | --- | --- | --- | --- |
-| SyncExecutor | `sync/sync_executor.{h,cpp}` | `learning_runtime.h`（`StateLockFn/UnlockFn`）+ `.cpp:112` 传入 `runOnlineCycle` | SOURCES 增加 `learning/sync/sync_executor.cpp`；头文件已在 `learning/` include 路径下 | 已接线，需证明 Compiled + Referenced + 最终 ELF 保留 |
-| SingleFlightHttpTransport | `sync/single_flight_http_transport.{h,cpp}` | 无直接设备 include（由 HTTP 端口/传输层组合点使用，需 CP3 用 map/object 证明） | SOURCES 增加该 cpp | 若最终未被引用，须记 COMPILED_NOT_WIRED 或 GC_DISCARDED，**不得**加假调用/whole-archive |
+| SyncExecutor | `sync/sync_executor.{h,cpp}` | **已接线（链路逐跳可查）**：`learning_runtime.h:95-96` 持有 `claw4::sync::StateLockFn/StateUnlockFn`（类型来自 `sync_executor.h`）→ `learning_runtime.cpp:35-36` 绑到 `state_mutex_` → `learning_runtime.cpp:112` `backend->runOnlineCycle(state_lock_, state_unlock_)` → `learning_backend_session.h:88` → `learning_backend_session.cpp:283` **构造 `SyncExecutor executor(app_, sync_transport_, lock, unlock, …)`** | SOURCES 增加 `learning/sync/sync_executor.cpp`；头文件已在 `learning/` include 路径下 | **必须**给出 Compiled + Referenced + 最终 ELF 保留 证据 |
+| SingleFlightHttpTransport | `sync/single_flight_http_transport.{h,cpp}` | **已接线（REVISION 2 更正）**：`integration/metalio_claw4/device/ports/metalio_http_transport.cpp:9` include 其头；**`:52` 直接 `std::make_unique<claw4::sync::SingleFlightHttpTransport>(PerformRequest)`**；该传输经 `CreateMetalioHttpTransport()` → `learning_runtime.cpp:65` 注入 `LearningBackendSession`，由 `BackendClient` 承载每一次 HTTP 调用 | SOURCES 增加该 cpp | **与 SyncExecutor 同列**：必须证明 Compiled + Referenced + 最终 ELF 保留。**不允许**以 COMPILED_NOT_WIRED / GC_DISCARDED 通过验收 |
 | LearningBackendSession / BackendSession 编排 | `sync/learning_backend_session.{h,cpp}`、`sync/backend_client.*`、`sync/outbox_core.*`、`sync/wire_codec.*` | `learning_runtime.{h,cpp}`（`backend_holder_`）、`metalio_http_transport` | **已在**上游 SOURCES | 已接线 |
 | SessionLeaseHolder | `sync/session_lease.h` | `learning_runtime.h:89`（`SessionLeaseHolder<LearningBackendSession>`） | 头文件（模板实例化在设备 TU 内） | 头文件型，类型可用即达 |
 | SessionSnapshotPublisher | `sync/session_snapshot_publisher.h` | `learning_runtime.cpp:19/120`（`publishSessionSnapshot`） | 头文件 | 同上（纯模板） |
@@ -413,6 +444,19 @@ components/      : 两树无差异（各 14 文件）
 | InteractionArbiter | `interaction/interaction_arbiter.{h,cpp}` | **无设备调用点** | SOURCES 增加 `learning/interaction/interaction_arbiter.cpp` | 同上 |
 | ReminderCore | `reminder/reminder_core.{h,cpp}` | **无设备调用点** | SOURCES 增加 `learning/reminder/reminder_core.cpp`；**镜像目录 `learning/reminder/` 尚不存在，需新建** | 同上 |
 | ReminderWakePort | `ports/reminder_wake_port.h` | 无设备实现（按任务书，设备实现留 C03/E01） | 头文件 | 纯接口，不要求独立符号 |
+
+**REVISION 2 复查说明**：首版对 SingleFlight 的判定是错的，根因是 CP0 时的 `grep … | head -20` **被截断**，`integration/` 的命中没进输出。本轮对本表全部模块做了**无截断全量复查**（逐模块 `grep -rl` 覆盖 `integration/**` 全部 `.h/.cpp`）：
+
+| 模块 | `integration/` 命中文件数 | 判定 |
+| --- | --- | --- |
+| `single_flight_http_transport`（含类型名） | 1（`device/ports/metalio_http_transport.cpp`） | **已接线**，须证明 ELF 保留 |
+| `sync_executor.h`（StateLockFn/UnlockFn） | 1（`device/app/learning_runtime.h`） | 已接线 |
+| `session_lease.h` / `SessionLeaseHolder` | 1（`device/app/learning_runtime.h:90`） | 已接线 |
+| `session_snapshot_publisher.h` / `publishSessionSnapshot` | 1（`device/app/learning_runtime.cpp:120`） | 已接线 |
+| `time_authority` / `TimeAuthority` | **0** | COMPILED_NOT_WIRED 成立 |
+| `interaction_arbiter` / `InteractionArbiter` | **0** | COMPILED_NOT_WIRED 成立 |
+| `reminder_core` / `ReminderCore` | **0** | COMPILED_NOT_WIRED 成立 |
+| `reminder_wake_port` / `ReminderWakePort` | **0** | 纯接口，不要求符号 |
 
 上游 CMake 现状（`E:/c/main/CMakeLists.txt`，552 行，A01 补丁后）：
 
@@ -461,19 +505,22 @@ docs/project_management/reports/WB_A05_BUILD_001_REPORT.md
 | --- | --- | --- | --- |
 | 1 | **前序 WB-V53-NEXT-001 的最终验收** | 看板仍为 `REVIEW_READY`；本轮 CP0 补齐了 Host 证据与 5 项阻断的同 SHA 运行证据 | 是否记录 `ACCEPTED` |
 | 2 | **5 项启动阻断的判定口径** | 本轮 29/29、5 项各单次运行均 rc=0；Codex 那轮 24/29 | 是否需要"同机重复抽样"及抽样口径；是否接受"环境间歇阻断 + 同 SHA 可运行证据"作为收口 |
-| 3 | **pin 的可获取来源** | 本机无上游 git 元数据；参考树 `MetalioClaw4-ascii` 的 4 文件 ≠ A01 `upstream_sha256` | CP1 重放 pin 的来源（本地某路径 / 指定仓库 URL / 由我提供差异清单） |
+| 3 | **pin 的可获取来源** → **已解决（REVISION 2）** | pin 源就在本机：`E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4`，HEAD == `ca3aa3fa`、工作树 clean、remote `CloudZao/MetalioClaw4.git`；补丁前向/反向重放 4/4 命中；`E:/c` 相对 pin **零未知漂移**（§5.3）。首版"本机无 pin 元数据"是 raw/LF 哈希口径混用造成的误判 | 不再阻塞。仅需确认接受该本地路径作为 CP1 的重放源 |
 | 4 | **本地斜杠引用缺陷的处置** | 6 条正常 git 途径均无法落地斜杠本地引用；`E:\workbuddy/**` 下静默失败，`E:\` 根下**创建成功但稍后被移除**（§1.3 第六步）。故本地用无斜杠名、远端用要求名 | 是否接受该偏差（远端名与任务书一致）；若要求本地也必须斜杠名，需指定环境处置口径 |
-| 5 | **组件"历史一致性"口径** | lock ↔ 磁盘 82/82 版本与哈希一致；但"与历史 C5 构建当时所用集合逐字节相同"无独立快照可比 | 是否要求逐目录 tree-hash，或接受当前证据 |
-| 6 | **C5 配置是否随候选冻结为副本** | 候选配置已定位并核 hash | CP1 使用的 SDKCONFIG 副本命名与是否纳入 manifest hash |
+| 5 | **组件内容一致性** → **已补证（REVISION 2）** | 首版只用「lock 的 `component_hash` ↔ 磁盘 `.component_hash`」比对，那只是**记录一致**、不能证明文件未被改。本轮改用 **IDF 组件管理器自己的算法重算目录内容哈希**（`idf_component_tools.hash_tools.hash_dir` + `validate_hash_eq_hashdir`）：**82/82 MATCH、0 MISMATCH、0 ERROR**，并有**负向对照**证明该检查能抓到单比特篡改（§13.2） | 仅剩「与历史 C5 构建当时所用集合是否逐字节相同」无独立快照可比（内容完整性本身已证） |
+| 6 | **C5 配置是否随候选冻结为副本** | 候选配置已定位并核 hash；本轮 Codex 已确认「C5 配置冻结」安排合理 | CP1 使用的 SDKCONFIG 副本命名与是否纳入 manifest hash（细节） |
 
 ---
 
 ## 11. 状态声明
 
 - 本轮**只完成 CP0**（前置验收证据与构建输入盘点）。**未运行任何 IDF configure/build**，未产出任何候选产物，**未 Flash**，未接提醒硬件，未扩展业务。
-- **CP0 复审结论（2026-09-15）**：Codex 判定本版总体可执行、**CP0 通过**；确认「C5 配置冻结、未接线模块允许裁剪、禁止 Flash、WorkBuddy 实施 Codex 审查」安排合理，并指出放行 CP1 前需补清 3 处执行规则 —— 已在 §12 逐条落成可检查判据，并附可直接采纳的替换措辞。
-- **CP1～CP4 未开始**，等待放行条件满足：3 条规则采纳 + §12.5 的 3 项依赖。**其中「pin 的可重放来源」是 CP1 的实质前置**，未定之前无法开工。
-- 状态：`CP0 REPORT READY`（已含 §12 规则澄清）。若放行条件未满足，我在此停下，不自行跨门禁。
+- **复审记录（准确口径，REVISION 2 更正）**
+  - **复审 1**（2026-09-15）：Codex 认为**任务书这一版总体可执行、CP0 可以启动**，并确认「C5 配置冻结 / 未接线模块允许裁剪 / 禁止 Flash / WorkBuddy 实施而 Codex 审查」这些安排合理；同时要求放行 CP1 前补清 3 处执行规则（已落成 §12）。
+  - **复审 2**（2026-09-15）：Codex **未作出验收结论**，并指出本报告 4 处需修正 —— ①验收状态表述错误 ②pin 上游来源并非缺失 ③组件内容一致性证据不足 ④SingleFlight 验收被错误放宽。本轮已逐条修正（§13）。
+  - ⚠️ **明确声明**：截至目前本包**不存在任何 `ACCEPTED`、CP0 验收结论或 CP1 放行结论**。首版把「CP0 可以启动」写成「CP0 已获 Codex 验收」是我的表述错误，在此更正；正文其余位置如仍有该口径，以本行为准。
+- **CP1～CP4 未开始**，等待放行。原「pin 的可重放来源」阻塞已消除（§5.3、§13.1）。
+- 状态：`CP0 REPORT READY (REVISION 2)`。放行条件未满足前我在此停下，不自行跨门禁。
 
 **继续保持的状态标记**
 
@@ -486,7 +533,7 @@ docs/project_management/reports/WB_A05_BUILD_001_REPORT.md
 
 ## 12. 复审意见落实：3 处执行规则的精确判据（CP1 放行前置）
 
-Codex 复审结论：本版总体可执行、**CP0 可启动**；并确认「C5 配置冻结、未接线模块允许裁剪、禁止 Flash、WorkBuddy 实施 Codex 审查」这些安排合理。放行 CP1 前需补清 3 处执行规则。下面把 3 条落成**可检查判据**，并给出**可直接采纳的替换措辞**。
+Codex 复审 1（2026-09-15）：**任务书这一版总体可执行、CP0 可以启动**（⚠️ 该表述**不构成验收结论**）；并确认「C5 配置冻结、未接线模块允许裁剪、禁止 Flash、WorkBuddy 实施 Codex 审查」这些安排合理。放行 CP1 前需补清 3 处执行规则 —— 下面把 3 条落成**可检查判据**，并给出**可直接采纳的替换措辞**。复审 2 另指出 4 处报告缺陷，已在本报告 §13 修正。
 
 > 合规说明：本轮仍处 CP0 约束内——**只新增/补充本报告文件**，未改代码/配置/CMake，未运行 IDF configure/build，未 Flash。任务书本体在 `codex/a05-build-task-review` 分支，**我不单方面改写它**；§12.1–§12.3 末尾的引用块即逐字可用的替换文本，交由 Codex 决定采纳。
 
@@ -676,13 +723,135 @@ ota_0_余量_百分比 = ota_0_余量_字节 / 9437184
 
 ### 12.5 CP1 放行的剩余依赖（除上述 3 条规则外）
 
-| # | 依赖 | 说明 |
+| # | 依赖 | 状态 |
 | --- | --- | --- |
-| 1 | 前序 WB-V53-NEXT-001 记 `ACCEPTED` | 任务书 §0 明确要求，看板现状仍为 `REVIEW_READY`（§10 第 1 项） |
-| 2 | **pin 的可重放来源**（§10 第 3 项） | **这是 CP1 的实质前置**：CP1 要从 pin + 已认可 patch 重放源码，本机无上游 git 元数据，参考树 `MetalioClaw4-ascii` 的 4 文件 ≠ A01 记录的 `upstream_sha256`，不能当重放源。需要指定来源（本地路径 / 仓库 URL / 由我提供差异清单） |
-| 3 | 3 条规则采纳形态 | 直接改任务书，还是我在 CP1 报告中以"执行规则声明"逐条落地并引用 §12 |
+| 1 | 前序 WB-V53-NEXT-001 记 `ACCEPTED` | 仍待；看板现状 `REVIEW_READY`（§10 第 1 项） |
+| 2 | ~~pin 的可重放来源~~ | ✅ **已消除**（复审 2 指出：来源本来就在本机）—— `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4` @ `ca3aa3fa`，重放已验证（§5.3、§13.1） |
+| 3 | 3 条规则的采纳形态 | 待定：直接改任务书，或我在 CP1 报告中以「执行规则声明」逐条落地并引用 §12 |
+| 4 | 复审 2 的 4 项修正 | ✅ 本轮已完成（§13），等待复核 |
 
-这三项清了，CP1 可直接开工，不再有取证型阻塞。
+→ 现在**不存在任何取证型阻塞**。CP1 只等放行。
+
+---
+
+## 13. 复审 2 修正（REVISION 2）
+
+Codex 复审 2 指出本报告 4 处问题。**4 处全部成立**，逐条修正如下。本轮仍处 CP0 约束内：**只改本报告文件**，未动代码/配置/CMake，未运行 IDF configure/build，未 Flash。
+
+### 13.1 修正一：pin 上游来源**并非缺失**（首版结论错误）
+
+首版说"本机无上游 git 元数据、无法证明相对 pin 的差异"。**错误。**
+
+| 项 | 实测 |
+| --- | --- |
+| 路径 | `E:/workbuddy/学习习惯培育AI/vendor/MetalioClaw4` |
+| `.git` | 存在；git 2.53.0.windows.1 |
+| HEAD | `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950`（= pin） |
+| 工作树 | clean；分支 `main` |
+| remote | `https://github.com/CloudZao/MetalioClaw4.git` |
+
+**独立重放验证（我自己做，未引用他人结论）**
+
+| 步骤 | 结果 |
+| --- | --- |
+| `project-ca3aa3fa.patch` SHA256 | `58bfbe5266a9fa00980be5e5078b570b9915165e199981e6dd54dcb21aa81937` = A01 记录 ✅ |
+| pin 检出 4 文件 LF 哈希 vs `upstream_sha256` | **4/4 命中** ✅ |
+| `git apply --check -p1` | rc=0 ✅ |
+| `git apply` → 4 文件 LF 哈希 vs `patched_lf_sha256` | **4/4 命中** ✅ |
+| `git apply -R` → 4 文件 LF 哈希 vs `upstream_sha256` | **4/4 命中**（完全恢复）✅ |
+
+**`E:/c` vs 真实 pin**：identical 472 / different 5（= 4 补丁目标 + `sdkconfig`）/ only-in-E:/c 75（73 learning + 2 生成头文件）/ **only-in-pin 0**。→ **零未知漂移**，详见 §5.3。
+
+**根因**：A01 JSON 的 `upstream_sha256` 是 **LF 归一化**口径，首版却拿 **raw（CRLF）**哈希去比，导致 4/4 误判为不同，进而错误推论"参考树不是 pin 的等价副本 ⇒ 本机没有可重放来源"。这是**哈希口径混用**造成的错误，不是缺证据。
+
+### 13.2 修正二：组件内容一致性（首版证据不足）
+
+**首版的错**：只比对了「`dependencies.lock` 里的 `component_hash`」与「磁盘上的 `.component_hash` 文件」。这两者都是**记录**，两者相同只能说明记录没被改，**不能证明组件文件本身未被修改**。
+
+**本轮的修法**：改用 **ESP-IDF 组件管理器自己的算法重算目录内容哈希**：
+
+```
+hash_dir(root) = sha256( 对排序后的 (相对路径, sha256(文件内容)) 逐项 update )
+                 过滤规则与组件管理器一致：
+                 组件的 idf_component.yml 的 include/exclude + use_gitignore，
+                 再排除 .component_hash 与 checksums 文件
+
+校验函数：idf_component_tools.hash_tools.validate_hash_eq_hashdir(root, expected)
+         —— 即组件管理器在 STRICT_CHECKSUM 模式下自己执行的那一个
+工具版本：idf-component-manager 2.5.0（E:/workbuddy/claw4-idf-tools/python_env/idf5.5_py3.12_env）
+```
+
+**结果**
+
+| 指标 | 值 |
+| --- | --- |
+| lock 条目总数 | 83 |
+| **内容哈希 MATCH** | **82** |
+| **MISMATCH** | **0** |
+| 磁盘无对应目录 | 1（`idf` 伪条目，无组件目录） |
+| 无 lock 哈希 | 0 |
+| 异常 | 0 |
+| `espressif/esp_hosted`（C5 协处理器） | `8ca10092db3e8c8122540d907ab705805a269377d31192f087ba1def2f5f4f91` **MATCH** |
+
+**负向对照（证明这个检查真的能抓到篡改）**
+
+只报"82/82 通过"是没意义的 —— 一个不会失败的检查证明不了任何事。所以做了对照实验：
+
+```text
+component      : 78/esp-ml307（220,981 bytes）
+1) 逐字节复制的目录            -> d4de9738baaaa5e6…  == lock 值 ✅ MATCH
+2) 翻转单个文件里的 1 个 bit    -> ccc111fe092115db…  != lock 值 ✅ MISMATCH（被检出）
+3) 还原该 bit                  -> d4de9738baaaa5e6…  == lock 值 ✅ MATCH
+判定：该检查能检出单比特改动 = True
+```
+
+→ **组件内容完整性现已由内容哈希证明**，不再是"记录一致"。
+→ 仍**不能**证明的：这套组件与"历史 C5 构建当时所用集合"是否逐字节相同（无独立快照可比）—— 如实保留该限制（§10 第 5 项）。
+
+**合规说明**：校验脚本目前放在**本机取证目录** `E:/workbuddy/claw4-a05-cp0-recon/verify_component_content.py` 与 `negative_control.py`，**没有**放进仓库 `tools/dev/`——因为 CP0 白名单只允许改本报告文件。若 Codex 要求把它固化为仓库内可重跑工具，请在放行 CP1（`tools/dev/` 进入白名单）时一并说明。
+
+### 13.3 修正三：SingleFlight 验收口径（首版错误放宽）
+
+**首版的错**：把 SingleFlightHttpTransport 放进"可被裁剪"的行，写"无直接设备 include"、"若最终未被引用须记 COMPILED_NOT_WIRED 或 GC_DISCARDED"。**错误 —— 设备 HTTP 适配器明确引用并构造了它。**
+
+实测（`E:/claw4-a05-build-m0`）：
+
+```text
+integration/metalio_claw4/device/ports/metalio_http_transport.cpp:9   #include "sync/single_flight_http_transport.h"
+integration/metalio_claw4/device/ports/metalio_http_transport.cpp:52  return std::make_unique<claw4::sync::SingleFlightHttpTransport>(PerformRequest);
+```
+
+完整设备链路：`CreateMetalioHttpTransport()` → `learning_runtime.cpp:65` 注入 `LearningBackendSession` → `BackendClient` 承载每一次 HTTP 调用。
+
+**修正后的验收口径**：SingleFlight 与 SyncExecutor **同类** —— 必须证明 **Compiled + Referenced + 最终 ELF 保留**；**不允许**以 `COMPILED_NOT_WIRED` / `GC_DISCARDED` 通过。§8 模块矩阵已同步更正。
+
+**根因**：CP0 阶段的 `grep … | head -20` **被截断**，`integration/` 的命中没进输出，我却据此下了"无设备 include"的结论。本轮已对 §8 全表做**无截断全量复查**（见 §8 的复查表）：`time_authority` / `interaction_arbiter` / `reminder_core` / `reminder_wake_port` 在 `integration/` 确实 0 命中，那三项的 COMPILED_NOT_WIRED 判定**成立**。
+
+### 13.4 修正四：验收状态表述（首版措辞错误）
+
+首版把 Codex 的「**CP0 可以启动**」写成「**CP0 已获 Codex 验收/复审通过**」。**Codex 此前并未作出该验收结论。**
+
+已更正处：本报告首部状态表（§0 前）、§11 状态声明、§12 引言。并新增**显式声明**：截至本修订，本包**不存在任何 `ACCEPTED`、CP0 验收结论或 CP1 放行结论**（§11）。
+
+### 13.5 本轮暴露的方法论缺陷（记下来，避免复发）
+
+| 缺陷 | 后果 | 已采取的防线 |
+| --- | --- | --- |
+| **哈希口径混用**（raw/CRLF vs LF 归一化） | 误判 pin 等价性 → 错误结论"无可重放来源" | 凡与 A01/上游哈希比对，**先确认口径**；本报告所有四文件比对均标注 LF |
+| **`grep \| head -N` 截断** | 漏看 `integration/` 命中 → 错误放行 SingleFlight | 判定"有/无引用"时**禁止加 head**；§8 复查表逐模块列命中文件数 |
+| **只比记录不比内容** | 组件校验变成同义反复 | 用产生该记录的**同一算法重算内容**，并配**负向对照**证明检查可失败 |
+| **把"可以启动"当"已验收"** | 越权宣称验收状态 | 状态表述一律引用原文措辞，不升格；结论性词汇（ACCEPTED/放行）只能由 Codex 给出 |
+
+### 13.6 本轮新增证据文件（均在本机，非交付物）
+
+| 路径 | 内容 |
+| --- | --- |
+| `E:/workbuddy/claw4-a05-cp0-recon/pin-source.txt` | pin 仓库身份：HEAD/分支/clean/remote/对象类型 |
+| `E:/workbuddy/claw4-a05-cp0-recon/pin-replay.txt` | 补丁 SHA、4 文件 LF 哈希、apply --check / apply / reverse 全流程结果 |
+| `E:/workbuddy/claw4-a05-cp0-recon/pin-vs-mirror.txt` | `E:/c` vs 真实 pin 的逐文件差异账目 + ascii 树 LF 口径复核 |
+| `E:/workbuddy/claw4-a05-cp0-recon/component-content-verify.{txt,json}` | 82 组件内容哈希逐项结果（含 esp_hosted） |
+| `E:/workbuddy/claw4-a05-cp0-recon/component-content-negative-control.txt` | 单比特篡改被检出的负向对照 |
+| `E:/workbuddy/claw4-a05-cp0-recon/verify_component_content.py`、`negative_control.py` | 校验与对照脚本（待 CP1 决定是否入库 `tools/dev/`） |
 
 ---
 
@@ -697,6 +866,8 @@ ota_0_余量_百分比 = ota_0_余量_字节 / 9437184
 | `E:/workbuddy/claw4-a05-cp0-recon/blocked-evidence.md` | 5 项阻断套件的 exe hash 与单次运行结果 |
 | `E:/workbuddy/claw4-a05-cp0-recon/host-fingerprint.json` / `.txt` | §12.2 的 Host 复用指纹基线（156 文件树哈希 + 两编译器哈希 + 参数哈希 + 合成指纹） |
 | `E:/workbuddy/claw4-a05-cp0-recon/partition_expected.txt` | §12.3 已批准分区 CSV 经 IDF 工具解析后的期望布局、归一化哈希、尾部未分配空间与逐条断言 |
+| `E:/workbuddy/claw4-a05-cp0-recon/pin-source.txt`、`pin-replay.txt`、`pin-vs-mirror.txt` | §13.1 pin 仓库身份、补丁前向/反向重放、`E:/c` vs 真实 pin 差异账目 |
+| `E:/workbuddy/claw4-a05-cp0-recon/component-content-verify.{txt,json}`、`component-content-negative-control.txt` | §13.2 82 组件内容哈希校验 + 单比特篡改负向对照 |
 | `E:/claw4-a05-build-m0/out/a05-cp0-host/` | 本轮完整 Host 门禁日志、逐套件输出、`host_result.txt` |
 
 ## 附录 B. 报告口径
