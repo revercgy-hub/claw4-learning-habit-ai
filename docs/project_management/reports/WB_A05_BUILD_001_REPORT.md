@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`** |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -1743,6 +1743,143 @@ RESULT: FAIL -- do NOT build; fix or re-freeze the inputs first
 
 ---
 
+## 21. CP2-SOURCE-FIX-001：授权整改（A–D 已完成；E 待用户在普通终端执行）
+
+授权范围 A–F（用户指令原文）。**旧 `HOST PATH` blocker = CLOSED**（§20）。当前两个 blocker 的处理：
+
+| Blocker | 处理 | 状态 |
+| --- | --- | --- |
+| ① upstream `learning_screen` compile defect | A：只改权威 Git 源，删除 stale cleanup block | ✅ 完成 `2c8f58f` |
+| ② `isolated_src` generated-path policy | B：verifier 加精确路径 `exclude_files`；C：干净重放 + 重冻结 manifest | ✅ 完成 `1d064dc` |
+
+### 21.1 A：源码修复（只改权威 Git 源）
+
+**授权理由核实**：`6d84ea3` = `fix(A02): protect formal learning state from demo reset`，该 commit 对 `integration/metalio_claw4/device/learning_screen/learning_screen.cc` 的改动是 **66 行、绝大多数为删除**，即确实移除了**自动四步 SELFTEST 与 `ResetToSeed`**；被漏删的正是 lifecycle unload 里那 3 行引用。
+
+**改动**：删除 4 行（`if (s_selftest_timer != nullptr) {` … `}`）——`git diff` 为**单文件、4 deletions**，无其它任何改动。
+
+| 约束 | 遵守情况 |
+| --- | --- |
+| 不得恢复 SELFTEST | ✅ 未恢复 |
+| 不得重新声明 `s_selftest_timer` | ✅ 未声明 |
+| 不得恢复 `ResetToSeed` | ✅ 未恢复 |
+
+**额外核验（D 的 rg 要求）**：`integration/metalio_claw4/device` + `firmware` 中 `s_selftest|SELFTEST|ResetToSeed|SelfTest` → **0 处**（`learning_screen/README.md` 亦为 0）。A02 报告原文声称的 *"no production references remain"* 至此**才真正成立**。新树 `src-cp2-003` 的生产路径同样为 **0 处**。
+
+提交：**`2c8f58f53506402918284c695100f007798433d8`**（= 本轮后续使用的**新 authoritative source SHA**），已推送。
+
+### 21.2 B：input verifier 的精确路径 `exclude_files`
+
+新增 `exclude_files`（每条目可选），只接受**精确相对文件路径**，以下一律**硬报错**（`--write` 与 `--check` 双路径）：绝对路径 / 盘符、含 `..` 段、含通配符 `* ? [ ]`、以 `/` 结尾、空串；`measure()` 另加**文件系统级检查**：条目若指向**目录**即报错 ⇒ **目录级排除在结构上不可能**。
+
+- 该列表写入 manifest 并**纳入 `--check` 比较** ⇒ 任何扩大都是显式、fail-closed 的 manifest 变更。
+- 每个被排除路径的**存在性 / 大小 / sha256 会被记录并打印**（`report_excluded`），但**刻意不参与比较**（构建会重新生成它们）。
+- **其余所有文件仍在摘要内** ⇒ 它们一旦变化仍是硬失败（"其它 isolated_src 文件 post-build 必须保持 immutable hash 完全一致"由此保证）。
+
+**判别性自测**（`E:/claw4-a05-cp1-fix-recon/logs/selfcheck-exclude-files.py`，含反向用例，非正例走过场）：
+
+```text
+已跑 9 例：接受精确相对路径 / 接受反斜杠形式（归一化）；
+           拒绝绝对路径、盘符路径、'..'、'*'、'?' 、目录后缀、空串
+measure() 拒绝指向目录的条目：error = "probe: exclude_files names a directory (not allowed): 'main'"
+反向对照：不加排除时摘要为 3c086bf8…（1356 文件）→ 与加排除的结果不同 ⇒ 排除确实生效
+```
+
+### 21.3 C：干净重放（**未**在旧树上重冻结）
+
+**(a) 先证明"就地重冻结"是错的**：旧树 `E:\claw4-a05-19fd979\src` 已构建改写，且**无法调和** —— 用 4 种排除组合（排 3 个 / 只排 2 个新增 / 只排 i18n / 不排）**都无法复现其冻结摘要** `f72e868b…`，尽管：
+
+- 文件数**完全对上**（冻结 1354 → 现值 1356，+2；且 3 个生成文件中 `main/i18n/i18n_strings_gen.h` 由 pin 预置（pin=YES）、另两个为新增（pin=NO），算术闭合）；
+- 全部 **90 个同步文件仍与其 CP1 ledger 哈希逐一致**（0 不匹配）；
+- 除那 3 个生成文件外，**没有任何文件的 mtime ≥ 12:50**。
+
+⇒ 旧树存在**无法用授权排除集解释的额外漂移**（内容漂移或改名/符号链接标记变化，mtime 无法揭示）。**这就是必须干净重放、且不得就地重冻结的直接证据。**
+
+**(b) 新树 `E:\claw4-a05-19fd979\src-cp2-003`（从原始来源重新生成，每步断言）**：
+
+| 步 | 内容 | 结果 |
+| --- | --- | --- |
+| 1 | `git archive ca3aa3fa`（vendor pin） | 1264 文件 / 72,291,311 B |
+| 2 | LF 归一化 | **434 文件**重写 |
+| 3 | pin 身份 vs A01 `upstream_sha256` | **4/4 OK** |
+| 4 | A01 `apply --check` / `apply` | rc=0 / rc=0；结果 **4/4 == `patched_lf_sha256`** |
+| 5 | learning sync @ `2c8f58f` + 冻结 C5 sdkconfig | **90 文件**；sdkconfig `a901f204…` == 批准值；**`learning_screen.cc` == 修复后 blob；selftest 引用 0 处** |
+| 6 | A05 补丁 | rc=0；`main/CMakeLists.txt` LF = **`14ffc5c3…` == 期望值** |
+| 7 | `managed_components` 复制 | 14,656 文件 / 666,122,132 B；树 `83c759c8…` **与源一致** |
+| 8 | 新树身份 | **1353 文件**（排除 3 生成路径）= `36bc3d4d…`；不排除时 1354 文件 = `b5174381…` |
+
+**与旧同步集的差异：恰好 1 个文件** —— `main/display/screen/learning_screen/learning_screen.cc`，27,469 → **27,352 B**（就是 A 的修复）。路径集合完全相同（90/90），其余 89 个文件字节一致。
+
+**登记完整性**：`main/CMakeLists.txt` 中 `learning/` 条目 **24 条**，5 个新源（`sync_executor.cpp`、`single_flight_http_transport.cpp`、`time_authority.cpp`、`interaction_arbiter.cpp`、`reminder_core.cpp`）均已登记，**缺失文件 0**。
+
+### 21.4 manifest 重新生成 + 硬前置恢复可用
+
+| 条目 | 值 | 与上一版 |
+| --- | --- | --- |
+| `idf` | `9979c6c36539dd7c7021a881…` | 不变 |
+| `idf_tools` | `78ad1256ef07b11b92e90392…` | 不变 |
+| `managed_components` | `83c759c8306b11193feebd06…`（14656 / 666,122,132 B） | 不变 |
+| `sdkconfig` | `a901f20491671a9cbca8cbe6…` | 不变（== 批准值） |
+| `isolated_src` | **`36bc3d4d9b847253b90068fd…`**（1353 文件，排除 3 生成路径） | 新树、新路径 |
+
+**3 个生成路径的 pre 状态（已记录，不比较）**：
+
+```text
+main/assets/lang_config.h                 exists=False  (not present)
+main/i18n/i18n_strings_gen.h              exists=True   bytes=75874  sha256=a19b324eec42abe0a1d8e456230353788a38c38f908c7762fd7f3f63ec34c419
+main/mmap_generate_resources.h            exists=False  (not present)
+```
+
+**`verify-build-inputs.py --check` → `entries 5 checked / failures 0 / RESULT: PASS`（rc=0）** ⇒ runner 的硬前置恢复可用，**下一次 cold build 不会再被自己拦下**。
+
+### 21.5 D：Host 指纹、完整门禁、rg
+
+**指纹重算**（`tools/dev/**` 与 `integration/**` 均已改动）：files **164**；`trees_hash e0085d2c6eb6f653662942c082de7a7d3645b9a2c593889d7a12cec10ef40aeb`；`args_hash 69018d2e…`（未变）；`toolchain_hash 80c46973…`（未变）；**`HOST_REUSE_FINGERPRINT = eec141fdcee1494627e29aaa337eeeaede035de040e53e1e5be0fea8466a6597`**（新基线写入 `E:/workbuddy/claw4-a05-cp0-recon/host-fingerprint-cp2-sourcefix.json`）。旧 CP1 基线 `63f106e5…` 已作废（`--check` → `DIFFERENT`，`changed fields: trees_hash, HOST_REUSE_FINGERPRINT`）。
+
+**完整 Host 门禁**：⚠️ **28 / 29 PASS（RESULT: FAIL）**，交叉编译步骤 `interface: exit=0`（P4 PASS）。**唯一失败不是测试失败**：
+
+```text
+LAUNCH FAIL: 使用"0"个参数调用"Start"时发生异常:"应用程序控制策略已阻止此文件。"
+unit learning_mcp_host_tests : RUN FAIL (exit=-1)
+```
+
+**为什么可判定为环境伪失败（三重证据）**：
+
+1. **本轮全部日志中 `failures=[1-9]` 出现 0 次** ⇒ 没有任何断言失败；该套件是**启动阶段**被 OS 拦下（`exit=-1`），测试代码一行都没跑。
+2. **同一套件在 CP0 基线里是通过的**：`out/a05-cp0-host/host_result.txt` 里 `unit learning_mcp_host_tests : RUN PASS (exit=0)`、`unit summary : 29 / 29 PASS`。而本轮改动**完全没触及 MCP host 代码**（只改了 `learning_screen.cc`、输入校验器、manifest）。
+3. **共 5 次重跑**（含**改名强制重链接**后再跑）仍被拦截；首轮 26/29 的另两个被拦套件在后续重跑中自行放行 ⇒ 属"新链接 exe 被应用控制策略瞬时/持续拦截"这一本机已知现象。
+
+⇒ 因此**我不能声称本轮拿到 29/29**；如实记为 **28/29 + interface PASS**，并把该项列为**环境遗留项**（不阻塞 CP2 构建）。若 Codex 需要 29/29 原始证据，可在该 exe 被策略放行后重跑门禁（命令见 §21.8）。
+
+### 21.6 E：随后由用户在普通宿主终端执行（我不能执行）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05-cp2-build.ps1 -Build E:\claw4-a05-19fd979\build-cp2-003 -Fresh
+```
+
+- 继续使用既有全部闸门：P0 PATH Guard → `verify-build-inputs --check` 硬前置（现已 PASS）→ 5 个必需 artifact → sdkconfig pre/post → 真实分区表反解 → 构建后 immutable-input 复核（现按精确路径排除 3 个生成路径）→ **NO FLASH**。
+- **预期**：`PATH_GUARD: OK` → 输入 5/5 PASS → cold build（上一轮在 3:36 跑完 configure + 2494/2643，本轮应继续推进到链接）。
+
+### 21.7 F：停止条件（照抄，承诺遵守）
+
+- 若 cold build 再出现**新的** compile/link error：**立即停止**，保存完整日志，**不自行扩大源码修改**。
+- 若 `exit=0` + 构建后验证 PASS：状态写 **`CP2 REVIEW_READY`**，停止。
+- **不进入 CP3，不 Flash。**
+
+### 21.8 本轮最终结论与提交
+
+| 项 | 值 |
+| --- | --- |
+| A 源码修复 | ✅ `2c8f58f`（新 authoritative SHA） |
+| B 校验器 | ✅ `1d064dc` |
+| C 干净重放 + manifest 重冻结 | ✅ `1d064dc`（新树 `src-cp2-003`） |
+| D 指纹 / 门禁 / rg | ✅ 指纹 `eec141fd…`；门禁 **28/29 + interface PASS**（1 项为本机策略拦截的环境伪失败，证据见 §21.5）；rg 生产路径 0 处 |
+| E cold build | ⏳ **待用户执行**（我不具备普通宿主终端，见 §20/§21.6） |
+
+未做：未安装任何工具；未改 CMake / sdkconfig / partition；除 A 授权的 4 行删除外**未扩大任何源码修改**；未动旧的 `E:\claw4-a05-19fd979\src`（仅只读取证）；未 Flash；未进 CP3。
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -1762,7 +1899,10 @@ RESULT: FAIL -- do NOT build; fix or re-freeze the inputs first
 | `E:/claw4-a05-19fd979/build-envdiag-001/` | §17 全新构建根（**零构件**，仅 configure 残留）：`CMakeFiles/CMakeConfigureLog.yaml`、`log/idf_py_{stdout,stderr}_output_36216`、`toolchain/` |
 | `E:/claw4-a05-19fd979/logs/envdiag-*` | §17 ENV-DIAG 专段、idf.py 实际 cmake 命令、`export` rc/stdout/stderr、收割的 configure 日志目录 |
 | `E:/claw4-a05-19fd979/logs/envdiag-pathguard.py` | §18 P0 PATH 守卫脚本（同进程 PATH 一致性判定） |
-| `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-runnerfix.{ps1,txt}` | §19 CP2-RUNNER-FIX-001 的等价自检脚本与结果（fix1/2/3 三组） |
+| `E:/workbuddy/claw4-a05-cp0-recon/cp2_clean_replay.py`、`cp2-clean-replay.{json,txt}` | §21.3 干净重放脚本与逐步断言日志（pin → LF → A01 → sync @ `2c8f58f` → A05 → components） |
+| `E:/workbuddy/claw4-a05-cp0-recon/host-fingerprint-cp2-sourcefix.json` | §21.5 重算后的 Host 指纹基线（`eec141fd…`） |
+| `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-exclude-files.py` | §21.2 `exclude_files` 的判别性自测（9 例含反向用例 + 目录级排除 + 排除生效的反向对照） |
+| `E:/claw4-a05-build-m0/out/a05-cp2-sourcefix-host/` | §21.5 Host 门禁日志（含 `host_result.txt` 与 6 次运行的留档副本 `host_result-run{2..5}.txt`，位于 recon/logs 下） |
 | `E:/claw4-a05-19fd979/logs/cp2-build-20260915-13*.log` | §18/§19 守卫拒绝构建的实跑日志（`invoking: idf.py` = 0） |
 
 ## 附录 B. 报告口径
