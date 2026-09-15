@@ -1125,6 +1125,141 @@ ERROR: tool dfu-util           has no installed versions. ...
 
 ---
 
+## 16. CP1-REVIEW-FIX-001：row-diff 格式缺陷修复 + "真实行不匹配"负向测试
+
+### 16.0 范围与结论
+
+| 项 | 值 |
+| --- | --- |
+| 授权范围（严格白名单） | `tools/dev/verify-partition-table.py`、`docs/project_management/reports/WB_A05_BUILD_001_REPORT.md`（本文件）。**未动任何第三个文件** |
+| 本轮任务 | ① 修复 row-diff format 参数错误 ② 增加"真实 row mismatch"负向测试 |
+| 结论 | 两条**均已完成**。4 例自测 4/4 符合预期；证伪检验成立（把 row-diff 段还原成修复前写法 → 同一套自测立刻 FAIL 并复现 TypeError） |
+| 未做 | 未重开 CP1 已通过项、未顺手重构其它分支；未跑 IDF configure/build；未 Flash/erase/monitor；未改分区 CSV / CMake / sdkconfig；未把工具接入 Host 门禁 |
+
+> 说明：本报告首部「本轮范围 = 仅 CP0」是 CP0 期冻结的陈述，属已被 Codex 验收过的原文，本轮**不修改**；CP1 内容见 §14，CP2 见 §15，本轮的整改见本节。
+
+### 16.1 缺陷定位：row-diff 分支的参数表错位，真实不匹配**必然崩溃**
+
+**修复前源码**（`git show HEAD:tools/dev/verify-partition-table.py`，第 187–189 行）：
+
+```python
+failures.append("row differs for %s: expected %s/%s/%s/0x%x/%d flags=%r vs actual %s/%s/%s/0x%x/%d flags=%r"
+                % (e["name"], e["type"], e["subtype"], e["offset"], e["size"], e["flags"],
+                   a["type"], a["subtype"], a["offset"], a["size"], a["flags"]))
+```
+
+**逐位核算（可复核）**：格式串含 **13 个占位符**，实参只有 **11 个**；且第 6 个占位符是 `%d`，却落到了字符串 `e["flags"]`：
+
+| 位 | 占位符 | 实参 | 结果 |
+| --- | --- | --- | --- |
+| 1–5 | `%s %s %s %s %x` | `e.name / e.type / e.subtype / e.offset / e.size` | 勉强能打印（`offset` 被 `%s` 打成十进制串） |
+| **6** | **`%d`** | **`e["flags"]` = `""`** | **`TypeError: %d format: a real number is required, not str`** |
+| 7–11 | `%r %s %s %s %x` | `a.type / a.subtype / a.offset / a.size / a.flags` | 根本走不到（整体错位） |
+
+Python 是**边格式化边消耗实参**，所以类型错误先于"实参不足"暴露 —— 这正是实测到的报错形态。根因是**把"expected / actual 哪一侧"的信息寄存进了一个长格式串的顺序**；一旦两侧字段数不等（这里 actual 组按格式串要 3 个 `%s`，实参只给了 `type/subtype`）就整体崩。
+
+**为什么上一轮没发现**：§14.3 的首次自测**只跑了 PASS 路径**（CSV 往返生成的 bin），row-diff 分支**从未被执行**过。缺陷由此漏过 —— 这是本轮最有价值的发现，也说明"只测正例"在该工具上的确不可接受。
+
+### 16.2 修复方式（不靠"数占位符"）
+
+改为**逐字段比较 + 每个差异单独成项**，彻底取消长位置式格式串（新增 `ROW_DIFF_FIELDS` / `format_field_value()` / `describe_row_diff()`）：
+
+```python
+diffs = describe_row_diff(e, a)
+if diffs:
+    failures.append("row differs for %s: %s" % (e["name"], "; ".join(diffs)))
+```
+
+- 逐字段（name/type/subtype/offset/size/flags）比对，**每个差异各成一项**，明确写 `expected` 与 `actual` 两侧；
+- `offset`/`size` 同时给**十六进制与十进制**（`0x10000 (65536)`），避免再出现"0x/十进制分不清"的误读；
+- 字符串字段用 `%r`，空串显式可见为 `''`；
+- 占位符数量不再依赖人工核对：字段集合由 `ROW_DIFF_FIELDS` 单一来源驱动。
+
+同时把行数不匹配的诊断改为携带具体信息（原来只报 `row count mismatch` 一词）：
+
+```python
+failures.append("row count mismatch: expected %d rows, actual %d (first unmatched: %s)"
+                % (len(expected), len(actual), label))
+```
+
+### 16.3 负向测试：`--self-test`（真实不匹配，不是桩）
+
+白名单只允许改这一个 `.py`，所以测试**内嵌**在该工具的 `--self-test` 模式下（新增测试文件会越出白名单）。它用**冻结的 `gen_esp32part`** 从**篡改过的批准 CSV 副本**生成**真实二进制**，再跑本脚本本身（子进程，退出码即真实退出码），逐例断言**退出码 + 诊断文本 + 无 traceback**：
+
+| 例 | 构造方式 | 期望 |
+| --- | --- | --- |
+| positive | 批准 CSV 原样 → bin | **rc=0**，`RESULT: PASS`，无 `DIFF` |
+| negative-1 | `coredump` 尺寸 64K→128K（只动最后一行） | **rc=1**，且出现 `row differs for coredump: size: expected 0x10000 (65536) vs actual 0x20000 (131072)` |
+| negative-2 | 删掉 `coredump` 行（13→12 行） | **rc=1**，出现 `ROW COUNT MISMATCH` 与 `row count mismatch: expected 13 rows, actual 12` |
+| negative-3 | `ota_0` 尺寸 9M→8M（下游 offset 连锁位移） | **rc=1**，`ota_0` 与 `ota_1`…逐行报差异，offset 变化同样以 `expected ... vs actual ...` 给全 |
+
+**断言口径的一处必要澄清**：`gen_esp32part` 把 `Parsing CSV input... / Verifying table...` 进度写到 **stderr**，所以"无 traceback"不能等价于"stderr 为空"，而应断言 `Traceback` / `TypeError` **不出现**。测试已按此实现。
+
+**测试是否有判别力的旁证**：negative-3 的期望值我第一版写错了（误算成 `0x900000`，正确是 `ota_0` 起点 `0x200000` + 8M = `0xa00000`），`--self-test` **当场把它判为 PROBLEM 并打印了完整 stdout** —— 说明断言不是走过场的橡皮图章（该处随后已修正为正确期望值）。
+
+### 16.4 实测证据
+
+```text
+# A. 修复前（仓库 HEAD 版本）直跑真实不匹配 —— 崩溃，不是走判定路径
+$ python HEAD_verify-partition-table.py --csv <approved.csv> --bin <mutated.bin> --app <app>
+  ... row-by-row ... coredump ... OK   <- 打印到第 12 行就断
+  TypeError: %d format: a real number is required, not str
+  rc=1（来自 traceback，不是来自 RESULT: FAIL）
+  Traceback 出现 1 次
+
+# B. 修复后同一输入 —— 干净判定
+$ python tools/dev/verify-partition-table.py --csv <approved.csv> --bin <mutated.bin> --app <app>
+  ... row-by-row ... coredump ... DIFF
+  RESULT: FAIL (1)
+    - row differs for coredump: size: expected 0x10000 (65536) vs actual 0x20000 (131072)
+  rc=1 ；Traceback 出现 0 次
+
+# C. 修复后正常分区 —— rc=0
+$ python tools/dev/verify-partition-table.py --csv <approved.csv> --bin <bin-from-approved.csv> --app <app>
+  RESULT: PASS -- generated partition table matches the approved input, no overlap, in range
+  rc=0
+
+# D. 内嵌负向自测
+$ python tools/dev/verify-partition-table.py --csv <approved.csv> --self-test
+  positive   : generated BIN == approved CSV                      rc=0 OK
+  negative-1 : one row's size differs (coredump 64K -> 128K)      rc=1 OK
+  negative-2 : one partition removed (row count 13 -> 12)         rc=1 OK
+  negative-3 : ota_0 size differs -> cascading offsets downstream rc=1 OK
+  SELF-TEST: PASS -- 4/4 cases behaved as specified
+  rc=0
+
+# E. 证伪检验：把 row-diff 段还原成修复前写法（保留同一套自测）后重跑
+  negative-1 ... rc=1 PROBLEM   - stdout missing 'RESULT: FAIL' / - python traceback present / - TypeError present
+  negative-3 ... rc=1 PROBLEM   - python traceback present / - TypeError present
+  SELF-TEST: FAIL (2 problem(s))  rc=1
+  # 修复 → 自测 PASS；还原缺陷 → 自测 FAIL。测试确实咬住了该缺陷。
+
+# F. 旁路行为未回归
+  缺 --bin（无 --self-test）           -> rc=2（用法错误，与 host-reuse-fingerprint.py 的口径一致）
+  --csv 指向不存在的文件               -> rc=1（FAIL csv not found: ...）
+```
+
+留存日志：`E:/claw4-a05-cp1-fix-recon/logs/{prefix-realmismatch,postfix-realmismatch,postfix-positive,selftest-postfix,selftest-falsified,fingerprint-check}.log`。
+
+### 16.5 本轮的诚实边界（不粉饰）
+
+1. **C 例的"正常分区"是"由批准 CSV 自造的 bin"，不是候选构件。** 验证的是**比较器本身**正确，而**不是**候选分区表正确。§15.5「`verify-partition-table.py` 没有真实输入可跑」**本轮依然成立**：CP2 未产出 `partition-table.bin`，本节**不提供任何候选证据**。
+2. **`app` 用的是合成的 1 MiB 占位文件**（自测专用，非候选镜像），仅用于满足 `--app` 存在性；`ota_0` 余量数字因此**无候选意义**。
+3. **Host 门禁未重跑**：本文件**不被任何脚本引用**（全仓 grep 除自身外 0 命中），且不在 Host 门禁输入路径中（门禁只编译 `firmware/main/**` 与 `integration/.../{host_glue,device/core}`）。任务书本轮也只允许改 2 个文件。如需重跑请裁定。
+4. **副作用（必须记录）：`host-reuse-fingerprint.py` 的文件集含 `tools/dev/**`，所以本轮改动使 CP1 基线 `63f106e5…` 失效** —— `--check` 现返回 `DIFFERENT`（rc=1，`files 164`）。但**这不全是本轮造成的**：CP2 已先新增 3 个文件（`tools/dev/verify-build-inputs.py`、`tools/dev/run-a05-cp2-build.ps1`、`integration/metalio_claw4/a05_build_input_manifest.json`），文件数已由 161 变 164。按该工具自身设计，`tools/dev/**` 变化后基线**必须重取而非沿用**（只会多跑一次门禁，不会误放行）。**重取基线属 CP 级决策、也不在白名单内，本轮未擅自重写**。
+5. **工具仍未接入 Host 门禁**（§14.5 的表述不变）。
+
+### 16.6 修改产物
+
+| 路径 | 变更 | 身份（canonical LF） |
+| --- | --- | --- |
+| `tools/dev/verify-partition-table.py` | 修复 row-diff 诊断 + 新增 `--self-test` + 行数不匹配诊断增强；退出码契约明确为 0/1/2 | `95b932f13cc8755548f5ec8088518f998e0ddb7f749ee98c8e6577ce20e5d079`（20130 B；git blob `144ca4401`） |
+| `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md` | 新增本节 | 本节 |
+
+变更规模：`1 file changed, 229 insertions(+), 13 deletions(-)`（仅统计代码文件；只追加普通提交，无 rebase/reset/squash/force）。
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -1139,6 +1274,7 @@ ERROR: tool dfu-util           has no installed versions. ...
 | `E:/workbuddy/claw4-a05-cp0-recon/pin-source.txt`、`pin-replay.txt`、`pin-vs-mirror.txt` | §13.1 pin 仓库身份、补丁前向/反向重放、`E:/c` vs 真实 pin 差异账目 |
 | `E:/workbuddy/claw4-a05-cp0-recon/component-content-verify.{txt,json}`、`component-content-negative-control.txt` | §13.2 82 组件内容哈希校验 + 单比特篡改负向对照 |
 | `E:/claw4-a05-build-m0/out/a05-cp0-host/` | 本轮完整 Host 门禁日志、逐套件输出、`host_result.txt` |
+| `E:/claw4-a05-cp1-fix-recon/` | §16 取证：`HEAD_verify-partition-table.py`（修复前版本）、`FALSIFIED_verify-partition-table.py`（证伪副本）、`normal.bin`/`mutated.bin`（批准 CSV 与其单行变异各自生成的真实分区表）、`logs/*.log`（修复前后对照、自测、证伪、指纹复核） |
 
 ## 附录 B. 报告口径
 
