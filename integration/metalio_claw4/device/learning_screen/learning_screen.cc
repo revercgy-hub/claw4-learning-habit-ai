@@ -494,10 +494,6 @@ void LearningScreen::LifecycleCallback(screen_lifecycle_event_t event) {
       lv_timer_del(s_ui.timer);
       s_ui.timer = nullptr;
     }
-    if (s_selftest_timer != nullptr) {
-      lv_timer_del(s_selftest_timer);
-      s_selftest_timer = nullptr;
-    }
     if (s_voice_poll_timer != nullptr) {
       lv_timer_del(s_voice_poll_timer);
       s_voice_poll_timer = nullptr;
