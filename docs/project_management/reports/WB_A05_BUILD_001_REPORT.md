@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18 |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复，待复核** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -1526,6 +1526,82 @@ path guard rc = 1        exit 4
 
 ---
 
+## 19. CP2-RUNNER-FIX-001：Codex 对 `4f754c0` 的 CHANGES_REQUIRED 落实
+
+审查输入：Codex 对 `4f754c0` 的正式判断。**只允许改** `tools/dev/run-a05-cp2-build.ps1` 与 `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md`（本节）。按要求**不再跑 cold build**，只做静态 + 小型 self-check。
+
+### 19.0 Codex 对 `4f754c0` 的裁定
+
+| 项 | 裁定 |
+| --- | --- |
+| P0 PATH Guard | ✅ **ACCEPTED** |
+| ENV-DIAG | ✅ **ACCEPTED** |
+| CP2 状态命名 | ✅ **正确** |
+| 禁止 Flash / 禁止 CP3 | ✅ **正确** |
+| **Post-build verifier** | ⚠️ **CHANGES_REQUIRED** —— 只三处 |
+
+### 19.1 三处修复（逐条）
+
+| # | 要求 | 修复前 | 修复后 |
+| --- | --- | --- | --- |
+| 1 | sdkconfig post hash 改为**重新 hash `$Src\sdkconfig`**，不要找 `build/config/sdkconfig` | `$sdkAfter = Join-Path $Build "config\sdkconfig"`；`$postHash = ... else "ABSENT"`，且与"事后重算的 pre"比 → 实际上是**同一次重算的自我比较**（近乎恒真） | 顶部在 configure 前记录 `$preHash`（第 159 行）；构建后**对同一个被 `-D SDKCONFIG=` 传入的文件重新 hash** 得 `$postHash`（第 394 行）；`$preHash -ne $postHash` 即判为漂移。**不再读 `build\config\sdkconfig`**（全文件 0 处引用，仅注释里说明为何不读） |
+| 2 | 5 个必需 artifact **任一缺失都必须 `exit 5`** | 逐项打印，缺了只显示 `ABSENT`，不影响退出码 | 抽出 `$RequiredArtifacts`（5 项，第 76 行）；缺失项收集进 `$missingArtifacts`，并作为 `[7-11]` 计入 `$postFail` → 与 `[13]/[14-15]/[16]` 一起触发 **`exit 5`**；另打印 `required artifacts present : n / 5` |
+| 3 | `PartitionCsv` 改用 **`$Src\partitions\v1\32m_dual.csv`**，不要默认引用 `E:\c` | `[string]$PartitionCsv = "E:\c\partitions\v1\32m_dual.csv"` | 默认改为空串，参数块之后解析为 `Join-Path $Src "partitions\v1\32m_dual.csv"`（第 72 行）；**全文件 0 处 `E:\c`/`E:/c` 残留**（已 grep 核验） |
+
+**修复 3 附带的一处小改动（明示，供复核否决）**：既然该 CSV 已成为本候选**树内**输入，就把它做成**前置检查**——文件不存在则 `exit 3`、不构建（第 311-313 行），并记录其 **raw sha256 与 LF 归一化 sha256**（第 316-322 行）。理由是：否则一次 30 分钟量级的构建可能在**没有预期输入**的情况下跑到最后才失败。若不接受，删掉这 6 行即可，不影响三处修复本身。
+
+### 19.2 实施中发现并必须记录的输入事实（口径差异，不是内容差异）
+
+| 文件 | 字节 | 行尾 | raw sha256 |
+| --- | --- | --- | --- |
+| `E:\claw4-a05-19fd979\src\partitions\v1\32m_dual.csv`（隔离树内，本次启用） | **810** | **LF**（CRLF=0，bareLF=15） | `c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b` |
+| `E:\c\partitions\v1\32m_dual.csv`（旧默认，CP0/CP1/CP2 取证一直用的那份） | 825 | CRLF（CRLF=15） | `3522639424052778951248d32b02cff0690ddb86d84968b357d43fffc79f2ff6` |
+
+- **LF 归一化后两者逐字节相同**（同一个 `c5277b4b…`），**13 行布局完全一致**（`ota_0` @0x200000/9M、`ota_1` 接续 0xb00000/4M …）。
+- ⇒ 按修复 3 改用树内副本**不会改变期望布局**，只是去掉了对 `E:\c` 的依赖。
+- ⚠️ **提醒复核者**：`verify-partition-table.py` 会打印被比对 CSV 的 sha256，**它现在会是 `c5277b4b…` 而不是历史记录里的 `3522639424…`**。这是**行尾口径**差异（825 CRLF vs 810 LF），**不是分区内容变更** —— 别把它当作"输入被改动"。
+
+### 19.3 self-check 证据（静态 + 小型等价自检，未跑 cold build）
+
+**(a) 静态**：语法 `SYNTAX OK`（467 行）；`grep` 核验 `E:\c` **0 处**、`build\config\sdkconfig` **仅注释 1 处**、`$RequiredArtifacts` 定义 1 处/使用 3 处、`$preHash`↔`$postHash` 比对 1 处、`$PartitionCsv` 传入分区校验器 1 处。
+
+**(b) 小型等价自检**（同一表达式 + 合成输入；日志 `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-runnerfix.txt`）：
+
+```text
+fix3 resolved        : E:\claw4-a05-19fd979\src\partitions\v1\32m_dual.csv     exists = True
+fix3 raw sha256      : c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b
+fix3 LF  sha256      : c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b  [CRLF=0 bareLF=15]
+E:\c  LF  sha256     : c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b  LF-normalised identical = True
+
+fix2 synthetic root  : <temp>   （5 项中故意只放 4 项）
+fix2 missing         : xiaozhi.map
+fix2 expect          : exactly 'xiaozhi.map'  -> match = True
+fix2 verdict         : would exit 5                     ← 缺失即判定失败
+
+fix1 pre  (before configure) : a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26
+fix1 post (re-hash same file): a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26
+fix1 no-drift verdict        : True
+fix1 drift probe (on a copy) : pre != drifted = True    ← 证明该比对**可以失败**（不是恒真）
+```
+
+- `a901f204…` 正是冻结 C5 配置的批准值 ⇒ 修复 1 的 pre 侧与既有批准输入一致。
+- 该 harness **明确不是端到端运行**：P0 守卫在本会话的 shell 里仍然拒绝构建。
+
+**(c) 实跑（到守卫为止）**：`runner exit code = 4`；日志里 `invoking: idf.py` **0 次**（仍未发起任何构建）。
+
+### 19.4 本轮明确未做
+
+**未跑 cold build**（按要求只做静态/小型 self-check）｜未安装任何工具｜未改 CMake/sdkconfig/partition/源码｜未用 `CMAKE_MAKE_PROGRAM`｜未做 warm ninja｜未实施方案 2｜未进 CP3｜未 Flash。
+
+### 19.5 本轮修改产物
+
+| 路径 | 变更 |
+| --- | --- |
+| `tools/dev/run-a05-cp2-build.ps1` | 三处修复 + 修复 3 附带的前置检查；头部注明 `CP2-RUNNER-FIX-001` 三点与三条退出码语义不变 |
+| `docs/project_management/reports/WB_A05_BUILD_001_REPORT.md` | 本节 |
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -1544,6 +1620,9 @@ path guard rc = 1        exit 4
 | `E:/claw4-a05-cp1-fix-recon/logs/probe-*.{py,txt}` | §17（ENV-DIAG-001）取证：`probe-realenv-{PREPEND,NOPREPEND}.txt`（`os.environ` vs `GetEnvironmentVariableW` 对照）、`probe-site-variants.txt`（`-S`/`-E -S`/去 `PYTHONPATH` 判别）、`probe-minimal-repro.txt`（最小复现）、`probe-path-dump*`、`probe-shim-listing.txt` |
 | `E:/claw4-a05-19fd979/build-envdiag-001/` | §17 全新构建根（**零构件**，仅 configure 残留）：`CMakeFiles/CMakeConfigureLog.yaml`、`log/idf_py_{stdout,stderr}_output_36216`、`toolchain/` |
 | `E:/claw4-a05-19fd979/logs/envdiag-*` | §17 ENV-DIAG 专段、idf.py 实际 cmake 命令、`export` rc/stdout/stderr、收割的 configure 日志目录 |
+| `E:/claw4-a05-19fd979/logs/envdiag-pathguard.py` | §18 P0 PATH 守卫脚本（同进程 PATH 一致性判定） |
+| `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-runnerfix.{ps1,txt}` | §19 CP2-RUNNER-FIX-001 的等价自检脚本与结果（fix1/2/3 三组） |
+| `E:/claw4-a05-19fd979/logs/cp2-build-20260915-13*.log` | §18/§19 守卫拒绝构建的实跑日志（`invoking: idf.py` = 0） |
 
 ## 附录 B. 报告口径
 

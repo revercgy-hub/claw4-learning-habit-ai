@@ -32,6 +32,19 @@
 #   partition, -D CMAKE_MAKE_PROGRAM, ninja warm build, installing unrelated
 #   Xtensa/ULP/DFU tools.
 #
+# CP2-RUNNER-FIX-001 (three review points, nothing else):
+#   1. the SDKCONFIG "post" hash is a RE-HASH of the file actually passed via
+#      -D SDKCONFIG=<abs>, taken after configure -- no longer <build>\config\
+#      sdkconfig, which is a different, build-generated file.
+#   2. ALL FIVE required artifacts are mandatory: if the build exits 0 but any
+#      of xiaozhi.bin / xiaozhi.elf / xiaozhi.map / bootloader\bootloader.bin /
+#      partition_table\partition-table.bin is missing -> exit 5.
+#   3. the approved partition CSV now defaults to <src>\partitions\v1\
+#      32m_dual.csv (inside the isolated tree); no default E:\c reference. The
+#      file is checked up front (exit 3 if absent) and its raw AND LF-normalised
+#      sha256 are logged, because the in-tree copy is LF while the E:\c mirror is
+#      CRLF -- the two differ only in line endings, same 13-row layout.
+#
 # Exit codes:
 #   0  idf.py succeeded AND every post-build verification passed
 #   2  setup fatal (missing IDF/idf.py/paths)
@@ -50,9 +63,18 @@ param(
   [string]$LogDir   = "E:\claw4-a05-19fd979\logs",
   [string]$IdfPath  = "E:\workbuddy\esp-idf-5.5.4-ascii",
   [string]$IdfTools = "E:\workbuddy\claw4-idf-tools",
-  [string]$PartitionCsv = "E:\c\partitions\v1\32m_dual.csv",
+  [string]$PartitionCsv = "",
   [switch]$Fresh
 )
+
+# CP2-RUNNER-FIX-001: the approved partition CSV is taken from INSIDE the
+# isolated source tree -- no default reference to E:\c any more.
+if (-not $PartitionCsv) { $PartitionCsv = Join-Path $Src "partitions\v1\32m_dual.csv" }
+
+# CP2-RUNNER-FIX-001: the five artifacts a CP2 run MUST produce. A CP2 build that
+# exits 0 but leaves any of them missing is NOT a passing CP2 (exit 5).
+$RequiredArtifacts = @("xiaozhi.bin", "xiaozhi.elf", "xiaozhi.map",
+                       "bootloader\bootloader.bin", "partition_table\partition-table.bin")
 
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Manifest = Join-Path $RepoRoot "integration\metalio_claw4\a05_build_input_manifest.json"
@@ -133,7 +155,9 @@ Say ("versions     : ESP_IDF_VERSION=" + $env:ESP_IDF_VERSION + "  IDF_VERSION="
 Say "source       : $Src"
 Say "build root   : $Build"
 Say "sdkconfig    : $sdkconfig"
-Say ("sdkconfig sha256 (pre) : " + (Get-FileHash -LiteralPath $sdkconfig -Algorithm SHA256).Hash.ToLower())
+Say "partition csv: $PartitionCsv"
+$preHash = (Get-FileHash -LiteralPath $sdkconfig -Algorithm SHA256).Hash.ToLower()
+Say ("sdkconfig sha256 (pre) : " + $preHash)
 Say ""
 
 if (-not (Test-Path -LiteralPath $idfPy)) { Say "FATAL idf python missing: $idfPy"; exit 2 }
@@ -281,6 +305,25 @@ Say ("verifier : " + $VerifyInputs)
 if (-not (Test-Path -LiteralPath $Manifest)) { Say "FATAL manifest missing: $Manifest"; exit 3 }
 if (-not (Test-Path -LiteralPath $VerifyInputs)) { Say "FATAL input verifier missing: $VerifyInputs"; exit 3 }
 
+# CP2-RUNNER-FIX-001 (fix 3, fail-closed): the approved partition CSV now lives
+# inside the isolated source tree. Check it up front so a long build can never
+# finish without the expected input for the section-9 item 14/15 comparison.
+if (-not (Test-Path -LiteralPath $PartitionCsv)) {
+  Say ("FATAL approved partition CSV missing: " + $PartitionCsv)
+  Say ("log: " + $log)
+  exit 3
+}
+$pcText = [System.IO.File]::ReadAllText($PartitionCsv)
+$pcCrlf = [regex]::Matches($pcText, "\r\n").Count
+$pcLfAll = [regex]::Matches($pcText, "\n").Count
+$pcLfNorm = $pcText -replace "\r\n", ([string][char]10)
+$pcShaRaw = (Get-FileHash -LiteralPath $PartitionCsv -Algorithm SHA256).Hash.ToLower()
+$pcShaLf = [System.BitConverter]::ToString(
+  ([System.Security.Cryptography.SHA256]::Create()).ComputeHash(
+    [System.Text.Encoding]::UTF8.GetBytes($pcLfNorm))).Replace("-", "").ToLower()
+Say ("partition csv raw sha256 : " + $pcShaRaw)
+Say ("partition csv LF  sha256 : " + $pcShaLf + "   [CRLF=" + $pcCrlf + " bareLF=" + ($pcLfAll - $pcCrlf) + "]")
+
 & $idfPy $VerifyInputs --manifest $Manifest --check *>&1 | ForEach-Object { Say $_ }
 $chkRc = $LASTEXITCODE
 Say ("input check rc = " + $chkRc)
@@ -343,37 +386,50 @@ if ($errHit.Count -gt 0) {
 }
 
 # --- post checks: artifacts (Codex CP2 review §9 items 7-13) ---------------
-$preHashNow = (Get-FileHash -LiteralPath $sdkconfig -Algorithm SHA256).Hash.ToLower()
-$sdkAfter = Join-Path $Build "config\sdkconfig"
-$postHash = if (Test-Path -LiteralPath $sdkAfter) { (Get-FileHash -LiteralPath $sdkAfter -Algorithm SHA256).Hash.ToLower() } else { "ABSENT" }
-Say ("sdkconfig sha256 (pre-configure)  : " + $preHashNow)
-Say ("sdkconfig sha256 (post-configure) : " + $postHash)
+# CP2-RUNNER-FIX-001 (fix 1): the "post" hash is a RE-HASH of the SDKCONFIG that
+# was actually passed in (-D SDKCONFIG=<abs>), taken after configure. It is no
+# longer read from <build>\config\sdkconfig, which is a different file produced
+# by the build; the point of item 13 is that configure must not rewrite the
+# input we handed it.
+$postHash = (Get-FileHash -LiteralPath $sdkconfig -Algorithm SHA256).Hash.ToLower()
+Say ("sdkconfig sha256 (pre)  : " + $preHash)
+Say ("sdkconfig sha256 (post) : " + $postHash)
 
-foreach ($a in @("xiaozhi.bin","xiaozhi.elf","xiaozhi.map",
-                 "bootloader\bootloader.bin","partition_table\partition-table.bin")) {
+# CP2-RUNNER-FIX-001 (fix 2): all five required artifacts are mandatory.
+$missingArtifacts = @()
+foreach ($a in $RequiredArtifacts) {
   $p = Join-Path $Build $a
   if (Test-Path -LiteralPath $p) {
     Say ("artifact {0,-38} {1,12} bytes  sha256={2}" -f $a, (Get-Item -LiteralPath $p).Length,
          (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower())
   } else {
     Say ("artifact {0,-38} ABSENT" -f $a)
+    $missingArtifacts += $a
   }
 }
+Say ("required artifacts present : " + ($RequiredArtifacts.Count - $missingArtifacts.Count) +
+     " / " + $RequiredArtifacts.Count)
 Say "NO flash / erase / monitor / flasher_args was executed."
 Say "log: $log"
 if ($rc -ne 0) { exit $rc }
 
-# ===== post-build verification (Codex CP2 review §9 items 13-16) ============
+# ===== post-build verification (Codex CP2 review §9 items 7-16) ============
 Say ""
 Say "== post-build verification (Codex CP2 review 2026-09-15 sec.9) =="
 $postFail = @()
 
-if ($postHash -eq "ABSENT") {
-  $postFail += "[13] post-configure sdkconfig ABSENT"
-} elseif ($postHash -ne $preHashNow) {
-  $postFail += "[13] sdkconfig DRIFTED across configure ($preHashNow -> $postHash)"
+# items 7-11: every required artifact must exist
+if ($missingArtifacts.Count -gt 0) {
+  $postFail += ("[7-11] required artifact(s) missing: " + ($missingArtifacts -join ", "))
 } else {
-  Say ("  [13] sdkconfig pre == post (" + $postHash + ") -- no drift")
+  Say "  [7-11] all 5 required artifacts present"
+}
+
+# item 13: the passed SDKCONFIG must not have been rewritten by configure
+if ($postHash -ne $preHash) {
+  $postFail += "[13] SDKCONFIG DRIFTED across configure ($preHash -> $postHash)"
+} else {
+  Say ("  [13] SDKCONFIG pre == post (" + $postHash + ") -- configure rewrote nothing")
 }
 
 Say "  [16] re-verify the external inputs AFTER the build"
