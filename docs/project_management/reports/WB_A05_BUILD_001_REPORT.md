@@ -3,15 +3,15 @@
 | 项 | 值 |
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
-| 本轮范围 | **仅 CP0**。CP1～CP4 未开始 |
-| 报告状态 | `CP0 REPORT READY`（已提交并推送，等待 Codex 确认前序验收与输入清单） |
+| 本轮范围 | **仅 CP0**（含 §12 复审意见落实）。CP1～CP4 未开始 |
+| 报告状态 | `CP0 REPORT READY`（CP0 已获 Codex 复审通过；§12 补齐 3 处执行规则的精确判据，等待放行 CP1） |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
 | Base（交接 HEAD，含本任务书） | `82337fbf0654b78501241323d6ac4d0f1d7deaeb` |
 | 上游代码 SHA | `19fd979d4222093ff4ce7464e5b58407586594a2` |
 | vendor pin | `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950` |
-| 日期 | 2026-09-14 |
+| 日期 | 2026-09-14（首版 CP0）；2026-09-15（追加 §12 复审意见落实） |
 
 **本轮未做**：未改任何代码 / CMake / 配置；未运行 IDF `configure`/`build`；未 flash / erase / monitor；未升级或重下任何组件；未关系统应用控制、未重命名或改写二进制以绕过阻断。
 
@@ -471,8 +471,9 @@ docs/project_management/reports/WB_A05_BUILD_001_REPORT.md
 ## 11. 状态声明
 
 - 本轮**只完成 CP0**（前置验收证据与构建输入盘点）。**未运行任何 IDF configure/build**，未产出任何候选产物，**未 Flash**，未接提醒硬件，未扩展业务。
-- **CP1～CP4 未开始**，等待 Codex 在放行条件（前序 `ACCEPTED` + 认可本清单）满足后释放。
-- 状态：`CP0 REPORT READY`。若放行条件未满足，我在此停下，不自行跨门禁。
+- **CP0 复审结论（2026-09-15）**：Codex 判定本版总体可执行、**CP0 通过**；确认「C5 配置冻结、未接线模块允许裁剪、禁止 Flash、WorkBuddy 实施 Codex 审查」安排合理，并指出放行 CP1 前需补清 3 处执行规则 —— 已在 §12 逐条落成可检查判据，并附可直接采纳的替换措辞。
+- **CP1～CP4 未开始**，等待放行条件满足：3 条规则采纳 + §12.5 的 3 项依赖。**其中「pin 的可重放来源」是 CP1 的实质前置**，未定之前无法开工。
+- 状态：`CP0 REPORT READY`（已含 §12 规则澄清）。若放行条件未满足，我在此停下，不自行跨门禁。
 
 **继续保持的状态标记**
 
@@ -480,6 +481,198 @@ docs/project_management/reports/WB_A05_BUILD_001_REPORT.md
 - `CI: NOT PRESENT`
 - `Local Host Gate: PASS（29/29）`
 - Device / Hardware 项（见下）一律 `HARDWARE_VERIFY_REQUIRED`
+
+---
+
+## 12. 复审意见落实：3 处执行规则的精确判据（CP1 放行前置）
+
+Codex 复审结论：本版总体可执行、**CP0 可启动**；并确认「C5 配置冻结、未接线模块允许裁剪、禁止 Flash、WorkBuddy 实施 Codex 审查」这些安排合理。放行 CP1 前需补清 3 处执行规则。下面把 3 条落成**可检查判据**，并给出**可直接采纳的替换措辞**。
+
+> 合规说明：本轮仍处 CP0 约束内——**只新增/补充本报告文件**，未改代码/配置/CMake，未运行 IDF configure/build，未 Flash。任务书本体在 `codex/a05-build-task-review` 分支，**我不单方面改写它**；§12.1–§12.3 末尾的引用块即逐字可用的替换文本，交由 Codex 决定采纳。
+
+### 12.1 规则一：界定「所有输入已提交」的范围（任务书 L46）
+
+**问题**：SDKCONFIG、IDF 树、`managed_components/`、隔离源码副本都在仓库外，要求「全部入 Git」既不现实也不该做。原措辞会同时导致两种误判——把仓库外输入当成"未提交"而卡住，或把仓库外输入当成"不需要冻结"而放松。
+
+**判据（两类输入，两套口径）**
+
+| 类别 | 具体输入 | 要求 | 判定命令 |
+| --- | --- | --- | --- |
+| **A. 仓库内输入** | `firmware/**`、`integration/**`（含 `patches/`、`integration_manifest.md`）、`tools/dev/**`、`docs/**` | **必须已提交且 clean** | `git status --porcelain` 输出为空 |
+| **B. 仓库外输入** | IDF 树；工具链根；`managed_components/`；隔离源码副本（pin+patch 重放结果）；SDKCONFIG 副本；资源/模型/自定义唤醒词；Python 环境 | **不要求入 Git**，但必须由**提交进仓库的 manifest** 按「来源 / 版本 / 哈希」冻结，构建前逐项复验 | manifest 复验脚本，全部命中才继续 |
+
+**关键约束（B 类不得被当成"无需证明"）**
+
+- B 类每一项必须在 manifest 里落 **来源路径或 URL + 版本 + 哈希**；哈希口径二选一并写明：文件级 SHA256，或目录级 tree-hash（排序后「相对路径 + 文件 SHA256」清单再 SHA256）。
+- 构建前必须**重新计算**并与 manifest 比对；任一不一致 → **停止并报告**，不自动修正、不自动重新下载。
+- manifest 自身提交进仓库，其 SHA256 即 CP4 交付项里的「构建输入 manifest SHA」。
+- B 类里的 **SDKCONFIG 必须显式传入**（不从默认位置隐式读取），configure 前后各记一次哈希（任务书 L48 已要求）。
+- A 类里 **官方只读 vendor 树不改**；隔离源码副本属 B 类，其 `main/CMakeLists.txt` 的追加由新增 patch 表达（任务书 L30/L32 已要求）。
+
+**拟采纳的替换措辞（任务书 L46 首句）**
+
+> 构建输入分两类，判定口径如下：
+> (a) **仓库内输入**（`firmware/**`、`integration/**`、`tools/dev/**`、`docs/**` 及 A05 补丁层）——必须已提交且 `git status --porcelain` 为空（dirty=false），再构建。
+> (b) **仓库外输入**（IDF 树、工具链、`managed_components/`、隔离源码副本、SDKCONFIG 副本、资源/模型/唤醒词、Python 环境）——**不要求入 Git**，但必须由提交进仓库的 `build_input_manifest` 按「来源/版本/哈希」冻结，并在构建前逐项复验通过；任一不一致即停止并报告，不自动修正或重下载。
+
+> 本轮已完成的等价盘点见 §4（SDKCONFIG 三候选与关键值）、§6（IDF 与工具链）、§7（依赖/组件/资源）、§5（pin 与补丁身份）。这些内容即是 A05 的 manifest 初稿来源。
+
+### 12.2 规则二：Host 证据复用改按「指纹」判定，而非「同 SHA」（任务书 L64）
+
+**问题**：CP1 会改 CMake 与文档，提交 SHA 必然变化，「同一 SHA」字面不可能满足；而 SHA 相同也不等于 Host 门禁输入相同（工具链可能换）。两个方向都不严谨。
+
+**判据：Host 复用指纹（Host Reuse Fingerprint）**
+
+定义（**合成方式已定死为规范化 JSON，避免"等价实现算出不同值"**）：
+
+```python
+# 1) 文件树哈希
+rows = [(相对路径(用 / ), sha256(文件)) for 文件 in firmware/**, integration/**, tools/dev/**
+        排除 out/、*.o、*.exe、__pycache__、.git]
+rows.sort(key=相对路径)
+trees_hash = sha256("\n".join(f"{h}  {relpath}" for relpath, h in rows))   # 两个空格分隔
+
+# 2) 参数哈希（固定字面量，见下行 ARGS）
+args_hash = sha256(json.dumps(ARGS, sort_keys=True, separators=(",", ":")))
+
+# 3) 合成指纹
+canonical_json = json.dumps(
+    {"args": args_hash,
+     "cc": {"native": sha256(原生 g++ 二进制), "cross": sha256(交叉 g++ 二进制)},
+     "trees": trees_hash},
+    sort_keys=True, separators=(",", ":"))
+FINGERPRINT = sha256(canonical_json)
+```
+
+```python
+ARGS = {"compile": "-std=c++17 -Wall -Wextra -Werror -I firmware/main -I firmware/tests -I integration",
+        "link":    "-std=c++17 -Wall -Wextra -Werror -I firmware/main -I firmware/tests -I integration <objs...>",
+        "gate_script":      "tools/dev/verify-host-cpp-tests.ps1",
+        "interface_script": "tools/dev/verify-interface-contracts.ps1"}
+```
+
+要点：`sort_keys=True` + `separators=(",", ":")`（无空格）保证同一个字典在任何实现下产生**字节相同**的 `canonical_json`。键名固定为 `args` / `cc.cross` / `cc.native` / `trees`。
+
+文件集取 `firmware/** + integration/** + tools/dev/**` 是**门禁实际编译范围的超集**（门禁编 `firmware/main/{learning_domain,sync,application,ui,interaction,mcp,ports,time,reminder}` + `firmware/tests` + `integration/metalio_claw4/{host_glue,device/core}` 与两个 `tools/dev/*.ps1`）。取超集的好处：只可能更严格，不会漏判。
+
+**本轮实测基线（同一代码 SHA `19fd979` 对应的 CP0 提交）**
+
+| 项 | 值 |
+| --- | --- |
+| **HOST_REUSE_FINGERPRINT** | `133ffedba3f9195cc1d16732e42fc582adc2c7593f8be8f766da2f74308c70b4` |
+| 文件数 | 156 |
+| `trees_hash` | `b88d50440a30d3ffbb4e88031be9980f7bcc1b9cddbf4e5fc700573f368edce1` |
+| `args_hash` | `69018d2e4a47283164cde8a3540e9f3992c0af40f053f43471b36dae4a066c1f` |
+| `canonical_json` | `{"args":"69018d2e…","cc":{"cross":"8dc9eeb8…","native":"4f40f17d…"},"trees":"b88d5044…"}`（完整值见 `host-fingerprint.json`） |
+| 幂等性验证 | 同一规范连算两次 → 字节一致 `True`；与声明基线比对 → `True` |
+| 原生 g++ | `E:/workbuddy/toolchains/w64devkit-2.9.1/bin/g++.exe` sha256 `4f40f17d8a5a1052b83de568fe2e951fa37a3a21c38676e5b1da5707029cce61`；`g++.exe (GCC) 16.2.0` |
+| 交叉 g++ | `E:/workbuddy/claw4-idf-tools/tools/riscv32-esp-elf/esp-14.2.0_20260121/riscv32-esp-elf/bin/riscv32-esp-elf-g++.exe` sha256 `8dc9eeb8a7f3908baf0e7a7b2374dae7fe830dc79d005454136c3f8689905687`；`crosstool-NG esp-14.2.0_20260121) 14.2.0` |
+
+> **本轮自查抓到一个真实的规范缺陷（已修正，如实记录）**：第一版我写的是「`SHA256(trees_hash ‖ 编译器哈希集合 ‖ args_hash)`」，**没有规定序列化方式与键名**。用一个"等价实现"复算时（键名写成 `native`/`cross` 而非 `native_gpp`/`cross_gpp`，且未固定 JSON 空白）算出了**不同的指纹** `42f3c9ccfb0ba820e30bd1c6fe3fde05ffd0803199746398b0b734ba3c126691`，而 `trees_hash` 两次**完全相同**——说明差异纯粹来自合成方式未定死。这正是规则二本身要防的失效模式：**判据若不精确到可字节复现，它自己就会成为新的争议源**。现已改为上面的规范化 JSON 定义，并完成幂等性验证（连算两次一致、与声明基线一致）。
+
+**复用条件（全部满足才可复用本轮 CP0 门禁日志）**
+
+1. 指纹逐字段相同（`trees_hash`、两个编译器 SHA256、`args_hash`）；
+2. 报告中记录两个提交之间的 `git diff --name-status <CP0-SHA> <CP1-SHA>`，且**差异文件全部落在指纹集合之外**（即只动 `docs/**`）；
+3. 指纹集合内**任一文件**变化 → 必须重跑全量 Host Gate，不可复用。
+
+**刻意排除在指纹之外的东西（这是设计意图，不是遗漏）**
+
+- `docs/**` —— 文档提交不应使既有门禁证据失效；
+- 镜像的 `E:/c/main/CMakeLists.txt` 等**仓库外** CMake —— Host 门禁根本不编译镜像，改它不影响 Host 结果（其影响由 CP2/CP3 的构建证据承担）；
+- `out/` 构建产物 —— 非输入。
+
+**拟采纳的替换措辞（任务书 L64 后半句）**
+
+> Host 证据能否复用，**不看提交 SHA，看 Host 复用指纹**：指纹按本节上方的规范化 JSON 定义计算（文件集 `firmware/** ∪ integration/** ∪ tools/dev/**` + 原生与交叉编译器二进制哈希 + 编译链接参数），**须能字节级复现**。指纹相同即可复用本轮 CP0 的门禁日志；指纹不同必须重跑。复用与重跑均须在报告中记录：两提交间的 `git diff --name-status`、指纹比对结果、以及差异文件是否全部落在指纹集合之外。产品源码有任何改动 → 指纹必变 → 必须重跑。
+
+> 指纹基线现由一次性等价计算取得（`E:/workbuddy/claw4-a05-cp0-recon/host-fingerprint.json`）。CP1 获准写 `tools/dev/` 后，我会把它固化为 `tools/dev/host-reuse-fingerprint.ps1`，使后续复算可一键重放。
+
+### 12.3 规则三：分区表必须从**生成物**反解核验 + 余量只能来自本候选（任务书 L50）
+
+**问题**：原文只约束输入 CSV 与标称容量。但 CSV 里有**空白偏移**（`ota_1` 的 offset 就是空的，靠自动计算），"布局与批准输入一致"若不从生成的 bin 反解就只是假设。
+
+**判据：解析生成物，逐行比对，再算余量**
+
+工具与命令（用 IDF 自带、树内工具即可，已实测往返可用）：
+
+```
+<python> esp-idf-5.5.4-ascii/components/partition_table/gen_esp32part.py \
+         --flash-size 32MB  <build>/partition_table/partition-table.bin  actual.csv
+```
+
+- 工具身份：`gen_esp32part.py` sha256 `8f0f2b4eeb42254d5ce3490260e43832f951d3c9930935f035a4adf831ad5be3`（IDF 5.5.4 发行包内，`--verify` 默认开启，`--flash-size` 做容量适配检查）。
+- 同样方式解析**已批准输入**，取得期望布局，使两者可比（输入 CSV 的空白偏移会被解析为确定值）。
+
+**已批准输入 `E:/c/partitions/v1/32m_dual.csv` 的期望解析结果（本轮实测固化）**
+
+- CSV 文件哈希：`3522639424052778951248d32b02cff0690ddb86d84968b357d43fffc79f2ff6`
+- 归一化布局表哈希：`00c12fe55d034a06b70d28b770d682e3e580ecd7a42fc2267972a1dac755929f`
+  （归一化 = 按行 `name|type|subtype|0x偏移|字节数|flags` 拼接后 SHA256）
+
+| name | type | subtype | offset | size (bytes) |
+| --- | --- | --- | --- | --- |
+| nvsfactory | data | nvs | 0x0000a000 | 204,800 |
+| nvs | data | nvs | 0x0003c000 | 860,160 |
+| otadata | data | ota | 0x0010e000 | 8,192 |
+| phy_init | data | phy | 0x00110000 | 4,096 |
+| model | data | spiffs | 0x00111000 | 978,944 |
+| **ota_0** | **app** | **ota_0** | **0x00200000** | **9,437,184** |
+| **ota_1** | **app** | **ota_1** | **0x00b00000** | **4,194,304** |
+| resources | data | spiffs | 0x00f00000 | 4,194,304 |
+| factory_test | data | spiffs | 0x01300000 | 614,400 |
+| emote | data | spiffs | 0x01396000 | 4,194,304 |
+| system | data | fat | 0x01796000 | 1,048,576 |
+| storage | data | fat | 0x01896000 | 7,340,032 |
+| coredump | data | coredump | 0x01f96000 | 65,536 |
+
+- 末段结束 = `0x01fa6000`（33,185,792 B）；32MiB = `0x02000000`（33,554,432 B）→ **尾部未分配 0x5a000 = 368,640 B（360 KiB）**。这个数只能由解析结果算出，不能凭 CSV 目测。
+
+**必须的断言（任一不通过即硬停）**
+
+1. `ota_0.offset == 0x00200000`，`ota_0.size == 9437184`（9MiB）
+2. `ota_1.offset == 0x00b00000`，`ota_1.size == 4194304`（4MiB）
+3. 生成物解析出的**完整布局**逐行等于上表（含顺序、类型、子类型、flags），且归一化哈希 == `00c12fe5…`
+4. `--flash-size 32MB` 适配检查通过；无重叠、无越界
+5. 生成 `partition-table.bin` 的 SHA256 与输入 CSV 的 SHA256 均入报告
+
+**候选余量的唯一定义（禁止引用历史余量）**
+
+```
+ota_0_余量_字节 = 9437184 − <本候选 app 镜像字节数>        （app 镜像取构建报告的实际 size，含对齐/校验）
+ota_0_余量_百分比 = ota_0_余量_字节 / 9437184
+```
+
+**双槽 OTA 可用性（由数据判定，不由假设）**
+
+`ota_1` 仅 4,194,304 B，**小于** `ota_0` 的 9,437,184 B。因此：
+
+- 若本候选 app 镜像 > 4,194,304 B → **必须显式记录「双槽 OTA 不可用」**，只提交 application-only 构建证据，不改分区表、不改 OTA 策略；
+- 若 app 镜像 ≤ 4,194,304 B → 双槽可用性成立，仍需记录实测数值。
+- app 镜像 > 9,437,184 B → **超过 ota_0 硬停**，不得跳过尺寸检查、不得手改分区。
+
+**拟采纳的替换措辞（任务书 L50 首句前插入）**
+
+> 分区表必须**从生成的 `partition-table.bin` 反解核验**，不能只核输入 CSV：用 IDF 自带 `gen_esp32part.py --flash-size 32MB <生成BIN> <输出CSV>` 解析实际生成结果，逐行比对（name/type/subtype/offset/size/flags）与已批准输入的解析结果一致，并显式断言 `ota_0.offset==0x200000`、`ota_0.size==9437184`、`ota_1.offset==0xb00000`、`ota_1.size==4194304`。**候选余量只能由本次候选的 app 镜像实际大小计算**（ota_0 余量 = 9437184 − 本候选 app 镜像字节数），不得引用任何历史余量；app 超 ota_0 立即硬停。因 `ota_1`(4MiB) < `ota_0`(9MiB)，若本候选 app 镜像 > 4194304 B 必须显式记录「双槽 OTA 不可用」，只提交 application-only 证据，不改分区或 OTA 策略。
+
+**顺带发现（供 Codex 决定，不自行处理）**：输入 CSV 里 `ota_1` 的 offset 为**空白**、由 `gen_esp32part.py` 自动接续得到 `0x00b00000`。这与任务书写的 `ota_1 offset0xb00000` 一致，但**该值来自工具自动计算而非显式声明**。是否要求在 A05 的隔离源码副本中把该 offset 显式写死，请裁定；我倾向**保持与原 CSV 逐字节一致**（改 CSV 等于改已批准输入，超出本包范围）。
+
+### 12.4 三条规则与本轮状态
+
+- 本轮**未修改任何代码、配置、CMake、分区表或脚本**；只补充本报告文件（CP0 白名单）。§12.1–§12.3 的替换措辞未应用到任务书，等 Codex 采纳。
+- 三条规则所需的前置数据**本轮已全部实测取得**：输入分类清单（§4–§7）、Host 指纹基线（§12.2）、期望分区布局与其归一化哈希（§12.3）。
+- **规则二已在本轮自我验证**：补充 §12 属纯文档改动，改后重算指纹 —— `trees_hash` 与 `args_hash` **均不变**，即"文档提交不使既有门禁证据失效"这一设计意图成立，规则二可直接用于本包后续文档提交。
+- 因此 **CP1 不需要额外等待新的取证**；只等规则采纳与下列放行项。
+
+### 12.5 CP1 放行的剩余依赖（除上述 3 条规则外）
+
+| # | 依赖 | 说明 |
+| --- | --- | --- |
+| 1 | 前序 WB-V53-NEXT-001 记 `ACCEPTED` | 任务书 §0 明确要求，看板现状仍为 `REVIEW_READY`（§10 第 1 项） |
+| 2 | **pin 的可重放来源**（§10 第 3 项） | **这是 CP1 的实质前置**：CP1 要从 pin + 已认可 patch 重放源码，本机无上游 git 元数据，参考树 `MetalioClaw4-ascii` 的 4 文件 ≠ A01 记录的 `upstream_sha256`，不能当重放源。需要指定来源（本地路径 / 仓库 URL / 由我提供差异清单） |
+| 3 | 3 条规则采纳形态 | 直接改任务书，还是我在 CP1 报告中以"执行规则声明"逐条落地并引用 §12 |
+
+这三项清了，CP1 可直接开工，不再有取证型阻塞。
 
 ---
 
@@ -492,6 +685,8 @@ docs/project_management/reports/WB_A05_BUILD_001_REPORT.md
 | `E:/workbuddy/claw4-a05-cp0-recon/evidence3.md` | `E:/c` vs `MetalioClaw4-ascii` 全量逐文件比对 |
 | `E:/workbuddy/claw4-a05-cp0-recon/branch-attempt*.txt` / `path-diag.txt` / `reftest.txt` / `clone-e-root.txt` | Git 引用缺陷的逐次命令与输出（§1.3 证据） |
 | `E:/workbuddy/claw4-a05-cp0-recon/blocked-evidence.md` | 5 项阻断套件的 exe hash 与单次运行结果 |
+| `E:/workbuddy/claw4-a05-cp0-recon/host-fingerprint.json` / `.txt` | §12.2 的 Host 复用指纹基线（156 文件树哈希 + 两编译器哈希 + 参数哈希 + 合成指纹） |
+| `E:/workbuddy/claw4-a05-cp0-recon/partition_expected.txt` | §12.3 已批准分区 CSV 经 IDF 工具解析后的期望布局、归一化哈希、尾部未分配空间与逐条断言 |
 | `E:/claw4-a05-build-m0/out/a05-cp0-host/` | 本轮完整 Host 门禁日志、逐套件输出、`host_result.txt` |
 
 ## 附录 B. 报告口径
