@@ -4,6 +4,8 @@
 
 ## 0. 领取状态与基线
 
+**2026-09-15覆盖更新：CP0已ACCEPTED（取证范围），四项复审修正已关闭；CP1～CP4仍QUEUED，等待前序整流验收。** 详见[正式复核结论](../reports/CODEX_A05_CP0_VERIFICATION_2026-09-15.md)。不再重复执行CP0。被审实施报告为6d49c72，产品代码仍为19fd979；下文9/14状态是历史背景，以本更新为准。
+
 **CP0 READY；CP1～CP4 QUEUED，未经下述放行不得开始构建。** 当前上游工作代码固定为 `19fd979d4222093ff4ce7464e5b58407586594a2`，来自 `origin/workbuddy/v53-next-001-reliability`。本任务书在 `codex/a05-build-task-review` 分支仅追加文档；从含本任务书的交接HEAD建立独立 `workbuddy/a05-build-m0`，记录完整Base SHA，核对相对19fd979只有文档差异。若WorkBuddy源分支又推进，先列差异交Codex重定基线。
 
 当前不能声称上一流ACCEPTED：WorkBuddy报告29/29 PASS，本次独立复跑24/29，5个exe被Windows应用控制拒绝启动；最终cleanup6 cases通过。既不将环境阻断当已证明的产品bug，也不跳过这5项盖全量PASS。
@@ -43,11 +45,15 @@ CP1验证：补丁在隔离fixture应用/反向和hash通过；同步Check无未
 
 只在新隔离根执行完整 `idf.py build`，脚本设置正确IDF环境，并显式传入source/build/SDKCONFIG路径。不得照抄旧目录ninja命令；不得用set-target/menuconfig重置配置。记录完整命令、exit code、日志与版本。
 
-输入必须已提交且clean，再构建。生成app bin/ELF/map、bootloader bin、partition-table bin及其它被官方build生成的资源；它们全部是本地构建证据，不是烧录授权。不运行flash/app-flash/erase/monitor，不执行flasher_args，不生成“可直接全刷”的用户指令。
+仓库内源码、脚本和补丁必须已提交且clean，再构建。仓库外IDF、工具链、组件、SDKCONFIG、资源和隔离源码副本不要求入Git，但必须由已提交的输入manifest记录来源、版本、文件hash/确定性目录hash，并在构建前复验。不得把大产物或凭据提交Git。
+
+生成app bin/ELF/map、bootloader bin、partition-table bin及其它被官方build生成的资源；它们全部是本地构建证据，不是烧录授权。不运行flash/app-flash/erase/monitor，不执行flasher_args，不生成“可直接全刷”的用户指令。
 
 配置在configure前后均记录hash；若自动Kconfig迁移改变关键值或引入未审定默认值，立即报告，不能把自动生成视作授权。IDF、components、dependencies.lock前后核对，无静默升级。官方构建返回非零必须按失败报告，不手动跳过尺寸检查。
 
 分区固定 `partitions/v1/32m_dual.csv`：ota_0 offset0x200000，容量9MiB（9,437,184 bytes）；ota_1 offset0xb00000，容量4MiB。app超ota_0硬停。既有ota_1不足必须明确记为双槽OTA不可用；若官方build仍成功且ota_0符合，可提交application-only构建证据，不改分区或OTA策略。不得将旧余量当新候选余量。
+
+必须使用已冻结IDF的gen_esp32part工具反解实际partition-table.bin，与批准CSV解析出的完整布局逐行比较name/type/subtype/offset/size/flags，并检查无重叠、无越界；解析参数明确分区表offset=0x9000、Flash=32MB。CSV保留空白offset原文，不擅改。余量仅取本候选实际app字节数计算；app≤4MiB也只证明尺寸满足，不能据此宣称双槽OTA功能通过。
 
 ## 4. CP3：链接、来源与既有缺陷审计
 
@@ -61,7 +67,7 @@ CP1验证：补丁在隔离fixture应用/反向和hash通过；同步Check无未
 
 D5核查repo learning_screen的tick deadline与不再重复删除timer；其代码hash独立于vendor patch。audio yield核查现有patch、锁作用域和实际 `CONFIG_FREERTOS_HZ=1000` 下 `pdMS_TO_TICKS(1)` 的结果；不得沿用历史“10ms”的描述或在此擅改yield实现。静态存在不等于20轮真机稳定。
 
-重新运行完整Host Gate；若只变CMake/文档且同SHA有效门禁已有，可引用本轮CP0准确证据，产品源码有任何经准许的编译修订必须重跑。TCP loopback、网络总deadline、UI延迟、真NVS均单列，不以Host/Build替代。
+Host证据复用按实际输入是否相同判断，不要求提交SHA相同。记录两提交diff，比较Host源码、测试、门禁脚本、实际编译链接参数及工具链身份；相同才可引用CP0证据。两个g++启动器hash不能单独代表整个工具链，需关联已冻结工具包/关键编译链接程序与运行库。产品源码或任一受测输入变化必须重跑；新增指纹脚本后重建基线。TCP loopback、网络总deadline、UI延迟、真NVS均单列，不以Host/Build替代。
 
 ## 5. CP4：冻结候选与交付
 
@@ -86,4 +92,4 @@ A05-BUILD认可后另拟A05-DEVICE，仅同一候选、合成测试身份/任务
 
 ## 给WorkBuddy的启动文本
 
-请领取本修订版WB-A05-BUILD-001，只先执行CP0，记录19fd979代码基线、Host运行阻断证据和已知C5配置/依赖清单。不要从E:/c的H2配置直接build。CP0提交后等Codex确认前序验收及输入清单；放行后按CP1到CP4完成隔离总装和application-only候选，交REVIEW_READY停止，不Flash、不接提醒硬件、不扩展业务。Codex负责审查，具体实现与补测由WorkBuddy完成。
+CP0已于2026-09-15按6d49c72完成证据复核并获ACCEPTED，无需重复处理已关闭的四项。当前等待Codex完成前序WB-V53-NEXT-001整流验收并明确放行CP1；等待期间不启动构建。放行后按本修订版CP1到CP4完成隔离总装和application-only候选，交REVIEW_READY停止。不要从E:/c的H2配置直接build，不Flash、不接提醒硬件、不扩展业务。Codex负责审查，具体实现与补测由WorkBuddy完成。

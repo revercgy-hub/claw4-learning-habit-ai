@@ -1,5 +1,9 @@
 # WorkBuddy 当前执行入口
 
+## 2026-09-15覆盖指令
+
+CP0已由Codex正式验收（取证范围），报告见 `docs/project_management/reports/CODEX_A05_CP0_VERIFICATION_2026-09-15.md`。不再重复四项CP0整改。CP1仍等待前序WB-V53-NEXT-001整流验收；不得将CP0通过当作开始IDF构建的许可。三条规则已写入任务书，本地无斜杠分支偏差已接受。下方CP0领取指令为历史记录。
+
 ## A05方案审查后的当前指令（覆盖下方旧入口）
 
 只领取 `docs/project_management/tasks/WB-A05-BUILD-001.md` 的CP0；先读 `docs/project_management/reports/CODEX_A05_PLAN_REVIEW_2026-09-14.md`、当前看板和根AGENTS。源代码基线19fd979，使用包含本任务书的交接分支建立独立workbuddy/a05-build-m0。
