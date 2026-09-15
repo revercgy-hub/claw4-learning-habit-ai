@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑**。**§23：E 第二次执行（17:09）用的树正确（`src-cp2-003`、绑定守卫 OK、输入校验 5/5）且 §20 的编译错误已消失、推进到 2,439/2,643 —— 但撞上 Windows `CreateProcess` 32,767 字符命令行上限（失败命令 33,505）。用真实 `compile_commands.json` 证明：旧命名 `src` 最长 31,759（余量 1,008、超限 0/2,422），我选的 `src-cp2-003` 最长 33,463（**超限 195/2,422**）⇒ 是树目录名太长所致；缩短到 `E:\a05c\s` 可获 4,255 余量。**方案待裁定（改动冻结输入路径，属 CP 级）**。**§24：方案 A 已执行 —— 短路径重放到 `E:\a05c\s`（重放 8 步断言全过、managed_components tree match、A05 `14ffc5c3…`）；权威 `--write` 复测 `isolated_src = 36bc3d4d…`、1353 文件 / 72,457,109 B **与冻结值逐字相同 ⇒ 内容中性**；命令长度投影 33,463 → **28,512（余量 4,255、超限 0/2,422）**；绑定守卫与输入校验（5/5）均 PASS。**待重跑** |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑**。**§23：E 第二次执行（17:09）用的树正确（`src-cp2-003`、绑定守卫 OK、输入校验 5/5）且 §20 的编译错误已消失、推进到 2,439/2,643 —— 但撞上 Windows `CreateProcess` 32,767 字符命令行上限（失败命令 33,505）。用真实 `compile_commands.json` 证明：旧命名 `src` 最长 31,759（余量 1,008、超限 0/2,422），我选的 `src-cp2-003` 最长 33,463（**超限 195/2,422**）⇒ 是树目录名太长所致；缩短到 `E:\a05c\s` 可获 4,255 余量。**方案待裁定（改动冻结输入路径，属 CP 级）**。**§24：方案 A 已执行 —— 短路径重放到 `E:\a05c\s`（重放 8 步断言全过、managed_components tree match、A05 `14ffc5c3…`）；权威 `--write` 复测 `isolated_src = 36bc3d4d…`、1353 文件 / 72,457,109 B **与冻结值逐字相同 ⇒ 内容中性**；命令长度投影 33,463 → **28,512（余量 4,255、超限 0/2,422）**；绑定守卫与输入校验（5/5）均 PASS。**§25（17:55）：✅ **CP2 = REVIEW_READY** —— `exit=0`、`Project build complete`、`POST-BUILD VERIFICATION: PASS`、**5/5 构件**、sdkconfig `a901f204…` pre==post、真实分区表 **13 行全 OK**、app **9,271,760 B** / `ota_0` 余量 **165,424 B (1.75%)**、`ota_1` 不 fit（已显式记录）、**NO FLASH**；§9 十七项**全部产出**；另以真实 ELF 关闭"符号保留"未完成项。**CP3 未授权、未开始 —— 已按要求停止** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -2192,6 +2192,132 @@ powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05
 
 ---
 
+## 25. E 第三次执行（2026-09-15 17:55）：✅ **CP2 REVIEW_READY**
+
+### 25.0 结论
+
+**冷构建成功**：`exit=0`、`Project build complete`、**`POST-BUILD VERIFICATION: PASS (items 7-16 satisfied; NO FLASH)`**。用时 **4 分 42 秒**，构建根 `E:\a05c\b`（`-Fresh` 新建），源树 `E:\a05c\s`。
+
+**未经我修改任何源码 / CMake / sdkconfig / partition，未安装任何工具，未 Flash，未开始 CP3。**
+
+### 25.1 三道闸门全过（本轮的树、路径、环境都正确）
+
+```
+PATH_GUARD: OK -- os.environ['PATH'] == Win32 PATH (len 874)
+-- source/tree binding (-Src vs manifest isolated_src.origin) --
+  manifest isolated_src.origin : E:\a05c\s
+  OK -- -Src == manifest isolated_src.origin
+input check rc = 0
+input check PASS -> cold build follows
+invoking: idf.py -C <src> -B <build> -D SDKCONFIG=<abs> build
+...
+Successfully created esp32p4 image.
+Generated E:/a05c/b/xiaozhi.bin
+Project build complete.
+exit=0   elapsed=00:04:42.9007376   end=2026-09-15T18:01:58
+```
+
+⇒ 前一节的三类阻塞（宿主 PATH 失同步、上游源码缺陷、命令行长度上限）**全部不再出现**。
+
+### 25.2 §9「最低验收证据」—— **17 / 17 全部产出**
+
+| §9 项 | 证据 |
+| --- | --- |
+| 1 `verify-build-inputs` 5/5 PASS | `entries 5 checked / failures 0 / RESULT: PASS`（构建**前**） |
+| 2 新 build root | `E:\a05c\b` + `-Fresh`（全新，无复用） |
+| 3 `idf.py build` exit=0 | `exit=0`（4m42s） |
+| 4 configure PASS | cmake 命令已捕获；`CMakeConfigureLog.yaml` 已收割 |
+| 5 compile PASS | 全量编译完成，无 error |
+| 6 link PASS | `Successfully created esp32p4 image.` |
+| 7–11 五个必需构件 | **`required artifacts present : 5 / 5`** |
+| 12 每个构件的 size + SHA256 | 见 §25.3（我已**独立重算**，与日志逐字一致） |
+| 13 sdkconfig pre/post 相等 | 两侧均 `a901f204…` ⇒ configure 未改写 SDKCONFIG |
+| 14 真实分区表反解 + 逐行比对 | **13 行全 OK**；无重叠、在界内（`RESULT: PASS`） |
+| 15 app 真实字节数 + `ota_0` 余量 + `ota_1` fits | app **9,271,760 B**；`ota_0` 余量 **165,424 B (1.75%)**；`app fits ota_1 = False` |
+| 16 构建后外部输入复核 | 重跑 `--check` → **`failures 0 / RESULT: PASS`（仍 5/5）** |
+| 17 明确 `NO FLASH` | runner 打印 `NO flash / erase / monitor / flasher_args was executed.` |
+
+### 25.3 构件（**我独立重算**，与 runner 输出逐字一致）
+
+| 构件 | 字节 | sha256 |
+| --- | --- | --- |
+| `xiaozhi.bin` | **9,271,760** | `c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36` |
+| `xiaozhi.elf` | 80,102,764 | `fba68d58002e8139506df655310cabd79f8359f1fff11cfc49d566ea5da8aa60` |
+| `xiaozhi.map` | 21,859,377 | `93f8e7d93e35cac0d2d52b073111b72b8069ac7afe431754db84717546b5bafe` |
+| `bootloader\bootloader.bin` | 20,416 | `e2a455c5786943bc0c23a2b1cb71482b35763319a9b457d80c7e63fdc3b33f33` |
+| `partition_table\partition-table.bin` | 3,072 | `ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f` |
+
+> `partition-table.bin` 的 sha256 与 §16/§20/§22 三次由批准 CSV 生成的 bin **完全相同** ⇒ 分区布局自始至终由批准输入决定，与源码树/构建根无关。
+
+### 25.4 真实分区表逐行校验（**对生成物执行，非自测**）
+
+approved CSV `E:\a05c\s\partitions\v1\32m_dual.csv`（LF sha `c5277b4b…`）↔ 生成 bin（sha `ef0039b6…`），**13 行全部 OK**：
+
+```
+nvsfactory 0x0000a000/204800 | nvs 0x0003c000/860160 | otadata 0x0010e000/8192
+phy_init 0x00110000/4096 | model 0x00111000/978944
+ota_0 0x00200000/9437184 | ota_1 0x00b00000/4194304
+resources 0x00f00000/4194304 | factory_test 0x01300000/614400
+emote 0x01396000/4194304 | system 0x01796000/1048576
+storage 0x01896000/7340032 | coredump 0x01f96000/65536
+last partition end 0x01fa6000 ; trailing unallocated 368640 B
+RESULT: PASS -- matches the approved input, no overlap, in range
+```
+
+### 25.5 ⚠️ 必须显式记录的容量事实（本候选，仅应用侧）
+
+| 项 | 值 |
+| --- | --- |
+| app 映像 | **9,271,760 B** |
+| `ota_0` 槽 | 9,437,184 B → **余量 165,424 B（1.75%）** |
+| `ota_1` 槽 | 4,194,304 B → **`app fits ota_1 = False`** |
+| 结论 | **app > `ota_1` ⇒ 双槽 OTA 不可用**，本包只提交 **application-only** 证据 |
+
+按既有约定：**只记录，不改分区、不改 OTA 策略**；双槽 OTA 的流程/选择/回滚**不属于本包范围**。
+
+### 25.6 附加（只读）证据：ELF 符号保留 —— 关闭此前列为"未完成"的一项
+
+用交叉 `riscv32-esp-elf-nm` 对**真实 `xiaozhi.elf`** 取证，可靠性组件符号**确实被链接进最终镜像**（`T` = 已定义于 `.text`）：
+
+```
+T claw4::sync::SyncExecutor::runCycle(std::function<bool ()> const&, int)
+T claw4::sync::SyncExecutor::SyncExecutor(AppCoordinator&, SyncTransport&, ...)
+T claw4::sync::SingleFlightHttpTransport::request(std::string const&, ...)
+T claw4::sync::SingleFlightHttpTransport::SingleFlightHttpTransport(std::function<...>)
+V vtable / typeinfo for claw4::sync::SingleFlightHttpTransport
+（map 中另有 TimeAuthority / InteractionArbiter / ReminderCore 等一组符号）
+```
+
+⇒ `-ffunction-sections -fdata-sections` + gc-sections **没有**把这些组件裁掉。该项此前只在"未完成"清单里，现由真实构件关闭。
+
+### 25.7 诚实的边界（不粉饰）
+
+1. **本包只验证"构建"**：未烧录、未上机、未做设备行为/monitor 验证 —— 那是 **CP3**，**未获授权，未开始**。
+2. **Host 门禁仍是 28/29**（`learning_mcp_host_tests.exe` 被本机应用控制策略拦截，零断言失败，见 §21.5）；与本轮构建无因果，仍为环境遗留项，**不声称 29/29**。
+3. **`isolated_src` 构建后复核之所以能 PASS，依赖于 3 个生成路径被排除**（`main/assets/lang_config.h`、`main/i18n/i18n_strings_gen.h`、`main/mmap_generate_resources.h`）。这 3 个路径本次**均可读**（`927c3ad3…` / `b58d35a0…` / `658c693a…`），与上一次两个 `UNREADABLE:13` 不同。**它们的字节会在每次构建变化，这不构成输入漂移**（除它们之外，树摘要与冻结值一致）。
+4. **`ota_1` 不可用**（§25.5）是本候选的既成事实，如实上报而非回避。
+5. 证据文件不在 Git 内：`E:/claw4-a05-19fd979/logs/cp2-build-20260915-175552.log`（已归档到 `E:/claw4-a05-cp1-fix-recon/logs/cp2-build-20260915-175552.SUCCESS.log`）、`cp2-postbuild-verification.txt`、`cp2-artifacts-and-symbols.txt`、`cp2-elf-symbols.txt`。
+
+### 25.8 状态
+
+```
+CP2 = REVIEW_READY
+  source            : E:\a05c\s   (isolated_src 36bc3d4d…, 1353 files, 72,457,109 B)
+  build root        : E:\a05c\b   (fresh)
+  idf.py exit       : 0            elapsed 4m42s
+  artifacts         : 5 / 5
+  sdkconfig         : a901f204… pre == post
+  partition         : 13/13 rows OK, no overlap, in range
+  app / ota_0 margin: 9,271,760 / 165,424 B (1.75%)
+  ota_1 fits        : False  -> dual-slot OTA unusable (recorded, no partition change)
+  flash             : NONE
+  CP3               : NOT AUTHORIZED / NOT STARTED
+```
+
+**按要求停止：不再执行任何构建/烧录/后续阶段，等待 Codex 复核。**
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -2225,6 +2351,10 @@ powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05
 | `E:/claw4-a05-cp1-fix-recon/logs/cmdline-projection-shortpath.log` | §24.4① 迁移前后命令行长度的全量投影（2,422 条） |
 | `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-binding2.{txt}`、`harness-binding2.ps1` | §24.4② 用**新** manifest 重测绑定守卫（5 例，含两棵被拒的旧树） |
 | `E:/claw4-a05-cp1-fix-recon/logs/manifest-write-shortpath2.log` | §24.2 权威 `--write` 输出：`isolated_src = 36bc3d4d…` 与冻结值一致 |
+| `E:/claw4-a05-cp1-fix-recon/logs/cp2-build-20260915-175552.SUCCESS.log` | §25 **成功冷构建**的完整日志（`exit=0`、`Project build complete`、`POST-BUILD VERIFICATION: PASS`）；原件在 `E:/claw4-a05-19fd979/logs/` |
+| `E:/claw4-a05-cp1-fix-recon/logs/cp2-postbuild-verification.txt` | §25.2–25.5 构建后验证原文（§9 第 7–16 项、真实分区表 13 行、余量与 `ota_1` 结论） |
+| `E:/claw4-a05-cp1-fix-recon/logs/cp2-artifacts-and-symbols.txt`、`cp2-elf-symbols.txt` | §25.3 五个构件**独立重算**的 size/sha256；§25.6 `riscv32-esp-elf-nm` 对真实 ELF 的符号过滤输出 |
+| `E:/claw4-a05-19fd979/logs/envdiag-*20260915-175552*` | §25.1 该次运行的 ENV-DIAG 专段与 cmake 实际命令 |
 
 ## 附录 B. 报告口径
 
