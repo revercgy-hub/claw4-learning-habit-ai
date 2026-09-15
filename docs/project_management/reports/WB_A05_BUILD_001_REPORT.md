@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑**。**§23：E 第二次执行（17:09）用的树正确（`src-cp2-003`、绑定守卫 OK、输入校验 5/5）且 §20 的编译错误已消失、推进到 2,439/2,643 —— 但撞上 Windows `CreateProcess` 32,767 字符命令行上限（失败命令 33,505）。用真实 `compile_commands.json` 证明：旧命名 `src` 最长 31,759（余量 1,008、超限 0/2,422），我选的 `src-cp2-003` 最长 33,463（**超限 195/2,422**）⇒ 是树目录名太长所致；缩短到 `E:\a05c\s` 可获 4,255 余量。**方案待裁定（改动冻结输入路径，属 CP 级）** |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑**。**§23：E 第二次执行（17:09）用的树正确（`src-cp2-003`、绑定守卫 OK、输入校验 5/5）且 §20 的编译错误已消失、推进到 2,439/2,643 —— 但撞上 Windows `CreateProcess` 32,767 字符命令行上限（失败命令 33,505）。用真实 `compile_commands.json` 证明：旧命名 `src` 最长 31,759（余量 1,008、超限 0/2,422），我选的 `src-cp2-003` 最长 33,463（**超限 195/2,422**）⇒ 是树目录名太长所致；缩短到 `E:\a05c\s` 可获 4,255 余量。**方案待裁定（改动冻结输入路径，属 CP 级）**。**§24：方案 A 已执行 —— 短路径重放到 `E:\a05c\s`（重放 8 步断言全过、managed_components tree match、A05 `14ffc5c3…`）；权威 `--write` 复测 `isolated_src = 36bc3d4d…`、1353 文件 / 72,457,109 B **与冻结值逐字相同 ⇒ 内容中性**；命令长度投影 33,463 → **28,512（余量 4,255、超限 0/2,422）**；绑定守卫与输入校验（5/5）均 PASS。**待重跑** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -2107,6 +2107,91 @@ ARTIFACTS: 2/5 (bootloader.bin, partition-table.bin) -- 非候选证据
 
 ---
 
+## 24. CP2-SOURCE-FIX-001 follow-up A：短路径重放（已执行，`-Src E:\a05c\s`）
+
+用户批准方案 A 后执行。**改动仅 3 个文件**：`tools/dev/verify-build-inputs.py`、`integration/metalio_claw4/a05_build_input_manifest.json`、`tools/dev/run-a05-cp2-build.ps1`。未改源码 / CMake / sdkconfig / partition，未装工具，未 Flash，未进 CP3。
+
+### 24.1 新树：干净重放到 `E:\a05c\s`
+
+用**参数化的同一重放脚本**（pin → LF → A01 → learning sync @ `2c8f58f` → A05 → 组件）重放，逐步断言**全部通过**：
+
+| 步 | 断言 | 结果 |
+| --- | --- | --- |
+| [1] pin 归档解包 | 1,264 文件 / 72,291,311 B / tree `72058f60…` | OK |
+| [2] LF 归一化 | 434 文件改写 | OK |
+| [3] pin 身份 vs A01 `upstream_sha256` | **4/4 OK** | OK |
+| [4] A01 `--check` + apply | rc=0；**4/4 OK** | OK |
+| [5] learning sync @ `2c8f58f` | 90 文件；sdkconfig = `a901f204…`；`learning_screen.cc` LF sha == 仓库 blob；**`s_selftest`/`SELFTEST`/`ResetToSeed` 出现 0 次** | OK |
+| [6] A05 `--check` + apply | rc=0；`main/CMakeLists.txt` = `14ffc5c3…` == 期望 | OK |
+| [7] managed_components 拷贝 | 14,656 文件 / 666,122,132 B；tree `83c759c8…` **match=True** | OK |
+| [8] 新树（未排除）| 1,354 文件 / 72,532,983 B | — |
+| — | **CLEAN REPLAY: PASS -- every expected hash matched** | **PASS** |
+
+### 24.2 内容中性：**冻结摘要逐字不变（权威口径）**
+
+重放后按 manifest 口径重新测量（`--write`）：
+
+```
+  managed_components   83c759c8306b11193feebd06..
+  sdkconfig            a901f20491671a9cbca8cbe6..
+  isolated_src         36bc3d4d9b847253b90068fd..   ← 与冻结值逐字相同
+  origin_file_count    1353      origin_bytes     72457109   ← 与冻结值逐字相同
+```
+
+生成路径的 pre 状态也与原树构建前**完全一致**（`lang_config.h` 不存在、`i18n_strings_gen.h` = 75,874 B / `a19b324e…`、`mmap_generate_resources.h` 不存在）⇒ **换路径是内容中性的**，manifest 的树摘要按**相对路径**计算因而保持不变。
+
+> 一处自我更正（如实记录）：我曾在重放脚本尾部追加"内容中性"断言，但原脚本以 `sys.exit(main())` 结尾 ⇒ **该断言是死代码、从未执行**。上面的结论来自 manifest 的权威 `--write`/`--check`，与那段死代码无关。脚本已按此更正说明。
+
+### 24.3 manifest 与 runner 同步更新
+
+⚠️ 实施中发现的一条结构事实：**manifest JSON 是 `verify-build-inputs.py` 内嵌 `INPUTS` 模板的生成产物** —— 直接改 JSON 会被下一次 `--write` 覆盖（我第一次就踩了：改了 JSON，`--write` 又写回旧路径）。**路径定义必须改工具里的 `INPUTS`**。已按此修正。
+
+| 位置 | 改动 |
+| --- | --- |
+| `verify-build-inputs.py` `INPUTS` | `managed_components.dest` → `E:\a05c\s\managed_components`；`sdkconfig.dest` → `E:\a05c\s\sdkconfig`；`isolated_src.origin` → `E:\a05c\s`（version 里注明短路径迁移） |
+| `run-a05-cp2-build.ps1` | `-Src` 默认 → `E:\a05c\s`；`-Build` 默认 → `E:\a05c\b`；头部注释新增"**短源路径是强制要求**"及禁止 `-D CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES` 的说明 |
+
+### 24.4 三重验证
+
+**① 命令长度投影（真实 `compile_commands.json`，2,422 条）**
+
+| | 最长命令 | 余量 | 超限条目 |
+| --- | --- | --- | --- |
+| 迁移前 `.../src-cp2-003` + `.../build-cp2-004` | 33,463 | **−696** | **195 / 2,422** |
+| **迁移后 `E:/a05c/s` + `E:/a05c/b`** | **28,512** | **+4,255** | **0 / 2,422** |
+
+实际失败的那些 `audio_codec.cc` 命令：33,363～33,391 → **28,412～28,440**。
+
+**② 源树绑定守卫（用**新** manifest 重测，脚本内真实片段在子进程执行）**
+
+| 输入 `-Src` | rc | 判定 |
+| --- | --- | --- |
+| `E:\a05c\s`（新默认） | 0 | 放行构建 |
+| `E:\claw4-a05-19fd979\src-cp2-003`（上一棵） | **3** | 拒建 |
+| `E:\claw4-a05-19fd979\src`（最初那棵） | **3** | 拒建 |
+| `E:\a05c\s\`（尾反斜杠） | 0 | 归一化放行 |
+| `E:\A05C\S`（大小写） | 0 | Windows 语义放行 |
+
+**③ 输入校验（新 manifest，构建前硬前置模拟）**
+
+```
+entries  : 5 checked
+failures : 0
+RESULT: PASS -- every external input matches the frozen manifest
+```
+
+### 24.5 下一步：重跑（命令）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File E:\claw4-a05-build-m0\tools\dev\run-a05-cp2-build.ps1 -Build E:\a05c\b -Fresh
+```
+
+`-Src` 可省（默认已是 `E:\a05c\s`，且与 manifest 绑定）。开局应依次看到 `PATH_GUARD: OK` → `source/tree binding ... OK` → `input check PASS` → 冷构建。
+
+**F 停止条件不变**：出现**新**的 compile/link error → 立即停、存日志、不扩大源码修改；`exit=0` + 后验证 PASS → 写 `CP2 REVIEW_READY` 并停止；不进 CP3、不 Flash。
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -2136,6 +2221,10 @@ ARTIFACTS: 2/5 (bootloader.bin, partition-table.bin) -- 非候选证据
 | `E:/claw4-a05-19fd979/build-cp2-004/compile_commands.json`（+ `build-cp2-003/compile_commands.json`） | §23 命令行长度的**全量实测依据**（2,422 条），两个命名下的最长命令/超限条目数均由它直接算出 |
 | `E:/claw4-a05-19fd979/build-cp2-004/log/idf_py_stderr_output_42124` | §23 失败原文：`CreateProcess failed ... ninja: fatal: ... (is the command line too long?)` |
 | `E:/claw4-a05-cp1-fix-recon/logs/inputcheck-after-cp2004.log` | §23.5 构建后输入复核 PASS（含 `UNREADABLE:13` 的如实记录） |
+| `E:/workbuddy/claw4-a05-cp0-recon/cp24_replay_short.py` + `cp24-replay-console.log` + `cp24-clean-replay.{json,txt}` | §24.1 短路径干净重放的脚本与逐步断言日志（`NEW = E:\a05c\s`）；仅 `NEW` 与输出名相对原脚本改动 |
+| `E:/claw4-a05-cp1-fix-recon/logs/cmdline-projection-shortpath.log` | §24.4① 迁移前后命令行长度的全量投影（2,422 条） |
+| `E:/claw4-a05-cp1-fix-recon/logs/selfcheck-binding2.{txt}`、`harness-binding2.ps1` | §24.4② 用**新** manifest 重测绑定守卫（5 例，含两棵被拒的旧树） |
+| `E:/claw4-a05-cp1-fix-recon/logs/manifest-write-shortpath2.log` | §24.2 权威 `--write` 输出：`isolated_src = 36bc3d4d…` 与冻结值一致 |
 
 ## 附录 B. 报告口径
 

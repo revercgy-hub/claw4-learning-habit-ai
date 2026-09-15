@@ -56,6 +56,21 @@
 #     b) a fail-closed binding check (below) requires -Src == manifest
 #        isolated_src.origin, so the two can never silently diverge again.
 #
+# CP2-SOURCE-FIX-001 follow-up A (2026-09-15): SHORT SOURCE PATH IS MANDATORY.
+#   The 17:09 run built the correct tree but died in ninja with
+#     CreateProcess: The parameter is incorrect. (is the command line too long?)
+#   because the Windows CreateProcess command line is capped at 32,767 chars and
+#   the long TUs here carry 379 -I flags, 212 of which embed the source-root
+#   path. Measured over the real compile_commands.json (2,422 entries):
+#     tree .../src        -> longest cmd 31,759  (headroom 1,008, 0 over limit)
+#     tree .../src-cp2-003-> longest cmd 33,463  (OVER by 696, 195 over limit)
+#   So the tree was replayed into a SHORT root and the defaults are now
+#     -Src   E:\a05c\s        -Build  E:\a05c\b
+#   which projects to a 28,512-char longest command (headroom 4,255, 0 over).
+#   DO NOT rename these directories to anything long, and do NOT try to "fix"
+#   this by passing -D CMAKE_CXX_USE_RESPONSE_FILE_FOR_INCLUDES (that is a CMake
+#   configuration change and is forbidden by the task book).
+#
 # Exit codes:
 #   0  idf.py succeeded AND every post-build verification passed
 #   2  setup fatal (missing IDF/idf.py/paths)
@@ -69,8 +84,8 @@
 
 [CmdletBinding()]
 param(
-  [string]$Src      = "E:\claw4-a05-19fd979\src-cp2-003",
-  [string]$Build    = "E:\claw4-a05-19fd979\build",
+  [string]$Src      = "E:\a05c\s",
+  [string]$Build    = "E:\a05c\b",
   [string]$LogDir   = "E:\claw4-a05-19fd979\logs",
   [string]$IdfPath  = "E:\workbuddy\esp-idf-5.5.4-ascii",
   [string]$IdfTools = "E:\workbuddy\claw4-idf-tools",

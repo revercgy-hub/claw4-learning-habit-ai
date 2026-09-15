@@ -36,7 +36,7 @@
       "origin_tree_sha256": "83c759c8306b11193feebd061cd8752bfe7db4384e752132a078f312395a9af4",
       "origin_file_count": 14656,
       "origin_bytes": 666122132,
-      "dest": "E:\\claw4-a05-19fd979\\src-cp2-003\\managed_components",
+      "dest": "E:\\a05c\\s\\managed_components",
       "dest_tree_sha256": "83c759c8306b11193feebd061cd8752bfe7db4384e752132a078f312395a9af4",
       "dest_file_count": 14656,
       "dest_bytes": 666122132
@@ -48,15 +48,15 @@
       "version": "frozen C5 configuration",
       "used_as": "SDKCONFIG (explicit)",
       "origin_sha256": "a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26",
-      "dest": "E:\\claw4-a05-19fd979\\src-cp2-003\\sdkconfig",
+      "dest": "E:\\a05c\\s\\sdkconfig",
       "dest_sha256": "a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26",
       "bytes": 127103
     },
     {
       "id": "isolated_src",
       "kind": "replayed-tree",
-      "origin": "E:\\claw4-a05-19fd979\\src-cp2-003",
-      "version": "pin ca3aa3fa + A01 + 2c8f58f learning sync (CP2-SOURCE-FIX-001) + A05 patch + frozen sdkconfig",
+      "origin": "E:\\a05c\\s",
+      "version": "pin ca3aa3fa + A01 + 2c8f58f learning sync (CP2-SOURCE-FIX-001) + A05 patch + frozen sdkconfig; SHORT PATH relocation (follow-up A, 2026-09-15) -- same content, digest unchanged",
       "used_as": "project source (-C)",
       "exclude_dirs": [
         "managed_components",

@@ -167,7 +167,11 @@ INPUTS = [
         "origin": r"E:\c\managed_components",
         "version": "82 components, per E:\\c\\dependencies.lock (sha256 90af1add...)",
         "used_as": "<isolated src>/managed_components",
-        "dest": r"E:\claw4-a05-19fd979\src-cp2-003\managed_components",
+        # SHORT PATH (CP2-SOURCE-FIX-001 follow-up A): the isolated tree must live
+        # under a SHORT root. The long TUs here carry 379 -I flags, 212 of which
+        # embed the source-root path, and the Windows CreateProcess command line
+        # is capped at 32,767 chars -- see run-a05-cp2-build.ps1, header comment.
+        "dest": r"E:\a05c\s\managed_components",
     },
     {
         "id": "sdkconfig",
@@ -175,14 +179,15 @@ INPUTS = [
         "origin": r"E:\workbuddy\claw4-idf-cold-c5-20260906-frozen-20260912\sdkconfig",
         "version": "frozen C5 configuration",
         "used_as": "SDKCONFIG (explicit)",
-        "dest": r"E:\claw4-a05-19fd979\src-cp2-003\sdkconfig",
+        "dest": r"E:\a05c\s\sdkconfig",
     },
     {
         "id": "isolated_src",
         "kind": "replayed-tree",
-        "origin": r"E:\claw4-a05-19fd979\src-cp2-003",
+        "origin": r"E:\a05c\s",
         "version": ("pin ca3aa3fa + A01 + 2c8f58f learning sync (CP2-SOURCE-FIX-001) "
-                    "+ A05 patch + frozen sdkconfig"),
+                    "+ A05 patch + frozen sdkconfig; SHORT PATH relocation "
+                    "(follow-up A, 2026-09-15) -- same content, digest unchanged"),
         "used_as": "project source (-C)",
         "exclude_dirs": ["managed_components", "build"],
         # CP2-SOURCE-FIX-001 part B: only these three EXACT paths may be excluded
