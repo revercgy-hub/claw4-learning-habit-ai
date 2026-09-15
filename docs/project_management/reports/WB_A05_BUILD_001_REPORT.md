@@ -950,6 +950,8 @@ verify-partition-table.py（自测：CSV→BIN→比对，app 用 8 MB 占位，
 
 **按裁定 #2 重建基线**：新增 `host-reuse-fingerprint.py` 本身进入了输入集，所以**基线已重建**（不是沿用旧值），旧基线 `133ffedb…` 作废、新基线 `63f106e5…`。**按裁定 #5**：组件校验工具已按"空输入/缺目录/缺锁 hash/异常/不匹配必须非零退出"实现并逐类实测。
 
+**⚠️ 指纹工具的一个已知局限（如实标注）**：指纹哈希的是**工作树字节**，而本仓库 `core.autocrlf=true`，新加入的 `.py` 提交时 git 已警告 `LF will be replaced by CRLF the next time Git touches it`。也就是说：**内容未变、仅行尾被重新检出**时，`trees_hash` 会变，`--check` 会报 `DIFFERENT` —— 这是**假阳性**（只会多跑一次门禁，不会漏放行）。可选修正：改为哈希 **git blob 内容**（而非工作树字节），或在工具内先做 LF 归一。倾向后者，等 Codex 裁定后再改，本轮不擅自扩大范围。
+
 **工具里发现并修正的两个真实缺陷**
 
 1. **`gen_esp32part.py` 的输出格式跟随"输入"格式，而不是输出文件名后缀**：CSV 进 → **二进制**出；BIN 进 → CSV 出。所以"CSV→CSV"这种模式**不存在**，请求它会静默得到二进制（首轮自测即因此报 `utf-8 codec can't decode byte 0xaa`，0xAA 正是 ESP 分区表魔数）。已改为**两步**：CSV→BIN→CSV 才能拿到解析后的布局。
