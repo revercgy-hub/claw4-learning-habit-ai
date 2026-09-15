@@ -529,7 +529,7 @@ docs/project_management/reports/WB_A05_BUILD_001_REPORT.md
 | --- | --- |
 | 分支 / tip | `workbuddy/v53-next-001-reliability` @ `19fd979`（远端 `github.com/revercgy-hub/claw4-learning-habit-ai.git`） |
 | 主报告 | `docs/project_management/reports/WB_V53_NEXT_001_REPORT.md`（含 `## REVIEW-FIX-001`、`## REVIEW-FIX-002`、`## FINAL-CONCURRENCY-CLEANUP`） |
-| 末轮 Host Gate 证据 | 该分支 `out/fcc-final/host_result.txt`：**29/29 PASS + `interface: exit=0`** |
+| 末轮 Host Gate 证据 | 结果：**29/29 PASS + `interface: exit=0` + `RESULT: NATIVE CPP TEST GATE PASS`**。⚠️ **原始日志未入库**（`/out/` 在 `.gitignore`，`git ls-files out` = **0** 条），仅本机留档：`E:/workbuddy/claw4-wb-v53-next-001/out/fcc-final/host_result.txt`（前序流工作区）与 `E:/claw4-a05-build-m0/out/a05-cp0-host/host_result.txt`（本工作区，同一代码 SHA `19fd979`）。复现方式：在任一工作区运行 `tools/dev/verify-host-cpp-tests.ps1` |
 | 关键新增测试 | `firmware/tests/unit/v53/{production_path_gate_tests,final_concurrency_cleanup_tests,backend_session_gate_tests}.cpp` |
 | 未决/限制 | 同报告 §15 末段：镜像 CMake 未登记、TCP loopback `ENV_VERIFY_REQUIRED`、总 deadline 未解决、触控 P95 等 `HARDWARE_VERIFY_REQUIRED` |
 
