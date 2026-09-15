@@ -576,6 +576,16 @@ ARGS = {"compile": "-std=c++17 -Wall -Wextra -Werror -I firmware/main -I firmwar
 2. 报告中记录两个提交之间的 `git diff --name-status <CP0-SHA> <CP1-SHA>`，且**差异文件全部落在指纹集合之外**（即只动 `docs/**`）；
 3. 指纹集合内**任一文件**变化 → 必须重跑全量 Host Gate，不可复用。
 
+**本轮实操示例（规则二在引入它的这条链上就跑通了）**
+
+- 两个提交：`96fc0d6`（CP0 首版）→ 本规则的澄清提交
+- `git diff --name-status 96fc0d6 HEAD` = `M docs/project_management/reports/WB_A05_BUILD_001_REPORT.md`
+- 差异文件**落在指纹集合之外** → 指纹未变（`trees_hash` 在加入 §12 前后两次重算均为 `b88d5044…`，`args_hash` 均为 `69018d2e…`）
+- 判定：**CP0 的 Host 门禁日志在本提交下仍可复用**，无需重跑
+- 同时验证了反向：`git diff` 内不含 `vendor/`、`sdkconfig`、`CMakeLists`、`partition`、`bootloader`、`.bin` 的任何改动
+
+即：纯文档提交不会使既有 Host 证据失效 —— 这正是要解决的原歧义。
+
 **刻意排除在指纹之外的东西（这是设计意图，不是遗漏）**
 
 - `docs/**` —— 文档提交不应使既有门禁证据失效；
