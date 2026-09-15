@@ -4,14 +4,14 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | `CP0 REPORT READY (REVISION 2)`。**Codex 尚未作出任何验收/放行结论**（见 §11） |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 未放行** —— 阻塞项：前序 `WB-V53-NEXT-001` 整体代码验收（见 §11） |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
 | Base（交接 HEAD，含本任务书） | `82337fbf0654b78501241323d6ac4d0f1d7deaeb` |
 | 上游代码 SHA | `19fd979d4222093ff4ce7464e5b58407586594a2` |
 | vendor pin | `ca3aa3fa027ff7dad2adf0c2d03c4f24aa838950` |
-| 日期 | 2026-09-14（首版 CP0）；2026-09-15（追加 §12 复审 1 落实）；2026-09-15（追加 §13 复审 2 修正 = REVISION 2） |
+| 日期 | 2026-09-14（首版 CP0）；2026-09-15（§12 复审 1 落实；§13 复审 2 修正 = REVISION 2；**同日 CP0 ACCEPTED**） |
 
 **本轮未做**：未改任何代码 / CMake / 配置；未运行 IDF `configure`/`build`；未 flash / erase / monitor；未升级或重下任何组件；未关系统应用控制、未重命名或改写二进制以绕过阻断。
 
@@ -515,12 +515,23 @@ docs/project_management/reports/WB_A05_BUILD_001_REPORT.md
 ## 11. 状态声明
 
 - 本轮**只完成 CP0**（前置验收证据与构建输入盘点）。**未运行任何 IDF configure/build**，未产出任何候选产物，**未 Flash**，未接提醒硬件，未扩展业务。
-- **复审记录（准确口径，REVISION 2 更正）**
+- **验收与复审记录（准确口径）**
   - **复审 1**（2026-09-15）：Codex 认为**任务书这一版总体可执行、CP0 可以启动**，并确认「C5 配置冻结 / 未接线模块允许裁剪 / 禁止 Flash / WorkBuddy 实施而 Codex 审查」这些安排合理；同时要求放行 CP1 前补清 3 处执行规则（已落成 §12）。
-  - **复审 2**（2026-09-15）：Codex **未作出验收结论**，并指出本报告 4 处需修正 —— ①验收状态表述错误 ②pin 上游来源并非缺失 ③组件内容一致性证据不足 ④SingleFlight 验收被错误放宽。本轮已逐条修正（§13）。
-  - ⚠️ **明确声明**：截至目前本包**不存在任何 `ACCEPTED`、CP0 验收结论或 CP1 放行结论**。首版把「CP0 可以启动」写成「CP0 已获 Codex 验收」是我的表述错误，在此更正；正文其余位置如仍有该口径，以本行为准。
+  - **复审 2**（2026-09-15）：Codex 未作出验收结论，并指出本报告 4 处需修正（①验收状态表述错误 ②pin 上游来源并非缺失 ③组件内容一致性证据不足 ④SingleFlight 验收被错误放宽）。本轮已逐条修正（§13）。
+  - ✅ **CP0 验收通过**（2026-09-15，Codex 复核提交 `6d49c72`）：上轮 4 项均已修正；Codex **独立重算 82 个组件的实际内容哈希，82/82 通过**；上游来源与补丁证据明确；SingleFlight「必须实际链接」的要求已修正。**CP0 至此 ACCEPTED。**
+  - ⚠️ **CP1 仍未放行**：剩余前置是 **前序 `WB-V53-NEXT-001` 的整体代码验收**尚未完成。Codex 明确「无需重复整改 CP0，暂不开始构建」。
 - **CP1～CP4 未开始**，等待放行。原「pin 的可重放来源」阻塞已消除（§5.3、§13.1）。
-- 状态：`CP0 REPORT READY (REVISION 2)`。放行条件未满足前我在此停下，不自行跨门禁。
+- 状态：**`CP0 ACCEPTED` / `CP1 BLOCKED`**（唯一阻塞项：前序流整体代码验收）。放行条件未满足前我停下 —— **不自行跨门禁、不开始构建**。
+
+**前序流验收所需材料索引（供 Codex 复核；本轮不新增任何整改）**
+
+| 项 | 位置 |
+| --- | --- |
+| 分支 / tip | `workbuddy/v53-next-001-reliability` @ `19fd979`（远端 `github.com/revercgy-hub/claw4-learning-habit-ai.git`） |
+| 主报告 | `docs/project_management/reports/WB_V53_NEXT_001_REPORT.md`（含 `## REVIEW-FIX-001`、`## REVIEW-FIX-002`、`## FINAL-CONCURRENCY-CLEANUP`） |
+| 末轮 Host Gate 证据 | 该分支 `out/fcc-final/host_result.txt`：**29/29 PASS + `interface: exit=0`** |
+| 关键新增测试 | `firmware/tests/unit/v53/{production_path_gate_tests,final_concurrency_cleanup_tests,backend_session_gate_tests}.cpp` |
+| 未决/限制 | 同报告 §15 末段：镜像 CMake 未登记、TCP loopback `ENV_VERIFY_REQUIRED`、总 deadline 未解决、触控 P95 等 `HARDWARE_VERIFY_REQUIRED` |
 
 **继续保持的状态标记**
 
@@ -831,7 +842,8 @@ integration/metalio_claw4/device/ports/metalio_http_transport.cpp:52  return std
 
 首版把 Codex 的「**CP0 可以启动**」写成「**CP0 已获 Codex 验收/复审通过**」。**Codex 此前并未作出该验收结论。**
 
-已更正处：本报告首部状态表（§0 前）、§11 状态声明、§12 引言。并新增**显式声明**：截至本修订，本包**不存在任何 `ACCEPTED`、CP0 验收结论或 CP1 放行结论**（§11）。
+已更正处：本报告首部状态表、§11 状态声明、§12 引言。
+**后续更新**：Codex 已于 2026-09-15 对提交 `6d49c72` 正式**通过 CP0 验收**。复审 2 时点所做的「本包不存在任何 `ACCEPTED`」声明在当时是准确的，现由 §11 的验收记录取代 —— 该句**不再作为当前状态**。
 
 ### 13.5 本轮暴露的方法论缺陷（记下来，避免复发）
 
