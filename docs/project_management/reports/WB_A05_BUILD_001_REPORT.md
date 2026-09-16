@@ -4,7 +4,7 @@
 | --- | --- |
 | 任务 | WB-A05-BUILD-001（审查修订版） |
 | 本轮范围 | **仅 CP0**（含 §12 规则澄清、§13 复审 2 修正）。CP1～CP4 未开始 |
-| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑**。**§23：E 第二次执行（17:09）用的树正确（`src-cp2-003`、绑定守卫 OK、输入校验 5/5）且 §20 的编译错误已消失、推进到 2,439/2,643 —— 但撞上 Windows `CreateProcess` 32,767 字符命令行上限（失败命令 33,505）。用真实 `compile_commands.json` 证明：旧命名 `src` 最长 31,759（余量 1,008、超限 0/2,422），我选的 `src-cp2-003` 最长 33,463（**超限 195/2,422**）⇒ 是树目录名太长所致；缩短到 `E:\a05c\s` 可获 4,255 余量。**方案待裁定（改动冻结输入路径，属 CP 级）**。**§24：方案 A 已执行 —— 短路径重放到 `E:\a05c\s`（重放 8 步断言全过、managed_components tree match、A05 `14ffc5c3…`）；权威 `--write` 复测 `isolated_src = 36bc3d4d…`、1353 文件 / 72,457,109 B **与冻结值逐字相同 ⇒ 内容中性**；命令长度投影 33,463 → **28,512（余量 4,255、超限 0/2,422）**；绑定守卫与输入校验（5/5）均 PASS。**§25（17:55）：✅ **CP2 = REVIEW_READY** —— `exit=0`、`Project build complete`、`POST-BUILD VERIFICATION: PASS`、**5/5 构件**、sdkconfig `a901f204…` pre==post、真实分区表 **13 行全 OK**、app **9,271,760 B** / `ota_0` 余量 **165,424 B (1.75%)**、`ota_1` 不 fit（已显式记录）、**NO FLASH**；§9 十七项**全部产出**；另以真实 ELF 关闭"符号保留"未完成项。**CP3 未授权、未开始 —— 已按要求停止** |
+| 报告状态 | ✅ **CP0 ACCEPTED**（Codex 复核 2026-09-15，rev `6d49c72`）。**CP1 按 Codex 原裁定为 QUEUED**；§14 的 CP1 是在**用户明确授权覆盖该门禁**后执行的（§14.0 如实记录，Codex 原裁定未改），其中 §16 的 CP1-REVIEW-FIX-001 已 **ACCEPTED**。✅ **ENV-DIAG-001 ACCEPTED**（Ninja 失败根因 **CONFIRMED**）。⛔ **CP2 = BLOCKED**，`Reason = HOST ENVIRONMENT PATH DESYNCHRONIZATION`，`ARTIFACTS: NONE`，**CP3 NOT AUTHORIZED**。逐项裁定见 §18。Codex 对 `4f754c0` 复核：P0 PATH Guard / ENV-DIAG / CP2 状态命名 / 禁 Flash·禁 CP3 = ✅，**Post-build verifier = CHANGES_REQUIRED（三处）已按 §19 修复（`021fd62`），复核结论待补**。**§20：宿主 PATH 失同步已由方案 1 解决（`PATH_GUARD: OK`）、Ninja 错误未复现，configure PASS、编译 2,494/2,643 后因上游源码缺陷（`learning_screen.cc` 悬空符号）停止 → CP2 仍 BLOCKED，原因已换为 `REPO SOURCE DEFECT`**。**§21：CP2-SOURCE-FIX-001 的 A–D 已完成 —— 源码修复 `2c8f58f`、verifier 精确路径 `exclude_files`、干净重放新树 `src-cp2-003`、manifest 重冻结（`--check` 已 5/5 PASS）、指纹 `eec141fd…`；**E（cold build）待用户在普通宿主终端执行**。**§22：E 首次执行（16:52）构建了错误的树 —— 用户命令漏传 `-Src`、而 runner 的 `-Src` 默认值仍指向旧树 `src`（输入校验 5/5 通过却编译了另一棵树，属真实 harness 缺口）→ 该次运行判定为 **INVALID RUN**；已修复：`-Src` 默认值改为 `src-cp2-003` + 新增 **fail-closed 源树绑定守卫**（实测 `rc=3` 拒建旧树），**待重跑**。**§23：E 第二次执行（17:09）用的树正确（`src-cp2-003`、绑定守卫 OK、输入校验 5/5）且 §20 的编译错误已消失、推进到 2,439/2,643 —— 但撞上 Windows `CreateProcess` 32,767 字符命令行上限（失败命令 33,505）。用真实 `compile_commands.json` 证明：旧命名 `src` 最长 31,759（余量 1,008、超限 0/2,422），我选的 `src-cp2-003` 最长 33,463（**超限 195/2,422**）⇒ 是树目录名太长所致；缩短到 `E:\a05c\s` 可获 4,255 余量。**方案待裁定（改动冻结输入路径，属 CP 级）**。**§24：方案 A 已执行 —— 短路径重放到 `E:\a05c\s`（重放 8 步断言全过、managed_components tree match、A05 `14ffc5c3…`）；权威 `--write` 复测 `isolated_src = 36bc3d4d…`、1353 文件 / 72,457,109 B **与冻结值逐字相同 ⇒ 内容中性**；命令长度投影 33,463 → **28,512（余量 4,255、超限 0/2,422）**；绑定守卫与输入校验（5/5）均 PASS。**§25（17:55）：✅ **CP2 = REVIEW_READY** —— `exit=0`、`Project build complete`、`POST-BUILD VERIFICATION: PASS`、**5/5 构件**、sdkconfig `a901f204…` pre==post、真实分区表 **13 行全 OK**、app **9,271,760 B** / `ota_0` 余量 **165,424 B (1.75%)**、`ota_1` 不 fit（已显式记录）、**NO FLASH**；§9 十七项**全部产出**；另以真实 ELF 关闭"符号保留"未完成项。**CP3（2026-09-16）：✅ 审计完成，待复核 —— 模块矩阵逐行五列（SyncExecutor / SingleFlightHttpTransport / BackendSession = **ELF RETAINED**；TimeAuthority / InteractionArbiter / ReminderCore = **GC_DISCARDED + COMPILED_NOT_WIRED**；ReminderWakePort / SessionLease / SessionSnapshotPublisher = 类型编译，lease 有 ELF 符号、snapshot 全内联）；D5：tick=`kRefreshMs 1000`/窗口 `15000` 且 timer 恰好 2 处删除无重复、`s_selftest` 0 处、文件哈希 `a41aeed7…` 独立于 vendor patch；audio yield 锁收在内层作用域、`pdMS_TO_TICKS(1)` 经**真实编译标志 static_assert** 实测 = **1 tick = 1 ms**（历史"10 ms"描述**作废**）；**Host Gate 重跑 29/29 PASS**（§21/§25 的 28/29 遗留同时闭合）。详见 §26** |
 | 工作区 | `E:/claw4-a05-build-m0`（独立克隆，**不在** `E:/workbuddy` 之下，理由见 §1.3） |
 | 本地分支 | `workbuddy-a05-build-m0`（**无斜杠**，环境强制；偏差说明见 §1.3） |
 | 远端分支 | `workbuddy/a05-build-m0`（与任务书要求**完全一致**） |
@@ -2318,6 +2318,177 @@ CP2 = REVIEW_READY
 
 ---
 
+## 26. CP3：链接、来源与既有缺陷审计（2026-09-16）
+
+| 项 | 值 |
+| --- | --- |
+| 任务 ID | WB-A05-BUILD-001 / CP3 |
+| 分支 | `workbuddy-a05-build-m0` → 远端 `workbuddy/a05-build-m0` |
+| 被审对象 | 候选 `E:\a05c\b`（源树 `E:\a05c\s`，`isolated_src` `36bc3d4d…`） |
+| 本轮修改文件 | **仅本报告**（审计任务，不改产品源码/CMake/sdkconfig/partition） |
+| 前置 | CP2 = REVIEW_READY（`00b27e7`），Codex 已复核通过并放行 CP3 |
+
+### 26.0 方法：为什么必须同时看 object / archive / map / ELF
+
+`libmain.a` 在链接时是 **`--whole-archive`**（map 首节对每个成员给出的加载理由就是字面量 `( --whole-archive )`，见 `xiaozhi.map:489/491/493/495/497`）。**这意味着"归档里有符号"这件事对所有成员恒为真、不具区分力**。真正的判据只有两个：
+
+1. **链接 map 的 `Discarded input sections`**（第 4536 行起）——成员是否被加载、哪些节被 `--gc-sections` 丢弃（size `0x0`）；
+2. **最终 ELF 的符号表**——谁真的留在镜像里。
+
+**因此本审计不把 archive 符号当最终 ELF 符号**：`libmain.a` 里这些模块各有 6/13/45/11/6/33 个 `claw4::` 符号，而最终 ELF 里只有 3/3/8/0/0/0。
+
+### 26.1 模块矩阵（逐行五列；按任务书 §4 的三组）
+
+**组 1：必须 Compile + Reference + 最终链接证据**
+
+| 模块 | 源文件 → object | Archive | **ELF** | Referenced（引用点） | Runtime-wired |
+| --- | --- | --- | --- | --- | --- |
+| **SyncExecutor** | `learning/sync/sync_executor.cpp` → 579,552 B `d1c5569c…` | ✅ libmain.a（whole-archive） | ✅ **RETAINED**：`3 T` | `learning_backend_session.cpp:283` `SyncExecutor executor(app_, sync_transport_, …)` | ✅ 经 `LearningBackendSession` |
+| **SingleFlightHttpTransport** | `learning/sync/single_flight_http_transport.cpp` → 200,828 B `9dbf5f74…` | ✅ | ✅ **RETAINED**：`3 T` + `3 V`（vtable/typeinfo）+ `3 W` | `metalio_http_transport.cpp:52` `make_unique<SingleFlightHttpTransport>(PerformRequest)` | ✅ 经 `CreateMetalioHttpTransport()` |
+| **BackendSession**（`LearningBackendSession`） | `learning/sync/learning_backend_session.cpp` → 812,140 B `387a4620…` | ✅ | ✅ **RETAINED**：`8 T` + `2 d` + `2 t` | `learning_runtime.cpp:64` `make_shared<LearningBackendSession>(…)` | ✅ 设备运行链 |
+
+**运行时调用链（逐跳有源可查，非推断）**：
+`display/screen/learning_screen/learning_screen.cc:90` `LearningRuntime::Instance()` → `learning_runtime.cpp:64` 构造 `LearningBackendSession` → 其内部 `sync_executor.cpp` 的三相纪律 → `CreateMetalioHttpTransport()` → `single_flight_http_transport.cpp`。
+
+> **如实标注**：`SingleFlightHttpTransport` 只有 `request()` 与构造函数留在 ELF；同一 TU 的 `rejectedBusy()` / `inFlight()` 两个节出现在 map 的 `Discarded input sections`（size `0x0`）——它们没有活引用。**线上的那条路径被完整保留，诊断用访问器被裁掉**，这符合预期，不算缺陷。
+
+**组 2：必须纳入真实目标编译、对象/归档可定位；允许被最终 ELF 裁剪**
+
+| 模块 | 源文件 → object | Archive | **ELF** | Referenced | Runtime-wired |
+| --- | --- | --- | --- | --- | --- |
+| **TimeAuthority** | `learning/time/time_authority.cpp` → 265,148 B `7fbda167…` | ✅ | ❌ **GC_DISCARDED**（ELF 中 0 命中；map 中该成员全部节 size `0x0`） | 仅 `reminder_core.cpp:16`（其本身也未接线） | ❌ **COMPILED_NOT_WIRED** |
+| **InteractionArbiter** | `learning/interaction/interaction_arbiter.cpp` → 300,348 B `1f8b7e16…` | ✅ | ❌ **GC_DISCARDED** | 全树仅自身 `.cpp`/`.h`（无外部引用） | ❌ **COMPILED_NOT_WIRED** |
+| **ReminderCore** | `learning/reminder/reminder_core.cpp` → 2,409,708 B `f332d000…` | ✅ | ❌ **GC_DISCARDED** | 全树仅自身 `.cpp`/`.h` | ❌ **COMPILED_NOT_WIRED** |
+
+判定链条（`TimeAuthority` 为例，map `xiaozhi.map:493` + `:17330-17334`）：
+```
+--whole-archive 加载 → map 记为已加载成员
+  .group  0x00000000  0xc  ...(time_authority.cpp.obj)
+  .text   0x00000000  0x0  ...(time_authority.cpp.obj)   ← gc-sections 丢弃
+  .data   0x00000000  0x0
+  .bss    0x00000000  0x0
+⇒ 最终 ELF 中 0 个符号（`grep -c TimeAuthority nm-elf-all.txt` = 0）
+```
+**按任务书要求：不强行保留。** 若后续要求休眠模块实际进入产品镜像，**另立接线任务**，不在本包隐式扩大范围。
+
+**组 3：头文件需在真实目标 TU 中类型编译；模板/纯接口不要求独立 nm 符号**
+
+| 模块 | 形态 | 在真实目标 TU 中的编译证据 | ELF 符号 | Runtime-wired |
+| --- | --- | --- | --- | --- |
+| **ReminderWakePort** | `learning/ports/reminder_wake_port.h`（纯接口） | 被 `reminder_core.h:34` 包含 → `reminder_core.cpp` 编译成功（object 2,409,708 B 已生成） | 不要求（纯接口）→ ELF 0 命中，**符合预期** | ❌ 否（wake 设备实现留 **C03/E01**） |
+| **SessionLease**（含 Holder/Source） | `learning/sync/session_lease.h` | 被 `learning_runtime.h:16`、`learning_backend_session.h:39`、`session_snapshot_publisher.h:31` 包含，对应 object 均已生成 | ✅ **RETAINED**：`SessionLeaseHolder<LearningBackendSession>` 的 `vtable`/`~Hold`/`currentLease`、`SessionLeaseSource::isCurrent(SessionLease const&)`（`T`）均在 ELF | ✅ 运行时真实使用 |
+| **SessionSnapshotPublisher** | `learning/sync/session_snapshot_publisher.h` | 被 `learning_runtime.cpp:19` 包含并在 `:120` **实际调用** `publishSessionSnapshot(...)` | 无独立 nm 符号（**已全内联**）——按任务书属"不要求独立符号" | ✅ 运行时真实调用 |
+
+### 26.2 D5 核查 ①：`learning_screen` 的 tick deadline 与 timer 删除
+
+源文件 `main/display/screen/learning_screen/learning_screen.cc`：696 行 / 27,352 B / **LF sha256 `a41aeed7b10dfab5aece840e0c582c8d9d3eb2e71805d78e7caafdabccbad809`**。
+
+| 项 | 事实 |
+| --- | --- |
+| tick 周期 | `kRefreshMs = 1000`（1 s 刷新，`lv_timer_create(OnRefreshTick, kRefreshMs, …)` @690）；`kVoicePollMs = 50`（@693）；`kVoiceWindowMs = 15000` |
+| deadline 语义 | `s_voice_deadline = lv_tick_get() + kVoiceWindowMs`（@438）；判定 `static_cast<int32_t>(lv_tick_get() - s_voice_deadline) >= 0`（@537-538）——**带符号差值，回绕安全** |
+| 时间窗超时 | **复用本 timer，不新增/删除任何 timer**（@536-541 注释明示） |
+| **timer 删除** | 全文件恰好 **2 处** `lv_timer_del`：`@494 s_ui.timer`、`@498 s_voice_poll_timer`，各自 `!= nullptr` 守卫后**立即置 nullptr** ⇒ **无重复删除** |
+| 悬空引用 | `s_selftest_timer` / `SELFTEST` / `ResetToSeed` **0 处**（§21.1 的删除已生效） |
+
+**代码 hash 独立于 vendor patch（已证）**：树内该文件 LF 摘要 `a41aeed7…` **等于仓库 blob @`2c8f58f`**（逐字节）；而 A01 vendor 补丁 `project-ca3aa3fa.patch` 对 `learning_screen.cc` 的**唯一一处提及，是把它加进 CMake 源列表**（补丁第 57 行 `+"display/screen/learning_screen/learning_screen.cc"`），**没有改这个文件本身**。
+
+### 26.3 D5 核查 ②：audio yield、锁作用域、`pdMS_TO_TICKS(1)` 的真实值
+
+**现有 patch**：A01 `integration/metalio_claw4/patches/project-ca3aa3fa.patch`（sha256 `58bfbe52…`），对 `main/audio/audio_service.cc` 的 hunk `@@ -239,10 +239,17 @@` **就是这次 yield 修复本身**：
+
+```diff
+-                    std::lock_guard<std::mutex> lock(wake_word_mutex_);
+-                    if (wake_word_initialized_ && wake_word_) {
+-                        wake_word_->Feed(data);
++                    {
++                        std::lock_guard<std::mutex> lock(wake_word_mutex_);   ← 锁收进内层作用域
++                        if (wake_word_initialized_ && wake_word_) {
++                            wake_word_->Feed(data);
++                        }
+                     }
++                    // 锁已在内层作用域释放，此处 sleep 不会阻塞 wake_word_ 访问
++                    vTaskDelay(pdMS_TO_TICKS(1));                             ← delay 在锁外
+                     continue;
+```
+
+**锁作用域**：正确。`lock_guard` 的生命周期止于内层 `{}`（源码 `audio_service.cc:242-249`），`vTaskDelay` 在 `:252`、位于锁外 ⇒ 让出 CPU 时**不持有** `wake_word_mutex_`。
+
+**树内文件身份**：`audio_service.cc` LF sha256 = `f406e12a2fde1209e6e103727d2d0e107b0c41a2ffa8d22346a69d6c66cc58a2` = A01 元数据的 `patched_lf_sha256`（**一致**）。
+
+**`pdMS_TO_TICKS(1)` 的真实结果 —— 用真实编译标志做静态断言，不口算**：
+
+- 宏定义（`esp-idf/components/freertos/FreeRTOS-Kernel/include/freertos/projdefs.h:46`）：
+  `( (TickType_t)( (TickType_t)(x) * (TickType_t)configTICK_RATE_HZ ) / 1000U )`
+- `configTICK_RATE_HZ = CONFIG_FREERTOS_HZ`（`FreeRTOSConfig.h:92`），批准冻结配置里 **`CONFIG_FREERTOS_HZ=1000`**（`sdkconfig:1896`）
+- 取证方式：取 `compile_commands.json` 中 **`main/audio/audio_service.cc` 的真实编译命令**（515 个 argv、保留 513 个含全部 `-I`/`-D`），把输入换成一个只含 `static_assert` 的 TU，`-fsyntax-only` 编译（命令行按 `CommandLineToArgvW` 规则切分，与 Windows 一致）。
+
+```
+configTICK_RATE_HZ == 1000                    ✔
+pdMS_TO_TICKS(1)   == 1                       ✔
+pdMS_TO_TICKS(10)  == 10 / (50) == 50 / (120) == 120   ✔
+(1 * 100) / 1000   == 0                       ✔   ← 反事实
+RESULT: PASS -- all static_asserts held under the REAL compile flags.
+```
+
+⇒ **本候选下 `pdMS_TO_TICKS(1)` = 1 tick = 1 ms。**
+
+⚠️ **历史"10 ms"的描述必须作废**（任务书要求不得沿用）：`pdMS_TO_TICKS(1)` 在 **HZ=100** 时是 `(1×100)/1000 = 0` tick，即 **0 ms —— 完全不让步**，不是 10 ms。把"1 tick = 10 ms"错读成"`pdMS_TO_TICKS(1)` = 10 ms"是整数截断造成的经典误读。**本包未改 yield 实现**（只读审计）。
+
+**并且**：静态存在 ≠ 20 轮真机稳定。本节只证明"编译产物对该 yield 的求值正确、锁作用域正确"，**不主张** audio 路径在真机上已稳定。
+
+### 26.4 完整 Host Gate 重跑：**29 / 29 PASS**
+
+因产品源码有经准许的编译修订（`learning_screen.cc`，§21.1）⇒ 按任务书必须重跑，已重跑：
+
+```
+HOST_GATE_CP3 = 0
+unit summary : 29 / 29 PASS
+interface: exit=0   (P4 交叉编译)
+RESULT: NATIVE CPP TEST GATE PASS
+RUN FAIL = 0   LAUNCH FAIL = 0   failures=[1-9] = 0
+```
+
+**顺带解决 §21.5 / §25.7 的遗留**：此前 6 次重跑卡在 `learning_mcp_host_tests.exe` 被本机应用控制策略拦截（28/29）；**本次该 exe 被放行，29/29 达成，零断言失败**。⇒ 该环境遗留项**已闭合**，不再是未决项。
+
+### 26.5 必须**单列**（不得用 Host/Build 证据替代）的设备侧项
+
+| # | 项 | 本包覆盖情况 | 依据/现状 |
+| --- | --- | --- | --- |
+| 1 | **TCP loopback** | ❌ 未做，**单列** | Codex 规划审阅已记为 `ENV_VERIFY_REQUIRED`，明确"不能凭 socket 桩改成 TCP 已通过" |
+| 2 | **底层网络总 deadline** | ❌ 未解决，**单列** | `EspTcp::Connect()` 不继承 HTTP timeout、`Disconnect()` 可能等 10 s（WB_V53_NEXT_001 §7.3 已记录）。本包**不通过改 managed component 解决** |
+| 3 | **UI 延迟** | ❌ 未测，**单列** | 设备侧指标；本包只有 Host 侧"UI 不堵"的设计证据，二者不等价 |
+| 4 | **真 NVS / 掉电** | ❌ 本包未接设备，**单列** | 历史设备证据 `DEVICE_L1C_PERSISTENCE=PASS`（2026-09-04）属**另一批次**，不作为本包证据 |
+
+### 26.6 范围偏差与自查
+
+| 检查项 | 结论 |
+| --- | --- |
+| 修改范围 | **仅本报告**；未改源码 / CMake / sdkconfig / partition / bootloader |
+| 是否自行扩大范围 | **否**。未实现"休眠模块接线"，未改 OTA/分区策略，未碰 yield 实现 |
+| 是否 Flash / 接设备 | **否**（NO FLASH；未接串口、未 monitor） |
+| 是否宣称跨机器可复现 | **否**。仅声明本机、本工具链、本 manifest 下可重跑 |
+| 是否把 archive 符号当 ELF 符号 | **否**（26.0 明示区别，并给出两列数字） |
+
+### 26.7 建议 Codex 的复检重点
+
+1. **三类判定口径**：`RETAINED`（组1）/ `GC_DISCARDED` + `COMPILED_NOT_WIRED`（组2）/ "类型编译 + 内联无独立符号"（组3）是否符合你对任务书 §4 的解读。
+2. **`--whole-archive` 的推论**：我据此主张"Archive 列对本仓库不具区分力、判据必须落在 map + ELF"，请确认这个方法论可接受。
+3. **D5 的 1 ms 结论**：我用真实编译命令 + `static_assert` 取证（而非口算），并据此作废历史"10 ms"描述；请确认是否需要在报告或看板里显式标记该历史描述 `SUPERSEDED`。
+4. **组2 是否需要在 CP4 前另立接线任务**：按任务书我**没有**强行保留它们；若产品镜像需要 Reminder/TimeAuthority，请另立任务（C03/E01）。
+
+### 26.8 本轮证据文件（不入 Git）
+
+| 路径 | 内容 |
+| --- | --- |
+| `E:/claw4-a05-cp1-fix-recon/logs/nm-elf-all.txt`（22,520 行） | `riscv32-esp-elf-nm -C` 对最终 `xiaozhi.elf` 的完整符号表（26.1 的 ELF 列全部由此得出） |
+| `E:/claw4-a05-cp1-fix-recon/logs/nm-libmain.txt`（13,263 行） | 对 `libmain.a` 的符号表（用于"归档 vs ELF"对照） |
+| `E:/a05c/b/xiaozhi.map` | 链接 map：`Archive member included…`(1 行起) 与 `Discarded input sections`(4536 行起) |
+| `E:/claw4-a05-cp1-fix-recon/logs/probe-pdms-to-ticks.txt` + `probe_pdms.cc` + `probe_pdms_driver.py` | 26.3 的 `static_assert` 取证（真实编译命令、真实 `-I`/`-D`） |
+| `E:/claw4-a05-cp1-fix-recon/logs/host_result-cp3.txt` + `E:/claw4-a05-build-m0/out/a05-cp3-host/` | 26.4 的 29/29 完整门禁日志 |
+
+---
+
 ## 附录 A. 本轮取证工作产物（非交付物，均在本机）
 
 | 路径 | 内容 |
@@ -2355,6 +2526,9 @@ CP2 = REVIEW_READY
 | `E:/claw4-a05-cp1-fix-recon/logs/cp2-postbuild-verification.txt` | §25.2–25.5 构建后验证原文（§9 第 7–16 项、真实分区表 13 行、余量与 `ota_1` 结论） |
 | `E:/claw4-a05-cp1-fix-recon/logs/cp2-artifacts-and-symbols.txt`、`cp2-elf-symbols.txt` | §25.3 五个构件**独立重算**的 size/sha256；§25.6 `riscv32-esp-elf-nm` 对真实 ELF 的符号过滤输出 |
 | `E:/claw4-a05-19fd979/logs/envdiag-*20260915-175552*` | §25.1 该次运行的 ENV-DIAG 专段与 cmake 实际命令 |
+| `E:/claw4-a05-cp1-fix-recon/logs/nm-elf-all.txt`、`nm-libmain.txt` | §26.1 最终 ELF 与 `libmain.a` 的完整符号表（模块矩阵 ELF/Archive 两列的唯一来源） |
+| `E:/claw4-a05-cp1-fix-recon/logs/probe-pdms-to-ticks.txt`、`probe_pdms.cc`、`probe_pdms_driver.py` | §26.3 audio yield 取证：用**真实编译命令**对 `pdMS_TO_TICKS(1)` 做 `static_assert` |
+| `E:/claw4-a05-build-m0/out/a05-cp3-host/`、`E:/claw4-a05-cp1-fix-recon/logs/host_result-cp3.txt` | §26.4 CP3 完整 Host 门禁日志（**29/29**、interface exit=0） |
 
 ## 附录 B. 报告口径
 
