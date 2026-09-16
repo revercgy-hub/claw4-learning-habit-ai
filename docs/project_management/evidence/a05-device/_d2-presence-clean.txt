@@ -1,0 +1,9 @@
+﻿### clean presence test (NO port handle held)  2026-09-16 13:21:25
+=== step1: esptool reset (after=hard_reset) ===
+rc=0
+=== step2: poll COM7 presence 10s, no handle opened ===
+0.04s -> PRESENT  ports=[COM6,COM7,COM5,COM4]
+1.08s -> ABSENT  ports=[COM6]
+1.34s -> PRESENT  ports=[COM6,COM7]
+total_transitions=3
+=== DONE ===

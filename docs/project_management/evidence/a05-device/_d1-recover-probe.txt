@@ -1,0 +1,33 @@
+﻿### 2026-09-16 12:38:15
+=== PORTS NOW ===
+COM6, COM7, COM5, COM4
+=== PNP COM7 ===
+
+
+Name                   : USB 串行设备 (COM7)
+Status                 : OK
+ConfigManagerErrorCode : 0
+
+
+
+
+=== ATTEMPT 1 chip_id (before=default_reset) ===
+rc=0
+esptool.py v4.12.0
+Serial port COM7
+Connecting...
+Detecting chip type... ESP32-P4
+Chip is ESP32-P4 (revision v1.3)
+Features: High-Performance MCU
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 80:f1:b2:d2:ed:14
+Uploading stub...
+Running stub...
+Stub running...
+Warning: ESP32-P4 has no Chip ID. Reading MAC instead.
+MAC: 80:f1:b2:d2:ed:14
+Hard resetting via RTS pin...
+
+SUCCESS on attempt 1
+=== DONE ===

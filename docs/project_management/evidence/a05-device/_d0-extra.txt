@@ -1,0 +1,66 @@
+﻿=== CRC BRUTE FORCE ===
+stored crc = 0x4743989A
+len= 4  zlib=0x99F8B879  esprom=0x66074786
+len= 8  zlib=0x7733FF14  esprom=0x88CC00EB
+len=20  zlib=0xB9BA2D84  esprom=0x4645D27B
+len=24  zlib=0x01C6463A  esprom=0xFE39B9C5
+len=28  zlib=0x8A6BBE7E  esprom=0x75944181
+len=32  zlib=0xFC112386  esprom=0x03EEDC79
+raw crc_le(0xFFFFFFFF,[01,00,00,00]) = 0x66074786
+raw crc_le(0,         [01,00,00,00]) = 0xB8BC6765
+
+=== device current ota_0 app image_info ===
+esptool.py v4.12.0
+File size: 9437184 (bytes)
+Detected image type: ESP32-P4
+Image version: 1
+Entry point: 4ff0041a
+7 segments
+
+Segment 1: len 0x4e6bc8 load 0x483d0020 file_offs 0x00000018 [DROM,IROM]
+Segment 2: len 0x00084 load 0x30100000 file_offs 0x004e6be8 []
+Segment 3: len 0x0939c load 0x4ff00000 file_offs 0x004e6c74 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 4: len 0x3c85e0 load 0x48000020 file_offs 0x004f0018 [DROM,IROM]
+Segment 5: len 0x1516c load 0x4ff0939c file_offs 0x008b8600 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 6: len 0x09894 load 0x4ff1e580 file_offs 0x008cd774 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 7: len 0x00020 load 0x50108080 file_offs 0x008d7010 [RTC_IRAM,RTC_DRAM]
+Checksum: a7 (valid)
+Validation Hash: 059667b176f459a88a44c9698a3bac585d8a2113caf8833115b423fca5ddd398 (valid)
+
+=== device current ota_1 app image_info ===
+esptool.py v4.12.0
+File size: 4194304 (bytes)
+Detected image type: ESP32-P4
+Image version: 1
+Entry point: 4ff00410
+7 segments
+
+Segment 1: len 0xf5c40 load 0x48280020 file_offs 0x00000018 [DROM,IROM]
+Segment 2: len 0x00068 load 0x30100000 file_offs 0x000f5c60 []
+Segment 3: len 0x0a340 load 0x4ff00000 file_offs 0x000f5cd0 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 4: len 0x2702e0 load 0x48000020 file_offs 0x00100018 [DROM,IROM]
+Segment 5: len 0x10a18 load 0x4ff0a340 file_offs 0x00370300 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 6: len 0x05d8c load 0x4ff1ad80 file_offs 0x00380d20 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 7: len 0x00020 load 0x50108080 file_offs 0x00386ab4 [RTC_IRAM,RTC_DRAM]
+Checksum: ac (valid)
+Validation Hash: 5576640dcf7e3684243764e69ba0937a2c7bc7c47e18dd31c121bc0b6d780fd8 (valid)
+
+=== candidate xiaozhi.bin image_info ===
+esptool.py v4.12.0
+File size: 9271760 (bytes)
+Detected image type: ESP32-P4
+Image version: 1
+Entry point: 4ff0041a
+7 segments
+
+Segment 1: len 0x4e6b38 load 0x483d0020 file_offs 0x00000018 [DROM,IROM]
+Segment 2: len 0x00084 load 0x30100000 file_offs 0x004e6b58 []
+Segment 3: len 0x0942c load 0x4ff00000 file_offs 0x004e6be4 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 4: len 0x3c8fe0 load 0x48000020 file_offs 0x004f0018 [DROM,IROM]
+Segment 5: len 0x150dc load 0x4ff0942c file_offs 0x008b9000 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 6: len 0x09894 load 0x4ff1e580 file_offs 0x008ce0e4 [DRAM,BYTE_ACCESSIBLE,IRAM]
+Segment 7: len 0x00020 load 0x50108080 file_offs 0x008d7980 [RTC_IRAM,RTC_DRAM]
+Checksum: d0 (valid)
+Validation Hash: d5df33d561d5412d82e94e1869813e840dd9ee3c32a033eaad4d61ef7aaee404 (valid)
+
+=== DONE ===

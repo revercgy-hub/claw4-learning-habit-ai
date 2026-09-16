@@ -1,0 +1,28 @@
+﻿### D2-G stability: 3 consecutive resets  2026-09-16 13:27:47
+python.exe : rounds_bytes=[(1, 2820), (2, 0), (3, 0)] total=2820
+所在位置 行:450 字符: 6
++ $r = & $py "$ev\d2_stability.py" "$ev\_stability.rawlog" 3 12 2>&1
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (rounds_bytes=[(... 0)] total=2820 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+size=2820
+rst:0x = 1
+Calling app_main = 1
+METALIO_CLAW_4 = 0
+panic = 0
+Guru Meditation = 0
+abort = 0
+assert = 0
+watchdog = 0
+Backtrace = 0
+E ( = 0
+=== METALIO_CLAW_4 lines ===
+=== NVS / otadata after 3 resets ===
+nvs4=e46639f5ed2bc59d99c0ecc620b07207b91eef8c80fe9ee30dfe8c69d174c90b
+otadata4=8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+nvs_stable_across_all_resets = True
+otadata_stable = True
+=== DONE ===

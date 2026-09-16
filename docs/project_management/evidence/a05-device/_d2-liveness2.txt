@@ -1,0 +1,46 @@
+﻿### 2026-09-16 12:48:24  设备已连续运行约 4 分钟
+=== otadata again ===
+now2_otadata_sha256 = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+otadata_still_unchanged = True
+=== WLAN networks visible to host (找 xiaozhi softAP) ===
+ 
+鎺ュ彛鍚嶇О : WLAN 
+褰撳墠鏈?7 涓綉缁滃彲瑙併€?
+
+SSID 1 : ChinaNet-UM2Q
+    Network type            : 缁撴瀯
+    韬唤楠岃瘉                : WPA2 - 涓汉
+    鍔犲瘑                    : CCMP 
+
+SSID 2 : 
+    Network type            : 缁撴瀯
+    韬唤楠岃瘉                : WPA2 - 涓汉
+    鍔犲瘑                    : CCMP 
+
+SSID 3 : DIRECT-49-HP M227f LaserJet
+    Network type            : 缁撴瀯
+    韬唤楠岃瘉                : WPA2 - 涓汉
+    鍔犲瘑                    : CCMP 
+
+SSID 4 : DIRECT-4a-HP M227f LaserJet
+    Network type            : 缁撴瀯
+    韬唤楠岃瘉                : WPA2 - 涓汉
+    鍔犲瘑                    : CCMP 
+
+SSID 5 : ChinaNet-cnLJ
+    Network type            : 缁撴瀯
+    韬唤楠岃瘉                : WPA2 - 涓汉
+    鍔犲瘑                    : CCMP 
+
+SSID 6 : HP-Print-a0-LaserJet Pro MFP
+    Network type            : 缁撴瀯
+    韬唤楠岃瘉                : WPA2 - 涓汉
+    鍔犲瘑                    : CCMP 
+
+SSID 7 : ChinaNet-6AFJ
+    Network type            : 缁撴瀯
+    韬唤楠岃瘉                : WPA2 - 涓汉
+    鍔犲瘑                    : CCMP 
+
+
+=== DONE ===

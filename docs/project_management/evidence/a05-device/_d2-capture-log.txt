@@ -1,0 +1,38 @@
+﻿### D2 CAPTURE (RTS reset + serial monitor on COM7 @115200)  2026-09-16 12:41:30
+=== ROUND 1  f=E:\claw4-a05-build-m0\docs\project_management\evidence\a05-device\A05_DEVICE_BOOT_001.log  dur=60 ===
+rc=0  python.exe : captured 1852 bytes -> E:\claw4-a05-build-m0\docs\project_manageme
+nt\evidence\a05-device\A05_DEVICE_BOOT_001.log (dur=60s)
+所在位置 行:453 字符: 8
++   $r = & $py "$ev\d2_capture.py" $f $dur 2>&1
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (captured 1852 b...1.log (dur=60s) 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+size=1852
+=== ROUND 2  f=E:\claw4-a05-build-m0\docs\project_management\evidence\a05-device\A05_DEVICE_BOOT_002.log  dur=40 ===
+rc=0  python.exe : captured 1852 bytes -> E:\claw4-a05-build-m0\docs\project_manageme
+nt\evidence\a05-device\A05_DEVICE_BOOT_002.log (dur=40s)
+所在位置 行:453 字符: 8
++   $r = & $py "$ev\d2_capture.py" $f $dur 2>&1
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (captured 1852 b...2.log (dur=40s) 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+size=1852
+=== ROUND 3  f=E:\claw4-a05-build-m0\docs\project_management\evidence\a05-device\A05_DEVICE_BOOT_003.log  dur=40 ===
+rc=0  python.exe : captured 1852 bytes -> E:\claw4-a05-build-m0\docs\project_manageme
+nt\evidence\a05-device\A05_DEVICE_BOOT_003.log (dur=40s)
+所在位置 行:453 字符: 8
++   $r = & $py "$ev\d2_capture.py" $f $dur 2>&1
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (captured 1852 b...3.log (dur=40s) 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+size=1852
+=== DONE ===

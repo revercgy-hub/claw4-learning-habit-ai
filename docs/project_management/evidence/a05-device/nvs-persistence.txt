@@ -1,0 +1,64 @@
+# A05-DEVICE D2-F — NVS / Persistence Regression Smoke 证据（nvs-persistence）
+
+> 时间窗：2026-09-16 12:40（刷写后）– 15:00 (+08:00)
+> 方法：esptool 只读 `read_flash 0x3C000 0xD2000` 取 NVS 分区快照 × 4 个时点，
+> 用 **IDF 官方** `components/nvs_flash/nvs_partition_tool/nvs_tool.py`（`-d minimal -i`）解析，
+> 再用自写 `nvs_diff.py`（字节级）与 `nvs_event_delta.py`（事件集）做差分。
+> **脱敏**：本文件不写 Wi-Fi 密码 / token / `device_secret` / MQTT 凭据；含凭据的快照仅本地（gitignore）。
+
+---
+
+## 1. 四个快照与解析完整性
+
+| # | 时点 | 文件 | sha256（前 12） | nvs_tool -i |
+|---|---|---|---|---|
+| S0 | 12:47 刷写后 | `_now-nvs.bin` | `…`（本地） | 无 error |
+| S1 | 13:28 刷写后稳定态 | `_now-nvs4.bin` | `e46639f5…` | 无 error |
+| S2 | 14:35 用户配网后 | `_postconfig-nvs.bin` | `6678c688…` | 无 error |
+| S3 | 14:55 学习操作后 | `_now2-nvs.bin` | `3261ec5e…` | 无 error |
+
+`-i` 全部干净：**无损坏页、无 CRC 错误、无 namespace 异常**。
+
+## 2. 跨重启稳定性（D2-A/D2-G 的持久化侧面）
+连续软复位 3 次 + 累计 ≥10 次复位期间，NVS 快照 S1 恒为 `e46639f5…`（多次读取完全一致）
+⇒ 复位不损坏 NVS 状态，无 torn write / 无页面错乱。
+
+## 3. 跨**掉电**保持（任务书 §25 明确要求的加强项）
+用户执行 **拔 USB → 等 ≥5 s → 插回**（真实冷启动）后：
+- `wifi:ssid*` / `wifi:password1` 等配网条目仍在（见 network-smoke.txt §1）；
+- 应用启动后能直接使用该凭据联网（见 network-smoke.txt §2 的 OTA 往返）
+⇒ **PERSISTENCE_ACROSS_POWER_CYCLE = PASS**（本候选自己的 smoke 结果，不继承任何旧 Candidate 结论）。
+
+## 4. 学习运行时状态的持久化 + 事件增量（D2-E 的强证据）
+对 `p|ev-<16hex>`（outbox 事件 id）与 `sess-<16hex>`（会话 id）做全分区事件集差分：
+
+| 区间 | distinct event ids | distinct session ids | added | removed | 判定 |
+|---|---|---|---|---|---|
+| S1 13:28 → S2 14:35 | 96 → 96 | 13 → 13 | 0 | 0 | 无变化（该窗口用户尚未做学习操作） |
+| **S2 14:35 → S3 14:55** | **96 → 100** | **13 → 14** | **+4** | **0** | **学习运行时在配网/掉电之后仍持续产出事件并落盘** |
+
+- 新增 event id：`44b8834561325096`、`73f665b4b7037ee6`、`ca6e1f52fb88c2e8`、`f2a8f3d60076eb1a`
+- 新增 session id：`sess-3c6b94c087314621`
+- **removed = 0** ⇒ outbox 从未被 ack 清空 ⇒ 学习后端同步**未成功**（与 §network-smoke 4 的结论一致），
+  但**失败是优雅的**：事件保留在 outbox 中，无丢失、无崩溃（fatal-scan 0 命中）。
+- outbox 内容自身也在同一区间被整体重写入新的 NVS 页（`0x20A60–0x221xx`），属正常 append/GC 行为，无内容截断。
+
+## 5. 由应用写入的其他 NVS 命名空间（证明应用确在运行）
+| 命名空间:键 | 说明 |
+|---|---|
+| `wifi:ota_url` | `application.cc:481` 在 `ota_url` 为空时写入默认值（本机已有值，沿用 NVS） |
+| `mqtt:endpoint / client_id / username / password` | 仅在 OTA 响应含 `mqtt` 段时写入 ⇒ 联网往返证据 |
+| `learning:*`（含 outbox blob `C4L1OUTBOX`） | `LearningRuntime` + `NvsOutboxStorage` 落盘 ⇒ 学习链在跑 |
+| `display:brightness` | 亮度偏好（用户操作） |
+| `audio:interrupt` | `application.cc:546 ApplyInterruptPreferenceFromNvs()` |
+| `board:uuid` / `network:sim_slot` / `network:type` | 设备既有 provisioning |
+
+## 6. 判定
+```
+NVS_REGRESSION_SMOKE = PASS（基础回归）
+  ├─ 解析完整性（nvs_tool -i 无 error）        PASS
+  ├─ 多次复位不损坏                             PASS
+  ├─ 掉电（拔插）后配网凭据与学习状态保持        PASS
+  ├─ 学习 outbox 事件增量 +4 / 会话 +1          PASS
+  └─ 强持久化压力（写满/GC 极限、掉电打断写入） DEVICE_VERIFY_REQUIRED（未做，超出本轮 smoke）
+```

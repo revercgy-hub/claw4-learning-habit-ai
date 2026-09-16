@@ -1,0 +1,14 @@
+﻿=== otadata sector0 first 32B ===
+01 00 00 00 FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF 02 00 00 00 9A 98 43 47
+=== otadata sector1 first 32B ===
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+=== non-FF byte ranges in otadata (4KB granularity) ===
+sector@0000 nonFF=12
+sector@1000 nonFF=0
+=== candidate ota_data_initial.bin ===
+size=8192 sha256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+first32=FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+allFF=True nonFFcount=0
+=== device otadata vs candidate ota_data_initial: equal? ===
+len_cand=8192 len_dev=8192 prefix_equal=False
+=== DONE ===

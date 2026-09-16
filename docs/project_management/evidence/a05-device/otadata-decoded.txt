@@ -1,0 +1,71 @@
+# A05-DEVICE D0-E — 实机 OTA 状态（otadata）
+
+分区：otadata @ 0x10E000, size 8K（= 2 个 4KB 扇区，即两份 select entry 副本）
+
+读取：esptool read_flash 0x10E000 0x2000 -> backups\backup-0x10e000-0x002000-otadata.bin
+  sha256 = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+
+结构权威定义（ESP-IDF 5.5.4 本机源码 components/bootloader_support/include/esp_flash_partitions.h:78-83）：
+    typedef struct {
+        uint32_t ota_seq;
+        uint8_t  seq_label[20];
+        uint32_t ota_state;
+        uint32_t crc;          /* CRC32 of ota_seq field only */
+    } esp_ota_select_entry_t;   /* 32 bytes，对 flash 加密友好 */
+
+状态枚举（同文件 :67-74）：
+    ESP_OTA_IMG_NEW            = 0x0
+    ESP_OTA_IMG_PENDING_VERIFY = 0x1
+    ESP_OTA_IMG_VALID          = 0x2
+    ESP_OTA_IMG_INVALID        = 0x3
+    ESP_OTA_IMG_ABORTED        = 0x4
+    ESP_OTA_IMG_UNDEFINED      = 0xFFFFFFFF
+
+## 原始字节
+sector0 @0x10E000 (offset 0x0000):
+  01 00 00 00 | FF*20 | 02 00 00 00 | 9A 98 43 47
+  nonFF = 12 B（仅 ota_seq / ota_state / crc 三个字段非空，seq_label 为空）
+
+sector1 @0x10F000 (offset 0x1000):
+  FF*32  (全空)
+
+## 解码
+| sector | ota_seq | seq_label | ota_state | 含义 |
+|---|---|---|---|---|
+| 0 | 1 | (empty) | 0x00000002 | ESP_OTA_IMG_VALID |
+| 1 | 0xFFFFFFFF | (empty) | 0xFFFFFFFF | 空槽 |
+
+## 启动槽位解析（ESP-IDF 5.5.4 权威代码）
+bootloader_support/src/bootloader_utility.c:443-444
+    uint32_t ota_seq = otadata[active_otadata].ota_seq - 1;
+    boot_index = ota_seq % bs->app_count;
+本机 app_count = 2（ota_0 / ota_1）
+  => ota_seq=1 -> (1-1) % 2 = 0 -> boot_index 0 -> **ota_0**
+bootloader_common_loader.c:69-82
+    bootloader_common_ota_select_valid(s) = !invalid(s) && s->crc == crc32_le(UINT32_MAX, &s->ota_seq, 4)
+
+## ⚠️ CRC 事实（如实记录，不影响结论）
+stored crc = 0x4743989A
+按 IDF 公式 esp_rom_crc32_le(UINT32_MAX, &ota_seq, 4) 计算 = 0x66074786  -> **不一致**
+（另测 8/20/24/28/32 字节、init=0、MSB-first 多项式、crc 字段置 0x00/0xFF 等共 19 种口径，见 _d0-extra2.txt，无一命中）
+=> 按 IDF 逻辑，otadata[0] 被判为 **CRC 不合法**（vendor 厂刷时的 otadata 记录）。
+
+但 bootloader 的**全部可能分支**都仍落到 ota_0（本机 sdkconfig 已确认
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y / CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK 未设置）：
+ - 先判 `bootloader_common_ota_select_invalid()`：otadata[0] ota_seq=1 != UINT32_MAX 且 state=VALID
+   => invalid(0)=false，invalid(1)=true => `(invalid0 && invalid1)` = false => 进入 else 分支(:426)
+ - else 分支取 active_otadata：`bootloader_common_get_active_otadata()` 依赖 `ota_select_valid()`
+   （含 CRC 校验）=> 两份都不过 => 返回 -1
+ - 于是走 :463-466「ota data partition invalid and no factory, will try all partitions」
+   （本机分区表**无 factory app 分区**，bs->factory.offset == 0）
+   => boot_index = FACTORY_INDEX => load_boot_image 依次尝试各 app 分区，**第一个即 ota_0**
+ - ota_has_initial_contents 保持 false => bootloader 不会改写 otadata
+
+## 现状独立性证据（两层）
+1) 实机 ota_0 (0x200000) 现存 app 的镜像入口点 = 4ff0041a，与冻结候选 xiaozhi.bin 入口点**完全相同**，
+   段布局/加载地址一致（仅段长有极小差异）—— 说明设备当前运行谱系就是 ota_0 上的同源固件。
+2) 实机 ota_1 (0xB00000) 现存 app 入口点 = 4ff00410，段 1 加载于 48280020 —— 明显是另一支旧固件。
+
+## Gate
+boot target 可安全指向 ota_0，且设备 boot selector **不是**固定选 ota_1  -> OTA_SELECTION = PASS
+刷写策略：**只写 ota_0，不写 otadata**（写 otadata 反而会改变当前 boot selector 证据）。

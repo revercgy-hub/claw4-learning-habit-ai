@@ -1,0 +1,39 @@
+﻿### CMD: read_flash 0x8000 0x2000   (2026-09-16 12:31:34)
+exit_code=0
+size=8192
+sha256=e88fdcca02c142733481c585b15dfd3368d3ad908ad9cb1eac48ed9892089c77
+=== bytes 0x00-0x0F (phys 0x8000) ===
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+=== bytes 0x1000-0x100F (phys 0x9000) ===
+AA 50 01 02 00 A0 00 00 00 20 03 00 6E 76 73 66
+--- partition-table-device.bin sha256=8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a
+=== DECODE device partition table @0x9000 ===
+decode_rc=0
+python.exe : Parsing binary partition input...
+所在位置 行:466 字符: 6
++ $d = & $py $gen --flash-size 32MB "$ev\partition-table-device.bin" "$ ...
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Parsing binary partition input... 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Verifying table...
+
+--- decoded device csv ---
+# ESP-IDF Partition Table
+# Name, Type, SubType, Offset, Size, Flags
+nvsfactory,data,nvs,0xa000,200K,
+nvs,data,nvs,0x3c000,840K,
+otadata,data,ota,0x10e000,8K,
+phy_init,data,phy,0x110000,4K,
+model,data,spiffs,0x111000,956K,
+ota_0,app,ota_0,0x200000,9M,
+ota_1,app,ota_1,0xb00000,4M,
+resources,data,spiffs,0xf00000,4M,
+factory_test,data,spiffs,0x1300000,600K,
+emote,data,spiffs,0x1396000,4M,
+system,data,fat,0x1796000,1M,
+storage,data,fat,0x1896000,7M,
+coredump,data,coredump,0x1f96000,64K,
+
+=== DONE ===

@@ -1,0 +1,18 @@
+﻿### 候选完整性复核（联网 OTA 检查之后）  2026-09-16 14:40:23
+=== 1) otadata 现状 ===
+otadata_sha256_now = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+otadata_sha256_d0  = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+otadata_unchanged_since_D0 = True
+sector0_first32 = 01 00 00 00 FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF 02 00 00 00 9A 98 43 47
+ota_seq = 1   ota_state = 0x00000002   => boot_index = 0
+=== 2) ota_0 全量回读并与冻结候选比对 ===
+ota0_size  = 9271760
+ota0_sha256= c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36
+candidate  = c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36
+ota0_STILL_FROZEN_CANDIDATE = True
+=== 3) ota_1 头 64B（看是否被 OTA 写入） ===
+ota1_head_now = 1992dd1a9c18f63ad600bb996c4cf123a2abbd4ea8d64dec7b075e6a0d47a026
+ota1_head_d0  = 1992dd1a9c18f63ad600bb996c4cf123a2abbd4ea8d64dec7b075e6a0d47a026
+ota1_head_unchanged = True
+ota1_head_bytes = E9 07 02 50 10 04 F0 4F EE 00 00 00 12 00 00 00 00 C7 00 00 00 00 00 01 20 00 28 48 40 5C 0F 00
+=== DONE ===

@@ -1,0 +1,58 @@
+﻿### 2026-09-16 12:32:10
+### read otadata 0x10e000 0x2000
+otadata_rc=0
+otadata_sha256=8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+=== PARSE OTADATA ===
+file=E:\claw4-a05-build-m0\docs\project_management\evidence\a05-device\backup-otadata.bin size=8192
+sector 0 @0x0000: ota_seq=1(0x00000001) seq_label='锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷' ota_state=OTHER(0x00000002)(0x00000002) crc_stored=0x4743989A crc_calc=0x8A6BBE7E crc_MISMATCH
+sector 1 @0x1000: ota_seq=INVALID(0xFFFFFFFF) seq_label='锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷' ota_state=UNDEFINED(0xFFFFFFFF) crc_stored=0xFFFFFFFF crc_calc=0x80E3231D crc_MISMATCH
+---
+valid_crc_entries=0
+BOOT_SELECTION: no CRC-valid otadata entry -> boot from partition-table default (first ota_0 app)
+
+=== APP PRESENCE: ota_0 0x200000 (first 64B) ===
+ota0_head=E9 07 02 50 1A 04 F0 4F EE 00 00 00 12 00 00 00 00 C7 00 00 00 00 00 01 20 00 3D 48 C8 6B 4E 00
+ola0_allFF=False
+=== APP PRESENCE: ota_1 0xb00000 (first 64B) ===
+ota1_head=E9 07 02 50 10 04 F0 4F EE 00 00 00 12 00 00 00 00 C7 00 00 00 00 00 01 20 00 28 48 40 5C 0F 00
+ota1_allFF=False
+=== COMPARE built partition-table.bin vs device @0x9000 ===
+built_size=3072 device_seg_size=4096
+prefix_equal=True first_diff_index=-1
+=== sdkconfig PARTITION_TABLE ===
+MISS E:\a05c\b\config\sdkconfig
+=== flasher_args.json ===
+{
+    "write_flash_args" : [ "--flash_mode", "dio",
+                           "--flash_size", "32MB",
+                           "--flash_freq", "40m" ],
+    "flash_settings" : {
+        "flash_mode": "dio",
+        "flash_size": "32MB",
+        "flash_freq": "40m"
+    },
+    "flash_files" : {
+        "0x2000" : "bootloader/bootloader.bin",
+        "0x200000" : "xiaozhi.bin",
+        "0x9000" : "partition_table/partition-table.bin",
+        "0x10e000" : "ota_data_initial.bin",
+        "0x111000" : "srmodels/srmodels.bin",
+        "0xf00000" : "mmap_build/xingzhi-assets/resources/resources.bin",
+        "0x1300000" : "factory_test.bin"
+    },
+    "bootloader" : { "offset" : "0x2000", "file" : "bootloader/bootloader.bin", "encrypted" : "false" },
+    "app" : { "offset" : "0x200000", "file" : "xiaozhi.bin", "encrypted" : "false" },
+    "partition-table" : { "offset" : "0x9000", "file" : "partition_table/partition-table.bin", "encrypted" : "false" },
+    "otadata" : { "offset" : "0x10e000", "file" : "ota_data_initial.bin", "encrypted" : "false" },
+    "model" : { "offset" : "0x111000", "file" : "srmodels/srmodels.bin", "encrypted" : "false" },
+    "resources" : { "offset" : "0xf00000", "file" : "mmap_build/xingzhi-assets/resources/resources.bin", "encrypted" : "false" },
+    "factory_test" : { "offset" : "0x1300000", "file" : "factory_test.bin", "encrypted" : "false" },
+    "extra_esptool_args" : {
+        "after"  : "hard_reset",
+        "before" : "default_reset",
+        "stub"   : true,
+        "chip"   : "esp32p4"
+    }
+}
+
+=== DONE ===

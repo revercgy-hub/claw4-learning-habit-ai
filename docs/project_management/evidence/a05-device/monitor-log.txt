@@ -1,0 +1,133 @@
+# A05-DEVICE D2 — 串口监控日志（monitor-log）
+
+## 结论先行：本机 USB 控制台的可观测窗口只有每次复位后的前 ~1.4 秒
+**这不是应用缺陷，而是本板 USB PHY 路由特性 + 主机侧句柄失效共同造成的观测限制。**证据链：
+
+1. 候选 sdkconfig：`CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`、`CONFIG_ESP_CONSOLE_UART_NUM=-1`、
+   `CONFIG_ESP_CONSOLE_SECONDARY_NONE=y` ⇒ **唯一控制台通道就是 USB-Serial/JTAG（COM7）**，
+   没有第二路 UART 控制台。
+2. 无干扰端口存在性测试（`_d2-presence-clean.txt`，esptool 复位后 10 s 内不持有任何串口句柄）：
+   ```
+   0.04s -> PRESENT  ports=[COM6,COM7,COM5,COM4]
+   1.08s -> ABSENT   ports=[COM6]        <- USB-Serial/JTAG 掉线（重枚举）
+   1.34s -> PRESENT  ports=[COM6,COM7]
+   total_transitions=3                   <- 之后 8.6 s 稳定，无 boot loop
+   ```
+   ⇒ 每次复位后 ~1.1 s 有一次 **USB 重枚举毛刺**，约 260 ms 后 COM7 回来。
+3. 主机侧句柄在该毛刺中失效；而**重新打开串口本身会再次复位芯片**
+   （`_d2-presence.txt`：45 s 内 24 次复位；`_steady-attach.txt`：45 s 内 17 次 `rst:0x17`）。
+   ⇒ 形成自持循环：开串口 → 复位 → 抓 ~1.4 s → 毛刺 → 句柄失效 → 再开 → 再复位 …
+4. 因此**从主机侧只能稳定观测到每次运行的前 ~1.4 s**。
+
+每一次都能抓到**完整且可复现**的启动前段，并且最后一次抓到了应用自身的第一条日志：
+```
+I (1447) METALIO_CLAW_4: LCD hardware reset done (GPIO 3).
+```
+⇒ 应用确实越过了 `main_task: Calling app_main()`，进入 `Board::GetDisplay()` 的 LCD 硬件复位阶段。
+（该行在流里出现在 ROM banner 之前，是两次运行交叠的流序，不是时间倒置。）
+
+## 冷启动日志（复位后完整前段，A05_DEVICE_BOOT_001.log，sha256 dd9904429a74199d…）
+```
+I (655) mmu_psram: .rodata xip on psram
+I (999) mmu_psram: .text xip on psram
+I (999) hex_psram: psram CS IO is dedicated
+I (1000) cpu_start: Multicore app
+I (1009) cpu_start: Pro cpu start user code
+I (1009) cpu_start: cpu freq: 360000000 Hz
+I (1009) app_init: Application information:
+I (1009) app_init: Project name:     xiaozhi
+I (1010) app_init: App version:      2.0.51
+I (1010) app_init: Compile time:     Sep 15 2026 17:59:12
+I (1010) app_init: ELF file SHA256:  fba68d580....
+I (1010) app_init: ESP-IDF:          HEAD-HASH-NOTFOUND
+I (1011) efuse_init: Min chip rev:     v0.0
+I (1011) efuse_init: Max chip rev:     v1.99
+I (1011) efuse_init: Chip rev:         v1.3
+I (1011) heap_init: Initializing. RAM available for dynamic allocation:
+I (1011) heap_init: At 4FF2A6E0 len 000108E0 (66 KiB): RETENT_RAM
+I (1012) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM
+I (1012) heap_init: At 4FF48750 len 000578B0 (350 KiB): RAM
+I (1012) heap_init: At 501080A0 len 00007F60 (31 KiB): RTCRAM
+I (1013) heap_init: At 30100084 len 00001F7C (7 KiB): TCM
+I (1013) esp_psram: Adding pool of 23808K of PSRAM memory to heap allocator
+I (1013) esp_psram: Adding pool of 28K of PSRAM memory gap generated due to end address alignment of irom to the heap allocator
+I (1014) esp_psram: Adding pool of 37K of PSRAM memory gap generated due to end address alignment of drom to the heap allocator
+I (1014) spi_flash: detected chip: gd
+I (1014) spi_flash: flash io: qio
+I (1016) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (1016) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (1035) H_SDIO_DRV: sdio_data_to_rx_buf_task started
+I (1035) main_task: Started on CPU0
+I (1036) esp_psram: Reserving pool of 64K of internal memory for DMA/internal allocations
+I (1036) main_task: Calling app_main()
+```
+
+另有一份含**ROM + 二级引导 + 应用前段**的更完整记录（`_d2-double-reset.rawlog`，2822 B）：
+```
+ESP-ROM:esp32p4-eco2-20240710
+Build:Jul 10 2024
+rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+Core0 Saved PC:0x4ff06eb6
+Core1 Saved PC:0x4ff06eb6
+SPI mode:DIO, clock div:2
+load:0x4ff33ce0,len:0x650
+load:0x4ff29ed0,len:0xef4
+load:0x4ff2cbd0,len:0x3a24
+entry 0x4ff29ed0
+I (38) hex_psram: vendor id    : 0x0d (AP)
+I (38) hex_psram: Latency      : 0x01 (Fixed)
+I (38) hex_psram: DriveStr.    : 0x00 (25 Ohm)
+I (39) hex_psram: dev id       : 0x03 (generation 4)
+I (39) hex_psram: density      : 0x07 (256 Mbit)
+I (39) hex_psram: good-die     : 0x06 (Pass)
+I (40) hex_psram: SRF          : 0x02 (Slow Refresh)
+I (40) hex_psram: BurstType    : 0x00 ( Wrap)
+I (40) hex_psram: BurstLen     : 0x03 (2048 Byte)
+I (41) hex_psram: BitMode      : 0x01 (X16 Mode)
+I (41) hex_psram: Readlatency  : 0x04 (14 cycles@Fixed)
+I (42) hex_psram: DriveStrength: 0x00 (1/1)
+I (42) MSPI Timing: Enter psram timing tuning
+I esp_psram: Found 32MB PSRAM device
+I esp_psram: Speed: 200MHz
+... （其后与上表相同）
+```
+> `rst:0x17 (CHIP_USB_UART_RESET)` = 复位源是 USB-UART，即**由主机打开串口触发**，不是应用自身复位。
+
+## 关键身份核对（证明"跑的就是冻结候选"）
+| 日志字段 | 实机 | 冻结候选 | 结论 |
+|---|---|---|---|
+| Project name | xiaozhi | xiaozhi | MATCH |
+| App version | 2.0.51 | 2.0.51 | MATCH |
+| Compile time | Sep 15 2026 17:59:12 | 构建于 2026-09-15 17:58–18:01 | MATCH |
+| ELF file SHA256 | `fba68d580....` | `fba68d58…aa60`（xiaozhi.elf） | MATCH |
+
+## 0xE000/0x0000 区：本板 ROM 输出
+`ESP-ROM:esp32p4-eco2-20240710` / `Build:Jul 10 2024` — ROM 引导阶段正常，strapping `boot:0x1f` 正常。
+
+## 未取得的部分（如实记录）
+- `app_main()` 之后的完整运行日志（Wi-Fi/LVGL/音频/Learning 各子系统初始化的 INFO 行）**未能取得**，
+  原因是上述 USB 重枚举限制。**已通过设备侧物理观察 + NVS/otadata 侧面证据交叉验证应用健康**
+  （见 device-smoke-matrix.md：屏幕正常、触摸正常、可进 Learning Screen、有开机音、NVS 被应用写入）。
+- bootloader 阶段本就无输出：候选 sdkconfig `CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y` ⇒
+  **无法从 bootloader 日志读 "Loaded app from partition at offset 0x…"**；启动槽位结论由 D0 的
+  otadata 静态推理承担（见 otadata-decoded.txt）。
+
+---
+
+## 追加：配网 + 掉电上电后的第 5 次抓取（A05_DEVICE_BOOT_005.log，14:38，dur=50 s）
+在**已配网、已拔插上电**的状态下再抓 50 s，结果与 001–004 结构性一致：
+
+```
+size = 1852 B      rst:0x 命中 = 0（本次复用已打开句柄做 RTS 复位，未捕获 ROM banner）
+main_task: Calling app_main() 出现 1 次，且为最后一行
+METALIO_CLAW_4 = 0   WIFI/wifi/ssid/Connecting/esp_netif = 0   got ip = 0
+panic / Guru / abort / assert = 0
+```
+⇒ 再次证实：**主机侧观测窗口仍是每次运行的前 ~1.4 s**，`app_main()` 之后的 Wi-Fi/LVGL/音频/
+Learning 初始化行**本轮仍然拿不到**；这不是应用静默，而是控制台通道在应用初始化 USB PHY 时掉线
+（证据见本文件开头第 2 条与 `_d2-presence-clean.txt`）。
+
+**补偿手段（本轮新增，见 network-smoke.txt / nvs-persistence.txt）**：改用 NVS 侧信道观测，
+用 IDF 官方 `nvs_tool.py` + 自写 `nvs_diff.py` / `nvs_event_delta.py` 证明
+① 配网凭据落盘并跨掉电保持；② 至少两次完整的 OTA HTTPS 往返（`mqtt:username` 由服务端响应驱动）；
+③ 学习运行时在配网后新增 4 个事件 id + 1 个会话 id 并落盘。三者共同构成"应用健康且联网"的证据链。

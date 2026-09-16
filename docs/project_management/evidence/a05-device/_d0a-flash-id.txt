@@ -1,0 +1,19 @@
+﻿### CMD: esptool --port COM7 flash_id    (2026-09-16 12:30:16)
+esptool.py v4.12.0
+Serial port COM7
+Connecting...
+Detecting chip type... ESP32-P4
+Chip is ESP32-P4 (revision v1.3)
+Features: High-Performance MCU
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 80:f1:b2:d2:ed:14
+Uploading stub...
+Running stub...
+Stub running...
+Manufacturer: c8
+Device: 4019
+Detected flash size: 32MB
+Hard resetting via RTS pin...
+
+### exit_code=0

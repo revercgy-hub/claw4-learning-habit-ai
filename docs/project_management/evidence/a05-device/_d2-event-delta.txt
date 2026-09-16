@@ -1,0 +1,38 @@
+﻿### learning outbox 事件集对比  2026-09-16 14:57:39
+--- A) 刷写后 13:28  ->  配网后 14:35 ---
+=== event ids (p|ev-*) ===
+old: occurrences=575 distinct=96
+new: occurrences=575 distinct=96
+added_ids   = 0 []
+removed_ids = 0 []
+
+=== session ids ===
+old distinct = ['sess-055867ca4df6b890', 'sess-1309ff945297c1a6', 'sess-1b979b0942d51134', 'sess-1cdb8f788d433dde', 'sess-250f2c37e61888c9', 'sess-2fc2f16c46e4f204', 'sess-36b0869da5f6c830', 'sess-38eb59182a0e8d7b', 'sess-552993ce641f9f8c', 'sess-62f0700b8acf1ddf', 'sess-851182428c03b3f5', 'sess-ecc638b479912592', 'sess-f1605b9d7e018317']
+new distinct = ['sess-055867ca4df6b890', 'sess-1309ff945297c1a6', 'sess-1b979b0942d51134', 'sess-1cdb8f788d433dde', 'sess-250f2c37e61888c9', 'sess-2fc2f16c46e4f204', 'sess-36b0869da5f6c830', 'sess-38eb59182a0e8d7b', 'sess-552993ce641f9f8c', 'sess-62f0700b8acf1ddf', 'sess-851182428c03b3f5', 'sess-ecc638b479912592', 'sess-f1605b9d7e018317']
+
+=== task ids ===
+old distinct = ['06b4af3d-7558-42f4-bbae-a33f3ae73d01', '4f6f26c8-8694-46ce-ac14-49bbc9cbd89d']
+new distinct = ['06b4af3d-7558-42f4-bbae-a33f3ae73d01', '4f6f26c8-8694-46ce-ac14-49bbc9cbd89d']
+
+=== verdict ===
+NEW_EVENTS_APPENDED = False (identical event-id set; any byte move is NVS page GC)
+
+--- B) 配网后 14:35 -> 现在 14:55 ---
+=== event ids (p|ev-*) ===
+old: occurrences=575 distinct=96
+new: occurrences=614 distinct=100
+added_ids   = 4 ['44b8834561325096', '73f665b4b7037ee6', 'ca6e1f52fb88c2e8', 'f2a8f3d60076eb1a']
+removed_ids = 0 []
+
+=== session ids ===
+old distinct = ['sess-055867ca4df6b890', 'sess-1309ff945297c1a6', 'sess-1b979b0942d51134', 'sess-1cdb8f788d433dde', 'sess-250f2c37e61888c9', 'sess-2fc2f16c46e4f204', 'sess-36b0869da5f6c830', 'sess-38eb59182a0e8d7b', 'sess-552993ce641f9f8c', 'sess-62f0700b8acf1ddf', 'sess-851182428c03b3f5', 'sess-ecc638b479912592', 'sess-f1605b9d7e018317']
+new distinct = ['sess-055867ca4df6b890', 'sess-1309ff945297c1a6', 'sess-1b979b0942d51134', 'sess-1cdb8f788d433dde', 'sess-250f2c37e61888c9', 'sess-2fc2f16c46e4f204', 'sess-36b0869da5f6c830', 'sess-38eb59182a0e8d7b', 'sess-3c6b94c087314621', 'sess-552993ce641f9f8c', 'sess-62f0700b8acf1ddf', 'sess-851182428c03b3f5', 'sess-ecc638b479912592', 'sess-f1605b9d7e018317']
+
+=== task ids ===
+old distinct = ['06b4af3d-7558-42f4-bbae-a33f3ae73d01', '4f6f26c8-8694-46ce-ac14-49bbc9cbd89d']
+new distinct = ['06b4af3d-7558-42f4-bbae-a33f3ae73d01', '4f6f26c8-8694-46ce-ac14-49bbc9cbd89d']
+
+=== verdict ===
+NEW_EVENTS_APPENDED = True  (learning runtime generated 4 new event id(s))
+
+=== DONE ===

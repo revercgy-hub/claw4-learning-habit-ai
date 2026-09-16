@@ -1,0 +1,25 @@
+### CMD: esptool.exe --port COM7 --before default_reset --after hard_reset flash_id
+### 2026-09-16 12:30:16 +08:00
+esptool.py v4.12.0
+Serial port COM7
+Connecting...
+Detecting chip type... ESP32-P4
+Chip is ESP32-P4 (revision v1.3)
+Features: High-Performance MCU
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 80:f1:b2:d2:ed:14
+Uploading stub...
+Running stub...
+Stub running...
+Manufacturer: c8
+Device: 4019
+Detected flash size: 32MB
+Hard resetting via RTS pin...
+### exit_code=0
+
+# 结论：
+#   flash_size = 32MB = 33,554,432 B
+#   冻结分区表最后一段结束 = 0x01FA6000 = 33,169,408 B
+#   尾部未分配 = 368,640 B  -> 32MB 可以完全覆盖冻结布局
+# FLASH_SIZE = PASS

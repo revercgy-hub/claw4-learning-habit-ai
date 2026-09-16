@@ -1,0 +1,55 @@
+# A05-DEVICE D2 fatal keyword scan
+# 扫描对象：本轮全部串口抓取文件
+
+## A05_DEVICE_BOOT_001.log  (size=1852)
+  (no keyword hits)
+
+## A05_DEVICE_BOOT_002.log  (size=1852)
+  (no keyword hits)
+
+## A05_DEVICE_BOOT_003.log  (size=1852)
+  (no keyword hits)
+
+## A05_DEVICE_BOOT_004.log  (size=1853)
+  (no keyword hits)
+
+## A05_DEVICE_BOOT_005.log  (size=1852)
+  (no keyword hits)
+
+## _d2-double-reset.rawlog  (size=2822)
+  HIT rst:0x                   count=1
+      ctx: ...uild:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+
+## _presence.rawlog  (size=66951)
+  HIT rst:0x                   count=24
+      ctx: ...ESP-ROM:esp32p4-eco2-20240710 | Build:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+      ctx: ...p_main() | ESP-ROM:esp32p4-eco2-20240710 | Build:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+      ctx: ...p_main() | ESP-ROM:esp32p4-eco2-20240710 | Build:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+
+## _stability.rawlog  (size=2820)
+  HIT rst:0x                   count=1
+      ctx: ...ild:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+
+## _steady-attach.log  (size=46988)
+  HIT rst:0x                   count=17
+      ctx: ...(GPIO 3) | ESP-ROM:esp32p4-eco2-20240710 | Build:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+      ctx: ..._main() | IESP-ROM:esp32p4-eco2-20240710 | Build:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+      ctx: ... | I (1030) main_task: Calling app_main() | Iuild:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+
+## _nonreset-attach.log  (size=2826)
+  HIT rst:0x                   count=1
+      ctx: ...﻿uild:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+
+## _liveattach.log  (size=5829)
+  HIT rst:0x                   count=2
+      ctx: ...(GPIO 3) | ESP-ROM:esp32p4-eco2-20240710 | Build:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+      ctx: ...(GPIO 3) | ESP-ROM:esp32p4-eco2-20240710 | Build:Jul 10 2024 | rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT) | Co...
+
+## 汇总
+total_keyword_hits = 46
+
+## 判定说明
+rst:0x 命中来自：① 每次主机打开串口触发的 CHIP_USB_UART_RESET（我方操作，非应用缺陷）；
+              ② 用户手动强制重启。
+panic / Guru Meditation / LoadProhibited / StoreProhibited / IllegalInstruction /
+stack overflow / heap corruption / assert / brownout 命中，若无 => 无应用级致命错误。

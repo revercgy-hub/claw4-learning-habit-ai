@@ -1,0 +1,117 @@
+﻿I (1446) METALIO_CLAW_4: LCD hardware reset done (GPIO 3)
+ESP-ROM:esp32p4-eco2-20240710
+Build:Jul 10 2024
+rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+Core0 Saved PC:0x4ff06eb6
+Core1 Saved PC:0x4ff06eb6
+SPI mode:DIO, clock div:2
+load:0x4ff33ce0,len:0x650
+load:0x4ff29ed0,len:0xef4
+load:0x4ff2cbd0,len:0x3a24
+entry 0x4ff29ed0
+I (32) hex_psram: vendor id    : 0x0d (AP)
+I (33) hex_psram: Latency      : 0x01 (Fixed)
+I (33) hex_psram: DriveStr.    : 0x00 (25 Ohm)
+I (33) hex_psram: dev id       : 0x03 (generation 4)
+I (34) hex_psram: density      : 0x07 (256 Mbit)
+I (34) hex_psram: good-die     : 0x06 (Pass)
+I (34) hex_psram: SRF          : 0x02 (Slow Refresh)
+I (35) hex_psram: BurstType    : 0x00 ( Wrap)
+I (35) hex_psram: BurstLen     : 0x03 (2048 Byte)
+I (35) hex_psram: BitMode      : 0x01 (X16 Mode)
+I (36) hex_psram: Readlatency  : 0x04 (14 cycles@Fixed)
+I (36) hex_psram: DriveStrength: 0x00 (1/1)
+I (36) MSPI Timing: Enter psram timing tuning
+I esp_psram: Found 32MB PSRAM device
+I esp_psram: Speed: 200MHz
+I (650) mmu_psram: .rodata xip on psram
+I (993) mmu_psram: .text xip on psram
+I (994) hex_psram: psram CS IO is dedicated
+I (994) cpu_start: Multicore app
+I (1004) cpu_start: Pro cpu start user code
+I (1004) cpu_start: cpu freq: 360000000 Hz
+I (1004) app_init: Application information:
+I (1004) app_init: Project name:     xiaozhi
+I (1004) app_init: App version:      2.0.51
+I (1004) app_init: Compile time:     Sep 15 2026 17:59:12
+I (1005) app_init: ELF file SHA256:  fba68d580...
+I (1005) app_init: ESP-IDF:          HEAD-HASH-NOTFOUND
+I (1005) efuse_init: Min chip rev:     v0.0
+I (1005) efuse_init: Max chip rev:     v1.99 
+I (1005) efuse_init: Chip rev:         v1.3
+I (1006) heap_init: Initializing. RAM available for dynamic allocation:
+I (1006) heap_init: At 4FF2A6E0 len 000108E0 (66 KiB): RETENT_RAM
+I (1006) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM
+I (1006) heap_init: At 4FF48750 len 000578B0 (350 KiB): RAM
+I (1007) heap_init: At 501080A0 len 00007F60 (31 KiB): RTCRAM
+I (1007) heap_init: At 30100084 len 00001F7C (7 KiB): TCM
+I (1007) esp_psram: Adding pool of 23808K of PSRAM memory to heap allocator
+I (1008) esp_psram: Adding pool of 28K of PSRAM memory gap generated due to end address alignment of irom to the heap allocator
+I (1008) esp_psram: Adding pool of 37K of PSRAM memory gap generated due to end address alignment of drom to the heap allocator
+I (1009) spi_flash: detected chip: gd
+I (1009) spi_flash: flash io: qio
+I (1011) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (1011) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (1029) H_SDIO_DRV: sdio_data_to_rx_buf_task started
+I (1029) main_task: Started on CPU0
+I (1030) esp_psram: Reserving pool of 64K of internal memory for DMA/internal allocations
+I (1030) main_task: Calling app_main()
+II (1448) METALIO_CLAW_4: LCD hardware reset done (GPIO 3)
+ESP-ROM:esp32p4-eco2-20240710
+Build:Jul 10 2024
+rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+Core0 Saved PC:0x4ff06eb6
+Core1 Saved PC:0x4ff06eb6
+SPI mode:DIO, clock div:2
+load:0x4ff33ce0,len:0x650
+load:0x4ff29ed0,len:0xef4
+load:0x4ff2cbd0,len:0x3a24
+entry 0x4ff29ed0
+I (32) hex_psram: vendor id    : 0x0d (AP)
+I (33) hex_psram: Latency      : 0x01 (Fixed)
+I (33) hex_psram: DriveStr.    : 0x00 (25 Ohm)
+I (33) hex_psram: dev id       : 0x03 (generation 4)
+I (34) hex_psram: density      : 0x07 (256 Mbit)
+I (34) hex_psram: good-die     : 0x06 (Pass)
+I (34) hex_psram: SRF          : 0x02 (Slow Refresh)
+I (35) hex_psram: BurstType    : 0x00 ( Wrap)
+I (35) hex_psram: BurstLen     : 0x03 (2048 Byte)
+I (35) hex_psram: BitMode      : 0x01 (X16 Mode)
+I (36) hex_psram: Readlatency  : 0x04 (14 cycles@Fixed)
+I (36) hex_psram: DriveStrength: 0x00 (1/1)
+I (36) MSPI Timing: Enter psram timing tuning
+I esp_psram: Found 32MB PSRAM device
+I esp_psram: Speed: 200MHz
+I (650) mmu_psram: .rodata xip on psram
+I (993) mmu_psram: .text xip on psram
+I (994) hex_psram: psram CS IO is dedicated
+I (994) cpu_start: Multicore app
+I (1003) cpu_start: Pro cpu start user code
+I (1003) cpu_start: cpu freq: 360000000 Hz
+I (1004) app_init: Application information:
+I (1004) app_init: Project name:     xiaozhi
+I (1004) app_init: App version:      2.0.51
+I (1004) app_init: Compile time:     Sep 15 2026 17:59:12
+I (1004) app_init: ELF file SHA256:  fba68d580...
+I (1005) app_init: ESP-IDF:          HEAD-HASH-NOTFOUND
+I (1005) efuse_init: Min chip rev:     v0.0
+I (1005) efuse_init: Max chip rev:     v1.99 
+I (1005) efuse_init: Chip rev:         v1.3
+I (1005) heap_init: Initializing. RAM available for dynamic allocation:
+I (1006) heap_init: At 4FF2A6E0 len 000108E0 (66 KiB): RETENT_RAM
+I (1006) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM
+I (1006) heap_init: At 4FF48750 len 000578B0 (350 KiB): RAM
+I (1007) heap_init: At 501080A0 len 00007F60 (31 KiB): RTCRAM
+I (1007) heap_init: At 30100084 len 00001F7C (7 KiB): TCM
+I (1007) esp_psram: Adding pool of 23808K of PSRAM memory to heap allocator
+I (1007) esp_psram: Adding pool of 28K of PSRAM memory gap generated due to end address alignment of irom to the heap allocator
+I (1008) esp_psram: Adding pool of 37K of PSRAM memory gap generated due to end address alignment of drom to the heap allocator
+I (1009) spi_flash: detected chip: gd
+I (1009) spi_flash: flash io: qio
+I (1010) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (1011) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (1029) H_SDIO_DRV: sdio_data_to_rx_buf_task started
+I (1029) main_task: Started on CPU0
+I (1030) esp_psram: Reserving pool of 64K of internal memory for DMA/internal allocations
+I (1030) main_task: Calling app_main()
+I

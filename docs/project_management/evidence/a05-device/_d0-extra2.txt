@@ -1,0 +1,64 @@
+﻿=== OTADATA ENTRY 0 RAW / CRC VARIANTS ===
+entry       = 01 00 00 00 FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF 02 00 00 00 9A 98 43 47
+ota_seq     = 1
+ota_state   = 0x00000002 (2=ESP_OTA_IMG_VALID)
+crc_stored  = 0x4743989A
+---
+leL4_iFF       = 0x66074786 
+leL4_i0        = 0xB8BC6765 
+beL4_iFF       = 0x1B6947CC 
+leL8_iFF       = 0x88CC00EB 
+leL8_i0        = 0x1211207D 
+beL8_iFF       = 0xF5A1BAE8 
+leL20_iFF      = 0x4645D27B 
+leL20_i0       = 0xB66FB609 
+beL20_iFF      = 0x8895CB12 
+leL24_iFF      = 0xFE39B9C5 
+leL24_i0       = 0xA2078C1A 
+beL24_iFF      = 0x1194A54C 
+leL28_iFF      = 0x75944181 
+leL28_i0       = 0x0A1BC997 
+beL28_iFF      = 0x554543F9 
+leL32_iFF      = 0x03EEDC79 
+leL32_i0       = 0xE51B762B 
+beL32_iFF      = 0x9CA536CE 
+le32_padff     = 0xCF44DCE7 
+le32_pad00     = 0x11FFFC04 
+le4_zlib       = 0x99F8B879 
+---
+HITS: NONE (stored CRC does not match any standard formula tested)
+(inverse search skipped - not needed for gate decision)
+
+=== FILES IN EVIDENCE DIR ===
+backup-otadata.bin	8192
+flash-head-1M.bin	1048576
+parse_otadata.py	1644
+part-region-8000-2000.bin	8192
+partition-decoded-device.csv	503
+partition-readback.bin	4096
+partition-table-device.bin	4096
+preflash-backup-manifest.txt	1185
+_crc_brute.py	1174
+_crc_variants.py	2421
+_d0-extra.txt	2993
+_d0-extra2.txt	1047
+_d0a-flash-id.txt	450
+_d0c-backup-log.txt	1467
+_d0d-flash-scan.txt	8425
+_d0d-flash-scan.txt.txt	8435
+_d0d-partition-9000.txt	1469
+_d0d-partition-read.txt	2703
+_d0e-otadata-raw.txt	743
+_d0e-otadata.txt	3065
+_otadata_crc.py	510
+_probe-ota0-head.bin	64
+_probe-ota1-head.bin	64
+backups\backup-0x000000-0x010000-bootloader-and-parttable.bin	65536
+backups\backup-0x00a000-0x032000-nvsfactory.bin	204800
+backups\backup-0x03c000-0x0d2000-nvs.bin	860160
+backups\backup-0x0b00000-0x400000-ota_1-current-app.bin	4194304
+backups\backup-0x10e000-0x002000-otadata.bin	8192
+backups\backup-0x110000-0x001000-phy_init.bin	4096
+backups\backup-0x111000-0x0ef000-model-srmodels.bin	978944
+backups\backup-0x200000-0x900000-ota_0-current-app.bin	9437184
+=== DONE ===

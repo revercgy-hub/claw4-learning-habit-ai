@@ -1,0 +1,15 @@
+﻿### LIVENESS PROBE  2026-09-16 12:47:22
+=== re-read otadata 0x10e000 0x2000 ===
+now_otadata_sha256  = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+was_otadata_sha256  = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+otadata_changed     = False
+sector0 = 01 00 00 00 FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF 02 00 00 00 9A 98 43 47
+=== re-read nvs 0x3c000 0xd2000 ===
+now_nvs_sha256 = e46639f5ed2bc59d99c0ecc620b07207b91eef8c80fe9ee30dfe8c69d174c90b
+was_nvs_sha256 = 83cb50cef921c85003e53e422c08fbc0328e9df6a2d37b49afd97abd6088d232
+nvs_changed    = True
+=== otadata CRC recheck ===
+sector0 seq=1 state=0x00000002 crc_stored=0x4743989A crc_calc(zlib)=0x99F8B879 esprom=0x66074786 match_esprom=False
+sector1 seq=4294967295 state=0xFFFFFFFF crc_stored=0xFFFFFFFF crc_calc(zlib)=0xFFFFFFFF esprom=0x00000000 match_esprom=False
+
+=== DONE ===

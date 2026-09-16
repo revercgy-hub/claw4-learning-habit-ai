@@ -1,0 +1,25 @@
+# 冻结 Candidate 实机刷写前最终校验记录（D1 前置 §14.1）
+
+candidate            = claw4-v53-m0-a05-2c8f58f
+authoritative_source = 2c8f58f53506402918284c695100f007798433d8
+freeze_commit        = 420d0df1431536a042966617c2ff317cfbbc2ebd
+freeze_commit_head   = 420d0df1431536a042966617c2ff317cfbbc2ebd   (E:\claw4-a05-build-m0, branch workbuddy-a05-build-m0, git status --porcelain 为空)
+candidate_manifest   = integration/metalio_claw4/candidates/claw4-v53-m0-a05-2c8f58f.json (sha256 a55c53f9...)
+
+artifact             = xiaozhi.bin
+artifact_path        = E:\a05c\b\xiaozhi.bin
+artifact_size        = 9,271,760 B
+artifact_mtime       = 2026-09-15 18:01:58
+artifact_sha256      = c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36
+frozen_size          = 9,271,760 B
+frozen_sha256        = c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36
+
+size_match           = TRUE
+sha256_match         = TRUE
+FLASH_INPUT_HASH     = MATCH
+
+# 其它 4 个冻结构件（本轮不刷，仅作审计证据）
+xiaozhi.elf                  = 80,102,764 B
+xiaozhi.map                  = 21,859,377 B
+bootloader/bootloader.bin    = 20,416 B   sha256 e2a455c5...   -> EVIDENCE_ONLY_NOT_FOR_FLASH
+partition_table/partition-table.bin = 3,072 B  sha256 ef0039b6... -> EVIDENCE_ONLY_NOT_FOR_FLASH

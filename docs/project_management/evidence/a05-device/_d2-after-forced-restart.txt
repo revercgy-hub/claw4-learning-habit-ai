@@ -1,0 +1,42 @@
+﻿### 2026-09-16 13:17:35  用户已强制重启设备
+=== capture 45s (open port -> reset -> read) ===
+rc=0
+size=1853
+=== printable ===
+I (655) mmu_psram: .rodata xip on psram.
+I (999) mmu_psram: .text xip on psram.
+I (999) hex_psram: psram CS IO is dedicated.
+I (1000) cpu_start: Multicore app.
+I (1009) cpu_start: Pro cpu start user code.
+I (1009) cpu_start: cpu freq: 360000000 Hz.
+I (1009) app_init: Application information:.
+I (1009) app_init: Project name:     xiaozhi.
+I (1010) app_init: App version:      2.0.51.
+I (1010) app_init: Compile time:     Sep 15 2026 17:59:12.
+I (1010) app_init: ELF file SHA256:  fba68d580....
+I (1010) app_init: ESP-IDF:          HEAD-HASH-NOTFOUND.
+I (1010) efuse_init: Min chip rev:     v0.0.
+I (1011) efuse_init: Max chip rev:     v1.99 .
+I (1011) efuse_init: Chip rev:         v1.3.
+I (1011) heap_init: Initializing. RAM available for dynamic allocation:.
+I (1011) heap_init: At 4FF2A6E0 len 000108E0 (66 KiB): RETENT_RAM.
+I (1012) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM.
+I (1012) heap_init: At 4FF48750 len 000578B0 (350 KiB): RAM.
+I (1012) heap_init: At 501080A0 len 00007F60 (31 KiB): RTCRAM.
+I (1012) heap_init: At 30100084 len 00001F7C (7 KiB): TCM.
+I (1013) esp_psram: Adding pool of 23808K of PSRAM memory to heap allocator.
+I (1013) esp_psram: Adding pool of 28K of PSRAM memory gap generated due to end address alignment of irom to the heap allocator.
+I (1014) esp_psram: Adding pool of 37K of PSRAM memory gap generated due to end address alignment of drom to the heap allocator.
+I (1014) spi_flash: detected chip: gd.
+I (1014) spi_flash: flash io: qio.
+I (1016) sleep_gpio: Configure to isolate all GPIO pins in sleep state.
+I (1016) sleep_gpio: Enable automatic switching of GPIO sleep configuration.
+I (1035) H_SDIO_DRV: sdio_data_to_rx_buf_task started.
+I (1035) main_task: Started on CPU0.
+I (1036) esp_psram: Reserving pool of 64K of internal memory for DMA/internal allocations.
+I (1036) main_task: Calling app_main().
+
+=== otadata + nvs state ===
+otadata_sha256 = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3  changed_vs_preflash = False
+nvs_sha256 = e46639f5ed2bc59d99c0ecc620b07207b91eef8c80fe9ee30dfe8c69d174c90b  changed_vs_preflash = True  changed_vs_prev = False
+=== DONE ===

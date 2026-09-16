@@ -1,0 +1,66 @@
+﻿### CMD: read_flash 0x8000 0x1000   (2026-09-16 12:30:35)
+exit_code=0
+esptool.py v4.12.0
+Serial port COM7
+Connecting...
+Detecting chip type... ESP32-P4
+Chip is ESP32-P4 (revision v1.3)
+Features: High-Performance MCU
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 80:f1:b2:d2:ed:14
+Uploading stub...
+Running stub...
+Stub running...
+Configuring flash size...
+4096 (100 %)
+4096 (100 %)
+Read 4096 bytes at 0x00008000 in 0.1 seconds (599.4 kbit/s)...
+Staying in bootloader.
+
+sha256=f47a8ec3e9aff2318d896942282ad4fe37d6391c82914f54a5da8a37de1300c6
+size=4096
+=== FIRST 16 BYTES ===
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+=== DECODE (gen_esp32part BIN->CSV) ===
+decode_rc=1
+python.exe : Traceback (most recent call last):
+所在位置 行:461 字符: 8
++   $d = & $py $gen --flash-size 32MB "$ev\partition-readback.bin" "$ev ...
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last) 
+   ::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "E:\workbuddy\esp-idf-5.5.4-ascii\components\partition_table\gen_esp32pa
+rt.py", line 802, in <module>
+    main()
+  File "E:\workbuddy\esp-idf-5.5.4-ascii\components\partition_table\gen_esp32pa
+rt.py", line 756, in main
+    table, input_is_binary = PartitionTable.from_file(args.input)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\workbuddy\esp-idf-5.5.4-ascii\components\partition_table\gen_esp32pa
+rt.py", line 206, in from_file
+    str_data = bin_data.decode(get_encoding(bin_data))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid
+ start byte
+
+=== FROZEN CSV (tree) ===
+sha256=c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b
+# ESP-IDF Partition Table 鈥?32MB dual-boot (xingzhi + esp-claw edge_agent)
+# Name,         Type, SubType,      Offset,   Size, Flags
+nvsfactory,     data, nvs,         0xA000,   200K,
+nvs,            data, nvs,                ,   840K,
+otadata,        data, ota,                ,     8K,
+phy_init,       data, phy,                ,     4K,
+model,          data, spiffs,             ,   956K,
+ota_0,          app,  ota_0,      0x200000,     9M,
+ota_1,          app,  ota_1,              ,     4M,
+resources,      data, spiffs,             ,     4M,
+factory_test,   data, spiffs,             ,   600K,
+emote,          data, spiffs,             ,     4M,
+system,         data, fat,                ,     1M,
+storage,        data, fat,                ,     7M,
+coredump,       data, coredump,           ,    64K,
+

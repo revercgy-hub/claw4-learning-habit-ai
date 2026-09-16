@@ -1,0 +1,100 @@
+# A05-DEVICE D2-D — Network Smoke 证据（network-smoke）
+> 时间窗：2026-09-16 14:30 – 15:00 (+08:00)
+> Candidate：`claw4-v53-m0-a05-2c8f58f`（app sha256 `c035e1c0…8d36`）
+> **脱敏声明（任务书 §34）**：本文件不含 Wi-Fi 密码、MQTT 凭据、`device_secret`、token。
+> 含凭据的原始产物（`_postconfig-nvs.bin`、`_d2-nvs-minimal.txt` 等）**仅本地**，已 gitignore，报告只记 hash。
+
+---
+
+## 1. 设备侧：Wi-Fi 凭据已由用户在 NetworkScreen 写入并在掉电后保持
+
+用 **IDF 官方工具**读取实机 NVS 分区（`0x3C000`，len `0xD2000`）解析：
+
+```
+nvs_tool.py  -d minimal -i
+  wifi:ota_url  = https://api.tenclass.net/xiaozhi/ota/
+  wifi:ssid     = <REDACTED-1>          <- 用户本次配置的 AP（明文已脱敏）
+  wifi:ssid1    = <REDACTED-2>          <- 设备原有条目，被 SsidManager 顺移到 index 1
+  wifi:password1= <REDACTED>
+```
+- `nvs_tool.py -i`（integrity check）**无 error / 无 warning**。
+- 解析依据（源码）：`78__esp-wifi-connect/ssid_manager.cc` → 命名空间 `wifi`，键 `ssid`/`ssid1`/…、`password`/`password1`/…；
+  `display/screen/network_screen/network_screen.cc:722` 在拿到 IP 后调 `SsidManager::AddSsid()` 落盘。
+- NVS 摘要：`_now-nvs4.bin`(13:28，配网前) sha256 `e46639f5…c90b` → `_postconfig-nvs.bin`(14:35，配网后) sha256 `6678c688…c9ed`；
+  字节级 diff（`nvs_diff.py`）只有 **8 个区、274 B** 变化，全部落在 `wifi`（ssid/ssid1/password1）与 `mqtt`（username/password）条目上。
+- 掉电验证：用户在 14:30 前后**拔掉 USB → 等 5 s → 插回**，之后读出的 NVS 仍含上述条目 ⇒ **凭据跨掉电保持（NVS Regression 关键证据）**。
+
+## 2. 设备侧：联网成功后发生了**至少两次**与云端 OTA 服务器的完整 HTTPS 往返（强证据）
+
+候选源码决定：`mqtt` 命名空间的键**只能**由 `ota.cc:176-191` 从 OTA `/ota/` 响应 JSON 的 `mqtt` 对象写入
+（`Settings settings("mqtt", true)` + `SetString(item->string, item->valuestring)`，比较不同才写）。
+
+实机 NVS 的 `mqtt:username` 值两次发生变化（base64 解出可见服务端观察到的客户端公网 IP）：
+
+| 时间 | `mqtt:username` 解出内容（脱敏） | 含义 |
+|---|---|---|
+| 13:28 之前（既有） | `{"ip":"27.152.x.x"}` | 更早一次联网的产物 |
+| 14:35（本次配网后首次读出） | `{"ip":"120.41.x.x"}` | **新的一次 OTA 响应**（配网后才出现） |
+| 14:55（再次读出） | `{"ip":"27.154.x.x"}` | **又一次 OTA 响应**（IP 字段再次变化） |
+
+⇒ 结论：**Wi-Fi 已连上 + DNS + TLS + HTTP + JSON 解析 + NVS 落盘** 全链路在设备侧闭环完成，
+且不是一次性事件（同一轮运行内发生了多次）。这与"用户看到屏幕显示已在线/已激活"一致。
+
+> 用户侧网络为福建电信出口（120.41.x.x / 27.154.x.x 均属福建电信段）。本机（Windows 主机）因 Tailscale 出口劫持，
+> 探到的公网 IP 为 `185.218.5.17`，**不能**用来反证设备出口，故此处只以"设备侧 NVS 由服务端响应驱动"为准。
+
+## 3. 上游 xiaozhi 云端点可达性（主机侧只读探测，用于定性）
+```
+Resolve-DnsName api.tenclass.net -> 47.112.110.152
+TCP 443  = True     TCP 80 = True
+TCP 8883 = True     TCP 1883 = False      <- 明文 MQTT 端口不可达；固件默认走 8883（mqtt_protocol.cc:125 broker_port = 8883）
+```
+
+## 4. Learning backend 链路：本轮**不可达**，记为 NOT_EXERCISED（不是候选缺陷）
+- 设备 NVS `learning_cfg` 的 `base_url = http://192.168.3.26:18765`（**局域网地址**），并含 `device_id` / `child_id` / `device_secret`
+  ⇒ 该配置是**设备既有 provisioning**，非本次配网产生（本次 diff 未触碰 `learning_cfg`）。
+- 用户确认：**本次 Wi-Fi 不是 192.168.3.x 网段** ⇒ 设备网络内不存在该服务。
+- 主机侧同样不可达：`Test-NetConnection 192.168.3.26:18765` → `TcpTestSucceeded=False`、`PingSucceeded=False`
+  （且主机到 192.168.3.0/24 的路由被判给了 Tailscale，进一步说明本网段不存在该主机）。
+- 设备侧旁证：outbox 事件集在 13:28→14:55 之间**只增不减**（96 → 100 个 distinct event id，removed=0）
+  ⇒ 同步**没有成功过**（成功会移除已 ack 行），但**也没有崩溃**（见 fatal-scan.txt，0 命中）。
+- 该 `base_url` 属设备既有 provisioning；修改它需要写 NVS，**任务书 §1.2 / §15 禁止**，故本轮不修。
+
+## 5. 屏幕上的"网络离线"提示该怎么读（源码定性）
+固件里"离线"有**两处互不相同**的判定，均**不表示公网/Wi-Fi 掉线**：
+1. `learning_screen.cc:301`：`backend.network_online ? " · 网络在线" : " · 网络离线"`
+   ← 由 `BackendSessionDiagnostics.network_online` 决定，即**学习后端（192.168.3.26:18765）可达性**。
+   本轮设备不在该网段 ⇒ 显示"网络离线"是**预期**。
+2. `learning/ui/presenters.cpp:25 isOffline()` = `OfflineIdle || Error || !time_synced` ← 首页"离线"徽标。
+   `DomainState.time_synced` 默认 `false`，M0 **尚未接入时间同步**（时间/`/today` 属 C01，Reminder 属 C03）
+   ⇒ 首页离线徽标在 M0 出现**同样是预期**，不得判 FAIL。
+
+## 6. 联网后候选完整性复核（防止上游自动 OTA 覆盖冻结候选）
+候选存在自动升级路径：`application.cc:179` `if (ota.HasNewVersion()) UpgradeFirmware(ota)`。
+设备已联网 ⇒ 必须证明**候选未被替换**：
+
+| 检查 | 结果 |
+|---|---|
+| `otadata` sha256 | `8ba3b110…91a3` == D0 时值 ⇒ **未变**；`seq=1 / state=VALID` ⇒ boot_index=0 ⇒ ota_0 |
+| `ota_0` 全量 9,271,760 B 回读 sha256 | `c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36` == 冻结值 ⇒ **仍是冻结候选** |
+| `ota_1` 头 64 B | 与 D0 备份逐字节相同 ⇒ 未发生 OTA 写入 |
+| 设备运行身份 | 日志 `App version 2.0.51 / Compile time Sep 15 2026 17:59:12 / ELF SHA256 fba68d580…` == 冻结 `xiaozhi.elf` |
+
+⇒ `ota_url` 指向的上游服务器本轮**未下发更高版本**，或版本比较判定不为新；**候选未被替换**。
+
+## 7. 本轮**不得**宣称的项（任务书 §22/§29）
+```
+NETWORK_TOTAL_DEADLINE      = DEVICE_VERIFY_REQUIRED   （EspTcp::Connect() 不继承 HTTP total timeout）
+TCP real loopback           = DEVICE_VERIFY_REQUIRED
+connect / request / disconnect latency = 未采集（受 USB 控制台观测窗口限制，见 monitor-log.txt）
+Learning backend 真实同步往返 = NOT_EXERCISED（后端地址不在设备网段）
+```
+
+## 附：本文件引用的原始产物（仅本地）
+```
+_now-nvs4.bin                 860160 B  sha256 e46639f5ed2bc59d99c0ecc620b07207b91eef8c80fe9ee30dfe8c69d174c90b
+_postconfig-nvs.bin           860160 B  sha256 6678c688d00695993bc49eb2ccb9e9bfa624cba6275023af6c4c3faa61dec9ed
+_now2-nvs.bin                 860160 B  sha256 3261ec5ee5584420c9364b9dc664e6defa6c96ac736bc33ba01bc63675dbe865
+_after-online-otadata.bin       8192 B  sha256 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+_after-online-ota0-app.bin   9271760 B  sha256 c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36
+```

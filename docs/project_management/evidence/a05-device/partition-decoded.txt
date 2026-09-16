@@ -1,0 +1,70 @@
+# A05-DEVICE D0-D — 实机真实分区表 vs 冻结 Candidate 分区表
+
+## 已批准冻结分区 CSV（树内 `<src>\partitions\v1\32m_dual.csv`）
+sha256(LF)  = c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b
+size        = 810 B
+
+## 实机读取
+真实 partition table 位于 **0x9000**（不是 0x8000；0x8000 区域全 0xFF）
+读取区间 0x8000..0xA000，取 0x9000 起 4096 B -> partition-table-device.bin
+  sha256 = 8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a
+首 16 字节：AA 50 01 02 00 A0 00 00 00 20 03 00 6E 76 73 66   (magic AA50 + 13 项 + "nvsf")
+
+## 实机解码（gen_esp32part.py --flash-size 32MB partition-table-device.bin -> device.csv）
+| Name         | Type | SubType  | Offset      | Size  |
+|---|---|---|---|---|
+| nvsfactory   | data | nvs      | 0x0000A000  | 200K  |
+| nvs          | data | nvs      | 0x0003C000  | 840K  |
+| otadata      | data | ota      | 0x0010E000  | 8K    |
+| phy_init     | data | phy      | 0x00110000  | 4K    |
+| model        | data | spiffs   | 0x00111000  | 956K  |
+| ota_0        | app  | ota_0    | 0x00200000  | 9M    |
+| ota_1        | app  | ota_1    | 0x00B00000  | 4M    |
+| resources    | data | spiffs   | 0x00F00000  | 4M    |
+| factory_test | data | spiffs   | 0x01300000  | 600K  |
+| emote        | data | spiffs   | 0x01396000  | 4M    |
+| system       | data | fat      | 0x01796000  | 1M    |
+| storage      | data | fat      | 0x01896000  | 7M    |
+| coredump     | data | coredump | 0x01F96000  | 64K   |
+
+（13 项，无重叠，末段结束 0x01FA6000）
+
+## 逐项比对结果
+| 项 | 冻结 CSV | 实机解码 | 结果 |
+|---|---|---|---|
+| 行数 | 13 | 13 | MATCH |
+| ota_0 offset | 0x00200000 | 0x00200000 | MATCH |
+| ota_0 size | 9M = 9,437,184 | 9M = 9,437,184 | MATCH |
+| ota_1 offset | 0x00B00000 (工具接续) | 0x00B00000 | MATCH |
+| ota_1 size | 4M = 4,194,304 | 4M = 4,194,304 | MATCH |
+| resources | 0x00F00000 / 4M | 0x00F00000 / 4M | MATCH |
+| storage | 0x01896000 / 7M | 0x01896000 / 7M | MATCH |
+| system | 0x01796000 / 1M | 0x01796000 / 1M | MATCH |
+| nvs | 0x0003C000 / 840K | 0x0003C000 / 840K | MATCH |
+| otadata | 0x0010E000 / 8K | 0x0010E000 / 8K | MATCH |
+| nvsfactory | 0x0000A000 / 200K | 0x0000A000 / 200K | MATCH |
+| phy_init | 0x00110000 / 4K | 0x00110000 / 4K | MATCH |
+| model | 0x00111000 / 956K | 0x00111000 / 956K | MATCH |
+| factory_test | 0x01300000 / 600K | 0x01300000 / 600K | MATCH |
+| emote | 0x01396000 / 4M | 0x01396000 / 4M | MATCH |
+| coredump | 0x01F96000 / 64K | 0x01F96000 / 64K | MATCH |
+
+## 字节级交叉证明
+候选构建 `E:\a05c\b\partition_table\partition-table.bin`（3,072 B）
+vs 实机 0x9000 起 4096 B 段：
+  prefix_equal = TRUE  (first_diff_index = -1)
+即实机分区表与候选分区表**逐字节相同**（候选文件为其实机区域的 3072 B 前缀）。
+
+## 候选构建自身的偏移事实（flasher_args.json）
+- bootloader      @ 0x2000
+- partition-table @ 0x9000     <- 与实机一致
+- app(xiaozhi.bin)@ 0x200000   <- 与实机 ota_0 一致
+- otadata         @ 0x10E000   <- 与实机一致
+- model           @ 0x111000
+- resources       @ 0xF00000
+- factory_test    @ 0x1300000
+- 候选 sdkconfig: CONFIG_PARTITION_TABLE_OFFSET=0x9000
+
+## Gate
+实机 ota_0 offset = 0x00200000，size = 9,437,184 >= 9,271,760  -> OK
+DEVICE_PARTITION_GATE = PASS

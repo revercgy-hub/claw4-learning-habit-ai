@@ -1,0 +1,16 @@
+﻿### 上游 xiaozhi 云链路可达性（只读 TCP 探测）  2026-09-16 14:58:29
+=== DNS ===
+
+Name             Type IPAddress      NameHost     
+----             ---- ---------      --------     
+api.tenclass.net    A 47.112.110.152              
+tenclass.net       NS                ns3.dnsv2.com
+tenclass.net       NS                ns4.dnsv2.com
+
+
+
+api.tenclass.net:443  TcpTestSucceeded=True
+api.tenclass.net:1883  TcpTestSucceeded=False
+api.tenclass.net:8883  TcpTestSucceeded=True
+api.tenclass.net:80  TcpTestSucceeded=True
+=== DONE ===

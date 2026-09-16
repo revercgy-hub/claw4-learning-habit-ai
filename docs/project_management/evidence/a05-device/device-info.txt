@@ -1,0 +1,32 @@
+# A05-DEVICE D0-A — 设备身份（只读）
+
+timestamp_local = 2026-09-16 12:30:16 +08:00
+command         = esptool.exe --port COM7 --before default_reset --after hard_reset flash_id
+esptool_version = v4.12.0
+
+port            = COM7
+usb_device_id   = USB\VID_303A&PID_1001&MI_00\9&390743E9&0&0000   ("USB 串行设备 (COM7)")
+usb_vid_pid     = 303A:1001  (Espressif 内建 USB-Serial/JTAG)
+usb_mode        = USB-Serial/JTAG
+usb_status      = OK
+
+chip            = ESP32-P4
+revision        = v1.3
+features        = High-Performance MCU
+crystal         = 40MHz
+
+mac             = 80:f1:b2:d2:ed:14
+device_id       = p4-80f1b2d2ed14
+
+flash_vendor    = 0xC8   (GigaDevice)
+flash_device    = 0x4019
+flash_size      = 32MB  (33,554,432 B)
+
+# 同机其它串口（不参与本轮，仅记录）
+COM6 = USB-SERIAL CH340K (VID_1A86&PID_7522)   <- UART0 桥（备用恢复通道②）
+COM4 = USB\VID_19D1&PID_0001&MI_02             <- 与本任务无关
+COM5 = USB\VID_19D1&PID_0001&MI_00             <- 与本任务无关
+
+# 期望平台核对
+EXPECTED_PLATFORM = ESP32-P4  -> MATCH (revision v1.3)
+DEVICE_IDENTITY = PASS

@@ -1,0 +1,32 @@
+﻿### port presence monitor  2026-09-16 13:19:10
+python.exe : bytes=66951
+所在位置 行:449 字符: 6
++ $r = & $py "$ev\d2_presence_monitor.py" "$ev\_presence.rawlog" 40 2>& ...
++      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (bytes=66951:String) [], RemoteExc 
+   eption
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+port_presence_events(s,state,nports)=[(0.01, 'PRESENT', 4, 0.01), (1.27, 'ABSEN
+T', 1, 1.27), (1.58, 'PRESENT', 2, 1.58), (2.87, 'ABSENT', 1, 2.87), (3.18, 'PR
+ESENT', 2, 3.18), (4.46, 'ABSENT', 1, 4.46), (4.77, 'PRESENT', 2, 4.77), (6.04,
+ 'ABSENT', 1, 6.04), (6.36, 'PRESENT', 2, 6.36), (7.63, 'ABSENT', 1, 7.63), (7.
+95, 'PRESENT', 2, 7.95), (9.22, 'ABSENT', 1, 9.22), (9.54, 'PRESENT', 2, 9.54),
+ (10.81, 'ABSENT', 1, 10.81), (11.13, 'PRESENT', 2, 11.13), (12.4, 'ABSENT', 1,
+ 12.4), (12.71, 'PRESENT', 2, 12.71), (14.03, 'ABSENT', 1, 14.03), (14.18, 'PRE
+SENT', 2, 14.18), (15.61, 'ABSENT', 1, 15.61), (15.93, 'PRESENT', 2, 15.93), (1
+7.21, 'ABSENT', 1, 17.21), (17.37, 'PRESENT', 2, 17.37), (18.8, 'ABSENT', 1, 18
+.8), (18.95, 'PRESENT', 2, 18.95), (20.38, 'ABSENT', 1, 20.38), (20.69, 'PRESEN
+T', 2, 20.69), (24.4, 'ABSENT', 0, 24.4), (25.2, 'PRESENT', 2, 25.2), (26.33, '
+ABSENT', 1, 26.33), (26.65, 'PRESENT', 2, 26.65), (27.96, 'ABSENT', 1, 27.96), 
+(28.28, 'PRESENT', 2, 28.28), (29.57, 'ABSENT', 1, 29.57), (29.73, 'PRESENT', 2
+, 29.73), (31.21, 'ABSENT', 1, 31.21), (31.37, 'PRESENT', 2, 31.37), (32.66, 'A
+BSENT', 1, 32.66), (32.98, 'PRESENT', 2, 32.98), (34.25, 'ABSENT', 1, 34.25), (
+34.58, 'PRESENT', 2, 34.58), (35.87, 'ABSENT', 1, 35.87), (36.19, 'PRESENT', 2,
+ 36.19), (37.48, 'ABSENT', 1, 37.48), (37.79, 'PRESENT', 2, 37.79), (39.09, 'AB
+SENT', 1, 39.09), (39.4, 'PRESENT', 2, 39.4)]
+reader_open_attempts(s)=[0.03, 1.62, 3.21, 4.8, 6.39, 7.98, 9.58, 11.17, 12.76,
+ 14.35, 15.94, 17.53, 19.12, 20.72, 25.12, 26.71, 28.3, 29.89, 31.48, 33.07, 34
+.67, 36.26, 37.85, 39.44]
+
+=== DONE ===

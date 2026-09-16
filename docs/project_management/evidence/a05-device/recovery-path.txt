@@ -1,0 +1,45 @@
+# A05-DEVICE D0-F — 恢复路径确认
+
+## 结论
+RECOVERY_PATH = CONFIRMED
+
+设备是 **ESP32-P4 + 内建 USB-Serial/JTAG**（USB\VID_303A&PID_1001），
+其 ROM 下载模式（serial bootloader）**不依赖应用固件**，因此任何应用层故障都可恢复。
+本轮已在本任务中**多次实证** ROM 下载模式可达（每次 esptool 调用都完成了
+`Uploading stub... -> Running stub... -> Stub running...`，这本身就是 ROM download mode 被进入并接管）。
+
+## 恢复通道
+| # | 通道 | 端口 | 说明 | 状态 |
+|---|---|---|---|---|
+| ① | 内建 USB-Serial/JTAG ROM download | COM7 | 主通道；esptool 不按下任何按键即可自动进入（DTR/RTS 复位序列） | **已实证可用** |
+| ② | UART0 桥 (CH340K) | COM6 | 备用通道；若 ① 不可用可用 UART 下载模式 | 端口枚举正常（未本轮使用） |
+
+## 如何进入 / 如何识别 / 如何恢复
+进入（①，正常情况）：
+    E:\workbuddy\claw4-idf-tools\python_env\idf5.5_py3.12_env\Scripts\esptool.exe --port COM7 --before default_reset --after hard_reset flash_id
+  esptool 自动走 DTR/RTS 复位进 ROM 下载模式。识别标志：
+    "Detecting chip type... ESP32-P4" + "Uploading stub..." + "Stub running..."
+进入（①，设备已跑飞 / 自动复位无效时）：
+    按住开发板 BOOT（ESP32-P4 的 io9 / 下载键）不放 -> 短按 RESET -> 松开 BOOT
+    然后执行：esptool.exe --port COM7 --before no_reset --after hard_reset flash_id
+  （`--before no_reset` 表示"设备已在下载模式，别去复位它"）
+进入（②，备用）：
+    用 UART0/CH340K 走 COM6，同上流程，波特率 115200。
+识别（不依赖串口软件，直接看设备管理器/PNP）：
+    COM7 对应 USB\VID_303A&PID_1001&MI_00 —— 只要该设备在枚举，ROM 下载模式就有入口。
+
+## 失败后如何恢复（回滚到出厂状态）
+本轮已把全部关键区域落盘为备份（见 preflash-backup-manifest.txt）。完整回滚命令：
+    esptool.exe --port COM7 --before default_reset --after hard_reset write_flash ^
+      0x000000  <evidence>\backups\backup-0x000000-0x010000-bootloader-and-parttable.bin ^
+      0x00A000  <evidence>\backups\backup-0x00a000-0x032000-nvsfactory.bin ^
+      0x03C000  <evidence>\backups\backup-0x03c000-0x0d2000-nvs.bin ^
+      0x10E000  <evidence>\backups\backup-0x10e000-0x002000-otadata.bin ^
+      0x110000  <evidence>\backups\backup-0x110000-0x001000-phy_init.bin ^
+      0x111000  <evidence>\backups\backup-0x111000-0x0ef000-model-srmodels.bin ^
+      0x200000  <evidence>\backups\backup-0x200000-0x900000-ota_0-current-app.bin ^
+      0x0B00000 <evidence>\backups\backup-0x0b00000-0x400000-ota_1-current-app.bin
+（`0x000000` 那条 64KB 备份同时覆盖 bootloader @0x2000 与 partition-table @0x9000）
+
+## 本轮范围声明
+按任务书 §12，**本轮不测试"刷死恢复"**，仅确认恢复路径可用且有文档依据。

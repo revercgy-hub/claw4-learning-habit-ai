@@ -1,0 +1,18 @@
+# 设备取证二进制 / 含凭据的 NVS 备份 —— 仅本地，禁止入库（任务书 §34）
+*.bin
+backups/
+
+# 含凭据 / 私有 ID 的解析产物（Wi-Fi 密码、MQTT 凭据、device_secret、token、完整 NVS）——仅本地（§34）
+_d2-postconfig-nvs.txt
+_d2-nvs-minimal.txt
+_d2-nvs-diff.txt
+_d2-nvs-runtime-delta.txt
+_postconfig-nvs.bin
+_now-nvs.bin
+_now2-nvs.bin
+_now-nvs2.bin
+_now-nvs3.bin
+_now-nvs4.bin
+partition-readback.bin
+partition-table-device.bin
+partition-decoded-device.csv

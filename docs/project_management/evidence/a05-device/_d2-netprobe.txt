@@ -1,0 +1,27 @@
+﻿### NETWORK PROBE (host side)  2026-09-16 14:38:28
+=== 1) host public IP (read-only echo) ===
+OK  https://api.ipify.org -> 185.218.5.17
+OK  https://ifconfig.me/ip -> 185.218.5.17
+=== 2) route to 192.168.3.0/24 ===
+
+
+IPAddress      : 100.97.216.70
+InterfaceAlias : Tailscale
+NextHop        : 
+
+IPAddress      : 
+InterfaceAlias : Tailscale
+NextHop        : 100.100.100.100
+
+
+
+
+=== 3) TCP 192.168.3.26:18765 (learning backend configured in device NVS) ===
+TcpTestSucceeded = False  PingSucceeded = False
+=== 4) default gateway / LAN ===
+以太网 ip=192.168.16.74 gw=192.168.16.1
+vgate0 ip=172.30.247.120 gw=
+Tailscale ip=100.97.216.70 gw=100.100.100.100
+WLAN ip=169.254.237.6 gw=
+蓝牙网络连接 ip=169.254.207.245 gw=
+=== DONE ===
