@@ -1,0 +1,214 @@
+{
+  "candidate": "claw4-v53-m0-a05-2c8f58f",
+  "candidate_kind": "APPLICATION_ONLY (ota_0 payload)",
+  "frozen_by": "WB-A05-CP4-001 (CP4 / Candidate Freeze / A05-BUILD Closeout)",
+  "frozen_at": "2026-09-16",
+  "freeze_principle": "Freeze, don't develop",
+
+  "authoritative_source_revision": "2c8f58f53506402918284c695100f007798433d8",
+  "cp3_audit_revision": "e590626d289e9b67a41200493b36733cd1a07d8e",
+  "cp3_audit_note": "e590626 is the AUDIT REPORT revision, NOT the firmware product source revision. The firmware source revision is authoritative_source_revision.",
+
+  "isolated_source_root": "E:\\a05c\\s",
+  "isolated_source_sha256": "36bc3d4d9b847253b90068fd8776d28e80cfd501765723471205b6f60f7e8ba9",
+  "isolated_source_files": 1353,
+  "isolated_source_bytes": 72457109,
+  "isolated_source_excludes": {
+    "dirs": ["managed_components", "build"],
+    "files_generated_by_build": [
+      "main/assets/lang_config.h",
+      "main/i18n/i18n_strings_gen.h",
+      "main/mmap_generate_resources.h"
+    ],
+    "note": "the three generated files change on every build and are recorded but not compared; every other file is inside the digest"
+  },
+
+  "sdkconfig_sha256": "a901f20491671a9cbca8cbe60c4ac4b26d91ac1916d36530b9475b6704fabc26",
+  "sdkconfig_note": "frozen C5 configuration; verified identical in the isolated tree and unchanged across configure (pre == post)",
+
+  "idf_tree_sha256": "9979c6c36539dd7c7021a881c7602a333801c49586b55cc651914ed84d3d5381",
+  "idf_tools_tree_sha256": "78ad1256ef07b11b92e903920c3f5f1a3d49d60887ad2b874f110b51cf1c2f44",
+  "managed_components_sha256": "83c759c8306b11193feebd061cd8752bfe7db4384e752132a078f312395a9af4",
+  "managed_components_count": 82,
+
+  "build_root": "E:\\a05c\\b",
+  "build_root_note": "short path is mandatory: the long TUs carry 379 -I flags, 212 embedding the source root, and the Windows CreateProcess command line is capped at 32767 chars",
+
+  "artifacts": {
+    "xiaozhi.bin": {
+      "size": 9271760,
+      "sha256": "c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36",
+      "role": "APPLICATION_IMAGE (the only artifact intended for flashing, at ota_0 offset 0x00200000)"
+    },
+    "xiaozhi.elf": {
+      "size": 80102764,
+      "sha256": "fba68d58002e8139506df655310cabd79f8359f1fff11cfc49d566ea5da8aa60",
+      "role": "EVIDENCE_ONLY_NOT_FOR_FLASH (symbol/map evidence)"
+    },
+    "xiaozhi.map": {
+      "size": 21859377,
+      "sha256": "93f8e7d93e35cac0d2d52b073111b72b8069ac7afe431754db84717546b5bafe",
+      "role": "EVIDENCE_ONLY_NOT_FOR_FLASH (link map: archive members + discarded sections)"
+    },
+    "bootloader/bootloader.bin": {
+      "size": 20416,
+      "sha256": "e2a455c5786943bc0c23a2b1cb71482b35763319a9b457d80c7e63fdc3b33f33",
+      "role": "EVIDENCE_ONLY_NOT_FOR_FLASH"
+    },
+    "partition_table/partition-table.bin": {
+      "size": 3072,
+      "sha256": "ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f",
+      "role": "EVIDENCE_ONLY_NOT_FOR_FLASH"
+    }
+  },
+  "artifacts_verified": "5/5 MATCH (re-hashed read-only at freeze time; not copied from the report)",
+
+  "partition": {
+    "approved_csv": "partitions/v1/32m_dual.csv",
+    "approved_csv_sha256_lf": "c5277b4bf6348c676cdb1e02fcd4275d6b7a3630675f0ad1291f85fa8b01116b",
+    "generated_partition_table_sha256": "ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f",
+    "comparison": "13 / 13 rows OK, no overlap, in range (PASS)",
+    "rows": [
+      { "name": "nvsfactory",   "type": "data", "subtype": "nvs",      "offset": "0x0000a000", "size": 204800 },
+      { "name": "nvs",          "type": "data", "subtype": "nvs",      "offset": "0x0003c000", "size": 860160 },
+      { "name": "otadata",      "type": "data", "subtype": "ota",      "offset": "0x0010e000", "size": 8192 },
+      { "name": "phy_init",     "type": "data", "subtype": "phy",      "offset": "0x00110000", "size": 4096 },
+      { "name": "model",        "type": "data", "subtype": "spiffs",   "offset": "0x00111000", "size": 978944 },
+      { "name": "ota_0",        "type": "app",  "subtype": "ota_0",    "offset": "0x00200000", "size": 9437184 },
+      { "name": "ota_1",        "type": "app",  "subtype": "ota_1",    "offset": "0x00b00000", "size": 4194304 },
+      { "name": "resources",    "type": "data", "subtype": "spiffs",   "offset": "0x00f00000", "size": 4194304 },
+      { "name": "factory_test", "type": "data", "subtype": "spiffs",   "offset": "0x01300000", "size": 614400 },
+      { "name": "emote",        "type": "data", "subtype": "spiffs",   "offset": "0x01396000", "size": 4194304 },
+      { "name": "system",       "type": "data", "subtype": "fat",      "offset": "0x01796000", "size": 1048576 },
+      { "name": "storage",      "type": "data", "subtype": "fat",      "offset": "0x01896000", "size": 7340032 },
+      { "name": "coredump",     "type": "data", "subtype": "coredump", "offset": "0x01f96000", "size": 65536 }
+    ],
+    "last_partition_end": "0x01fa6000",
+    "trailing_unallocated_bytes": 368640,
+    "partition_change_in_cp4": "NONE",
+    "ota_policy_change_in_cp4": "NONE"
+  },
+
+  "capacity": {
+    "ota_0": { "offset": "0x00200000", "size": 9437184 },
+    "app_image_bytes": 9271760,
+    "ota_0_headroom_bytes": 165424,
+    "ota_0_headroom_percent": 1.75,
+    "ota_1": { "offset": "0x00b00000", "size": 4194304 },
+    "app_fits_ota_1": false,
+    "conclusion": "DUAL-SLOT OTA UNAVAILABLE FOR THIS CANDIDATE",
+    "hard_gate_note": "any later build that changes the binary must re-run the app-size-vs-ota_0 HARD GATE; only 165,424 B / 1.75% remains"
+  },
+
+  "module_matrix": {
+    "method": "libmain.a is linked with --whole-archive, so 'the archive contains the symbol' is true for every member and has no discriminating power. Retention is judged ONLY by the link map's 'Discarded input sections' plus the final ELF symbol table. Archive symbols are never reported as final ELF symbols.",
+    "group1_runtime_wired": [
+      { "module": "SyncExecutor", "state": ["COMPILED", "REFERENCED", "ELF_RETAINED", "RUNTIME_WIRED"], "elf_symbols": "3 T" },
+      { "module": "SingleFlightHttpTransport", "state": ["COMPILED", "REFERENCED", "ELF_RETAINED", "RUNTIME_WIRED"], "elf_symbols": "3 T + 3 V + 3 W" },
+      { "module": "LearningBackendSession", "state": ["COMPILED", "REFERENCED", "ELF_RETAINED", "RUNTIME_WIRED"], "elf_symbols": "8 T + 2 d + 2 t" }
+    ],
+    "group1_runtime_chain": [
+      "LearningScreen (display/screen/learning_screen/learning_screen.cc:90)",
+      "LearningRuntime::Instance()",
+      "LearningBackendSession (learning_runtime.cpp:64)",
+      "SyncExecutor (learning_backend_session.cpp:283)",
+      "CreateMetalioHttpTransport()",
+      "SingleFlightHttpTransport (metalio_http_transport.cpp:52)"
+    ],
+    "group2_compiled_not_wired": [
+      { "module": "TimeAuthority", "state": ["COMPILED", "GC_DISCARDED", "COMPILED_NOT_WIRED"], "elf_symbols": "0" },
+      { "module": "InteractionArbiter", "state": ["COMPILED", "GC_DISCARDED", "COMPILED_NOT_WIRED"], "elf_symbols": "0" },
+      { "module": "ReminderCore", "state": ["COMPILED", "GC_DISCARDED", "COMPILED_NOT_WIRED"], "elf_symbols": "0" }
+    ],
+    "group2_note": "This is the legitimate state of M0. CP4 did NOT wire them and must not. Wiring them changes the binary, which invalidates this candidate and forces a full Build Gate plus a fresh CP3 audit. Wiring belongs to C03.",
+    "group3_type_compiled": [
+      { "module": "ReminderWakePort", "state": ["TYPE_COMPILED", "NO_STANDALONE_SYMBOL_REQUIRED", "DEVICE_IMPL_FUTURE"], "note": "pure interface included by reminder_core.h" },
+      { "module": "SessionLease / SessionLeaseHolder / SessionLeaseSource", "state": ["TYPE_COMPILED", "ELF_RETAINED"], "note": "SessionLeaseHolder<LearningBackendSession> vtable/~Holder/currentLease and SessionLeaseSource::isCurrent present as T" },
+      { "module": "SessionSnapshotPublisher", "state": ["TYPE_COMPILED", "CALLED_AT_RUNTIME", "FULLY_INLINED"], "note": "called at learning_runtime.cpp:120; no standalone symbol, which is acceptable for inline/template code" }
+    ]
+  },
+
+  "d5": {
+    "learning_screen": {
+      "file": "main/display/screen/learning_screen/learning_screen.cc",
+      "lf_sha256": "a41aeed7b10dfab5aece840e0c582c8d9d3eb2e71805d78e7caafdabccbad809",
+      "hash_independent_of_vendor_patch": true,
+      "hash_note": "equals the repo blob at the authoritative source revision byte for byte; the A01 vendor patch's only mention of this file adds it to the CMake source list and does not modify the file",
+      "tick_refresh_ms": 1000,
+      "voice_poll_ms": 50,
+      "voice_window_ms": 15000,
+      "tick_deadline": "lv_tick_get() + kVoiceWindowMs, evaluated as a signed difference (wrap-safe)",
+      "timer_timeout": "reuses the existing timer; no timer is created or destroyed on that path",
+      "lv_timer_del_count": 2,
+      "lv_timer_del_guards": "each behind a != nullptr guard and immediately set to nullptr -- no double deletion",
+      "s_selftest_timer": "absent",
+      "SELFTEST": "absent",
+      "ResetToSeed": "absent"
+    },
+    "audio_yield": {
+      "patch": "integration/metalio_claw4/patches/project-ca3aa3fa.patch",
+      "patch_sha256": "58bfbe5266a9fa00980be5e5078b570b9915165e199981e6dd54dcb21aa81937",
+      "hunk": "@@ -239,10 +239,17 @@ on main/audio/audio_service.cc",
+      "lock_scope": "lock_guard moved into an inner scope; vTaskDelay sits after that scope closes, so the mutex is NOT held while yielding",
+      "file_lf_sha256": "f406e12a2fde1209e6e103727d2d0e107b0c41a2ffa8d22346a69d6c66cc58a2",
+      "config_freertos_hz": 1000,
+      "pdms_to_ticks_1": "1 tick = 1 ms",
+      "measurement": "static_asserts compiled with the REAL compile_commands.json flags for main/audio/audio_service.cc (515 argv, 513 flags kept incl. every -I/-D); not computed by hand",
+      "superseded": {
+        "value": "10 ms",
+        "status": "SUPERSEDED",
+        "why": "at CONFIG_FREERTOS_HZ=100 the integer truncation makes pdMS_TO_TICKS(1) == (1*100)/1000 == 0 ticks, i.e. no delay at all -- not 10 ms. Reading '1 tick = 10 ms' as 'pdMS_TO_TICKS(1) = 10 ms' is a truncation misreading. Must not be quoted again."
+      },
+      "yield_implementation_changed_in_cp4": false,
+      "stability_note": "1 ms is STATICALLY correct. It does NOT mean 20-round device stability has been verified; that belongs to A05-DEVICE."
+    }
+  },
+
+  "gates": {
+    "input_manifest_check": "5/5 PASS before the build and 5/5 PASS after the build",
+    "sdkconfig_pre_equals_post": true,
+    "partition_verification": "13/13 rows OK, no overlap, in range",
+    "host_gate": "29/29 PASS",
+    "host_gate_detail": "unit summary 29/29 PASS, interface (P4 cross compile) exit=0, RESULT: NATIVE CPP TEST GATE PASS, RUN FAIL 0, LAUNCH FAIL 0, failures=[1-9] 0",
+    "cp2": "ACCEPTED",
+    "cp3": "ACCEPTED"
+  },
+
+  "not_verified": {
+    "status_label": "DEVICE_VERIFY_REQUIRED / FUTURE_TASK_REQUIRED",
+    "items": [
+      { "item": "TCP real loopback", "label": "DEVICE_VERIFY_REQUIRED", "note": "ENV_VERIFY_REQUIRED; cannot be promoted by a socket stub" },
+      { "item": "underlying network total deadline", "label": "DEVICE_VERIFY_REQUIRED", "note": "EspTcp::Connect() does not inherit the HTTP timeout and Disconnect() may wait 10 s; no managed-component change in this package" },
+      { "item": "device UI latency", "label": "DEVICE_VERIFY_REQUIRED", "note": "device-side metric; Host-side 'UI is not blocked' is not equivalent" },
+      { "item": "real NVS / power-loss regression for THIS candidate", "label": "DEVICE_VERIFY_REQUIRED", "note": "DEVICE_L1C_PERSISTENCE=PASS (2026-09-04) belongs to a different batch" },
+      { "item": "20-round audio/device stability", "label": "DEVICE_VERIFY_REQUIRED" }
+    ],
+    "future_tasks": [
+      { "item": "ReminderCore device run", "label": "FUTURE_TASK_REQUIRED", "owner": "C03" },
+      { "item": "proactive reminder", "label": "FUTURE_TASK_REQUIRED", "owner": "C03" },
+      { "item": "ReminderWakePort device implementation", "label": "FUTURE_TASK_REQUIRED", "owner": "C03/E01" }
+    ],
+    "group2_wiring": "ReminderCore / InteractionArbiter / TimeAuthority wiring belongs to C03 and is NOT a precondition for A05-DEVICE"
+  },
+
+  "flash": "NOT PERFORMED",
+  "flash_note": "no flash / app-flash / erase-flash / monitor was executed; flasher_args was never run",
+  "device": "NOT CONNECTED",
+  "a05_device": "NOT STARTED",
+
+  "a05_device_handoff": {
+    "must_flash_exact_candidate": "claw4-v53-m0-a05-2c8f58f",
+    "xiaozhi_bin_sha256": "c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36",
+    "target": "esp32p4 / ota_0 offset 0x00200000 / application-only",
+    "precondition": "re-hash the xiaozhi.bin to be flashed; only if the hash matches exactly is flashing permitted",
+    "forbidden": "rebuild-then-flash",
+    "if_rebuild_needed": "this CP4 candidate is immediately invalidated and the flow returns to the Build Gate"
+  },
+
+  "evidence_location": {
+    "note": "large artifacts and raw logs stay LOCAL and are NOT committed to git",
+    "build_root": "E:\\a05c\\b",
+    "isolated_source_root": "E:\\a05c\\s",
+    "logs": "E:\\claw4-a05-19fd979\\logs\\cp2-build-20260915-175552.log (archived copy: E:\\claw4-a05-cp1-fix-recon\\logs\\cp2-build-20260915-175552.SUCCESS.log)"
+  }
+}
