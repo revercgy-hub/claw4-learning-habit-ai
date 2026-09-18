@@ -5,6 +5,7 @@
 **Candidate**：`claw4-v53-m0-a05-2c8f58f`
 **执行时间**：2026-09-18 19:35 – 20:17 (+08:00)
 **最终状态**：**NOT PASSED** — 分类 `ACK_PIPELINE_FAIL`（详见 `evidence/a05-device/T1-FINDING-ACK-PIPELINE-FAIL.md`）
+**修复方案 / 裁定请求**：见 `reports/WB_A05_DEVICE_T1_001_FIX_PROPOSAL.md`（含**主机侧确定性复现**与三类修法对比）
 
 ---
 

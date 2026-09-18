@@ -1,0 +1,31 @@
+start argv=2
+REAL wire response: bytes=3364 last_acked=21 results=20
+
+===== PHASE 1: reproduce with REAL wire bytes (frozen candidate) =====
+  runSyncOnce outcome     = 0 (0=Synced)
+  requests sent           = 1
+  request last_acked      = 0
+  request events          = 20
+  removeAcked called      = 0 time(s)
+  pending after           = 20
+  last_acked after        = 0
+  diagnostic sync_failed  = 0  sync_recovered = 1
+  [PASS] sent the consecutive prefix: 20 events
+  [PASS] request carried the device's own last_acked = 0
+  [PASS] DEFECT reproduced: removeAcked() was NEVER called
+  [PASS] DEFECT reproduced: all 20 rows still pending
+  [PASS] DEFECT reproduced: local ACK did not advance
+  [PASS] DEFECT reproduced: reported Synced (false success)
+
+===== PHASE 2: SIMULATED counterfactual for the proposed fix =====
+  (renumber pending to fresh slots above the server baseline,
+   then a normal flush -- server behaviour simulated by the fake)
+  runSyncOnce outcome     = 0 (0=Synced)
+  removeAcked called      = 1 time(s)
+  pending after           = 0
+  last_acked after        = 41
+  [PASS] SIMULATED fix: removeAcked() called once
+  [PASS] SIMULATED fix: queue drained (removed > 0)
+  [PASS] SIMULATED fix: local ACK advanced to 41
+
+result: AS EXPECTED (0 failed assertion(s))
