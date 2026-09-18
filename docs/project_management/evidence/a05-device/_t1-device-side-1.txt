@@ -1,0 +1,62 @@
+﻿### T1 设备侧取证（首次联网同步之后）  2026-09-18 19:46:57
+=== 1) 读 NVS 0x3C000 0xD2000 ===
+nvs_rc=0
+nvs_sha256 = dbd3123d1a96be193046fb71b56f87b53e001a0453a78ddf47131c566a7209db
+nvs_sha256_pre(9/16 14:55) = 3261ec5ee5584420c9364b9dc664e6defa6c96ac736bc33ba01bc63675dbe865
+=== 2) 解出 outbox 状态 ===
+
+   hdr=['T|1', 'S|0', 'E|4', 'Q|5', 'A|0', 'F|0', 'R|1']
+   pending=4 sequences=[1, 2, 3, 4]
+   hdr=['T|1', 'S|1', 'E|6', 'Q|7', 'A|0', 'F|0', 'R|1']
+   pending=6 sequences=[1, 2, 3, 4, 5, 6]
+   hdr=['T|1', 'S|1', 'E|7', 'Q|8', 'A|0', 'F|0', 'R|1']
+   pending=7 sequences=[1, 2, 3, 4, 5, 6, 7]
+   hdr=['T|1', 'S|1', 'E|8', 'Q|9', 'A|0', 'F|0', 'R|1']
+   pending=8 sequences=[1, 2, 3, 4, 5, 6, 7, 8]
+   hdr=['T|1', 'S|0', 'E|10']
+   pending=9 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9]
+   hdr=['T|1', 'S|0', 'E|10', 'Q|11', 'A|0', 'F|0', 'R|1']
+   pending=10 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+   hdr=['T|1', 'S|1', 'E|12']
+   pending=8 sequences=[1, 2, 3, 4, 5, 6, 7, 8]
+   hdr=['T|1', 'S|1', 'E|13', 'Q|14', 'A|0', 'F|0', 'R|1']
+   pending=13 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+   hdr=['T|1', 'S|1', 'E|14']
+   pending=7 sequences=[1, 2, 3, 4, 5, 6, 7]
+   hdr=['T|1', 'S|1', 'E|14', 'Q|15', 'A|0', 'F|0', 'R|1']
+   pending=14 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+   hdr=['T|1', 'S|1', 'E|15']
+   pending=2 sequences=[1, 2]
+   hdr=['T|1', 'S|1', 'E|15']
+   pending=11 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+   hdr=['T|1', 'S|1', 'E|16', 'Q|17', 'A|0', 'F|0', 'R|1']
+   pending=16 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+   hdr=['T|1', 'S|1', 'E|17']
+   pending=5 sequences=[1, 2, 3, 4, 5]
+   hdr=['T|1', 'S|1', 'E|18']
+   pending=15 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+   hdr=['T|1', 'S|0', 'E|20', 'Q|21', 'A|0', 'F|0', 'R|1']
+   pending=20 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+   hdr=['T|2', 'S|0', 'E|20']
+   pending=3 sequences=[1, 2, 3]
+   hdr=['T|2', 'S|0', 'E|20']
+   pending=9 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9]
+   hdr=['T|2', 'S|0', 'E|20']
+   pending=16 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+   hdr=['T|2', 'S|0', 'E|20', 'Q|21', 'A|0', 'F|0', 'R|1']
+   pending=20 sequences=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+
+
+
+=== 3) otadata ===
+otadata_now = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+otadata_D0    = 8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3
+otadata_unchanged = True
+=== 4) ota_0 全量 sha256（§5 前置完整性）===
+ota0_size   = 0
+ota0_sha256 = 
+frozen      = c035e1c09ebe472f5f14b490c93844aa3e298cd11b4e30f7fe1055e5b9278d36
+ota0_MATCH_FROZEN = False
+=== 5) ota_1 头 ===
+ota1_head_D0     = 1992dd1a9c18f63ad600bb996c4cf123a2abbd4ea8d64dec7b075e6a0d47a026
+=== DONE ===
