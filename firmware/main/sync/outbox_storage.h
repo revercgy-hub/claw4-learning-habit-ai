@@ -85,6 +85,29 @@ class OutboxStorage {
   // KEPT with its original event_id/payload; only the marker changes.
   virtual CommitStatus markDeadLetter(const claw4::domain::EventId& event_id,
                                       const std::string& reason) = 0;
+
+  // A05-DEVICE-T1 (ACK_PIPELINE_FAIL): re-bases the LOCAL sequence space onto
+  // the baseline the server announced (`new_base`).
+  //
+  // Every pending row whose sequence <= new_base is re-materialized at a fresh
+  // consecutive sequence above new_base, keeping its event_id, payload, type and
+  // timestamp; the superseded rows are then dropped and last_acked_sequence
+  // becomes new_base. next_sequence is left consistent so the next
+  // prepareSync() starts at new_base + 1.
+  //
+  // Why: removeAcked() is a LOW-WATER-MARK delete, so a single un-ackable row
+  // at the head of the queue blocks the removal of every row behind it forever
+  // when the device's sequence space and the server's have diverged. Re-basing
+  // is the only lossless way out.
+  //
+  // Implementations MUST commit this atomically (one commit): a crash must not
+  // be able to lose a row. Implementations that cannot do so MUST NOT silently
+  // succeed. Default: unsupported -> StorageError (fail-closed), which makes the
+  // coordinator report a blocked queue instead of pretending to be healthy.
+  virtual CommitStatus rebaseSequences(int64_t new_base) {
+    (void)new_base;
+    return CommitStatus::StorageError;
+  }
 };
 
 }  // namespace sync

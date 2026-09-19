@@ -295,6 +295,26 @@ bool AppCoordinator::applyTodaySnapshot(
 //   * outcome is not Accepted / Duplicate        (Conflict / Rejected / Gap)
 // In-range rows that fail the walk are still forwarded (business 4xx rows need
 // their dead-letter marker) but they can never advance the ACK.
+// A05-DEVICE-T1: true when every event this exchange sent came back with an
+// id-matched row, i.e. the response is a COMPLETE answer to our batch. Partial
+// or forged answers must keep the old RF2 behaviour and must never be read as
+// "the queue is blocked" (let alone as a reason to re-base).
+bool responseCoversAllSent(const SyncRequestEnvelope& envelope,
+                           const sync::BatchSyncResult& batch) {
+  if (envelope.request.events.empty()) return false;
+  for (const auto& ev : envelope.request.events) {
+    bool found = false;
+    for (const auto& row : batch.results) {
+      if (row.sequence == ev.sequence) {
+        found = row.event_id == ev.event_id;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
 sync::BatchSyncResult AppCoordinator::scopeBatchToSent(
     const SyncRequestEnvelope& envelope, const sync::BatchSyncResult& batch) {
   sync::BatchSyncResult scoped;
@@ -449,9 +469,11 @@ SyncApplyOutcome AppCoordinator::applySyncResult(
 
   // (4) Scoped ACK cleanup: only rows actually sent AND confirmed inside the
   //     consecutive prefix are removed; anything queued after prepareSync()
-  //     keeps its pending row.
-  const sync::PersistResult pr =
-      outbox_.applyBatchResult(scopeBatchToSent(envelope, response.batch));
+  //     keeps its pending row. This runs FIRST and unconditionally: the
+  //     dead-letter pass inside applyBatchResult() must still happen for
+  //     business-4xx rows even when the ACK cannot advance (FIX-V4-03).
+  const sync::BatchSyncResult scoped = scopeBatchToSent(envelope, response.batch);
+  const sync::PersistResult pr = outbox_.applyBatchResult(scoped);
   if (!pr.committed()) {
     ++retry_count_;
     pending_backoff_ms_ = options_.backoff_max_ms;  // storage trouble: slow down
@@ -459,6 +481,50 @@ SyncApplyOutcome AppCoordinator::applySyncResult(
     out.applied = false;
     return out;
   }
+
+  // (4a) A05-DEVICE-T1 (ACK_PIPELINE_FAIL): the queue did not move while work is
+  //      still pending, and the answer was COMPLETE and id-matched. That is a
+  //      blocked queue. If the server's baseline is also ahead of ours, the two
+  //      sequence spaces have diverged and re-sending the same batch can never
+  //      make progress: every cycle would re-send it byte for byte, forever,
+  //      while being reported as Synced. Re-base onto the server baseline
+  //      (lossless — event ids and payloads are preserved) so that the next
+  //      cycle can actually deliver the rows.
+  //      An already-empty queue is NOT blocked: that is the idempotent replay of
+  //      a response whose rows are already gone, and it stays Synced. Partial or
+  //      forged answers keep the RF2 behaviour untouched.
+  const bool complete = responseCoversAllSent(envelope, response.batch);
+  if (pr.acked_removed == 0 && !pr.ack_advanced && complete &&
+      outbox_.pendingCount() > 0) {
+    const bool server_ahead =
+        response.batch.last_acked_sequence > envelope.request.last_acked_sequence;
+    if (options_.allow_baseline_rebase && server_ahead) {
+      const sync::PersistResult rr =
+          outbox_.rebaseToServerBaseline(response.batch.last_acked_sequence);
+      if (rr.committed()) {
+        retry_count_ = 0;
+        pending_backoff_ms_ = 0;
+        reauth_attempted_ = false;
+        auth_paused_ = false;
+        outbox_.setDiagnostic(true, false);  // stays "failed" until rows go
+        reloadState();
+        out.rebased = true;
+        out.outcome = SyncOutcome::Blocked;
+        out.applied = true;
+        return out;
+      }
+      // Storage cannot re-base: fall through to the honest Blocked report.
+    }
+    // Blocked queue: every row stays pending and retryable, and the caller is
+    // told the truth instead of a false Synced.
+    ++retry_count_;
+    pending_backoff_ms_ = options_.backoff_base_ms;
+    outbox_.setDiagnostic(true, false);
+    out.outcome = SyncOutcome::Blocked;
+    out.applied = true;
+    return out;
+  }
+
   // Success path resets backoff/reauth state and marks the diagnostic
   // recovered (mergeable slot; never enters the business queue).
   retry_count_ = 0;

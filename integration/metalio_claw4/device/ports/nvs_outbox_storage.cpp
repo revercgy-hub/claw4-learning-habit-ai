@@ -144,6 +144,41 @@ claw4::sync::CommitStatus NvsOutboxStorage::markDeadLetter(
   return Save(std::move(cur));
 }
 
+// A05-DEVICE-T1 (ACK_PIPELINE_FAIL): re-base the local sequence space onto the
+// baseline the server announced. Every pending row is re-materialized
+// consecutively from new_base + 1 (event_id/payload/type/timestamp preserved,
+// relative order preserved), the superseded rows disappear and
+// last_acked_sequence adopts new_base.
+//
+// Atomicity: a single Save() below is one nvs_set_blob + one nvs_commit, so a
+// power loss leaves either the previous snapshot or the fully re-based one. The
+// rows can therefore never be lost — this is why the re-base lives here and not
+// in the core (which can only append and low-water-mark delete).
+claw4::sync::CommitStatus NvsOutboxStorage::rebaseSequences(int64_t new_base) {
+  claw4::sync::OutboxState cur;
+  if (!load(cur)) return claw4::sync::CommitStatus::StorageError;
+
+  int64_t next = new_base;
+  unsigned count = 0;
+  std::vector<claw4::sync::PendingEvent> rebased;
+  rebased.reserve(cur.pending.size());
+  for (const auto& p : cur.pending) {
+    claw4::sync::PendingEvent copy = p;
+    copy.sequence = ++next;
+    rebased.push_back(copy);
+    ++count;
+  }
+  cur.pending = std::move(rebased);
+  if (cur.last_acked_sequence < new_base) cur.last_acked_sequence = new_base;
+  if (cur.next_sequence <= next) cur.next_sequence = next + 1;
+
+  const claw4::sync::CommitStatus cs = Save(std::move(cur));
+  ESP_LOGW(TAG, "rebaseSequences base=%lld rows=%u next=%lld -> %s",
+           (long long)new_base, count, (long long)(next + 1),
+           (cs == claw4::sync::CommitStatus::Committed) ? "committed" : "failed");
+  return cs;
+}
+
 bool NvsOutboxStorage::eraseAll() {
   nvs_handle_t h;
   if (nvs_open(kNvsNamespace, NVS_READWRITE, &h) != ESP_OK) return false;

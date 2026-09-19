@@ -35,6 +35,16 @@ struct PersistResult {
   // outbox transaction. Empty for every non-committed result.
   std::vector<claw4::domain::DeviceEvent> committed_events;
 
+  // ACK-cleanup reporting (A05-DEVICE-T1 fix). Only meaningful for
+  // OutboxCore::applyBatchResult(); zero/false everywhere else.
+  //   acked_removed : how many pending rows this apply actually deleted
+  //   ack_advanced  : whether the local last_acked_sequence moved forward
+  // These exist so the sync layer can tell "committed, nothing to do" apart
+  // from "committed, but the queue did not move" (a blocked queue must never be
+  // reported as a successful sync).
+  int acked_removed = 0;
+  bool ack_advanced = false;
+
   bool committed() const noexcept { return status == PersistStatus::Committed; }
 };
 

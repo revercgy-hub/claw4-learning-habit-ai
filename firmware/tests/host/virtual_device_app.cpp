@@ -123,6 +123,7 @@ const char* SyncOutcomeName(const SyncOutcome outcome) {
     case SyncOutcome::Backoff: return "backoff";
     case SyncOutcome::NoPending: return "no_pending";
     case SyncOutcome::StaleResult: return "stale_result";
+    case SyncOutcome::Blocked: return "blocked";
   }
   return "unknown";
 }

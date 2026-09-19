@@ -499,7 +499,10 @@ static bool run_case_sync_business_4xx_deadletter_keeps_pending() {
     }
     return r;
   };
-  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  // A05-DEVICE-T1: the batch WAS applied (rows dead-lettered) but the queue did
+  // not move, so the cycle is reported as Blocked instead of a false Synced.
+  // The rows are still kept and replayable, exactly as before.
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Blocked);
   CHECK(c.pendingCount() == 2);  // kept (dead-lettered, replayable)
   CHECK(env.disk->state.pending[0].dead_letter_reason.has_value());
   CHECK(env.disk->state.pending[0].event_id == EventId{"ev-1"});
@@ -536,8 +539,10 @@ static bool run_case_sync_deadletter_storage_failure_blocks_cleanup() {
   CHECK(c.lastAcked() == 0);
   CHECK(env.disk->ack_calls == 0);  // removeAcked never called
   CHECK(!env.disk->state.pending[0].dead_letter_reason.has_value());
-  // Storage recovers: the same business 422s now dead-letter cleanly.
-  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  // Storage recovers: the same business 422s now dead-letter cleanly, but the
+  // queue still cannot advance (the dead-lettered rows block the prefix), so the
+  // honest outcome is Blocked — see A05-DEVICE-T1.
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Blocked);
   CHECK(c.pendingCount() == 2);  // dead-lettered rows stay replayable
   CHECK(env.disk->state.pending[0].dead_letter_reason.has_value());
   // 1 failed attempt (storage error) + 2 successful markers after recovery.
@@ -567,7 +572,10 @@ static bool run_case_sync_conflict_keeps_pending_no_cleanup() {
     }
     return r;
   };
-  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Synced);
+  // A05-DEVICE-T1: a committed-but-unmoved queue must be reported as Blocked,
+  // not as a successful sync. The RF2 safety guarantees below are unchanged:
+  // the conflict rows are still kept and the ACK still does not advance.
+  CHECK(c.runSyncOnce(tr, [] { return true; }) == SyncOutcome::Blocked);
   CHECK(c.pendingCount() == 2);  // conflict rows kept, no ACK advance
   CHECK(c.lastAcked() == 0);
   return true;

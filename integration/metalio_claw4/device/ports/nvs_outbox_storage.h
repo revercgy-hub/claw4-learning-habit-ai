@@ -40,6 +40,12 @@ class NvsOutboxStorage final : public claw4::sync::OutboxStorage {
       const claw4::domain::EventId& event_id,
       const std::string& reason) override;
 
+  // A05-DEVICE-T1: single-Save re-base of the local sequence space onto the
+  // server baseline (see OutboxStorage::rebaseSequences). One nvs_set_blob +
+  // one nvs_commit, so a power loss keeps either the old or the fully re-based
+  // snapshot — rows are never lost.
+  claw4::sync::CommitStatus rebaseSequences(int64_t new_base) override;
+
   // Factory/erasure helpers for boot-time seeding & tests.
   static bool eraseAll();  // removes the learning namespace state (demo reset)
   static bool hasState();  // whether a committed blob exists

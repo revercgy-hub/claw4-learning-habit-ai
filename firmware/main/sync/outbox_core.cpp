@@ -146,6 +146,9 @@ PersistResult OutboxCore::setDiagnostic(bool sync_failed, bool sync_recovered) {
 PersistResult OutboxCore::applyBatchResult(const BatchSyncResult& result) {
   if (!storage_) return makeFailure(PersistStatus::StorageError);
 
+  OutboxState before;
+  if (!loadState(before)) return makeFailure(PersistStatus::StorageError);
+
   // (1) Dead-letter business 4xx rows first (keep original row + redacted
   //     reason; replayable with the same event_id). A persistence failure
   //     ABORTS the whole batch application (FIX-V4-03): no ACK cleanup, no
@@ -173,18 +176,45 @@ PersistResult OutboxCore::applyBatchResult(const BatchSyncResult& result) {
     if (ok_outcome && rit->sequence <= result.last_acked_sequence) break;
   }
   if (rit == result.results.rend()) {
-    // No eligible row inside the prefix; nothing to remove.
-    PersistResult ok;
-    ok.status = PersistStatus::Committed;
-    return ok;
+    // No eligible row inside the prefix; nothing to remove. Report it honestly
+    // (A05-DEVICE-T1): a committed-but-unmoved queue is NOT a successful sync.
+    PersistResult none;
+    none.status = PersistStatus::Committed;
+    none.acked_removed = 0;
+    none.ack_advanced = false;
+    return none;
   }
   // Remove all pending with sequence <= the highest eligible in-prefix row.
   const int64_t up_to = rit->sequence;
   const CommitStatus cs = storage_->removeAcked(up_to);
   if (cs != CommitStatus::Committed) return makeFailure(PersistStatus::StorageError);
 
+  OutboxState after;
+  if (!loadState(after)) return makeFailure(PersistStatus::StorageError);
+
   PersistResult ok;
   ok.status = PersistStatus::Committed;
+  // Report what actually happened so the coordinator can distinguish "cleaned
+  // up" from "committed but the queue did not move".
+  ok.acked_removed = static_cast<int>(before.pending.size()) -
+                     static_cast<int>(after.pending.size());
+  if (ok.acked_removed < 0) ok.acked_removed = 0;
+  ok.ack_advanced = after.last_acked_sequence > before.last_acked_sequence;
+  return ok;
+}
+
+PersistResult OutboxCore::rebaseToServerBaseline(int64_t new_base) {
+  if (!storage_) return makeFailure(PersistStatus::StorageError);
+  // The storage owns the atomicity: one commit re-materializes the pending rows
+  // above new_base and adopts the baseline. An empty queue is a legitimate case
+  // (the baseline still has to be adopted before the next batch is prepared).
+  const CommitStatus cs = storage_->rebaseSequences(new_base);
+  if (cs != CommitStatus::Committed) {
+    return makeFailure(PersistStatus::StorageError);
+  }
+  PersistResult ok;
+  ok.status = PersistStatus::Committed;
+  ok.ack_advanced = true;
   return ok;
 }
 

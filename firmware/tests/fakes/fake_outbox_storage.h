@@ -22,6 +22,7 @@ struct FakeDisk {
   int diagnostic_calls = 0;
   int ack_calls = 0;
   int deadletter_calls = 0;
+  int rebase_calls = 0;
 };
 
 class FakeOutboxStorage final : public OutboxStorage {
@@ -94,6 +95,34 @@ class FakeOutboxStorage final : public OutboxStorage {
         p.dead_letter_reason = reason;  // original row retained for replay
         break;
       }
+    }
+    return CommitStatus::Committed;
+  }
+
+  // A05-DEVICE-T1: single-commit re-base of the local sequence space onto the
+  // server baseline. Every pending row is re-materialized consecutively from
+  // new_base + 1, preserving event_id/payload/type/timestamp and their relative
+  // order; last_acked_sequence adopts new_base and next_sequence is bumped past
+  // the re-numbered rows so later allocations cannot collide.
+  CommitStatus rebaseSequences(int64_t new_base) override {
+    ++disk_->rebase_calls;
+    if (disk_->fail_next_commit) {
+      disk_->fail_next_commit = false;
+      return CommitStatus::StorageError;  // atomic: nothing visible changed
+    }
+    int64_t next = new_base;
+    std::vector<PendingEvent> rebased;
+    rebased.reserve(disk_->state.pending.size());
+    for (const auto& p : disk_->state.pending) {
+      PendingEvent copy = p;
+      copy.sequence = ++next;
+      rebased.push_back(copy);
+    }
+    disk_->state.pending = std::move(rebased);
+    disk_->state.last_acked_sequence =
+        std::max(disk_->state.last_acked_sequence, new_base);
+    if (disk_->state.next_sequence <= next) {
+      disk_->state.next_sequence = next + 1;
     }
     return CommitStatus::Committed;
   }

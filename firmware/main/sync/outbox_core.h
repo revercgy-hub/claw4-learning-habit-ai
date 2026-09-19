@@ -54,6 +54,15 @@ class OutboxCore final : public EventSink {
   // network and 5xx outcomes never remove anything.
   PersistResult applyBatchResult(const BatchSyncResult& result);
 
+  // A05-DEVICE-T1: re-base every still-pending row above `new_base` (the
+  // baseline the server announced) so a queue blocked by permanently
+  // un-ackable rows can be delivered instead of being re-sent forever.
+  // Lossless: no event_id or payload is dropped. Atomic: delegated to
+  // OutboxStorage::rebaseSequences(). Returns StorageError when the storage
+  // cannot do it (fail-closed), in which case the caller must report a blocked
+  // queue rather than a successful sync.
+  PersistResult rebaseToServerBaseline(int64_t new_base);
+
   // Convenience: number of pending rows + whether the diagnostic slot is set.
   int pendingCount() const;
   int64_t nextSequence() const;

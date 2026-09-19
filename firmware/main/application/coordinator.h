@@ -55,6 +55,12 @@ struct CoordinatorOptions {
   int64_t backoff_max_ms = 60000;   // 60 s cap (ARCHITECTURE.md §7.5)
   int64_t jitter_seed = 42;         // deterministic jitter (no RNG in tests)
   int64_t jitter_amplitude_ms = 50; // +/- range
+  // A05-DEVICE-T1: when the server's baseline is ahead of ours AND a complete,
+  // id-matched answer confirmed nothing, re-base the local sequence space onto
+  // the server baseline instead of re-sending the same blocked batch forever.
+  // Lossless (no event is dropped). Set false to keep the old, livelocking
+  // behaviour for A/B comparison in tests.
+  bool allow_baseline_rebase = true;
 };
 
 enum class SyncOutcome : uint8_t {
@@ -68,6 +74,13 @@ enum class SyncOutcome : uint8_t {
   // session). Nothing was written: a late worker result must never mutate the
   // new session's state.
   StaleResult,
+  // A05-DEVICE-T1 (ACK_PIPELINE_FAIL): the exchange completed but the pending
+  // queue could not move — either a complete answer confirmed none of the rows
+  // we sent, or the re-base that would have unblocked them is unavailable. The
+  // rows are all still pending and retryable; this is deliberately NOT Synced,
+  // because reporting a stuck queue as a successful sync hid a permanent
+  // livelock from the user.
+  Blocked,
 };
 
 // --- A03 prepare / I-O / apply separation (WB-V53-NEXT-001 CP1) ------------
@@ -94,6 +107,10 @@ struct SyncApplyOutcome {
   SyncOutcome outcome = SyncOutcome::NoPending;
   bool applied = false;
   bool stale = false;
+  // A05-DEVICE-T1: true when a baseline desync was detected and the local
+  // sequence space was re-based onto the server's. The next cycle delivers the
+  // re-numbered rows.
+  bool rebased = false;
 };
 
 class AppCoordinator {
