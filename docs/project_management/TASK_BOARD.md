@@ -1,5 +1,11 @@
 # Claw4 当前任务看板
 
+## 2026-09-21 V6 覆盖状态（当前有效）
+
+用户要求 Codex 亲自进行重要架构设计开发，WorkBuddy 可承担有界辅助任务并由 Codex 复核。当前活动 `CODEX-V6-FOUNDATION / IN_PROGRESS`；分支 `codex/v6-foundation`，工作区 `E:/workbuddy/claw4-v6`，来源 `5657ebed64ad5962c889fcf90f0979f5891ab862`。
+
+唯一当前队列：[V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)；[架构](../v6/V6_ARCHITECTURE.md)、[基线](../v6/V6_BASELINE.md)、[首批报告](../v6/V6_FOUNDATION_REPORT.md)。V5.3 后续扩展 HOLD；下方旧调度入口 SUPERSEDED，仅留历史，不构成当前 READY 授权。本轮没有派发 WorkBuddy，没有设备构建/刷写或 M0 PASS 声明。
+
 ## 2026-09-14 A05方案审查覆盖状态（当前有效）
 
 用户最新要求：WorkBuddy实施和补测；Codex只负责规划、代码/证据审查、疑难定位，不直接代替实施。以下状态覆盖后文首批收口时的历史队列。
