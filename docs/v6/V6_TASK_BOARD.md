@@ -1,13 +1,13 @@
 # V6 唯一阶段看板
 
-更新：2026-09-21。负责人：Codex。当前活动：CODEX-V6-FOUNDATION / IN_PROGRESS；没有已下发的 WorkBuddy V6 工作流。V5.3 继续 Voice 补丁与外围扩展 HOLD，历史报告保留，调度状态 SUPERSEDED。
+更新：2026-09-22。负责人：Codex。当前活动：CODEX-V6-FOUNDATION / IN_PROGRESS；没有已下发的 WorkBuddy V6 工作流。V5.3 继续 Voice 补丁与外围扩展 HOLD，历史报告保留，调度状态 SUPERSEDED。
 
 | 顺序 | 工作 | 负责人 | 状态 | 放行与证据 |
 | --- | --- | --- | --- | --- |
 | 0 | 架构/迁移构建入口/边界检查 | Codex | REVIEW_READY | 代码/文档已交付；78 case PASS，协调器受应用控制阻断，不能标全量 PASS |
-| M0-1 | 四方源码冻结 + 环境/恢复清单 | Codex | IN_PROGRESS | SHA 已锁；IDF6.1 工具链、submodules、依赖锁、恢复核对未完成 |
-| M0-2 | Claw4 Board Port | Codex | BACKLOG | M0-1；独立 board identity，构建证据 |
-| M0-3 | 硬件矩阵验证 | Codex + 用户屏侧反馈 | HOLD | M0-2、实际设备/布局/恢复核实、具体设备操作授权 |
+| M0-1 | 四方源码冻结 + 环境/恢复清单 | Codex | IN_PROGRESS | SHA/IDF6.1/依赖锁已冻结；32MiB 完整备份和实际布局已核对，恢复写回尚未实测 |
+| M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | m0.1 构建通过；屏幕/触摸/音频/C5 诊断候选，Camera/SD/电源键待补 |
+| M0-3 | 硬件矩阵验证 | Codex + 用户屏侧反馈 | QUEUED | 用户已明确授权刷机测试；仍需 M0-2 候选、布局/恢复核实 |
 | M1 | NAS 连续语音 20 轮 | Codex | BACKLOG | M0 真机通过；不链接学习代码 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |

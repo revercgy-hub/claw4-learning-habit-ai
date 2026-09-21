@@ -1,0 +1,277 @@
+{
+  "idf": "v6.1",
+  "idf_sha": "fff9895c82d744c7237be8847347bdd1b07c6643",
+  "python": "3.12.14",
+  "compiler": "riscv32-esp-elf-g++.exe (crosstool-NG esp-15.2.0_20251204) 15.2.0",
+  "compiler_sha256": "420df714d316aa3c4c7f002a3332b0a3b9c47a6b6833388ed1589a5ce75b52ee",
+  "packages": [
+    {
+      "name": "annotated-types",
+      "version": "0.8.0"
+    },
+    {
+      "name": "bitarray",
+      "version": "3.11.0"
+    },
+    {
+      "name": "bitstring",
+      "version": "4.4.0"
+    },
+    {
+      "name": "boolean.py",
+      "version": "5.0"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22"
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1"
+    },
+    {
+      "name": "click",
+      "version": "8.4.2"
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6"
+    },
+    {
+      "name": "construct",
+      "version": "2.10.70"
+    },
+    {
+      "name": "cryptography",
+      "version": "48.0.1"
+    },
+    {
+      "name": "esp-coredump",
+      "version": "1.17.2"
+    },
+    {
+      "name": "esp-idf-diag",
+      "version": "0.2.0"
+    },
+    {
+      "name": "esp-idf-kconfig",
+      "version": "3.13.0"
+    },
+    {
+      "name": "esp-idf-monitor",
+      "version": "1.10.0"
+    },
+    {
+      "name": "esp_idf_nvs_partition_gen",
+      "version": "0.1.9"
+    },
+    {
+      "name": "esp_idf_panic_decoder",
+      "version": "1.5.0"
+    },
+    {
+      "name": "esp-idf-sbom",
+      "version": "1.4.0"
+    },
+    {
+      "name": "esp-idf-size",
+      "version": "2.3.1"
+    },
+    {
+      "name": "esp-pylib",
+      "version": "1.1.5"
+    },
+    {
+      "name": "esptool",
+      "version": "5.4.0"
+    },
+    {
+      "name": "freertos-gdb",
+      "version": "1.0.4"
+    },
+    {
+      "name": "idf-component-manager",
+      "version": "3.1.2"
+    },
+    {
+      "name": "idf-drivers-gdb",
+      "version": "0.1.1"
+    },
+    {
+      "name": "idna",
+      "version": "3.20"
+    },
+    {
+      "name": "intelhex",
+      "version": "2.3.0"
+    },
+    {
+      "name": "jsonref",
+      "version": "1.1.0"
+    },
+    {
+      "name": "license-expression",
+      "version": "30.4.4"
+    },
+    {
+      "name": "linkify-it-py",
+      "version": "2.2.0"
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.2.0"
+    },
+    {
+      "name": "mdit-py-plugins",
+      "version": "0.6.1"
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3"
+    },
+    {
+      "name": "pathvalidate",
+      "version": "3.3.1"
+    },
+    {
+      "name": "pip",
+      "version": "26.2.1"
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.11.11"
+    },
+    {
+      "name": "psutil",
+      "version": "7.2.1"
+    },
+    {
+      "name": "pyclang",
+      "version": "0.7.0"
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0"
+    },
+    {
+      "name": "pydantic",
+      "version": "2.13.5"
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.46.5"
+    },
+    {
+      "name": "pydantic-settings",
+      "version": "2.15.0"
+    },
+    {
+      "name": "pyelftools",
+      "version": "0.33"
+    },
+    {
+      "name": "pygdbmi",
+      "version": "0.11.0.0"
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0"
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.3.3"
+    },
+    {
+      "name": "pyserial",
+      "version": "3.5"
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.3"
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3"
+    },
+    {
+      "name": "reedsolo",
+      "version": "1.7.0"
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2"
+    },
+    {
+      "name": "requests-file",
+      "version": "3.0.1"
+    },
+    {
+      "name": "requests-toolbelt",
+      "version": "1.0.0"
+    },
+    {
+      "name": "rich",
+      "version": "15.0.0"
+    },
+    {
+      "name": "rich-click",
+      "version": "1.9.9"
+    },
+    {
+      "name": "ruamel.yaml",
+      "version": "0.19.1"
+    },
+    {
+      "name": "schema",
+      "version": "0.7.8"
+    },
+    {
+      "name": "setuptools",
+      "version": "84.0.0"
+    },
+    {
+      "name": "textual",
+      "version": "8.2.8"
+    },
+    {
+      "name": "tibs",
+      "version": "0.5.7"
+    },
+    {
+      "name": "tree-sitter",
+      "version": "0.26.0"
+    },
+    {
+      "name": "tree-sitter-c",
+      "version": "0.24.2"
+    },
+    {
+      "name": "truststore",
+      "version": "0.10.4"
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0"
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.4"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0"
+    },
+    {
+      "name": "websockets",
+      "version": "17.1"
+    }
+  ]
+}

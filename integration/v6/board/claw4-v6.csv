@@ -1,0 +1,10 @@
+# Preserve all current physical ranges; resources is renamed assets for XiaoZhi.
+# Full backup and actual partition table comparison required before writing.
+# Name, Type, SubType, Offset, Size, Flags
+nvsfactory,data,nvs,0xa000,200K,
+nvs,data,nvs,0x3c000,840K,
+phy_init,data,phy,0x10e000,4K,
+model,data,spiffs,0x10f000,956K,
+factory,app,factory,0x200000,14M,
+assets,data,spiffs,0x1000000,15M,
+factory_test,data,spiffs,0x1f00000,600K,
