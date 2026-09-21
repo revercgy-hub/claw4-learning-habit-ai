@@ -28,11 +28,18 @@ def environment(idf, tools):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
+    parser.add_argument('--incremental', action='store_true',
+                        help='Rebuild an already configured tree with idf.py build')
     parser.add_argument('--idf', type=Path, default=ROOT / 'vendor/esp-idf')
     parser.add_argument('--tools', type=Path, default=ROOT / 'toolchains/idf61')
     args = parser.parse_args()
     env = environment(args.idf.resolve(), args.tools.resolve())
-    result = subprocess.run([sys.executable, str(args.source.resolve() / 'scripts/build.py'),
-                             'metalio/claw4-learning-v6', '--name', 'claw4-learning-v6-m0'],
-                            cwd=args.source, env=env)
+    if args.incremental:
+        if not (args.source / 'sdkconfig').is_file():
+            parser.error('Incremental build requires an existing sdkconfig')
+        command = [sys.executable, str(args.idf.resolve() / 'tools/idf.py'), 'build']
+    else:
+        command = [sys.executable, str(args.source.resolve() / 'scripts/build.py'),
+                   'metalio/claw4-learning-v6', '--name', 'claw4-learning-v6-m0']
+    result = subprocess.run(command, cwd=args.source, env=env)
     sys.exit(result.returncode)

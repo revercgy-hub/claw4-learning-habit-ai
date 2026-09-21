@@ -1,0 +1,55 @@
+{
+  "date": "2026-09-22",
+  "current_candidate": "m0-candidate-03.json",
+  "result": "BOOT_AND_ASSETS_PASS_INTERACTION_PENDING",
+  "private_logs": {
+    "flash-m0-01.txt": {
+      "sha256": "24eefe1db45d15bfea49700ab09d7799c7fe457fd6e2e585394e456321f340fe",
+      "bytes": 13714,
+      "assertions": 0,
+      "verified_images": 5
+    },
+    "flash-m0-02.txt": {
+      "sha256": "169dfeefac6c738d141a24277659e2c176436e5a217763e05cc1c6bb50e70ff6",
+      "bytes": 9229,
+      "assertions": 0,
+      "verified_images": 1
+    },
+    "flash-m0-03.txt": {
+      "sha256": "25d18f43e046734b4228537b8d81d3261b2901399f119cfb29f67076d4f7f899",
+      "bytes": 9696,
+      "assertions": 0,
+      "verified_images": 2
+    },
+    "boot-m0-01.txt": {
+      "sha256": "1d6fe94a565a0a437be6397804020f5d9007d0f22f9a6dbdbd1311c4db4839dc",
+      "bytes": 177179,
+      "assertions": 20,
+      "verified_images": 0
+    },
+    "boot-m0-02.txt": {
+      "sha256": "e24c9f9923916f9efa7aaece4c377f3870f3fd5b526302b0af7332693260513f",
+      "bytes": 11060,
+      "assertions": 0,
+      "verified_images": 0
+    },
+    "interact-m0-02.txt": {
+      "sha256": "8ce735817e5024fcc42e4c98f0ab538b45868f1cfccef9cdb189c4657032deba",
+      "bytes": 771,
+      "assertions": 0,
+      "verified_images": 0
+    },
+    "boot-m0-03.txt": {
+      "sha256": "fb2e7ab62f31636348da08523658129e07e6d1f6c57c76cc3d6797f86e307b01",
+      "bytes": 10985,
+      "assertions": 0,
+      "verified_images": 0
+    }
+  },
+  "final_observation_seconds": 45,
+  "final_assets_applied": true,
+  "final_boot_ready": true,
+  "touch_and_audio_quality": "USER_CONFIRMATION_PENDING",
+  "network_ip": "NOT_VERIFIED",
+  "recovery_writeback": "NOT_TESTED"
+}

@@ -26,9 +26,13 @@
   "target": "esp32p4",
   "board_identity": "claw4-learning-v6",
   "historical_chip_revision": "v1.3; must reconfirm before flashing",
-  "required_sdkconfig": ["CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y"],
-  "device_component_lock": null,
-  "toolchain_manifest": null,
-  "partition_table": null,
-  "recovery_verified": false
+  "required_sdkconfig": [
+    "CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y"
+  ],
+  "device_component_lock": "integration/v6/idf61-components.lock",
+  "toolchain_manifest": "integration/v6/idf61-environment.json",
+  "partition_table": "integration/v6/board/claw4-v6.csv",
+  "recovery_verified": false,
+  "device_chip_revision": "v1.3; COM7 read verified 2026-09-21",
+  "recovery_backup_sha256": "b77343691c97359eaedba4d7d8353ef6df55b10ae2f5f9a13059943c04bb9413"
 }

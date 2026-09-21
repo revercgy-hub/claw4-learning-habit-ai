@@ -37,7 +37,9 @@ def freeze(source, output):
                 'CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y', 'CONFIG_USE_DEVICE_AEC=y',
                 'CONFIG_SLAVE_IDF_TARGET_ESP32C5=y', 'CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5=y',
                 'CONFIG_PARTITION_TABLE_OFFSET=0x9000', 'CONFIG_ESPTOOLPY_FLASHSIZE="32MB"',
-                'CONFIG_ESPTOOLPY_FLASHMODE="dio"']
+                'CONFIG_ESPTOOLPY_FLASHMODE="dio"', 'CONFIG_ESPTOOLPY_FLASHFREQ="40m"',
+                'CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y',
+                'CONFIG_BOOTLOADER_CACHE_32BIT_ADDR_QUAD_FLASH=y']
     for setting in required:
         if setting not in config.splitlines():
             raise ValueError(f'Unapplied critical config: {setting}')
