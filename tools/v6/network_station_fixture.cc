@@ -33,11 +33,17 @@ struct SsidManager {
 static std::vector<wifi_ap_record_t> aps;
 static std::vector<wifi_config_t> configs;
 static int scan_error=0, connect_error=0, connects=0, timers=0;
+static int config_error=0, config_failures_left=0, scan_start_error=0, scan_starts=0, clears=0;
 int esp_wifi_scan_get_ap_num(uint16_t* n) { *n=aps.size(); return scan_error; }
 int esp_wifi_scan_get_ap_records(uint16_t*, wifi_ap_record_t* out) { std::copy(aps.begin(),aps.end(),out); return scan_error; }
-void esp_wifi_clear_ap_list() {}
+void esp_wifi_clear_ap_list() { ++clears; }
+int esp_wifi_scan_start(void*, bool) { ++scan_starts; return scan_start_error; }
 void esp_timer_start_once(int, int) { ++timers; }
-int esp_wifi_set_config(int, wifi_config_t* c) { configs.push_back(*c); return 0; }
+int esp_wifi_set_config(int, wifi_config_t* c) {
+    configs.push_back(*c);
+    if (config_failures_left > 0) { --config_failures_left; return 11; }
+    return config_error;
+}
 int esp_wifi_connect() { ++connects; return connect_error; }
 struct WifiStation {
     std::vector<WifiApRecord> connect_queue_;
@@ -49,11 +55,14 @@ struct WifiStation {
     void StartScan() { ++scans; }
     void UpdateScanInterval() { ++backoffs; }
     void HandleScanResult();
+    void HandleScanDone(bool success);
+    void StartFullScan();
     void StartConnect();
 };
 // INSERT_PRODUCTION_METHODS
 void reset() {
     aps.clear(); configs.clear(); connects=timers=scan_error=connect_error=0;
+    config_error=config_failures_left=scan_start_error=scan_starts=clears=0;
     SsidManager::GetInstance().saved={{"hidden", "password"}, {"two", "second"}, {"three", "third"}, {"four", "fourth"}};
 }
 int main() {
@@ -79,4 +88,26 @@ int main() {
     assert(visible.reconnect_count_==0 && configs[0].sta.failure_retry_cnt==3);
     reset(); WifiStation empty; SsidManager::GetInstance().saved.clear();
     empty.HandleScanResult(); assert(connects==0 && timers==1);
+    reset(); WifiStation no_queue;
+    no_queue.StartConnect(); assert(connects==0 && timers==1);
+    reset(); WifiStation bad_config; config_error=9;
+    bad_config.HandleScanResult();
+    assert(configs.size()==3 && connects==0 && timers==1 && bad_config.connect_queue_.empty());
+    reset(); WifiStation visible_bad_config; config_error=9; aps.push_back(ap);
+    visible_bad_config.HandleScanResult(); assert(configs.size()==1 && connects==0 && timers==1);
+    reset(); WifiStation visible_bad_connect; connect_error=9; aps.push_back(ap);
+    visible_bad_connect.HandleScanResult(); assert(connects==1 && timers==1);
+    reset(); WifiStation second_works; config_failures_left=1;
+    second_works.HandleScanResult();
+    assert(configs.size()==2 && connects==1 && timers==0 && second_works.ssid_=="two");
+    reset(); WifiStation failed_completion;
+    failed_completion.connect_queue_.push_back({"stale", "secret", 1, 0, {0}, false});
+    failed_completion.HandleScanDone(false);
+    assert(failed_completion.connect_queue_.empty() && connects==0 && timers==1 && clears==1);
+    reset(); WifiStation start_failed; scan_start_error=13;
+    start_failed.StartFullScan(); assert(scan_starts==1 && timers==1 && start_failed.backoffs==1);
+    reset(); WifiStation start_ok;
+    start_ok.StartFullScan(); assert(scan_starts==1 && timers==0);
+    reset(); WifiStation completed; aps.push_back(ap);
+    completed.HandleScanDone(true); assert(connects==1 && timers==0);
 }

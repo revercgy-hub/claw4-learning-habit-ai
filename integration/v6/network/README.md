@@ -41,3 +41,10 @@ shim scenarios, six overlay integrity tests. These do not simulate the ESP event
 loop, RF/association timing, disconnect races, C5 or the physical access point.
 Device verification remains required for visible/hidden boot, wrong password,
 AP absence, reconnect and provisioning deadline.
+
+Post-candidate07 increment: scan-start and failed scan-completion events back
+off without treating errors as empty scan results. Connection configuration and
+start errors consume the finite queue iteratively for both visible and direct
+entries, without aborting or connecting with stale configuration. Host coverage
+is now 16 production-method scenarios. This source change is not in the frozen
+candidate07 binary; see V6_M0_NETWORK_FAILURE_REPORT.md before hardware review.

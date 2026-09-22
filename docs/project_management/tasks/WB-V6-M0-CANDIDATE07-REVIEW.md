@@ -1,5 +1,7 @@
 # WB-V6-M0-CANDIDATE07-REVIEW
 
+> 后续源码增量：Codex新增网络失败恢复，见 `docs/v6/V6_M0_NETWORK_FAILURE_REPORT.md`。本包仍只验证固定 f47afda / candidate07，不能将新源码或16场景结果说成07已包含。增量可另行记录代码复核意见，DEVICE验收等待后续统一候选；不要用当前分支的freeze/build工具覆盖E:/v6/s1。
+
 状态 READY，当前唯一 WorkBuddy 活动流。用户要求 Codex 完成一阶段再统一复核；网络恢复与统一候选阶段已完成源码/Host/BUILD，现交复核。05旧流待修项和06未执行测试统一承接；06包 HOLD，不再执行旧刷写命令。
 
 ## 输入与职责

@@ -13,6 +13,7 @@
 | M0-1 | 四方源码冻结 + 环境/恢复清单 | Codex | IN_PROGRESS | SHA/IDF6.1/依赖锁已冻结；32MiB 完整备份和实际布局已核对，恢复写回尚未实测 |
 | M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | m0.1 构建通过；屏幕/触摸/音频/C5 诊断候选，Camera/SD/电源键待补 |
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
+| M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 16生产方法Host场景、62工具测试、实际IDF单元编译通过；未整机链接，未进入候选07，详见V6_M0_NETWORK_FAILURE_REPORT.md |
 | M0-3 | 候选07统一代码/硬件复核 | WorkBuddy 执行 / Codex 复核 | READY | 唯一入口 WB-V6-M0-CANDIDATE07-REVIEW；候选07未刷，音频+网络+复位/观察统一验证 |
 | M1 | NAS 连续语音 20 轮 | Codex | BACKLOG | M0 真机通过；不链接学习代码 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
