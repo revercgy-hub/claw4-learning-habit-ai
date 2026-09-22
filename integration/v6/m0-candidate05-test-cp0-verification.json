@@ -1,0 +1,52 @@
+{
+  "checkpoint": "CP0",
+  "date": "2026-09-22T18:15:11+08:00",
+  "worktree": "E:\\workbuddy\\claw4-v6-wb-c05",
+  "branch": "workbuddy/v6-m0-candidate05-test",
+  "implementation_base_sha": "e7db074a8e468b9729bcb1057ce1853cd754cd68",
+  "expected_base_sha": "e7db074a8e468b9729bcb1057ce1853cd754cd68",
+  "candidate_manifest": "m0-candidate-05.json",
+  "candidate_files_verified": 13,
+  "candidate_files_mismatched": [],
+  "overlay_files_verified": 10,
+  "overlay_files_mismatched": [],
+  "manifest_hash_convention": "overlay_sha256 and files[].sha256 are raw-byte sha256 (freeze_candidate.digest); 9 of 10 overlay files contain no CRLF so raw equals CRLF-normalised",
+  "tool_tests": {
+    "command": "python -m unittest discover -s tools/v6 -t tools/v6 -p test_*.py",
+    "expected": 49,
+    "ran": 49,
+    "result": "OK"
+  },
+  "capture": {
+    "file": "cp0-boot-01.txt",
+    "sha256": "37c7dee4e2b86db0da0b467a604e6a6503203c3213c1b393a0ec3c327eba4e87",
+    "bytes": 25003,
+    "seconds": 60,
+    "reset": true
+  },
+  "continue_conditions": {
+    "candidate_elf_prefix": "533d4a15d",
+    "candidate_elf_prefix_matches_manifest": true,
+    "boot_ready": true,
+    "assets_applied_1": true,
+    "abort_or_panic_lines": 0,
+    "boot_blocked_lines": 0,
+    "i2c_retry_lines": 0,
+    "i2c_recovered_lines": 0,
+    "app_main_calls": 1,
+    "i2c_tca9555_init": true
+  },
+  "device_binary_binding": {
+    "method": "read_flash 0x200000 0x2e7a60 (read-only) compared byte-for-byte with candidate build/xiaozhi.bin",
+    "device_bytes": 3045984,
+    "device_sha256": "f109b9282fcec6711a351e2fa62523a51ecce0fb2447fd7803b1a682883cc0d6",
+    "candidate_sha256": "f109b9282fcec6711a351e2fa62523a51ecce0fb2447fd7803b1a682883cc0d6",
+    "identical": true,
+    "note": "Stronger than the runtime 9-hex-digit ELF prefix: proves the running application image is the frozen candidate."
+  },
+  "limitations": [
+    "The runtime only prints a 9-hex-digit ELF prefix; full-hash binding comes from the read-only app-partition readback.",
+    "No write, erase, partition, C5 or eFuse operation was performed in this checkpoint."
+  ],
+  "result": "PASS"
+}
