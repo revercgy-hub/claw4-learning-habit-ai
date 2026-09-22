@@ -1,8 +1,8 @@
 # V6 M0 硬件验收矩阵（自动生成）
 
-> 生成时间 2026-09-22T02:15:05+00:00；schema `claw4-v6-m0-hw-matrix/1`。
+> 生成时间 2026-09-22T02:44:31+00:00；schema `claw4-v6-m0-hw-matrix/1`。
 > 冻结候选 `m0-candidate-04.json`，应用 SHA256 `196d8718a211e660…`。
-> 证据来源 5 份启动捕获 / 1 份刷写捕获。
+> 证据来源 8 份启动捕获 / 1 份刷写捕获。
 > 数值型信号按**跨捕获取最大值**合并，避免后一份没点击的日志抹掉前一份的触摸证据；
 > 缺信号一律 NOT_VERIFIED，绝不由相邻项推断。
 
@@ -16,7 +16,7 @@
 | 唤醒词 | `V6M0: WAKE_DETECTED count` | **NOT_VERIFIED** | — | model is loaded, but a positive detection has never been captured on the wire; wake=1 in HEALTH is IsWakeWordRunning(), not a detection |
 | C5 链路 | `transport: Identified slave [esp32c5]` | **PASS** | boot-m0-02.txt | SDIO card init=yes, coprocessor boot-up=yes |
 | 配网模式（热点/配置页） | `WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9` | **PASS** | netprobe-m0-02.txt | AP SSID=WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9, DHCP=DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1, softap events=2, connect timeout after=1 cycle(s); a started softap proves the radio transmits, it does not prove association |
-| 网络 / IP | `no 'Connected to WiFi' line` | **NOT_VERIFIED** | boot-m0-03.txt | scan cycles=3, 'No AP found' cycles=3, config-mode entries=1, NETWORK_EVENT=4 (3=Disconnected, 4=ConfigModeEnter); 'No AP found' means no saved SSID matched, not that the scan returned nothing |
+| 网络 / IP | `no 'Connected to WiFi' line` | **NOT_VERIFIED** | boot-m0-03.txt | scan cycles=3, 'No AP found' cycles=3, saved-channel scans=1 (saved channel=11), config-mode entries=1, NETWORK_EVENT=4 (3=Disconnected, 4=ConfigModeEnter); 'No AP found' means no saved SSID matched, not that the scan returned nothing |
 | 资源分区 | `V6M0: Assets applied=1` | **PASS** | boot-m0-03.txt | assets_apply() returned true |
 | SD 卡 / Camera / 电源键 | `no signal in candidate` | **NOT_TESTED** | — | not integrated in m0.1 |
 | 回滚（恢复写回） | `out/v6-device-private/pre-v6-flash.bin` | **NOT_TESTED** | — | a full 32MiB image was read back and hashed, but it has never been written back; until then rollback is unproven |
@@ -41,14 +41,16 @@
 | `display_init` | `Claw4V6: NV3051F display initialized, RGB565 -> RGB888` | boot-m0-02.txt |
 | `display_rgb888` | `Claw4V6: Native RGB888 display, panel double buffers, full refresh` | boot-m0-04.txt |
 | `health_last` | `V6M0: HEALTH free=28027643 psram=27878204 wake=1 taps=0` | boot-m0-02.txt |
-| `health_samples` | `5` | netprobe-m0-01.txt |
+| `health_samples` | `6` | netprobe-m0-03.txt |
 | `idf_version` | `v6.1` | boot-m0-02.txt |
 | `lvgl_first_refresh` | `Claw4V6: LVGL first refresh completed (physical image still requires confirmation)` | boot-m0-04.txt |
 | `mac_not_ready` | `1` | boot-m0-02.txt |
 | `net_event` | `4` | netprobe-m0-02.txt |
+| `no_ap_on_saved_ch` | `1` | netprobe-m0-03.txt |
 | `panel_capability_errors` | `2` | boot-m0-04.txt |
 | `playback_queued` | `3` | boot-m0-04.txt |
 | `reset_reason` | `rst:0x17 (CHIP_USB_UART_RESET)` | boot-m0-02.txt |
+| `saved_channel_scan` | `11` | netprobe-m0-03.txt |
 | `sdio_card_init` | `H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE` | boot-m0-02.txt |
 | `softap_started` | `2` | netprobe-m0-02.txt |
 | `state_machine_reject` | `1` | netprobe-m0-02.txt |
@@ -84,12 +86,25 @@
 | `netprobe-m0-02.txt` | 88637 | 27118047 | 26837296 | 1 | 0 |
 | `netprobe-m0-02.txt` | 98643 | 27118047 | 26837296 | 1 | 0 |
 | `netprobe-m0-02.txt` | 108653 | 27118047 | 26837296 | 1 | 0 |
+| `netprobe-m0-03.txt` | 18569 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-03.txt` | 28579 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-03.txt` | 38584 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-03.txt` | 48593 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-03.txt` | 58603 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-04.txt` | 18580 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-04.txt` | 28585 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-04.txt` | 38594 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-04.txt` | 48604 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-04.txt` | 58614 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-05.txt` | 68623 | 27134019 | 26841788 | 1 | 0 |
+| `netprobe-m0-05.txt` | 78629 | 27118527 | 26837296 | 1 | 0 |
+| `netprobe-m0-05.txt` | 88638 | 27118527 | 26837296 | 1 | 0 |
 
 `WakeWordRunning` 是 `audio.IsWakeWordRunning()` 的运行态，**不是**检测到唤醒；只有 `V6M0: WAKE_DETECTED` 才算正事件。
 
 ## 未闭合项
 
 - 唤醒词从未捕获到正事件（WAKE_DETECTED=0）
-- 从未取得 IP（NETWORK_EVENT 只到 4=ConfigModeEnter）；需在配置页提交真实凭据
+- 从未取得 IP。配网已写入 NVS 且 C5 配网时关联成功，但重启后重连走扫描匹配路径，对不广播 SSID 的 AP 永远匹配不到（详见 V6_M0_NETWORK_PROBE.md §8）
 - 恢复写回未实测，回滚不可信
 - SD 卡 / Camera / 电源键未集成

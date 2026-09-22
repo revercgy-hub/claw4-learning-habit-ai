@@ -55,7 +55,9 @@ SYNTHETIC_NETPROBE = """\
 rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
 I (8515) RPC_WRAP: Coprocessor Boot-up
 I (8677) WifiBoard: Starting WiFi connection attempt
-I (9599) WifiStation: Scanning all channels
+I (9601) WifiStation: Scanning saved channel 11
+I (9767) WifiStation: No AP on saved channels, starting full scan
+I (9768) WifiStation: Scanning all channels
 I (12057) WifiStation: No AP found, next scan in 10 seconds
 I (68677) WifiBoard: WiFi connection timeout, entering config mode
 W (68732) WifiBoard: WiFi disconnected
@@ -121,6 +123,15 @@ class SignalTests(unittest.TestCase):
         self.assertEqual(s["wifi_config_mode"], 1)
         self.assertEqual(s["net_event"], 4)
         self.assertEqual(s["state_machine_reject"], 1)
+
+    def test_saved_channel_scan_is_visible(self):
+        """A non-zero saved channel proves credentials reached NVS even when the
+        device still cannot associate."""
+        s = self.netprobe()["signals"]
+        self.assertEqual(s["saved_channel_scan"], 11)
+        self.assertEqual(s["no_ap_on_saved_ch"], 1)
+        # The first capture predates provisioning, so it has no saved channel.
+        self.assertIsNone(self.boot()["signals"]["saved_channel_scan"])
 
     def test_boot_and_version_signals(self):
         s = self.boot()["signals"]

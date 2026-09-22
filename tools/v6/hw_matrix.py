@@ -68,6 +68,8 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("c5_bootup",           "line",  r"RPC_WRAP: Coprocessor Boot-up"),
     ("wifi_attempt",        "count", r"WifiBoard: Starting WiFi connection attempt"),
     ("wifi_scan_cycles",    "count", r"WifiStation: Scanning all channels"),
+    ("saved_channel_scan",  "int",   r"WifiStation: Scanning saved channel (\d+)"),
+    ("no_ap_on_saved_ch",   "count", r"WifiStation: No AP on saved channels"),
     ("wifi_scan_done",      "count", r"RPC_WRAP: ESP Event: StaScanDone"),
     ("wifi_no_ap",          "count", r"WifiStation: No AP found"),
     ("wifi_config_mode",    "count", r"WiFi config mode entered"),
@@ -312,6 +314,8 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
         _state(ip_ok),
         f"scan cycles={s.get('wifi_scan_cycles', 0)}, "
         f"'No AP found' cycles={s.get('wifi_no_ap', 0)}, "
+        f"saved-channel scans={s.get('no_ap_on_saved_ch', 0)} "
+        f"(saved channel={s.get('saved_channel_scan', 'n/a')}), "
         f"config-mode entries={s.get('wifi_config_mode', 0)}, "
         f"NETWORK_EVENT={s.get('net_event', 'n/a')} (3=Disconnected, 4=ConfigModeEnter); "
         "'No AP found' means no saved SSID matched, not that the scan returned nothing",
@@ -366,7 +370,8 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
                            user_confirmations),
         "open_items": [
             "唤醒词从未捕获到正事件（WAKE_DETECTED=0）",
-            "从未取得 IP（NETWORK_EVENT 只到 4=ConfigModeEnter）；需在配置页提交真实凭据",
+            "从未取得 IP。配网已写入 NVS 且 C5 配网时关联成功，但重启后重连走扫描匹配路径，"
+            "对不广播 SSID 的 AP 永远匹配不到（详见 V6_M0_NETWORK_PROBE.md §8）",
             "恢复写回未实测，回滚不可信",
             "SD 卡 / Camera / 电源键未集成",
         ],
