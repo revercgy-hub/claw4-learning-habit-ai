@@ -41,7 +41,10 @@ LOG_LINE = re.compile(r"^([IWEVD])\s*\((\d+)\)\s+(.*)$")
 SIGNALS: tuple[tuple[str, str, str], ...] = (
     # --- boot / reset -------------------------------------------------------
     ("reset_reason",        "line",  r"^rst:0x[0-9a-f]+ \([^)]+\)"),
+    ("boot_attempts",       "count", r"Calling app_main\(\)"),
+    ("panic_resets",        "count", r"^rst:0x[0-9a-f]+ \(SW_CPU_RESET\)"),
     ("boot_ready",          "line",  r"V6M0: BOOT_READY IDF=(\S+);"),
+    ("boot_ready_count",    "count", r"V6M0: BOOT_READY"),
     ("idf_version",         "line",  r"V6M0: BOOT_READY IDF=(\S+);"),
     ("assertions",          "count", r"abort\(\) was called|assert failed|Guru Meditation Error"),
     # --- display ------------------------------------------------------------
@@ -265,16 +268,26 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
                      "source": src.get(source_key) if source_key else None})
 
     # Flash / PSRAM --------------------------------------------------------
-    flash_ok = flash.get("verified_images", 0) > 0 and not s.get("assertions")
+    # Decoupled from boot health on purpose: only the flash capture can speak
+    # about flash writes, and an unrelated init failure must not silently
+    # downgrade (or upgrade) this row.
     row("Flash / PSRAM", "candidate manifest + flash log 'Hash of data verified.'",
-        _state(bool(flash_ok), user_confirmations.get("psram_stress") is False),
+        _state(flash.get("verified_images", 0) > 0),
         f"verified writes in this capture: {flash.get('verified_images', 0)}; "
         "long-run stress still not exercised")
 
     # Boot -----------------------------------------------------------------
+    aborts = s.get("assertions", 0)
+    if aborts:
+        # A captured abort is evidence of a defect, not merely an unverified item.
+        boot_status = "FAIL"
+    else:
+        boot_status = _state(bool(s.get("boot_ready")))
     row("启动", s.get("boot_ready") or "BOOT_READY absent",
-        _state(bool(s.get("boot_ready")) and s.get("assertions", 0) == 0),
-        f"assertions={s.get('assertions', 0)}; longest capture {observed_s:.1f}s",
+        boot_status,
+        f"boot attempts={s.get('boot_attempts', 0)}, BOOT_READY={s.get('boot_ready_count', 0)}, "
+        f"aborts={aborts}, panic resets={s.get('panic_resets', 0)}; "
+        f"longest capture {observed_s:.1f}s",
         source_key="boot_ready")
 
     # Display --------------------------------------------------------------

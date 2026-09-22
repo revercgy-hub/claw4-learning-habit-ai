@@ -17,6 +17,7 @@ import hw_matrix
 
 SYNTHETIC_BOOT = """\
 rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+I (1531) main_task: Calling app_main()
 I (91) boot:  5 assets           Unknown data     01 82 01000000 00f00000
 E (6005) system_api: 0 mac type is incorrect (not found)
 I (7745) transport: Identified slave [esp32c5]
@@ -318,7 +319,9 @@ class MatrixTests(unittest.TestCase):
         self.assertNotEqual(row["status"], "PASS")
 
     def test_boot_fails_when_assertions_present(self):
-        noisy = SYNTHETIC_BOOT + "assert failed: xTaskGetSchedulerState scheduler.c:123\n"
+        """A captured abort is evidence of a defect, so the row must say FAIL --
+        NOT_VERIFIED would understate it."""
+        noisy = SYNTHETIC_BOOT + "abort() was called at PC 0x4ff1ed41 on core 0\n"
         path = _write(self._dir.name, "boot-assert.txt", noisy)
         matrix = hw_matrix.build_matrix(
             [hw_matrix.parse_boot_log(path)],
@@ -328,8 +331,34 @@ class MatrixTests(unittest.TestCase):
             dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
         )
         row = next(r for r in matrix["rows"] if r["item"] == "启动")
-        self.assertNotEqual(row["status"], "PASS")
+        self.assertEqual(row["status"], "FAIL")
         self.assertEqual(matrix["signals"]["assertions"], 1)
+
+    def test_flash_row_is_not_downgraded_by_an_unrelated_boot_crash(self):
+        """The flash capture is the only thing that can speak about flash writes."""
+        noisy = SYNTHETIC_BOOT + "abort() was called at PC 0x4ff1ed41 on core 0\n"
+        path = _write(self._dir.name, "boot-assert.txt", noisy)
+        matrix = hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(path)],
+            [hw_matrix.parse_flash_log(self.flash_path)],
+            self.cand_path,
+            CANDIDATE,
+            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+        )
+        row = next(r for r in matrix["rows"] if r["item"] == "Flash / PSRAM")
+        self.assertEqual(row["status"], "PASS")
+
+    def test_boot_attempts_are_counted(self):
+        """A boot loop must be visible as a number, not only as a missing BOOT_READY."""
+        looping = SYNTHETIC_BOOT + (
+            "rst:0xc (SW_CPU_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)\n"
+            "I (1530) main_task: Calling app_main()\n"
+            "abort() was called at PC 0x4ff1ed41 on core 0\n")
+        path = _write(self._dir.name, "boot-loop.txt", looping)
+        s = hw_matrix.parse_boot_log(path)["signals"]
+        self.assertEqual(s["boot_attempts"], 2)
+        self.assertEqual(s["panic_resets"], 1)
+        self.assertEqual(s["assertions"], 1)
 
     def test_render_markdown_contains_every_row(self):
         md = hw_matrix.render_markdown(self.matrix)

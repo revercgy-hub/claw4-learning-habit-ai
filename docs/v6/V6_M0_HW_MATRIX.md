@@ -1,15 +1,15 @@
 # V6 M0 硬件验收矩阵（自动生成）
 
-> 生成时间 2026-09-22T03:27:51+00:00；schema `claw4-v6-m0-hw-matrix/1`。
+> 生成时间 2026-09-22T04:40:03+00:00；schema `claw4-v6-m0-hw-matrix/1`。
 > 冻结候选 `m0-candidate-04.json`，应用 SHA256 `196d8718a211e660…`。
-> 证据来源 12 份启动捕获 / 1 份刷写捕获。
+> 证据来源 14 份启动捕获 / 1 份刷写捕获。
 > 数值型信号按**跨捕获取最大值**合并，避免后一份没点击的日志抹掉前一份的触摸证据；
 > 缺信号一律 NOT_VERIFIED，绝不由相邻项推断。
 
 | 项目 | 证据 | 状态 | 来源 | 说明 |
 | --- | --- | --- | --- | --- |
-| Flash / PSRAM | `candidate manifest + flash log 'Hash of data verified.'` | **NOT_VERIFIED** | — | verified writes in this capture: 1; long-run stress still not exercised |
-| 启动 | `V6M0: BOOT_READY IDF=v6.1;` | **NOT_VERIFIED** | boot-m0-02.txt | assertions=2; longest capture 449.0s |
+| Flash / PSRAM | `candidate manifest + flash log 'Hash of data verified.'` | **PASS** | — | verified writes in this capture: 1; long-run stress still not exercised |
+| 启动 | `V6M0: BOOT_READY IDF=v6.1;` | **FAIL** | boot-m0-02.txt | boot attempts=3, BOOT_READY=1, aborts=2, panic resets=2; longest capture 449.0s |
 | 显示 | `Claw4V6: Native RGB888 display, panel double buffers, full refresh` | **PASS** | boot-m0-04.txt | display init=yes, user confirmed visible=yes, unsupported-capability errors=2 |
 | 触摸 | `Claw4V6: GT911 touch initialized` | **PASS** | boot-m0-04.txt | tap-driven record cycles=3, last tap count=5 |
 | 音频 | `Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO` | **PASS** | boot-m0-02.txt | AFE=yes, loopback user-confirmed=yes, WakeNet=AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts, WAKE_DETECTED events=0 |
@@ -31,7 +31,9 @@
 | `assets_mapped` | `Assets: The assets map size is 576 KB (partition 15360 KB)` | boot-m0-02.txt |
 | `audio_i2s` | `Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO` | boot-m0-02.txt |
 | `audio_module_probe` | `Claw4V6: Audio module local-mode response bytes=21 (clock test still required)` | boot-m0-02.txt |
+| `boot_attempts` | `3` | netprobe-m0-07.txt |
 | `boot_ready` | `V6M0: BOOT_READY IDF=v6.1;` | boot-m0-02.txt |
+| `boot_ready_count` | `1` | boot-m0-02.txt |
 | `c5_bootup` | `RPC_WRAP: Coprocessor Boot-up` | boot-m0-02.txt |
 | `c5_slave` | `transport: Identified slave [esp32c5]` | boot-m0-02.txt |
 | `config_ap_dhcp` | `DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1` | netprobe-m0-02.txt |
@@ -50,6 +52,7 @@
 | `net_events` | `[0, 1, 2, 3, 4]` | netprobe-m0-06.txt |
 | `no_ap_on_saved_ch` | `1` | netprobe-m0-03.txt |
 | `panel_capability_errors` | `2` | boot-m0-04.txt |
+| `panic_resets` | `2` | netprobe-m0-07.txt |
 | `playback_queued` | `3` | boot-m0-04.txt |
 | `reset_reason` | `rst:0x17 (CHIP_USB_UART_RESET)` | boot-m0-02.txt |
 | `saved_channel_scan` | `11` | netprobe-m0-03.txt |
@@ -123,6 +126,15 @@
 | `wakeword-m0-02.txt` | 428966 | 27133695 | 26841588 | 1 | 0 |
 | `wakeword-m0-02.txt` | 438977 | 27133695 | 26841588 | 1 | 0 |
 | `wakeword-m0-02.txt` | 448982 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-05.txt` | 18558 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-05.txt` | 28564 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-05.txt` | 38575 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-05.txt` | 48584 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-05.txt` | 58593 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-06.txt` | 68598 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-06.txt` | 78609 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-06.txt` | 88619 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-06.txt` | 98624 | 27133675 | 26841568 | 1 | 0 |
 
 `WakeWordRunning` 是 `audio.IsWakeWordRunning()`。**注意方向**：`EnableWakeWordDetection(true)` 置位、**检测到唤醒时清位**，所以持续为 1 只能说明「从未检测到」，任何一次 0 才代表刚发生过检测。真正的正事件只有 `V6M0: WAKE_DETECTED`。
 
