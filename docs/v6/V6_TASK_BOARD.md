@@ -1,13 +1,14 @@
 # V6 唯一阶段看板
 
-更新：2026-09-22。当前接续：已复检并整合 WorkBuddy e923a48 的 17 笔提交；启动恢复/唤醒诊断源码完成，链接器受 Windows 应用控制阻断，未刷机。详见 CODEX_V6_M0_REVIEW_2026-09-22.md。负责人：Codex。当前活动：CODEX-V6-FOUNDATION / IN_PROGRESS；没有已下发的 WorkBuddy V6 工作流。V5.3 继续 Voice 补丁与外围扩展 HOLD，历史报告保留，调度状态 SUPERSEDED。
+更新：2026-09-22。负责人：Codex。当前开发 CODEX-V6-FOUNDATION / IN_PROGRESS；唯一 WorkBuddy 活动流 WB-V6-M0-CANDIDATE05-TEST / READY，任务包 ../project_management/tasks/WB-V6-M0-CANDIDATE05-TEST.md。用户要求后续测试交 WorkBuddy，Codex 负责架构/固件修正与复核。候选 05 已构建刷入；Codex 完整记账 10/20 轮正常复位，已停止并释放串口，后续以独立测试流为准。任务包已发布在本地仓库，尚未通过外部消息工具送达 WorkBuddy。
+
 
 | 顺序 | 工作 | 负责人 | 状态 | 放行与证据 |
 | --- | --- | --- | --- | --- |
 | 0 | 架构/迁移构建入口/边界检查 | Codex | REVIEW_READY | 代码/文档已交付；78 case PASS，协调器受应用控制阻断，不能标全量 PASS |
 | M0-1 | 四方源码冻结 + 环境/恢复清单 | Codex | IN_PROGRESS | SHA/IDF6.1/依赖锁已冻结；32MiB 完整备份和实际布局已核对，恢复写回尚未实测 |
 | M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | m0.1 构建通过；屏幕/触摸/音频/C5 诊断候选，Camera/SD/电源键待补 |
-| M0-3 | 硬件矩阵验证 | Codex + 用户屏侧反馈 | IN_PROGRESS | 历史候选启动可靠性 FAIL；显示/触摸/回环有据；唤醒待定位。新修正待构建与真机复测，详见 V6_M0_DEVICE_REPORT.md |
+| M0-3 | 硬件矩阵验证 | WorkBuddy 执行 / Codex 复核 | READY | 历史候选启动可靠性 FAIL；显示/触摸/回环有据；唤醒待定位。候选 05 已刷入，WorkBuddy 接续复测，详见 V6_M0_DEVICE_REPORT.md |
 | M1 | NAS 连续语音 20 轮 | Codex | BACKLOG | M0 真机通过；不链接学习代码 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
