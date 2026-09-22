@@ -12,13 +12,21 @@
 #include <esp_lvgl_port.h>
 #include <nvs_flash.h>
 #include <atomic>
+#include <esp_timer.h>
+#include <esp_app_desc.h>
 
 // Bounded local hardware harness, never starts the application protocol/OTA loop.
 // M1 uses upstream main.cc unchanged by disabling this build option.
 static std::atomic<bool> record_requested{false};
 static std::atomic<unsigned> taps{0};
+static std::atomic<unsigned> wake_events{0};
+static std::atomic<unsigned> vad_events{0};
+static std::atomic<bool> rearm_requested{false};
 
 extern "C" void app_main() {
+    char app_sha[65]{};
+    esp_app_get_elf_sha256(app_sha, sizeof(app_sha));
+    ESP_LOGI("V6M0", "CANDIDATE_ELF_SHA256=%s", app_sha);
     ESP_ERROR_CHECK(nvs_flash_init()); // No automatic erase on migration failure.
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     auto& board = Board::GetInstance();
@@ -32,7 +40,15 @@ extern "C" void app_main() {
     const bool assets = Assets::GetInstance().Apply();
     ESP_LOGI("V6M0", "Assets applied=%d", assets);
     AudioServiceCallbacks callbacks;
-    callbacks.on_wake_word_detected = [](const std::string&) { ESP_LOGI("V6M0", "WAKE_DETECTED (local only)"); };
+    callbacks.on_wake_word_detected = [](const std::string&) {
+        const auto count = wake_events.fetch_add(1) + 1;
+        ESP_LOGI("V6M0", "WAKE_DETECTED (local only) count=%u", count);
+        rearm_requested.store(true);
+    };
+    callbacks.on_vad_change = [](bool speaking) {
+        if (speaking) vad_events.fetch_add(1);
+        ESP_LOGI("V6M0", "VAD speaking=%d count=%u", speaking, vad_events.load());
+    };
     audio.SetCallbacks(callbacks);
     audio.EnableWakeWordDetection(true);
     if (lvgl_port_lock(1000)) {
@@ -53,25 +69,48 @@ extern "C" void app_main() {
     });
     board.StartNetwork();
     ESP_LOGI("V6M0", "BOOT_READY IDF=%s; no protocol or OTA started", esp_get_idf_version());
-    unsigned ticks = 0;
+    // Wake-only mode does not call HandleVoiceResult in the pinned AFE engine.
+    // A missing VAD callback here is NOT evidence of silence/low input level.
+    ESP_LOGI("V6M0", "VAD_OBSERVABLE=0 mode=wake_only; use INPUT statistics");
+    enum class LocalTest { Idle, Recording, Playback };
+    LocalTest test = LocalTest::Idle;
+    int64_t deadline = 0;
+    int64_t next_health = esp_timer_get_time() + 10000000;
+    int64_t rearm_after = 0;
     for (;;) {
-        if (record_requested.exchange(false)) {
+        const int64_t now = esp_timer_get_time();
+        if (record_requested.exchange(false) && test == LocalTest::Idle) {
             ESP_LOGI("V6M0", "TOUCH count=%u; audio record begin", taps.load());
             audio.EnableWakeWordDetection(false);
             audio.EnableAudioTesting(true);
-            vTaskDelay(pdMS_TO_TICKS(3000));
+            test = LocalTest::Recording;
+            deadline = now + 3000000;
+        }
+        if (test == LocalTest::Recording && now >= deadline) {
             audio.EnableAudioTesting(false);
             ESP_LOGI("V6M0", "Audio testing playback queued");
-            vTaskDelay(pdMS_TO_TICKS(3500));
-            audio.EnableWakeWordDetection(true);
+            test = LocalTest::Playback;
+            deadline = now + 3500000;
         }
-        if (++ticks % 10 == 0) {
-            ESP_LOGI("V6M0", "HEALTH free=%u psram=%u wake=%d taps=%u",
+        if (test == LocalTest::Playback && now >= deadline) {
+            rearm_requested.store(false);
+            audio.EnableWakeWordDetection(true);
+            test = LocalTest::Idle;
+        }
+        if (test == LocalTest::Idle && rearm_requested.exchange(false)) rearm_after = now + 1000000;
+        if (test == LocalTest::Idle && rearm_after && now >= rearm_after) {
+            audio.EnableWakeWordDetection(true);
+            rearm_after = 0;
+            ESP_LOGI("V6M0", "WAKE_REARM armed=%d", audio.IsWakeWordRunning());
+        }
+        if (now >= next_health) {
+            next_health = now + 10000000;
+            ESP_LOGI("V6M0", "HEALTH free=%u psram=%u wake=%d taps=%u wakes=%u vads=%u vad_observable=0",
                      unsigned(esp_get_free_heap_size()),
                      unsigned(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)),
-                     audio.IsWakeWordRunning(), taps.load());
+                     audio.IsWakeWordRunning(), taps.load(), wake_events.load(), vad_events.load());
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 #endif

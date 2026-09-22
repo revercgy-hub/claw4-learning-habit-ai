@@ -4,6 +4,8 @@
 #include <array>
 #include <utility>
 #include <esp_log.h>
+#include <esp_timer.h>
+#include <cmath>
 
 Claw4Audio::Claw4Audio(std::function<void(bool)> amplifier)
     : amplifier_(std::move(amplifier)) {
@@ -65,15 +67,51 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
         size_t bytes = 0;
         const auto err = i2s_channel_read(rx_handle_, buffer.data(), count * sizeof(int32_t),
                                           &bytes, 200);
-        if (err != ESP_OK || bytes != count * sizeof(int32_t)) return 0;
+        if (err != ESP_OK || bytes != count * sizeof(int32_t)) {
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+            ++read_failures_;
+            ReportInputStats();
+#endif
+            return 0;
+        }
         for (int i = 0; i < count; ++i) {
             // Preserve the source board's ADC alignment/gain, verify both channels on hardware.
             dest[total + i] = static_cast<int16_t>(std::clamp<int32_t>(buffer[i] >> 12, -32768, 32767));
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+            const unsigned channel = (total + i) % 2;
+            const int64_t value = dest[total + i];
+            const uint32_t magnitude = value < 0 ? -value : value;
+            energy_[channel] += value * value;
+            peak_[channel] = std::max(peak_[channel], magnitude);
+            const int64_t raw = buffer[i];
+            raw_peak_[channel] = std::max(raw_peak_[channel], uint32_t(raw < 0 ? -raw : raw));
+            clipped_[channel] += (buffer[i] >> 12) < -32768 || (buffer[i] >> 12) > 32767;
+            ++samples_[channel];
+#endif
         }
         total += count;
     }
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+    ReportInputStats();
+#endif
     return total;
 }
+
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+void Claw4Audio::ReportInputStats() {
+    const int64_t now = esp_timer_get_time();
+    if (now - last_stats_us_ < 1000000) return;
+    for (unsigned ch = 0; ch < 2; ++ch) {
+        const unsigned rms = samples_[ch] ? unsigned(std::sqrt(double(energy_[ch]) / samples_[ch])) : 0;
+        ESP_LOGI("Claw4Audio", "INPUT ch=%u n=%u rms=%u peak=%u clipped=%u raw_peak=%u read_failures=%u",
+                 ch, unsigned(samples_[ch]), rms, unsigned(peak_[ch]), unsigned(clipped_[ch]),
+                 unsigned(raw_peak_[ch]), unsigned(read_failures_));
+        energy_[ch] = peak_[ch] = clipped_[ch] = raw_peak_[ch] = samples_[ch] = 0;
+    }
+    read_failures_ = 0;
+    last_stats_us_ = now;
+}
+#endif
 
 int Claw4Audio::Write(const int16_t* data, int samples) {
     std::lock_guard<std::mutex> lock(output_mutex_);

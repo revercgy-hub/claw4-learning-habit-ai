@@ -60,14 +60,41 @@ class Claw4Board final : public WifiBoard {
     esp_ldo_channel_handle_t dsi_power_ = nullptr;
     esp_ldo_channel_handle_t sd_io_power_ = nullptr;
 
+    [[noreturn]] void HaltHardware(const char* operation, esp_err_t error) {
+        // Do not proceed with unknown rail state or turn a missing device into
+        // an endless reboot loop. Sleep keeps the console and idle task alive.
+        for (;;) {
+            ESP_LOGE("Claw4V6", "BOOT_BLOCKED component=TCA9555 operation=%s error=%s", operation, esp_err_to_name(error));
+            vTaskDelay(pdMS_TO_TICKS(5000));
+        }
+    }
+    template<typename Operation>
+    void ExpanderTransaction(const char* name, Operation operation) {
+        esp_err_t error = ESP_FAIL;
+        for (unsigned attempt = 1; attempt <= 3; ++attempt) {
+            error = operation();
+            if (error == ESP_OK) {
+                if (attempt > 1) ESP_LOGI("Claw4V6", "I2C_RECOVERED operation=%s attempt=%u", name, attempt);
+                return;
+            }
+            ESP_LOGW("Claw4V6", "I2C_RETRY operation=%s attempt=%u error=%s", name, attempt, esp_err_to_name(error));
+            if (attempt < 3) {
+                const auto reset = i2c_master_bus_reset(bus_);
+                ESP_LOGI("Claw4V6", "I2C_BUS_RESET result=%s", esp_err_to_name(reset));
+                vTaskDelay(pdMS_TO_TICKS(100 * attempt));
+            }
+        }
+        HaltHardware(name, error);
+    }
+
     uint16_t ReadExpander(uint8_t reg) {
         uint8_t data[2]{};
-        ESP_ERROR_CHECK(i2c_master_transmit_receive(expander_, &reg, 1, data, 2, 100));
+        ExpanderTransaction("read", [&] { return i2c_master_transmit_receive(expander_, &reg, 1, data, 2, 100); });
         return uint16_t(data[0]) | (uint16_t(data[1]) << 8);
     }
     void WriteExpander(uint8_t reg, uint16_t value) {
         uint8_t data[] = {reg, uint8_t(value), uint8_t(value >> 8)};
-        ESP_ERROR_CHECK(i2c_master_transmit(expander_, data, sizeof(data), 100));
+        ExpanderTransaction("write", [&] { return i2c_master_transmit(expander_, data, sizeof(data), 100); });
     }
     void SetOutput(uint8_t pin, bool high) {
         std::lock_guard<std::mutex> lock(expander_mutex_);
@@ -89,7 +116,7 @@ class Claw4Board final : public WifiBoard {
         device.dev_addr_length = I2C_ADDR_BIT_LEN_7;
         device.device_address = 0x20;
         device.scl_speed_hz = 100000;
-        ESP_ERROR_CHECK(i2c_master_probe(bus_, 0x20, 100));
+        ExpanderTransaction("probe", [&] { return i2c_master_probe(bus_, 0x20, 100); });
         ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_, &device, &expander_));
         SetOutput(8, false); // PA muted until official AudioService enables output.
         SetOutput(1, true);  // Local Wi-Fi audio route.
