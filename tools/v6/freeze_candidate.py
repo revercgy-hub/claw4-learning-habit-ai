@@ -5,6 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 from baseline import ROOT
+from network_overlay import PACKAGE, verify
 
 
 def digest(path):
@@ -12,6 +13,11 @@ def digest(path):
 
 
 def freeze(source, output):
+    network_files = verify(source)
+    description = json.loads((source / 'build/project_description.json').read_text(encoding='utf-8'))
+    component = description['build_component_info'][PACKAGE]
+    if Path(component['dir']).resolve() != (source / 'components' / PACKAGE).resolve():
+        raise ValueError('Build did not select the reviewed local WiFi override')
     board = ROOT / 'integration/v6/board/claw4-learning-v6'
     staged_board = source / 'main/boards/metalio/claw4-learning-v6'
     expected = {p.relative_to(board).as_posix() for p in board.rglob('*') if p.is_file()}
@@ -48,6 +54,8 @@ def freeze(source, output):
              'build/bootloader/bootloader.bin', 'build/partition_table/partition-table.bin',
              'build/srmodels/srmodels.bin', 'build/generated_assets.bin', 'build/flasher_args.json']
     manifest = {'candidate': 'claw4-learning-v6-m0.1',
+                'network_override_sha256': network_files,
+                'network_component_directory': component['dir'],
                 'upstream_runtime_unchanged': unchanged,
                 'runtime_comparison': 'exact bytes after CRLF-to-LF normalization',
                 'overlay_sha256': {p: digest(board / p) for p in sorted(expected)},

@@ -1,0 +1,77 @@
+{
+  "component": "78/esp-wifi-connect",
+  "version": "3.3.1",
+  "upstream_commit": "cc103899ea8199b0fbf18c9b6e65152d9a92091e",
+  "original_sha256": {
+    ".component_hash": "50c906dd4c78fcde1fc6e10d79615ed6df524e84bd7e44f3fbceafcdfdee5a2f",
+    ".gitignore": "e5d5b4064af798eec8dc62d604ab68755e8525144b1d0d282d51bcadff669bb3",
+    "assets/ap.png": "defb386a203a1f29aab1ba06a97b087f74fbbeb20b8b2698d9d821efc7f95a36",
+    "assets/ap_v2.png": "a3d8fe8b7bfd944b83f0767485a8881eb20c24f3d65ba7763f1eb879e1e18d64",
+    "assets/ap_v3.png": "800fb2ef4f297fbfd7c46ce16792e63c583311c2569162d18f3d337c9a4a4eb5",
+    "assets/ap_v3_2.jpg": "76c27b31b433b993598a461d384e56bbdfd372698d7291a046b3e62b934b80f7",
+    "assets/ap_v3_advanced.png": "715f1041d341359ffdd4b8529782d313bb0be0a83366f0c3c55aca1e1dfb6d33",
+    "assets/wifi_configuration.html": "5052565dbcfe6ad200ec93b91a9c5e026b8e0f8eb5c6cd99f6a93e0cb07dfb31",
+    "assets/wifi_configuration_done.html": "f3e5d8a09d16157edc2da9df6d0f6693efb5ca9a89b2bfb7a55dfea2f0debe84",
+    "CHECKSUMS.json": "36402b67a2fc279d01a586914a52b90d79911f73e9e64f1d421542e38e1d1548",
+    "CMakeLists.txt": "1268c857023968085649e7c8078407061d6ac0ab375a0f34283a2d1185dd1fba",
+    "dns_server.cc": "8e6f03dc39f7386a149e227c756a53e3f715454b1d024c7ce38b75cdf00045d1",
+    "idf_component.yml": "e42e753272d9e7646f5220ac908e1c14395821b3a02451cefdf0a27b4ff232ae",
+    "include/dns_server.h": "68c8ad351a8d0f3993e4793dd28472e8ab0f8b74212450c03ec9190dbab821f9",
+    "include/ssid_manager.h": "342a7aec69d194e11a53653c0caafd558142bb3727c5966198ef97ffa7d67f72",
+    "include/wifi_configuration_ap.h": "60151eced0a44bd8ca51152d74269d78fa599f4c7da6dc2bc1fe018d95d0b869",
+    "include/wifi_manager.h": "32b1dd9129da4ae6f47328122e361d012cde4ea0f30255c7bc9911dde5353bb3",
+    "include/wifi_station.h": "628af9e93abcc700cad86fc0955a919b970da31a9acd17605de84ec0df7d6e81",
+    "LICENSE": "35a84cad890590c2aa8421fa48db5d2fb7e5fc938f8f31ca00dc349eb5a3d5b7",
+    "README.md": "6bee818ce2e65b98f0f1ea54bd12930b5b8ab71ea4156c96c8e7c635d5ff5f61",
+    "ssid_manager.cc": "6fb63f421af53d846580ce232ca3feabd6c0aecfb84cbd35ff7b4844b1418253",
+    "wifi_configuration_ap.cc": "3060e367880513d27e538b400aa08b2f2c2c087926ab8f3c921571a2e75d1e34",
+    "wifi_manager.cc": "9910bc77682f4adf2c885a5a21ac6d75b8958fffac5ac4b72e058fa4393fe8f5",
+    "wifi_station.cc": "f68c2a3c46ca57d1485372f07ecbc90005d8fa79d9b088e5ca8230c9a2f2a7cd"
+  },
+  "replacements": {
+    "include/wifi_station.h": [
+      [
+        "    uint8_t bssid[6];",
+        "    uint8_t bssid[6];\n    bool direct = false;"
+      ]
+    ],
+    "wifi_station.cc": [
+      [
+        "#include \"ssid_manager.h\"",
+        "#include \"ssid_manager.h\"\n#include \"saved_network_policy.h\""
+      ],
+      [
+        "    use_saved_channels_scan_ = true;",
+        "    connect_queue_.clear();\n    reconnect_count_ = 0;\n    use_saved_channels_scan_ = true;"
+      ],
+      [
+        "    uint16_t ap_num = 0;\n    esp_wifi_scan_get_ap_num(&ap_num);\n    wifi_ap_record_t *ap_records = (wifi_ap_record_t *)malloc(ap_num * sizeof(wifi_ap_record_t));\n    esp_wifi_scan_get_ap_records(&ap_num, ap_records);",
+        "    uint16_t ap_num = 0;\n    auto scan_error = esp_wifi_scan_get_ap_num(&ap_num);\n    std::vector<wifi_ap_record_t> records(ap_num);\n    if (scan_error == ESP_OK && ap_num != 0) {\n        scan_error = esp_wifi_scan_get_ap_records(&ap_num, records.data());\n    }\n    if (scan_error != ESP_OK) {\n        ESP_LOGW(TAG, \"SCAN_READ_FAILED code=%d\", int(scan_error));\n        esp_wifi_clear_ap_list();\n        esp_timer_start_once(timer_handle_, scan_current_interval_microseconds_);\n        UpdateScanInterval();\n        return;\n    }\n    records.resize(ap_num);\n    connect_queue_.clear();"
+      ],
+      [
+        "std::sort(ap_records, ap_records + ap_num,",
+        "std::sort(records.begin(), records.end(),"
+      ],
+      [
+        "auto ap_record = ap_records[i];",
+        "auto ap_record = records[i];"
+      ],
+      [
+        "    free(ap_records);",
+        "    // records owns the scan result storage, including an empty successful scan."
+      ],
+      [
+        "        ESP_LOGI(TAG, \"No AP found, next scan in %d seconds\", scan_current_interval_microseconds_ / 1000 / 1000);",
+        "        // A hidden SSID need not appear in scan results. Try at most three\n        // saved credentials, with no stale channel or invented BSSID pin.\n        for (auto index : claw4::DirectCandidates(ssid_list, remember_bssid_ != 0)) {\n            WifiApRecord record{};\n            record.ssid = ssid_list[index].ssid;\n            record.password = ssid_list[index].password;\n            record.direct = true;\n            connect_queue_.push_back(record);\n        }\n        if (!connect_queue_.empty()) {\n            ESP_LOGI(TAG, \"SAVED_DIRECT_FALLBACK candidates=%u\", unsigned(connect_queue_.size()));\n            StartConnect();\n            return;\n        }\n        ESP_LOGI(TAG, \"No AP found, next scan in %d seconds\", scan_current_interval_microseconds_ / 1000 / 1000);"
+      ],
+      [
+        "    reconnect_count_ = 0;\n    ESP_ERROR_CHECK(esp_wifi_connect());",
+        "    // One driver attempt per fallback candidate; retain ordinary visible-AP\n    // retry behavior. Failed candidates progress to the next, then back off.\n    reconnect_count_ = ap_record.direct ? MAX_RECONNECT_COUNT : 0;\n    const auto connect_error = esp_wifi_connect();\n    if (ap_record.direct && connect_error != ESP_OK) {\n        ESP_LOGW(TAG, \"SAVED_DIRECT_START_FAILED code=%d\", int(connect_error));\n        if (!connect_queue_.empty()) {\n            StartConnect(); // Bounded by the three-entry fallback queue.\n        } else {\n            esp_timer_start_once(timer_handle_, scan_current_interval_microseconds_);\n            UpdateScanInterval();\n        }\n        return;\n    }\n    ESP_ERROR_CHECK(connect_error);"
+      ],
+      [
+        "wifi_config.sta.failure_retry_cnt = failure_retry_cnt_;\n    } else {",
+        "wifi_config.sta.failure_retry_cnt = ap_record.direct ? 0 : failure_retry_cnt_;\n    } else {"
+      ]
+    ]
+  }
+}

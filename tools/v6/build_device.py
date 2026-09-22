@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 from baseline import ROOT
+from network_overlay import prepare
 
 
 def environment(idf, tools):
@@ -37,9 +38,16 @@ if __name__ == '__main__':
     if args.incremental:
         if not (args.source / 'sdkconfig').is_file():
             parser.error('Incremental build requires an existing sdkconfig')
-        command = [sys.executable, str(args.idf.resolve() / 'tools/idf.py'), 'build']
+        prepare(args.source.resolve())
+        command = [sys.executable, str(args.idf.resolve() / 'tools/idf.py'), 'reconfigure', 'build']
     else:
         command = [sys.executable, str(args.source.resolve() / 'scripts/build.py'),
                    'metalio/claw4-learning-v6', '--name', 'claw4-learning-v6-m0']
     result = subprocess.run(command, cwd=args.source, env=env)
+    if result.returncode == 0 and not args.incremental:
+        # Initial upstream build resolves/downloads the pinned managed package.
+        # Only the rebuilt local override is eligible for candidate freezing.
+        prepare(args.source.resolve())
+        result = subprocess.run([sys.executable, str(args.idf.resolve() / 'tools/idf.py'),
+                                 'reconfigure', 'build'], cwd=args.source, env=env)
     sys.exit(result.returncode)
