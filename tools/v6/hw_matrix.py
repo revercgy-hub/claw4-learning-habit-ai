@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+"""V6 M0 hardware-matrix collector.
+
+Read-only. Parses private UART capture logs plus the frozen candidate manifest and
+emits (a) a structured JSON matrix and (b) a Markdown table. It never opens the
+serial port, never writes into out/v6-device-private/, and never promotes a build
+result into a hardware fact.
+
+Design rule: a signal that is absent is reported as ABSENT, never as PASS.
+The tool refuses to fabricate a row status from a neighbouring row.
+
+Usage:
+  python tools/v6/hw_matrix.py scan \
+      --boot  out/v6-device-private/boot-m0-04.txt \
+      --flash out/v6-device-private/flash-m0-04.txt \
+      --candidate integration/v6/m0-candidate-04.json \
+      --json-out integration/v6/m0-hw-matrix.json \
+      --md-out   docs/v6/V6_M0_HW_MATRIX.md
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+
+SCHEMA = "claw4-v6-m0-hw-matrix/1"
+
+# Timestamped ESP-IDF log line: "I (9565) TAG: message"
+LOG_LINE = re.compile(r"^([IWEVD])\s*\((\d+)\)\s+(.*)$")
+
+# A signal is (key, kind, payload) where kind is one of:
+#   "line"    -> first matching line wins
+#   "all"     -> every matching line is kept
+#   "count"   -> number of matching lines
+#   "int"     -> first capture group of the first match, as int
+SIGNALS: tuple[tuple[str, str, str], ...] = (
+    # --- boot / reset -------------------------------------------------------
+    ("reset_reason",        "line",  r"^rst:0x[0-9a-f]+ \([^)]+\)"),
+    ("boot_ready",          "line",  r"V6M0: BOOT_READY IDF=(\S+);"),
+    ("idf_version",         "line",  r"V6M0: BOOT_READY IDF=(\S+);"),
+    ("assertions",          "count", r"abort\(\) was called|assert failed|Guru Meditation Error"),
+    # --- display ------------------------------------------------------------
+    ("display_rgb888",      "line",  r"Claw4V6: Native RGB888 display.*"),
+    ("display_init",        "line",  r"Claw4V6: NV3051F display initialized.*"),
+    ("lvgl_first_refresh",  "line",  r"Claw4V6: LVGL first refresh completed.*"),
+    ("panel_capability_errors", "count", r"lcd_panel: esp_lcd_panel_(swap_xy|mirror).*not supported"),
+    ("assets_applied",      "int",   r"V6M0: Assets applied=(\d+)"),
+    ("assets_mapped",       "line",  r"Assets: The assets map size is .*"),
+    # --- touch --------------------------------------------------------------
+    ("touch_init",          "line",  r"Claw4V6: GT911 touch initialized"),
+    ("touch_last_count",    "int",   r"V6M0: TOUCH count=(\d+)"),
+    ("touch_record_cycles", "count", r"V6M0: TOUCH count=\d+; audio record begin"),
+    # --- audio --------------------------------------------------------------
+    ("audio_i2s",           "line",  r"Claw4Audio: I2S slave .*"),
+    ("audio_module_probe",  "line",  r"Claw4V6: Audio module local-mode response .*"),
+    ("afe_pipeline",        "line",  r"AFE: AFE Pipeline: .*AEC.*"),
+    ("wakenet_model",       "line",  r"AFE_CONFIG: Set WakeNet Model: (\S+)"),
+    ("playback_queued",     "count", r"V6M0: Audio testing playback queued"),
+    ("wake_detected",       "count", r"V6M0: WAKE_DETECTED \(local only\)"),
+    # --- coprocessor / network ---------------------------------------------
+    ("c5_slave",            "line",  r"transport: Identified slave \[(\w+)\]"),
+    ("sdio_card_init",      "line",  r"H_SDIO_DRV: Card init success.*"),
+    ("c5_bootup",           "line",  r"RPC_WRAP: Coprocessor Boot-up"),
+    ("wifi_attempt",        "count", r"WifiBoard: Starting WiFi connection attempt"),
+    ("wifi_scan_cycles",    "count", r"WifiStation: Scanning all channels"),
+    ("wifi_scan_done",      "count", r"RPC_WRAP: ESP Event: StaScanDone"),
+    ("wifi_no_ap",          "count", r"WifiStation: No AP found"),
+    ("wifi_config_mode",    "count", r"WiFi config mode entered"),
+    ("wifi_connected",      "line",  r"Connected to WiFi: (\S+)"),
+    ("net_event",           "int",   r"V6M0: NETWORK_EVENT=(\d+)"),
+    ("mac_not_ready",       "count", r"system_api: .*mac type is incorrect"),
+    # --- health -------------------------------------------------------------
+    ("health_last",         "line",  r"V6M0: HEALTH .*"),
+    ("health_samples",      "count", r"V6M0: HEALTH free=\d+"),
+)
+
+_HEALTH = re.compile(r"V6M0: HEALTH free=(\d+) psram=(\d+) wake=(\d+) taps=(\d+)")
+
+# Signals where the newest occurrence is the interesting one. Everything else
+# keeps its first match so a later retry does not rewrite the first observation.
+LAST_WINS = frozenset({"touch_last_count", "health_last"})
+
+
+def sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _classify(key: str, kind: str, match: re.Match[str]) -> object:
+    if kind == "count":
+        return True  # counted separately
+    payload = match.group(0)
+    if kind == "int":
+        return int(match.group(1))
+    if key == "idf_version":
+        return match.group(1)
+    return payload
+
+
+def parse_boot_log(path: str) -> dict:
+    """Extract every known signal from one UART capture."""
+    preamble: list[str] = []
+    counters = {key: 0 for key, kind, _ in SIGNALS if kind == "count"}
+    # Pre-seed every scalar key with None so "absent" is explicit in the JSON and
+    # never silently confused with "zero".
+    values: dict[str, object] = {key: None for key, kind, _ in SIGNALS if kind != "count"}
+    health: list[dict] = []
+    last_ts = 0
+    lines = 0
+
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        for raw in handle:
+            line = raw.rstrip("\n")
+            lines += 1
+            match = LOG_LINE.match(line)
+            if match:
+                last_ts = int(match.group(2))
+                body = match.group(3)
+            else:
+                # Untimestamped lines such as "rst:0x17 (...)" belong to the ROM
+                # preamble; keep a bounded copy so raw evidence stays traceable.
+                if len(preamble) < 8 and line.strip():
+                    preamble.append(line.strip())
+                body = line
+
+            for key, kind, pattern in SIGNALS:
+                found = re.search(pattern, body)
+                if not found:
+                    continue
+                if kind == "count":
+                    counters[key] += 1
+                    continue
+                if values[key] is None or key in LAST_WINS:
+                    values[key] = _classify(key, kind, found)
+                if key == "health_last":
+                    detail = _HEALTH.search(body)
+                    if detail:
+                        health.append({
+                            "ts_ms": last_ts,
+                            "free": int(detail.group(1)),
+                            "psram": int(detail.group(2)),
+                            "wake_word_running": int(detail.group(3)),
+                            "taps": int(detail.group(4)),
+                        })
+
+    values.update(counters)
+    return {
+        "log": os.path.basename(path),
+        "sha256": sha256_file(path),
+        "bytes": os.path.getsize(path),
+        "lines": lines,
+        "last_timestamp_ms": last_ts,
+        "preamble": preamble,
+        "signals": values,
+        "health": health,
+    }
+
+
+def parse_flash_log(path: str) -> dict:
+    verified = 0
+    sections: list[str] = []
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        for raw in handle:
+            line = raw.strip()
+            if "Hash of data verified." in line:
+                verified += 1
+            if line.startswith("Writing at 0x"):
+                sections.append(line.split("...")[0].strip())
+    return {
+        "log": os.path.basename(path),
+        "sha256": sha256_file(path),
+        "bytes": os.path.getsize(path),
+        "verified_images": verified,
+        "write_sections": sorted(set(sections)),
+    }
+
+
+def _state(ok: bool, partial: bool = False) -> str:
+    if ok:
+        return "PASS"
+    return "PARTIAL" if partial else "NOT_VERIFIED"
+
+
+def build_rows(boot: dict, flash: dict, user_confirmations: dict) -> list[dict]:
+    """One row per M0 hardware item. Every row cites the concrete signal it used."""
+    s = boot["signals"]
+    rows: list[dict] = []
+
+    def row(item, evidence, status, note=""):
+        rows.append({"item": item, "evidence": evidence, "status": status, "note": note})
+
+    # Flash / PSRAM --------------------------------------------------------
+    flash_ok = flash.get("verified_images", 0) > 0 and not s.get("assertions")
+    row("Flash / PSRAM", "candidate manifest + flash log 'Hash of data verified.'",
+        _state(bool(flash_ok), user_confirmations.get("psram_stress") is False),
+        f"verified writes in this capture: {flash.get('verified_images', 0)}; "
+        "long-run stress still not exercised")
+
+    # Boot -----------------------------------------------------------------
+    row("启动", s.get("boot_ready") or "BOOT_READY absent",
+        _state(bool(s.get("boot_ready")) and s.get("assertions", 0) == 0),
+        f"assertions={s.get('assertions', 0)}; observed "
+        f"{boot['last_timestamp_ms'] / 1000:.1f}s")
+
+    # Display --------------------------------------------------------------
+    display_built = bool(s.get("display_rgb888")) and bool(s.get("lvgl_first_refresh"))
+    display_user = user_confirmations.get("display_visible") is True
+    row("显示", s.get("display_rgb888") or "RGB888 line absent",
+        _state(display_built and display_user),
+        f"display init={'yes' if s.get('display_init') else 'no'}, "
+        f"user confirmed visible={'yes' if display_user else 'no'}, "
+        f"unsupported-capability errors={s.get('panel_capability_errors', 0)}")
+
+    # Touch ----------------------------------------------------------------
+    row("触摸", s.get("touch_init") or "GT911 init line absent",
+        _state(bool(s.get("touch_init")) and s.get("touch_record_cycles", 0) > 0),
+        f"tap-driven record cycles={s.get('touch_record_cycles', 0)}, "
+        f"last tap count={s.get('touch_last_count', 0)}")
+
+    # Audio ----------------------------------------------------------------
+    audio_pipeline = bool(s.get("audio_i2s")) and bool(s.get("afe_pipeline"))
+    loopback = user_confirmations.get("audio_loopback") is True
+    wake = s.get("wake_detected", 0) > 0
+    row("音频", s.get("audio_i2s") or "I2S line absent",
+        _state(audio_pipeline and loopback),
+        f"AFE={'yes' if s.get('afe_pipeline') else 'no'}, "
+        f"loopback user-confirmed={'yes' if loopback else 'no'}, "
+        f"WakeNet={s.get('wakenet_model', 'n/a')}, "
+        f"WAKE_DETECTED events={s.get('wake_detected', 0)}",
+        )
+
+    # Wake word (separate row: loopback PASS must not imply wake-word PASS) --
+    row("唤醒词", "V6M0: WAKE_DETECTED count",
+        _state(wake),
+        "model is loaded, but a positive detection has never been captured "
+        "on the wire; wake=1 in HEALTH is IsWakeWordRunning(), not a detection")
+
+    # C5 / network ---------------------------------------------------------
+    c5_link = bool(s.get("c5_slave")) and bool(s.get("sdio_card_init")) and bool(s.get("c5_bootup"))
+    row("C5 链路", s.get("c5_slave") or "slave identification line absent",
+        _state(c5_link),
+        f"SDIO card init={'yes' if s.get('sdio_card_init') else 'no'}, "
+        f"coprocessor boot-up={'yes' if s.get('c5_bootup') else 'no'}")
+
+    ip_ok = bool(s.get("wifi_connected"))
+    row("网络 / IP", s.get("wifi_connected") or "no 'Connected to WiFi' line",
+        _state(ip_ok),
+        f"scan cycles={s.get('wifi_scan_cycles', 0)}, "
+        f"'No AP found' cycles={s.get('wifi_no_ap', 0)}, "
+        f"config-mode entries={s.get('wifi_config_mode', 0)}, "
+        f"NETWORK_EVENT={s.get('net_event', 'n/a')}",
+        )
+
+    # Resource partition ---------------------------------------------------
+    applied = s.get("assets_applied")
+    row("资源分区", f"V6M0: Assets applied={applied}",
+        _state(applied == 1),
+        "assets_apply() returned " + ("true" if applied == 1 else "false/absent"))
+
+    # Not integrated -------------------------------------------------------
+    row("SD 卡 / Camera / 电源键", "no signal in candidate",
+        "NOT_TESTED", "not integrated in m0.1")
+
+    # Rollback -------------------------------------------------------------
+    row("回滚（恢复写回）", "out/v6-device-private/pre-v6-flash.bin",
+        "NOT_TESTED",
+        "a full 32MiB image was read back and hashed, but it has never been "
+        "written back; until then rollback is unproven")
+    return rows
+
+
+DEFAULT_USER_CONFIRMATIONS = {
+    "display_visible": True,   # 2026-09-22 用户确认“已显示文字和按钮”
+    "audio_loopback": True,    # 2026-09-22 用户确认可录 3 秒并回放
+    "psram_stress": None,
+}
+
+
+def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) -> dict:
+    primary = boots[-1]
+    health_all = [dict(sample, log=capture["log"])
+                  for capture in boots for sample in capture["health"]]
+    return {
+        "schema": SCHEMA,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "candidate": {"path": os.path.basename(candidate_path),
+                      "name": candidate.get("candidate"),
+                      "xiaozhi_bin_sha256": candidate["files"]["build/xiaozhi.bin"]["sha256"],
+                      "xiaozhi_bin_bytes": candidate["files"]["build/xiaozhi.bin"]["bytes"]},
+        "user_confirmations": user_confirmations,
+        "boot_captures": boots,
+        "flash_captures": flashes,
+        "signals": primary["signals"],
+        "health": primary["health"],
+        "health_all": health_all,
+        "rows": build_rows(primary, flashes[-1] if flashes else {}, user_confirmations),
+        "open_items": [
+            "唤醒词从未捕获到正事件（WAKE_DETECTED=0）",
+            "从未取得 IP；C5 射频能力未被独立验证",
+            "恢复写回未实测，回滚不可信",
+            "SD 卡 / Camera / 电源键未集成",
+        ],
+    }
+
+
+def _cell(text: object) -> str:
+    """Escape a value for a Markdown table cell."""
+    return str(text).replace("|", "\\|").replace("\n", " ")
+
+
+def render_markdown(matrix: dict) -> str:
+    s = matrix["signals"]
+    out = [
+        "# V6 M0 硬件验收矩阵（自动生成）",
+        "",
+        f"> 生成时间 {matrix['generated_at']}；schema `{matrix['schema']}`。",
+        f"> 主证据 `{matrix['boot_captures'][-1]['log']}` "
+        f"SHA256 `{matrix['boot_captures'][-1]['sha256'][:16]}…`。",
+        "> 本表只记录日志与用户确认能支撑的事实；缺信号一律 NOT_VERIFIED，不由相邻项推断。",
+        "",
+        "| 项目 | 证据 | 状态 | 说明 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for r in matrix["rows"]:
+        out.append(f"| {_cell(r['item'])} | `{_cell(r['evidence'])}` | "
+                   f"**{r['status']}** | {_cell(r['note'])} |")
+
+    out += ["", "## 关键信号（主捕获）", "", "| 信号 | 值 |", "| --- | --- |"]
+    for key in sorted(s):
+        out.append(f"| `{key}` | `{_cell(s[key])}` |")
+
+    health = matrix.get("health_all") or []
+    out += ["", "## HEALTH 采样（全部捕获）", ""]
+    if health:
+        out += ["| 来源 | 时刻 (ms) | free | psram | WakeWordRunning | taps |",
+                "| --- | --- | --- | --- | --- | --- |"]
+        for h in health:
+            out.append(f"| `{h['log']}` | {h['ts_ms']} | {h['free']} | {h['psram']} | "
+                       f"{h['wake_word_running']} | {h['taps']} |")
+        out += ["", "`WakeWordRunning` 是 `audio.IsWakeWordRunning()` 的运行态，"
+                    "**不是**检测到唤醒；只有 `V6M0: WAKE_DETECTED` 才算正事件。"]
+    else:
+        out.append("所有捕获都没有 HEALTH 采样。这是证据缺口，不是通过。")
+
+    out += ["", "## 未闭合项", ""]
+    for item in matrix["open_items"]:
+        out.append(f"- {item}")
+    out.append("")
+    return "\n".join(out)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="V6 M0 hardware matrix collector")
+    parser.add_argument("command", choices=["scan"])
+    parser.add_argument("--boot", action="append", required=True, help="UART boot capture")
+    parser.add_argument("--flash", action="append", default=[], help="esptool flash capture")
+    parser.add_argument("--candidate", required=True, help="frozen m0-candidate JSON")
+    parser.add_argument("--json-out", default=None)
+    parser.add_argument("--md-out", default=None)
+    parser.add_argument("--assume-display-visible", action="store_true", default=True)
+    parser.add_argument("--assume-audio-loopback", action="store_true", default=True)
+    args = parser.parse_args(argv)
+
+    for path in [*args.boot, *args.flash, args.candidate]:
+        if not os.path.exists(path):
+            print(f"missing input: {path}", file=sys.stderr)
+            return 2
+
+    boots = [parse_boot_log(p) for p in args.boot]
+    flashes = [parse_flash_log(p) for p in args.flash]
+    with open(args.candidate, "r", encoding="utf-8") as handle:
+        candidate = json.load(handle)
+
+    confirmations = dict(DEFAULT_USER_CONFIRMATIONS)
+    confirmations["display_visible"] = bool(args.assume_display_visible)
+    confirmations["audio_loopback"] = bool(args.assume_audio_loopback)
+
+    matrix = build_matrix(boots, flashes, args.candidate, candidate, confirmations)
+
+    if args.json_out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
+        with open(args.json_out, "w", encoding="utf-8") as handle:
+            json.dump(matrix, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+    if args.md_out:
+        os.makedirs(os.path.dirname(os.path.abspath(args.md_out)), exist_ok=True)
+        with open(args.md_out, "w", encoding="utf-8") as handle:
+            handle.write(render_markdown(matrix))
+    if not args.json_out and not args.md_out:
+        sys.stdout.write(render_markdown(matrix))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
