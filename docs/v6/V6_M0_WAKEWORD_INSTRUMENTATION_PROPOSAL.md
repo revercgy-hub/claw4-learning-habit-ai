@@ -1,5 +1,7 @@
 # V6 M0 唤醒词插桩提案（给 Codex）
 
+> Codex 复检修正：P2/P3 采纳；P1 回调已接，但 wake-only 模式不产生 VAD，不能按原判据解释。录放音绕过 AFE，原“依赖 OnOutput”推论不成立。实施双通道电平统计，保持增益不变。详见 CODEX_V6_M0_REVIEW_2026-09-22.md。
+
 状态：**提案，未实施**。WorkBuddy 只写文档层，不改 `main/`、不改板级 overlay 逻辑。
 背景证据：`WB-V6-M0-AUDIT_2026-09-22.md` §14、`V6_M0_NETWORK_PROBE.md`。
 目标文件（唯一）：`integration/v6/board/claw4-learning-v6/m0_diagnostics.cc`

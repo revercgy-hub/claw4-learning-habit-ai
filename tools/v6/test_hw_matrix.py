@@ -17,6 +17,7 @@ import hw_matrix
 
 SYNTHETIC_BOOT = """\
 rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+I (1490) esp_psram: Found 32MB PSRAM device
 I (1531) main_task: Calling app_main()
 I (91) boot:  5 assets           Unknown data     01 82 01000000 00f00000
 E (6005) system_api: 0 mac type is incorrect (not found)
@@ -206,7 +207,7 @@ class MatrixTests(unittest.TestCase):
             [hw_matrix.parse_flash_log(self.flash_path)],
             self.cand_path,
             CANDIDATE,
-            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+            dict(display_visible=True, audio_loopback=True),
         )
         # Two captures of the same candidate, in chronological order.
         self.merged = hw_matrix.build_matrix(
@@ -215,7 +216,7 @@ class MatrixTests(unittest.TestCase):
             [hw_matrix.parse_flash_log(self.flash_path)],
             self.cand_path,
             CANDIDATE,
-            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+            dict(display_visible=True, audio_loopback=True),
         )
         # Full history: touch captures, the failed reconnect, then the success.
         self.full = hw_matrix.build_matrix(
@@ -225,7 +226,7 @@ class MatrixTests(unittest.TestCase):
             [hw_matrix.parse_flash_log(self.flash_path)],
             self.cand_path,
             CANDIDATE,
-            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+            dict(display_visible=True, audio_loopback=True),
         )
 
     def tearDown(self):
@@ -306,7 +307,7 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(self.status("回滚（恢复写回）"), "NOT_TESTED")
 
     def test_display_fails_without_user_confirmation(self):
-        confirmations = dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS)
+        confirmations = dict(display_visible=True, audio_loopback=True)
         confirmations["display_visible"] = False
         matrix = hw_matrix.build_matrix(
             [hw_matrix.parse_boot_log(self.boot_path)],
@@ -328,7 +329,7 @@ class MatrixTests(unittest.TestCase):
             [hw_matrix.parse_flash_log(self.flash_path)],
             self.cand_path,
             CANDIDATE,
-            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+            dict(display_visible=True, audio_loopback=True),
         )
         row = next(r for r in matrix["rows"] if r["item"] == "启动")
         self.assertEqual(row["status"], "FAIL")
@@ -343,7 +344,7 @@ class MatrixTests(unittest.TestCase):
             [hw_matrix.parse_flash_log(self.flash_path)],
             self.cand_path,
             CANDIDATE,
-            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+            dict(display_visible=True, audio_loopback=True),
         )
         row = next(r for r in matrix["rows"] if r["item"] == "Flash / PSRAM")
         self.assertEqual(row["status"], "PASS")
@@ -384,6 +385,46 @@ class MatrixTests(unittest.TestCase):
         matrix["health_all"] = []
         md = hw_matrix.render_markdown(matrix)
         self.assertIn("证据缺口", md)
+
+
+class ReviewRegressionTests(unittest.TestCase):
+    def test_user_confirmations_default_to_unverified(self):
+        self.assertFalse(hw_matrix.DEFAULT_USER_CONFIRMATIONS['display_visible'])
+        self.assertFalse(hw_matrix.DEFAULT_USER_CONFIRMATIONS['audio_loopback'])
+
+    def test_mixed_candidate_hashes_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = _write(directory, 'boot.txt', SYNTHETIC_BOOT +
+                          'I (9) app_init: ELF file SHA256: abcdef123...\n')
+            candidate = {'files': {'build/xiaozhi.elf': {'sha256': 'b' * 64}}}
+            with self.assertRaisesRegex(ValueError, 'Candidate ELF mismatch'):
+                hw_matrix.build_matrix([hw_matrix.parse_boot_log(path)], [],
+                                       'candidate.json', candidate, {})
+
+    def test_ansi_colored_log_is_parsed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = _write(directory, 'boot.txt',
+                          '\x1b[0;32mI (101) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\x1b[0m\n')
+            capture = hw_matrix.parse_boot_log(path)
+            self.assertEqual(capture['health'][0]['ts_ms'], 101)
+
+    def test_blocked_boot_is_failure_without_abort(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = _write(directory, 'boot.txt', SYNTHETIC_BOOT +
+                          'E (101) Claw4V6: BOOT_BLOCKED component=TCA9555\n')
+            boot = hw_matrix.parse_boot_log(path)
+            signals, sources = hw_matrix.aggregate_signals([boot])
+            rows = hw_matrix.build_rows(signals, sources, {}, [boot], {})
+            self.assertEqual(next(r['status'] for r in rows if r['item'] == '启动'), 'FAIL')
+
+    def test_connection_message_without_ip_does_not_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = _write(directory, 'boot.txt', SYNTHETIC_BOOT +
+                          'I (999) WifiBoard: Connected to WiFi: synthetic\n')
+            boot = hw_matrix.parse_boot_log(path)
+            signals, sources = hw_matrix.aggregate_signals([boot])
+            rows = hw_matrix.build_rows(signals, sources, {}, [boot], {})
+            self.assertEqual(next(r['status'] for r in rows if r['item'] == '网络 / IP'), 'NOT_VERIFIED')
 
 
 if __name__ == "__main__":

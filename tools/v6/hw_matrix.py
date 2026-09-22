@@ -41,6 +41,8 @@ LOG_LINE = re.compile(r"^([IWEVD])\s*\((\d+)\)\s+(.*)$")
 SIGNALS: tuple[tuple[str, str, str], ...] = (
     # --- boot / reset -------------------------------------------------------
     ("reset_reason",        "line",  r"^rst:0x[0-9a-f]+ \([^)]+\)"),
+    ("boot_blocked",        "count", r"Claw4V6: BOOT_BLOCKED"),
+    ("psram_found",         "line", r"Found 32MB PSRAM device"),
     ("boot_attempts",       "count", r"Calling app_main\(\)"),
     ("panic_resets",        "count", r"^rst:0x[0-9a-f]+ \(SW_CPU_RESET\)"),
     ("boot_ready",          "line",  r"V6M0: BOOT_READY IDF=(\S+);"),
@@ -145,12 +147,15 @@ def parse_boot_log(path: str) -> dict:
         for key, kind, _ in SIGNALS if kind != "count"
     }
     health: list[dict] = []
+    elf_hashes = set()
     last_ts = 0
     lines = 0
 
     with open(path, "r", encoding="utf-8", errors="replace") as handle:
         for raw in handle:
-            line = raw.rstrip("\n")
+            line = re.sub(r"\x1b\[[0-9;]*m", "", raw.rstrip("\n"))
+            elf = re.search(r"(?:ELF file SHA256:\s*|CANDIDATE_ELF_SHA256=)([0-9a-f]{8,64})", line)
+            if elf: elf_hashes.add(elf.group(1))
             lines += 1
             match = LOG_LINE.match(line)
             if match:
@@ -193,6 +198,7 @@ def parse_boot_log(path: str) -> dict:
         "bytes": os.path.getsize(path),
         "lines": lines,
         "last_timestamp_ms": last_ts,
+        "elf_hashes": sorted(elf_hashes),
         "preamble": preamble,
         "signals": values,
         "health": health,
@@ -272,13 +278,13 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
     # about flash writes, and an unrelated init failure must not silently
     # downgrade (or upgrade) this row.
     row("Flash / PSRAM", "candidate manifest + flash log 'Hash of data verified.'",
-        _state(flash.get("verified_images", 0) > 0),
+        _state(flash.get("verified_images", 0) > 0 and bool(s.get("psram_found"))),
         f"verified writes in this capture: {flash.get('verified_images', 0)}; "
         "long-run stress still not exercised")
 
     # Boot -----------------------------------------------------------------
     aborts = s.get("assertions", 0)
-    if aborts:
+    if aborts or s.get("boot_blocked", 0):
         # A captured abort is evidence of a defect, not merely an unverified item.
         boot_status = "FAIL"
     else:
@@ -287,7 +293,7 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
         boot_status,
         f"boot attempts={s.get('boot_attempts', 0)}, BOOT_READY={s.get('boot_ready_count', 0)}, "
         f"aborts={aborts}, panic resets={s.get('panic_resets', 0)}; "
-        f"longest capture {observed_s:.1f}s",
+        f"latest device timestamp {observed_s:.1f}s (not capture duration)",
         source_key="boot_ready")
 
     # Display --------------------------------------------------------------
@@ -322,10 +328,7 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
     # Wake word (separate row: loopback PASS must not imply wake-word PASS) --
     row("唤醒词", "V6M0: WAKE_DETECTED count",
         _state(wake),
-        "model is loaded and the engine is armed, but a positive detection has never "
-        "been captured on the wire. Note the direction of the HEALTH field: wake= is "
-        "IsWakeWordRunning(), and a detection CLEARS that bit, so an unbroken run of "
-        "wake=1 corroborates zero detections — it is never evidence of one")
+        f"positive wake callbacks={s.get('wake_detected', 0)}; armed state is not detection evidence")
 
     # C5 / network ---------------------------------------------------------
     c5_link = bool(s.get("c5_slave")) and bool(s.get("sdio_card_init")) and bool(s.get("c5_bootup"))
@@ -347,7 +350,7 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
         "a started softap proves the radio transmits, it does not prove association",
         source_key="config_ap_ssid")
 
-    ip_ok = bool(s.get("wifi_connected"))
+    ip_ok = any(c["signals"].get("wifi_connected") and c["signals"].get("sta_ip") for c in boots)
     row("网络 / IP", s.get("wifi_connected") or "no 'Connected to WiFi' line",
         _state(ip_ok),
         f"SSID={s.get('found_ap', 'n/a')}, IP={s.get('sta_ip', 'n/a')}, "
@@ -384,13 +387,18 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
 
 
 DEFAULT_USER_CONFIRMATIONS = {
-    "display_visible": True,   # 2026-09-22 用户确认“已显示文字和按钮”
-    "audio_loopback": True,    # 2026-09-22 用户确认可录 3 秒并回放
+    "display_visible": False,   # 2026-09-22 用户确认“已显示文字和按钮”
+    "audio_loopback": False,    # 2026-09-22 用户确认可录 3 秒并回放
     "psram_stress": None,
 }
 
 
 def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) -> dict:
+    expected_elf = candidate["files"].get("build/xiaozhi.elf", {}).get("sha256")
+    for capture in boots:
+        for observed in capture.get("elf_hashes", []):
+            if not expected_elf or not expected_elf.startswith(observed):
+                raise ValueError(f"Candidate ELF mismatch: {capture['log']}")
     primary = boots[-1]
     signals, source = aggregate_signals(boots)
     health_all = [dict(sample, log=capture["log"])
@@ -412,7 +420,7 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
         "rows": build_rows(signals, source, flashes[-1] if flashes else {}, boots,
                            user_confirmations),
         "open_items": [
-            "唤醒词从未捕获到正事件（WAKE_DETECTED=0）",
+            *(["唤醒词未捕获到正事件"] if not signals.get("wake_detected") else []),
             "恢复写回未实测，回滚不可信",
             "SD 卡 / Camera / 电源键未集成",
         ],
@@ -459,7 +467,7 @@ def render_markdown(matrix: dict) -> str:
                        f"{h['wake_word_running']} | {h['taps']} |")
         out += ["", "`WakeWordRunning` 是 `audio.IsWakeWordRunning()`。**注意方向**："
                     "`EnableWakeWordDetection(true)` 置位、**检测到唤醒时清位**，"
-                    "所以持续为 1 只能说明「从未检测到」，任何一次 0 才代表刚发生过检测。"
+                    "该位只表示检测是否启用；0 或 1 都不能单独证明命中，采样也可能漏掉中间变化。"
                     "真正的正事件只有 `V6M0: WAKE_DETECTED`。"]
     else:
         out.append("所有捕获都没有 HEALTH 采样。这是证据缺口，不是通过。")
@@ -479,8 +487,8 @@ def main(argv=None) -> int:
     parser.add_argument("--candidate", required=True, help="frozen m0-candidate JSON")
     parser.add_argument("--json-out", default=None)
     parser.add_argument("--md-out", default=None)
-    parser.add_argument("--assume-display-visible", action="store_true", default=True)
-    parser.add_argument("--assume-audio-loopback", action="store_true", default=True)
+    parser.add_argument("--assume-display-visible", action="store_true", default=False)
+    parser.add_argument("--assume-audio-loopback", action="store_true", default=False)
     args = parser.parse_args(argv)
 
     for path in [*args.boot, *args.flash, args.candidate]:
