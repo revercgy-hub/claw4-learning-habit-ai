@@ -4277,5 +4277,26 @@
     "loopback_audible": "PASS",
     "loopback_reference_channel": "FAIL",
     "input_level_headroom": "FAIL"
+  },
+  "network_state_during_this_checkpoint": {
+    "finding": "The device never associated in this session. Every capture that contains a boot banner shows the same sequence.",
+    "sequence_in_cp2_wake_01": [
+      "8680 ms  WifiBoard: Starting WiFi connection attempt",
+      "9594 ms  WifiStation: Scanning saved channel 11        <- NVS holds a credential whose AP is on channel 11",
+      "9615 ms  NETWORK_EVENT=0 (Scanning)",
+      "9760 ms  WifiStation: No AP on saved channels, starting full scan",
+      "12210 ms WifiStation: No AP found, next scan in 10 seconds",
+      "22210 ms WifiStation: No AP found, next scan in 20 seconds",
+      "44657 ms WifiStation: No AP found, next scan in 40 seconds"
+    ],
+    "sequence_in_cp2_wake_02": [
+      "68680 ms WifiBoard: WiFi connection timeout, entering config mode",
+      "68737 ms NETWORK_EVENT=3 (Disconnected)",
+      "69154 ms WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9",
+      "69214 ms NETWORK_EVENT=4 (ConfigModeEnter)"
+    ],
+    "why_it_matters_for_this_checkpoint": "Detections 1-5 happened during the WiFi retry-scan phase and detection 6 at 99578 ms happened after the soft AP was already up, so the wake result spans both network states. Wake detection is independent of the network state, so the result stands; but the device was broadcasting its own access point and scanning while the user spoke, which is an RF coexistence condition worth recording rather than assuming away.",
+    "interpretation": "The saved SSID is simply not on the air any more: the station searches its saved channel, then all channels, and never matches. This is the environment, not the candidate - the same pattern was produced on purpose in the earlier hidden-SSID investigation, but here no AP matching the saved credential exists at all.",
+    "not_a_defect": "The 60s connect timeout and config-mode fallback both behaved as designed and were captured in this round."
   }
 }
