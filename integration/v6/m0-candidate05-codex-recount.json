@@ -1,0 +1,16 @@
+{
+  "reviewed_workbuddy_head": "bf34b4e",
+  "usb_boot_logs": 20,
+  "usb_boot_passed": 20,
+  "soak_hashes_match": true,
+  "health_samples": 180,
+  "heap_psram_pairs": [
+    [
+      "27114843",
+      "26834276"
+    ]
+  ],
+  "wall_gap_sum_seconds": 35.0,
+  "soak_segments": 30,
+  "limits": "Read-only reanalysis; no new hardware tests. Gaps from supplied second-resolution wall-clock metadata, not proven lossless serial coverage."
+}

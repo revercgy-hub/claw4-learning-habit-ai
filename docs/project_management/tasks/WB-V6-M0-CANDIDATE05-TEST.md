@@ -1,6 +1,8 @@
 # WB-V6-M0-CANDIDATE05-TEST
 
-状态 READY。2026-09-22 用户明确要求后续测试交给 WorkBuddy，Codex 负责重要开发与复核。本文件是唯一活动 WorkBuddy 测试流，旧 WB-V6-M0-AUDIT-001 已交接，不另开并行流。
+状态 CHANGES_REQUIRED，已由 WB-V6-M0-CANDIDATE06-TEST 承接，旧队列不可再领取。以下原任务说明保留。
+
+原状态 READY。2026-09-22 用户明确要求后续测试交给 WorkBuddy，Codex 负责重要开发与复核。本文件是唯一活动 WorkBuddy 测试流，旧 WB-V6-M0-AUDIT-001 已交接，不另开并行流。
 
 ## 输入与边界
 

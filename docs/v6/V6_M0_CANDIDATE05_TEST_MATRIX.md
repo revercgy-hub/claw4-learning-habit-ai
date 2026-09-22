@@ -1,5 +1,7 @@
 # V6 M0 硬件验收矩阵（自动生成）
 
+> Codex 2026-09-22复核：原始证据保留；参考通道“实际播放期间无效”、网络“确定环境原因”及间隙总量的旧结论 SUPERSEDED。以 `docs/v6/CODEX_V6_CANDIDATE05_REVIEW_AND_06.md` 为当前解释，参考链路 HARDWARE_VERIFY_REQUIRED，网络 NOT_VERIFIED，提供的 wall-clock 间隙合计35秒。
+
 > 生成时间 2026-09-22T11:01:20+00:00；schema `claw4-v6-m0-hw-matrix/1`。
 > 冻结候选 `m0-candidate-05.json`，应用 SHA256 `f109b9282fcec671…`。
 > 证据来源 55 份启动捕获 / 1 份刷写捕获。

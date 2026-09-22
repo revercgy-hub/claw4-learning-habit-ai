@@ -1,5 +1,7 @@
 # Claw4 当前任务看板
 
+> 2026-09-22 最新覆盖：candidate05 @ bf34b4e 已复核，CHANGES_REQUIRED，修订由 candidate06 承接。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE06-TEST / READY**；任务包 `docs/project_management/tasks/WB-V6-M0-CANDIDATE06-TEST.md`，复核 `docs/v6/CODEX_V6_CANDIDATE05_REVIEW_AND_06.md`。候选06已构建、56工具测试及C++测试通过，尚未刷机；设备测试由WorkBuddy独占执行。本地任务包已发布，未通过外部消息工具送达。下文05调度状态 SUPERSEDED，M0/M1门禁不变。
+
 ## 2026-09-21 V6 覆盖状态（当前有效）
 
 用户要求 Codex 亲自进行重要架构设计开发，WorkBuddy 可承担有界辅助任务并由 Codex 复核。当前活动 `CODEX-V6-FOUNDATION / IN_PROGRESS`；分支 `codex/v6-foundation`，工作区 `E:/workbuddy/claw4-v6`，来源 `5657ebed64ad5962c889fcf90f0979f5891ab862`。

@@ -1,5 +1,7 @@
 # WB-V6-M0-CANDIDATE05-TEST 执行报告
 
+> Codex 2026-09-22复核：原始证据保留；参考通道“实际播放期间无效”、网络“确定环境原因”及间隙总量的旧结论 SUPERSEDED。以 `docs/v6/CODEX_V6_CANDIDATE05_REVIEW_AND_06.md` 为当前解释，参考链路 HARDWARE_VERIFY_REQUIRED，网络 NOT_VERIFIED，提供的 wall-clock 间隙合计35秒。
+
 任务包 `docs/project_management/tasks/WB-V6-M0-CANDIDATE05-TEST.md`。
 **状态：CP0–CP4 全部执行完毕，标 `REVIEW_READY`，等 Codex 判定。**
 

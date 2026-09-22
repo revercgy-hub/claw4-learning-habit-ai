@@ -1,5 +1,9 @@
 # Claw4 项目协作总则
 
+## 2026-09-22 Candidate 06 调度（最新）
+
+候选05报告 bf34b4e 已复核，结论 CHANGES_REQUIRED（音频转换及证据表述），后续由唯一活动流 WB-V6-M0-CANDIDATE06-TEST / READY 承接。入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE06-TEST.md，复核 docs/v6/CODEX_V6_CANDIDATE05_REVIEW_AND_06.md。候选06仅构建冻结、尚未刷写；本包明确授权 WorkBuddy 在核对后进行一次 app-only 准备刷写并负责后续测试，Codex 不并发操作 COM7/构建树。下段候选05 READY 状态已 SUPERSEDED。
+
 ## 2026-09-22 测试分工更新
 
 用户明确要求后续测试交 WorkBuddy，Codex 继续重要架构/固件开发与复核。唯一活动测试流 WB-V6-M0-CANDIDATE05-TEST，入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE05-TEST.md。Codex 已停止自动复位系列、释放 COM7，不与 WorkBuddy 并发操作设备或 E:/v6/s1 构建产物。候选 05 已刷入，测试结果不自动升级 M0 总验收。
