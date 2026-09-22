@@ -1,5 +1,7 @@
 # Claw4 项目协作总则
 
+> 当前有效：2026-09-22已按用户要求统一构建并冻结候选08（1907730），包含网络失败恢复；BUILD通过、尚未刷机。唯一WorkBuddy活动流 WB-V6-M0-CANDIDATE08-REVIEW / READY，入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE08-REVIEW.md。06/07调度已HOLD/SUPERSEDED，旧READY文字只作历史；M0总验收和M1门禁不变。任务包本地发布，未通过外部工具发送。
+
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 
 ## 2026-09-22 Candidate 06 调度（最新）
