@@ -235,3 +235,54 @@ M1「NAS 连续语音 20 轮」要求设备**开机即自动联网**。当前环
 按 §8.5 的结论，**设备在现有上游组件下永远连不上**。所以 M1 的网络前提不是
 "再配一次网"，而是必须先落地 §8.6 的修复（或换一个广播 SSID 的 AP 做联调）。
 
+---
+
+## 9. 第 7 轮：换成广播 SSID 的 AP 后，联网一次通过
+
+用户换上会广播 SSID 的 AP 并重新配网。复位后 60 秒捕获（`netprobe-m0-06.txt`）：
+
+```text
+I (9602)  WifiStation: Scanning saved channel 11
+I (9623)  V6M0: NETWORK_EVENT=0                          ← Scanning
+I (9768)  WifiStation: Found AP: realme, BSSID: 9e:9e:3d:f0:8e:d7,
+                        RSSI: -39, Channel: 11, Authmode: 3
+I (9769)  WifiBoard: WiFi connecting to realme
+I (9770)  V6M0: NETWORK_EVENT=1                          ← Connecting
+I (11386) RPC_WRAP: ESP Event: Station mode: Connected
+I (12483) esp_netif_handlers: sta ip: 10.76.189.105, mask: 255.255.255.0, gw: 10.76.189.222
+I (12483) WifiStation: Got IP: 10.76.189.105
+I (12484) WifiBoard: Connected to WiFi: realme
+I (12488) V6M0: NETWORK_EVENT=2                          ← Connected
+```
+
+**`NETWORK_IP = PASS`。** 关联耗时 12.5 秒（`8677 → 12488`），远早于 60 秒超时。
+
+捕获随后继续到 58.6 秒：**无断连、无超时、无回落配网、无断言**，
+HEALTH 每 10 秒稳定一次。连接在整个观测窗内保持。
+
+### 9.1 这一轮同时构成对 §8 根因的反证实验
+
+| 变量 | 第 6 轮（失败） | 第 7 轮（成功） |
+| --- | --- | --- |
+| 固件候选 | `m0-candidate-04` | **同一个** |
+| 保存的频道 | 11 | 11 |
+| AP 是否广播 SSID | **否** | **是** |
+| 结果 | 永久 `No AP found` → 回落配网 | 12.5 秒关联成功，拿到 IP |
+
+除"AP 是否广播 SSID"外其余变量都相同（频道都是 11）。⇒ §8.5「设备侧被扫描匹配卡住」
+从强推论**升级为经反证实验证实的结论**。
+
+### 9.2 一个务实的提醒
+
+§8.6 的修复**仍然要做**：只要用户换回隐藏 SSID 的 AP，问题会原样复现。
+本轮只是把 AP 换成了会广播的，绕过了缺口，没有修掉它。
+
+### 9.3 对 M1 联调的即时影响
+
+设备当前 IP 是 `10.76.189.105 / gw 10.76.189.222`（手机热点网段），
+而主机侧网卡在 `100.97.216.70`(Tailscale) / `172.30.247.120` / `192.168.16.74`。
+**两者不在同一 L2 网络**，因此 M1 要验证"设备 → 主机 relay → 后端"这条链时，
+必须先把设备和主机放到同一个局域网（或让 NAS 同时可达两者）。
+这个不在本次授权范围，只作为 M1 开工前置条件记录。
+
+
