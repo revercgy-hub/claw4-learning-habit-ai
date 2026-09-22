@@ -285,4 +285,74 @@ HEALTH 每 10 秒稳定一次。连接在整个观测窗内保持。
 必须先把设备和主机放到同一个局域网（或让 NAS 同时可达两者）。
 这个不在本次授权范围，只作为 M1 开工前置条件记录。
 
+---
+
+## 10. 主机与设备已同处一个局域网（核验）
+
+用户把主机接进同一网络后核验。**结论：同一 L2 网络，M1 的联调前置条件已满足。**
+
+### 10.1 主机侧证据
+
+| 检查 | 命令 | 结果 |
+| --- | --- | --- |
+| 主机连的是哪个 AP | `netsh wlan show interfaces` | SSID **`realme`**、AP BSSID **`9e:9e:3d:f0:8e:d7`**、2.4 GHz、频道 11 |
+| 该网段的 IPv4 | `ipconfig` | `10.76.189.88` |
+| 路由是否被 VPN 劫持 | `route print -4` | `10.76.189.0/24 → 在链路上 via 10.76.189.88`（metric 301），**下一跳不是 `100.100.100.100`，无 Tailscale 劫持** |
+| L2 是否可达 | `arp -a` | `10.76.189.105 → 3c-dc-75-8b-79-d8`（设备）、`10.76.189.222 → 9e:9e:3d:f0:8e:d7`（网关＝该 AP），**两条 ARP 均已解析** |
+
+### 10.2 设备侧证据（`netprobe-m0-07.txt`）
+
+```text
+I (9590)  WifiStation: Scanning saved channel 11
+I (9756)  WifiStation: Found AP: realme, BSSID: 9e:9e:3d:f0:8e:d7, RSSI: -50, Channel: 11, Authmode: 3
+I (13381) esp_netif_handlers: sta ip: 10.76.189.105, mask: 255.255.255.0, gw: 10.76.189.222
+I (13382) WifiBoard: Connected to WiFi: realme
+I (13386) V6M0: NETWORK_EVENT=2
+```
+
+### 10.3 两侧对账
+
+| 项 | 主机 | 设备 | 一致 |
+| --- | --- | --- | --- |
+| SSID | `realme` | `realme` | ✅ |
+| AP BSSID | `9e:9e:3d:f0:8e:d7` | `9e:9e:3d:f0:8e:d7` | ✅ **同一个射频** |
+| 频道 | 11 | 11 | ✅ |
+| 网段 | `10.76.189.88/24` | `10.76.189.105/24` | ✅ 同 /24 |
+| 网关 | — | `10.76.189.222` | 与主机 ARP 中的网关 MAC 一致 |
+
+**旁证**：设备 STA 的 MAC 是 `3c:dc:75:8b:79:d8`，而它开配网热点时的 BSSID 是
+`3c:dc:75:8b:79:d9` —— 同一 OUI、末字节 +1，正是 ESP32 的 STA/AP MAC 配对，
+进一步确认 ARP 里那台 `10.76.189.105` 就是本设备（配网热点名 `Xiaozhi-79D9`
+也正是 MAC 末两字节 `79:d9` 派生）。
+
+### 10.4 ⚠️ 本轮踩到的取证陷阱：沙箱内 curl 测不了局域网
+
+本次先用 `ping` 与 `curl` 探主机→设备，**两条路都不可用，且结论会误导**：
+
+| 手段 | 现象 | 为什么不能采信 |
+| --- | --- | --- |
+| `ping 10.76.189.105` | 100% 丢包（连网关 `10.76.189.222` 也丢） | 手机热点通常屏蔽 ICMP；**丢包不能当作不通** |
+| Python `socket.connect()` | 全部 `EACCES (winerr=10013)` | **沙箱禁止直接建 socket**，与网络无关 |
+| `curl http://10.76.189.105:<port>/` | `curl: (23) client returned ERROR on write`；`curl -v` 显示 `Trying 127.0.0.1:60661` | **curl 走的是沙箱 HTTP 代理**（端口每次会话都变），根本没有直连目标，结果完全无意义 |
+
+⇒ **在这个环境里不要用 curl 判断局域网可达性。** 可用的免沙箱判据是
+`arp -a`（L2 已解析）、`route print -4`（无劫持）、`netsh wlan show interfaces`（同一 BSSID），
+以及设备侧串口日志（设备自己的 IP）。
+
+若还需要主机→设备的 L3 确认（例如 M1 联调前的 TCP 连通性），**在沙箱外执行**：
+
+```powershell
+Test-NetConnection -ComputerName 10.76.189.105 -Port 8000 -InformationLevel Detailed
+```
+
+### 10.5 M1 前置条件状态
+
+| 前置 | 状态 |
+| --- | --- |
+| 设备能开机自动联网 | ✅ `NETWORK_IP=PASS` |
+| 主机与设备同一 L2 | ✅ 本节 |
+| 设备能主动连到主机 relay | ❌ **M0 诊断固件没有 relay 客户端**，必须等 M1 固件才能验证 |
+| 隐藏 SSID 重连缺口 | ❌ 仍在（§8.6 / §12.5），换回隐藏 AP 会复现 |
+
+
 
