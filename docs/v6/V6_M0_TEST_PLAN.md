@@ -49,8 +49,18 @@ $PY tools/v6/capture_device.py --port COM7 --seconds 60 --output "$B/wakeword-m0
 | 该次之后某条 HEALTH 出现 `wake=0` | 旁证：锁存位被清（`audio_service.cc:97`） |
 | 4 次全无 `WAKE_DETECTED` 且 `wake` 始终为 1 | 记 `FAIL` 或 `INCONCLUSIVE`（**视刺激方式**：(a) 记 FAIL，(b) 记 INCONCLUSIVE 并改日真人复测） |
 
+**⚠️ 每轮必须先复位（或按一次屏幕按钮）。** M0 诊断脚手架有个自恢复缺陷：
+唤醒回调会清掉 `WAKE_WORD_RUNNING` 位（`audio_service.cc:97`），而音频输入任务
+**只在位被置位时才把音频喂给引擎**（`audio_service.cc` 的 `AudioInputTask`），
+空闲循环又不会重新置位 ⇒ **一次检测之后，唤醒检测永久失效**，直到按屏幕按钮或重启。
+所以：`wake` 一开始就是 0 的那一轮，**测的是"检测器已停机"，不是唤醒率**。
+
 **不做**：不设"命中率门槛"。真人 vs 录音、距离、口音差异太大，定阈值是伪精确。
 命中次数照实记录，作为背景信息。
+
+**不把响指当替代刺激**：响指不在 WakeNet 的目标可分空间内，不可靠。
+但它**并非绝对不触发**——2026-09-22 的锁存证据指向响指造成过一次误触发。
+**误触发是可用性噪音，不是功能可用性证据**，两者不能混。
 
 ### 1.2 长稳 soak —— 补掉矩阵里"long-run stress not exercised"
 
