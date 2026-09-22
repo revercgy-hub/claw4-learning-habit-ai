@@ -1,6 +1,6 @@
 # WB-V6-M0-CANDIDATE06-TEST
 
-状态 READY，唯一活动 WorkBuddy 流。旧 candidate05 流 CHANGES_REQUIRED 的待修项由此承接；不并行执行旧包。Codex 负责固件与复核，WorkBuddy 负责本包设备测试。
+状态 HOLD（用户要求先完成下一阶段开发再统一复核），禁止领取或执行以下旧刷写步骤。原任务说明保留。旧 candidate05 流 CHANGES_REQUIRED 的待修项由此承接；不并行执行旧包。Codex 负责固件与复核，WorkBuddy 负责本包设备测试。
 
 ## 输入与边界
 

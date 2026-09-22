@@ -1,5 +1,7 @@
 # Claw4 项目协作总则
 
+> 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
+
 ## 2026-09-22 Candidate 06 调度（最新）
 
 候选05报告 bf34b4e 已复核，结论 CHANGES_REQUIRED（音频转换及证据表述），后续由唯一活动流 WB-V6-M0-CANDIDATE06-TEST / READY 承接。入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE06-TEST.md，复核 docs/v6/CODEX_V6_CANDIDATE05_REVIEW_AND_06.md。候选06仅构建冻结、尚未刷写；本包明确授权 WorkBuddy 在核对后进行一次 app-only 准备刷写并负责后续测试，Codex 不并发操作 COM7/构建树。下段候选05 READY 状态已 SUPERSEDED。
