@@ -124,3 +124,114 @@ PSRAM 少约 **1.04 MB**，与"两个 panel framebuffer + 每像素 3 字节"量
 `t≈6.0 s` 读 WiFi MAC，而 C5 在 `t≈8.5 s` 才 `Coprocessor Boot-up`。
 M1 接后端时若用 MAC 派生设备 ID，会拿到不稳定值。建议把 MAC 读取挪到
 `Coprocessor Boot-up` 之后，或改用设备侧持久化 ID。
+
+---
+
+## 8. 第 6 轮：配网已执行，但关联失败 —— 根因是隐藏 SSID
+
+用户于 2026-09-22 完成配网。结论：**凭据写入成功、C5 射频与关联能力均正常，
+但上游重连路径不支持隐藏 SSID。** 这不是硬件问题。
+
+### 8.1 凭据确实写进了 NVS（只读回读取证）
+
+```bash
+python -m esptool --chip esp32p4 -p COM7 -b 460800 \
+  read_flash 0x3c000 0xd2000 nvs-now.bin        # nvs 分区（boot 日志给出）
+```
+
+与刷机前全量备份的同区间（`pre-v6-full-flash.bin[0x3c000:0x3c000+0xd2000]`）逐字节比对：
+
+| 项 | 结果 |
+| --- | --- |
+| 变化字节数 | 144 |
+| 脏页 | 2 个 4 KiB 页（`0x0`、`0x1000`） |
+| 新增可打印串 | `ssid`、`channel`、`theme`、`light`，以及 **SSID 字面量**（10 位纯 ASCII） |
+
+⇒ 配网流程**真的落盘了**，SSID 无中文、无空格、无乱码。
+（NVS 同时含 WiFi 口令；该分区回读文件留在 gitignore 覆盖的私密目录，**不提交、不转载**。）
+
+### 8.2 C5 的射频与关联能力都是好的
+
+`WifiConfigurationAp` 的保存流程是**先试连、连上了才保存**：
+
+```cpp
+if (!TryConnect(ssid_str, password_str)) {          // 连不上就直接报错返回
+    httpd_resp_send(req, "{\"success\":false,...}");
+    return ESP_OK;
+}
+this_->Save(ssid_str, password_str);                 // ← 走到这里说明已经关联成功
+```
+
+而 `Save()` 里 `channel = last_connected_channel_;`（成功连接时由
+`Connected to WiFi %s, channel %u` 赋值）。NVS 里落下的 channel = **11**，
+说明 **C5 曾经真的关联上过**这个 AP。射频与关联能力由此被证伪为"坏"。
+
+### 8.3 但重启后重连不上
+
+复位后串口显示：
+
+```text
+I (9601) WifiStation: Scanning saved channel 11      ← NVS 已有保存项（此前是 Scanning all channels）
+I (9767) WifiStation: No AP on saved channels, starting full scan
+I (9768) WifiStation: Scanning all channels
+I (12220) WifiStation: No AP found, next scan in 10 seconds
+...
+W (68677) WifiBoard: WiFi connection timeout, entering config mode   ← 又回到配网
+```
+
+### 8.4 根的定位：目标 AP 不广播 SSID
+
+本机网卡（MediaTek Wi-Fi 6E MT7922）扫描到的同环境 AP 列表里：
+
+- **不存在名为该 SSID 的可见 AP**；
+- 但存在**唯一一个空名（隐藏）网络**，来自同一台三射频 AP `f4:79:60:xx`：
+
+| BSSID | 波段 | 频道 | 无线电类型 |
+| --- | --- | --- | --- |
+| `f4:79:60:35:dc:f1` | 5 GHz | 149 | 802.11ac |
+| `f4:79:60:36:30:a1` | 2.4 GHz | 1 | 802.11ac |
+| `f4:79:60:35:dc:81` | 2.4 GHz | **11** | 802.11ac |
+
+**它的 2.4 GHz 射频频道 11，与 NVS 里保存的 channel 完全一致。**
+两个独立来源（主机侧无线勘测 / 设备侧 NVS）互证，指向同一个 AP。
+
+### 8.5 代码级根因
+
+`managed_components/78__esp-wifi-connect/wifi_station.cc`：
+
+- `StartConnect()` 的调用点只有两处：`HandleScanResult()`（第 277 行）与
+  `WifiEventHandler`（第 438 行）。**没有任何"按已保存 SSID 直连"的入口。**
+- `HandleScanResult()` 用 `strcmp(ap_record.ssid, item.ssid)` 做匹配 ——
+  隐藏 SSID 的 `ap_record.ssid` 是空串，**永远匹配不上**。
+
+而配网流程（`WifiConfigurationAp::TryConnect`）走的是另一条路：
+把 ssid/password 直接写进 `wifi_config.sta` 连接，**不需要先扫到**。
+⇒ 这就是"配网连得上、重连连不上"的全部原因。
+
+**定性**：上游组件对隐藏 SSID 的**重连**不支持。属于功能缺口，不是设备缺陷。
+
+### 8.6 建议的修复方向（交 Codex 评估，本报告不实施）
+
+| 方案 | 做法 | 评价 |
+| --- | --- | --- |
+| **A** | 扫描连续 N 轮无匹配后，回退为"用 `SsidManager` 第一条已保存凭据直连"（照抄配网的成功路径） | **推荐**。改动小、与配网路径一致、对可见 SSID 无影响 |
+| B | 检查上游新版 `78__esp-wifi-connect` 是否已修，直接升级组件 | 优先查；若已修则零自研 |
+| C | 在应用层加一个"配置页手动重连"入口 | 治标，用户每次开机仍需操作 |
+
+⚠️ 无论选哪条，都要注意 `78__esp-wifi-connect` 是 **managed component**，
+改动会影响上游比对基线，须按项目规则记录并保留原实现。
+
+### 8.7 尚未被证明的部分
+
+- 本报告**没有**直接读到 C5 自己的扫描列表（`GET http://192.168.4.1/scan` 未取得，
+  主机不在设备热点网段）。§8.4 是主机侧勘测 + NVS 信道互证的**强推论**；
+  若需闭合到 100%，请用手机连 `Xiaozhi-79D9` 后访问 `http://192.168.4.1/scan`，
+  确认该 SSID 是否出现在 C5 的扫描列表里。
+- 因此 `网络 / IP` 行在矩阵里**保持 `NOT_VERIFIED`**，不因本节的推论而改动。
+
+### 8.8 对 M1 的直接影响
+
+M1「NAS 连续语音 20 轮」要求设备**开机即自动联网**。当前环境用的 AP 是隐藏 SSID，
+按 §8.5 的结论，**设备在现有上游组件下永远连不上**。所以 M1 的网络前提不是
+"再配一次网"，而是必须先落地 §8.6 的修复（或换一个广播 SSID 的 AP 做联调）。
+
