@@ -80,8 +80,16 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("config_ap_dhcp",      "line",  r"DHCP server started on interface WIFI_AP_DEF with IP: (\S+)"),
     ("config_web_server",   "count", r"WifiConfigurationAp: Web server started"),
     ("state_machine_reject", "count", r"StateMachine: Invalid state transition"),
+    ("found_ap",            "g1",    r"WifiStation: Found AP: ([^,]+),"),
+    ("found_ap_count",      "count", r"WifiStation: Found AP: "),
+    ("wifi_connecting",     "count", r"WifiBoard: WiFi connecting to "),
+    ("sta_connected_event", "count", r"ESP Event: Station mode: Connected"),
+    ("sta_ip",              "g1",    r"esp_netif_handlers: sta ip: ([\d.]+),"),
+    ("sta_gateway",         "g1",    r"gw: ([\d.]+)"),
     ("wifi_connected",      "line",  r"Connected to WiFi: (\S+)"),
-    ("net_event",           "int",   r"V6M0: NETWORK_EVENT=(\d+)"),
+    # A set, not a max: NETWORK_EVENT is a state code, so "the largest value ever
+    # seen" is meaningless. What matters is which states were observed at all.
+    ("net_events",          "set",   r"V6M0: NETWORK_EVENT=(\d+)"),
     ("mac_not_ready",       "count", r"system_api: .*mac type is incorrect"),
     # --- health -------------------------------------------------------------
     ("health_last",         "line",  r"V6M0: HEALTH .*"),
@@ -116,6 +124,8 @@ def _classify(key: str, kind: str, match: re.Match[str]) -> object:
     payload = match.group(0)
     if kind == "int":
         return int(match.group(1))
+    if kind == "g1":
+        return match.group(1)
     if key == "idf_version":
         return match.group(1)
     return payload
@@ -125,9 +135,12 @@ def parse_boot_log(path: str) -> dict:
     """Extract every known signal from one UART capture."""
     preamble: list[str] = []
     counters = {key: 0 for key, kind, _ in SIGNALS if kind == "count"}
-    # Pre-seed every scalar key with None so "absent" is explicit in the JSON and
-    # never silently confused with "zero".
-    values: dict[str, object] = {key: None for key, kind, _ in SIGNALS if kind != "count"}
+    # Pre-seed every scalar key so "absent" is explicit in the JSON and never
+    # silently confused with "zero".
+    values: dict[str, object] = {
+        key: ([] if kind == "set" else None)
+        for key, kind, _ in SIGNALS if kind != "count"
+    }
     health: list[dict] = []
     last_ts = 0
     lines = 0
@@ -153,6 +166,9 @@ def parse_boot_log(path: str) -> dict:
                     continue
                 if kind == "count":
                     counters[key] += 1
+                    continue
+                if kind == "set":
+                    values[key] = sorted(set(values[key]) | {int(found.group(1))})
                     continue
                 if values[key] is None or key in LAST_WINS:
                     values[key] = _classify(key, kind, found)
@@ -205,13 +221,20 @@ def aggregate_signals(boots: list[dict]) -> tuple[dict, dict]:
     All captures passed to one run must come from the same frozen candidate;
     mixing candidates would let one build inherit another build's evidence.
     """
-    merged: dict[str, object] = {key: None for key in KIND}
+    merged: dict[str, object] = {
+        key: ([] if KIND[key] == "set" else None) for key in KIND
+    }
     source: dict[str, str] = {}
     for capture in boots:
         for key, value in capture["signals"].items():
-            if value is None:
+            if value is None or (KIND[key] == "set" and not value):
                 continue
-            if KIND[key] in ("count", "int"):
+            if KIND[key] == "set":
+                combined = sorted(set(merged.get(key) or []) | set(value))
+                if combined != merged.get(key):
+                    merged[key] = combined
+                    source[key] = capture["log"]
+            elif KIND[key] in ("count", "int"):
                 current = merged.get(key)
                 if current is None or value > current:
                     merged[key] = value
@@ -312,14 +335,19 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
     ip_ok = bool(s.get("wifi_connected"))
     row("网络 / IP", s.get("wifi_connected") or "no 'Connected to WiFi' line",
         _state(ip_ok),
+        f"SSID={s.get('found_ap', 'n/a')}, IP={s.get('sta_ip', 'n/a')}, "
+        f"gw={s.get('sta_gateway', 'n/a')}, "
+        f"NETWORK_EVENT seen={s.get('net_events') or 'none'} "
+        f"(0=Scanning 1=Connecting 2=Connected 3=Disconnected 4=ConfigModeEnter), "
+        f"found-AP={s.get('found_ap_count', 0)}, connecting={s.get('wifi_connecting', 0)}, "
+        f"connected={s.get('sta_connected_event', 0)}; "
         f"scan cycles={s.get('wifi_scan_cycles', 0)}, "
         f"'No AP found' cycles={s.get('wifi_no_ap', 0)}, "
         f"saved-channel scans={s.get('no_ap_on_saved_ch', 0)} "
         f"(saved channel={s.get('saved_channel_scan', 'n/a')}), "
-        f"config-mode entries={s.get('wifi_config_mode', 0)}, "
-        f"NETWORK_EVENT={s.get('net_event', 'n/a')} (3=Disconnected, 4=ConfigModeEnter); "
+        f"config-mode entries={s.get('wifi_config_mode', 0)}; "
         "'No AP found' means no saved SSID matched, not that the scan returned nothing",
-        source_key="wifi_scan_cycles")
+        source_key="wifi_connected")
 
     # Resource partition ---------------------------------------------------
     applied = s.get("assets_applied")
@@ -370,8 +398,6 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
                            user_confirmations),
         "open_items": [
             "唤醒词从未捕获到正事件（WAKE_DETECTED=0）",
-            "从未取得 IP。配网已写入 NVS 且 C5 配网时关联成功，但重启后重连走扫描匹配路径，"
-            "对不广播 SSID 的 AP 永远匹配不到（详见 V6_M0_NETWORK_PROBE.md §8）",
             "恢复写回未实测，回滚不可信",
             "SD 卡 / Camera / 电源键未集成",
         ],

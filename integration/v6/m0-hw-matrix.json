@@ -1,6 +1,6 @@
 {
   "schema": "claw4-v6-m0-hw-matrix/1",
-  "generated_at": "2026-09-22T02:44:31+00:00",
+  "generated_at": "2026-09-22T03:14:10+00:00",
   "candidate": {
     "path": "m0-candidate-04.json",
     "name": "claw4-learning-v6-m0.1",
@@ -50,8 +50,13 @@
         "saved_channel_scan": null,
         "config_ap_ssid": null,
         "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 0,
+        "net_events": [
+          0
+        ],
         "health_last": "V6M0: HEALTH free=28027643 psram=27878204 wake=1 taps=0",
         "assertions": 0,
         "panel_capability_errors": 0,
@@ -69,6 +74,9 @@
         "softap_started": 0,
         "config_web_server": 0,
         "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 1,
         "health_samples": 2
       },
@@ -126,8 +134,13 @@
         "saved_channel_scan": null,
         "config_ap_ssid": null,
         "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 0,
+        "net_events": [
+          0
+        ],
         "health_last": "V6M0: HEALTH free=28027003 psram=27878604 wake=1 taps=0",
         "assertions": 0,
         "panel_capability_errors": 0,
@@ -145,6 +158,9 @@
         "softap_started": 0,
         "config_web_server": 0,
         "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 1,
         "health_samples": 3
       },
@@ -209,8 +225,13 @@
         "saved_channel_scan": null,
         "config_ap_ssid": null,
         "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 0,
+        "net_events": [
+          0
+        ],
         "health_last": null,
         "assertions": 0,
         "panel_capability_errors": 2,
@@ -228,6 +249,9 @@
         "softap_started": 0,
         "config_web_server": 0,
         "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 1,
         "health_samples": 0
       },
@@ -270,8 +294,13 @@
         "saved_channel_scan": null,
         "config_ap_ssid": null,
         "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 0,
+        "net_events": [
+          0
+        ],
         "health_last": "V6M0: HEALTH free=27134019 psram=26841788 wake=1 taps=0",
         "assertions": 0,
         "panel_capability_errors": 2,
@@ -289,6 +318,9 @@
         "softap_started": 0,
         "config_web_server": 0,
         "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 1,
         "health_samples": 5
       },
@@ -358,8 +390,14 @@
         "saved_channel_scan": null,
         "config_ap_ssid": "WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9",
         "config_ap_dhcp": "DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1",
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 4,
+        "net_events": [
+          3,
+          4
+        ],
         "health_last": "V6M0: HEALTH free=27118047 psram=26837296 wake=1 taps=0",
         "assertions": 0,
         "panel_capability_errors": 0,
@@ -377,6 +415,9 @@
         "softap_started": 2,
         "config_web_server": 1,
         "state_machine_reject": 1,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 0,
         "health_samples": 5
       },
@@ -455,8 +496,13 @@
         "saved_channel_scan": 11,
         "config_ap_ssid": null,
         "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 0,
+        "net_events": [
+          0
+        ],
         "health_last": "V6M0: HEALTH free=27134019 psram=26841788 wake=1 taps=0",
         "assertions": 0,
         "panel_capability_errors": 2,
@@ -474,6 +520,9 @@
         "softap_started": 0,
         "config_web_server": 0,
         "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 1,
         "health_samples": 6
       },
@@ -552,8 +601,13 @@
         "saved_channel_scan": 11,
         "config_ap_ssid": null,
         "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 0,
+        "net_events": [
+          0
+        ],
         "health_last": "V6M0: HEALTH free=27134019 psram=26841788 wake=1 taps=0",
         "assertions": 0,
         "panel_capability_errors": 2,
@@ -571,6 +625,9 @@
         "softap_started": 0,
         "config_web_server": 0,
         "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 1,
         "health_samples": 6
       },
@@ -640,8 +697,14 @@
         "saved_channel_scan": null,
         "config_ap_ssid": "WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9",
         "config_ap_dhcp": "DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1",
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
         "wifi_connected": null,
-        "net_event": 4,
+        "net_events": [
+          3,
+          4
+        ],
         "health_last": "V6M0: HEALTH free=27118527 psram=26837296 wake=1 taps=0",
         "assertions": 0,
         "panel_capability_errors": 0,
@@ -659,6 +722,9 @@
         "softap_started": 2,
         "config_web_server": 1,
         "state_machine_reject": 1,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
         "mac_not_ready": 0,
         "health_samples": 3
       },
@@ -681,6 +747,113 @@
           "ts_ms": 88638,
           "free": 27118527,
           "psram": 26837296,
+          "wake_word_running": 1,
+          "taps": 0
+        }
+      ]
+    },
+    {
+      "log": "netprobe-m0-06.txt",
+      "sha256": "03db65e9dd7494139c0c438161874b6b0d99adcd99f135e8436a314e7cff89e2",
+      "bytes": 11574,
+      "lines": 207,
+      "last_timestamp_ms": 58615,
+      "preamble": [
+        "Build:Jul 10 2024",
+        "rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)",
+        "Core0 Saved PC:0x4808e5b4",
+        "Core1 Saved PC:0x4ff17b36",
+        "SPI mode:DIO, clock div:2",
+        "load:0x4ff33ce0,len:0x152c",
+        "load:0x4ff28ed0,len:0x1168",
+        "load:0x4ff2bbd0,len:0x3cd4"
+      ],
+      "signals": {
+        "reset_reason": "rst:0x17 (CHIP_USB_UART_RESET)",
+        "boot_ready": "V6M0: BOOT_READY IDF=v6.1;",
+        "idf_version": "v6.1",
+        "display_rgb888": "Claw4V6: Native RGB888 display, panel double buffers, full refresh",
+        "display_init": "Claw4V6: NV3051F display initialized, native RGB888",
+        "lvgl_first_refresh": "Claw4V6: LVGL first refresh completed (physical image still requires confirmation)",
+        "assets_applied": 1,
+        "assets_mapped": "Assets: The assets map size is 576 KB (partition 15360 KB)",
+        "touch_init": "Claw4V6: GT911 touch initialized",
+        "touch_last_count": null,
+        "audio_i2s": "Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO",
+        "audio_module_probe": "Claw4V6: Audio module local-mode response bytes=21 (clock test still required)",
+        "afe_pipeline": "AFE: AFE Pipeline: [input] -> |AEC(FD_LOW_COST, NLP_VERY_AGGRESSIVE)| -> |VAD(WebRTC)| -> |WakeNet(wn9_nihaoxiaozhi_tts,)| -> [output]",
+        "wakenet_model": "AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts",
+        "c5_slave": "transport: Identified slave [esp32c5]",
+        "sdio_card_init": "H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE",
+        "c5_bootup": "RPC_WRAP: Coprocessor Boot-up",
+        "saved_channel_scan": 11,
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
+        "found_ap": "realme",
+        "sta_ip": "10.76.189.105",
+        "sta_gateway": "10.76.189.222",
+        "wifi_connected": "Connected to WiFi: realme",
+        "net_events": [
+          0,
+          1,
+          2
+        ],
+        "health_last": "V6M0: HEALTH free=27133675 psram=26841568 wake=1 taps=0",
+        "assertions": 0,
+        "panel_capability_errors": 2,
+        "touch_record_cycles": 0,
+        "playback_queued": 0,
+        "wake_detected": 0,
+        "wifi_attempt": 1,
+        "wifi_scan_cycles": 0,
+        "no_ap_on_saved_ch": 0,
+        "wifi_scan_done": 1,
+        "wifi_no_ap": 0,
+        "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
+        "found_ap_count": 1,
+        "wifi_connecting": 1,
+        "sta_connected_event": 1,
+        "mac_not_ready": 1,
+        "health_samples": 5
+      },
+      "health": [
+        {
+          "ts_ms": 18581,
+          "free": 27133675,
+          "psram": 26841568,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 28586,
+          "free": 27133675,
+          "psram": 26841568,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 38595,
+          "free": 27133675,
+          "psram": 26841568,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 48605,
+          "free": 27133675,
+          "psram": 26841568,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 58615,
+          "free": 27133675,
+          "psram": 26841568,
           "wake_word_running": 1,
           "taps": 0
         }
@@ -837,8 +1010,20 @@
     "config_ap_dhcp": "DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1",
     "config_web_server": 1,
     "state_machine_reject": 1,
-    "wifi_connected": null,
-    "net_event": 4,
+    "found_ap": "realme",
+    "found_ap_count": 1,
+    "wifi_connecting": 1,
+    "sta_connected_event": 1,
+    "sta_ip": "10.76.189.105",
+    "sta_gateway": "10.76.189.222",
+    "wifi_connected": "Connected to WiFi: realme",
+    "net_events": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
     "mac_not_ready": 1,
     "health_last": "V6M0: HEALTH free=28027643 psram=27878204 wake=1 taps=0",
     "health_samples": 6
@@ -858,7 +1043,7 @@
     "c5_slave": "boot-m0-02.txt",
     "sdio_card_init": "boot-m0-02.txt",
     "c5_bootup": "boot-m0-02.txt",
-    "net_event": "netprobe-m0-02.txt",
+    "net_events": "netprobe-m0-06.txt",
     "health_last": "boot-m0-02.txt",
     "assertions": "boot-m0-02.txt",
     "panel_capability_errors": "boot-m0-04.txt",
@@ -876,6 +1061,9 @@
     "softap_started": "netprobe-m0-02.txt",
     "config_web_server": "netprobe-m0-02.txt",
     "state_machine_reject": "netprobe-m0-02.txt",
+    "found_ap_count": "netprobe-m0-06.txt",
+    "wifi_connecting": "netprobe-m0-06.txt",
+    "sta_connected_event": "netprobe-m0-06.txt",
     "mac_not_ready": "boot-m0-02.txt",
     "health_samples": "netprobe-m0-03.txt",
     "display_rgb888": "boot-m0-04.txt",
@@ -883,27 +1071,45 @@
     "touch_last_count": "boot-m0-04.txt",
     "config_ap_ssid": "netprobe-m0-02.txt",
     "config_ap_dhcp": "netprobe-m0-02.txt",
-    "saved_channel_scan": "netprobe-m0-03.txt"
+    "saved_channel_scan": "netprobe-m0-03.txt",
+    "found_ap": "netprobe-m0-06.txt",
+    "sta_ip": "netprobe-m0-06.txt",
+    "sta_gateway": "netprobe-m0-06.txt",
+    "wifi_connected": "netprobe-m0-06.txt"
   },
   "health": [
     {
-      "ts_ms": 68623,
-      "free": 27134019,
-      "psram": 26841788,
+      "ts_ms": 18581,
+      "free": 27133675,
+      "psram": 26841568,
       "wake_word_running": 1,
       "taps": 0
     },
     {
-      "ts_ms": 78629,
-      "free": 27118527,
-      "psram": 26837296,
+      "ts_ms": 28586,
+      "free": 27133675,
+      "psram": 26841568,
       "wake_word_running": 1,
       "taps": 0
     },
     {
-      "ts_ms": 88638,
-      "free": 27118527,
-      "psram": 26837296,
+      "ts_ms": 38595,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 48605,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 58615,
+      "free": 27133675,
+      "psram": 26841568,
       "wake_word_running": 1,
       "taps": 0
     }
@@ -1132,6 +1338,46 @@
       "wake_word_running": 1,
       "taps": 0,
       "log": "netprobe-m0-05.txt"
+    },
+    {
+      "ts_ms": 18581,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-06.txt"
+    },
+    {
+      "ts_ms": 28586,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-06.txt"
+    },
+    {
+      "ts_ms": 38595,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-06.txt"
+    },
+    {
+      "ts_ms": 48605,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-06.txt"
+    },
+    {
+      "ts_ms": 58615,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-06.txt"
     }
   ],
   "rows": [
@@ -1193,10 +1439,10 @@
     },
     {
       "item": "网络 / IP",
-      "evidence": "no 'Connected to WiFi' line",
-      "status": "NOT_VERIFIED",
-      "note": "scan cycles=3, 'No AP found' cycles=3, saved-channel scans=1 (saved channel=11), config-mode entries=1, NETWORK_EVENT=4 (3=Disconnected, 4=ConfigModeEnter); 'No AP found' means no saved SSID matched, not that the scan returned nothing",
-      "source": "boot-m0-03.txt"
+      "evidence": "Connected to WiFi: realme",
+      "status": "PASS",
+      "note": "SSID=realme, IP=10.76.189.105, gw=10.76.189.222, NETWORK_EVENT seen=[0, 1, 2, 3, 4] (0=Scanning 1=Connecting 2=Connected 3=Disconnected 4=ConfigModeEnter), found-AP=1, connecting=1, connected=1; scan cycles=3, 'No AP found' cycles=3, saved-channel scans=1 (saved channel=11), config-mode entries=1; 'No AP found' means no saved SSID matched, not that the scan returned nothing",
+      "source": "netprobe-m0-06.txt"
     },
     {
       "item": "资源分区",
@@ -1222,7 +1468,6 @@
   ],
   "open_items": [
     "唤醒词从未捕获到正事件（WAKE_DETECTED=0）",
-    "从未取得 IP。配网已写入 NVS 且 C5 配网时关联成功，但重启后重连走扫描匹配路径，对不广播 SSID 的 AP 永远匹配不到（详见 V6_M0_NETWORK_PROBE.md §8）",
     "恢复写回未实测，回滚不可信",
     "SD 卡 / Camera / 电源键未集成"
   ]

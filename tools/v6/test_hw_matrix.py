@@ -49,6 +49,25 @@ Writing at 0x00200000... (100 %)
 Hash of data verified.
 """
 
+# Third capture of the same candidate: the AP now broadcasts its SSID, so the
+# scan matches and the station associates. Same firmware, same saved channel.
+SYNTHETIC_NETCONNECTED = """\
+rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+I (8677) WifiBoard: Starting WiFi connection attempt
+I (9602) WifiStation: Scanning saved channel 11
+I (9623) V6M0: NETWORK_EVENT=0
+I (9745) RPC_WRAP: ESP Event: StaScanDone
+I (9768) WifiStation: Found AP: realme, BSSID: 9e:9e:3d:f0:8e:d7, RSSI: -39, Channel: 11, Authmode: 3
+I (9769) WifiBoard: WiFi connecting to realme
+I (9770) V6M0: NETWORK_EVENT=1
+I (11386) RPC_WRAP: ESP Event: Station mode: Connected
+I (12483) esp_netif_handlers: sta ip: 10.76.189.105, mask: 255.255.255.0, gw: 10.76.189.222
+I (12484) WifiBoard: Connected to WiFi: realme
+I (12488) V6M0: NETWORK_EVENT=2
+I (18581) V6M0: HEALTH free=27133675 psram=26841568 wake=1 taps=0
+I (28586) V6M0: HEALTH free=27133675 psram=26841568 wake=1 taps=0
+"""
+
 # A later capture of the same candidate with no taps: it must not erase the
 # touch evidence carried by SYNTHETIC_BOOT, and it adds config-portal evidence.
 SYNTHETIC_NETPROBE = """\
@@ -121,7 +140,7 @@ class SignalTests(unittest.TestCase):
         self.assertEqual(s["config_web_server"], 1)
         self.assertEqual(s["connect_timeout"], 1)
         self.assertEqual(s["wifi_config_mode"], 1)
-        self.assertEqual(s["net_event"], 4)
+        self.assertEqual(s["net_events"], [3, 4])
         self.assertEqual(s["state_machine_reject"], 1)
 
     def test_saved_channel_scan_is_visible(self):
@@ -147,7 +166,7 @@ class SignalTests(unittest.TestCase):
         self.assertEqual(s["playback_queued"], 1)
         self.assertEqual(s["wifi_scan_cycles"], 1)
         self.assertEqual(s["wifi_no_ap"], 1)
-        self.assertEqual(s["net_event"], 0)
+        self.assertEqual(s["net_events"], [0])
         self.assertEqual(s["mac_not_ready"], 1)
         self.assertEqual(s["panel_capability_errors"], 1)
 
@@ -176,6 +195,7 @@ class MatrixTests(unittest.TestCase):
         self._dir = tempfile.TemporaryDirectory()
         self.boot_path = _write(self._dir.name, "boot.txt", SYNTHETIC_BOOT)
         self.netprobe_path = _write(self._dir.name, "netprobe.txt", SYNTHETIC_NETPROBE)
+        self.connected_path = _write(self._dir.name, "netconnected.txt", SYNTHETIC_NETCONNECTED)
         self.flash_path = _write(self._dir.name, "flash.txt", SYNTHETIC_FLASH)
         self.cand_path = os.path.join(self._dir.name, "candidate.json")
         with open(self.cand_path, "w", encoding="utf-8") as handle:
@@ -196,9 +216,41 @@ class MatrixTests(unittest.TestCase):
             CANDIDATE,
             dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
         )
+        # Full history: touch captures, the failed reconnect, then the success.
+        self.full = hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(self.boot_path),
+             hw_matrix.parse_boot_log(self.netprobe_path),
+             hw_matrix.parse_boot_log(self.connected_path)],
+            [hw_matrix.parse_flash_log(self.flash_path)],
+            self.cand_path,
+            CANDIDATE,
+            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+        )
 
     def tearDown(self):
         self._dir.cleanup()
+
+    def test_associated_station_evidence(self):
+        s = hw_matrix.parse_boot_log(self.connected_path)["signals"]
+        self.assertEqual(s["found_ap"], "realme")
+        self.assertEqual(s["sta_ip"], "10.76.189.105")
+        self.assertEqual(s["sta_gateway"], "10.76.189.222")
+        self.assertEqual(s["net_events"], [0, 1, 2])
+        self.assertEqual(s["sta_connected_event"], 1)
+        self.assertEqual(s["wifi_connecting"], 1)
+        self.assertEqual(s["wifi_no_ap"], 0)
+
+    def test_network_row_passes_once_an_ip_is_obtained(self):
+        self.assertEqual(self.status("网络 / IP"), "NOT_VERIFIED")
+        self.assertEqual(self.status("网络 / IP", self.full), "PASS")
+        self.assertEqual(self.full["signal_source"]["wifi_connected"], "netconnected.txt")
+
+    def test_a_successful_connect_does_not_erase_the_earlier_failure_evidence(self):
+        """The matrix must keep both stories: the AP that never matched and the
+        AP that did. Merging by max on counters preserves the failure counts."""
+        self.assertEqual(self.full["signals"]["wifi_no_ap"], 1)
+        self.assertEqual(self.full["signals"]["wifi_config_mode"], 1)
+        self.assertEqual(self.full["signals"]["net_events"], [0, 1, 2, 3, 4])
 
     def status(self, item: str, matrix=None) -> str:
         for row in (matrix or self.matrix)["rows"]:
@@ -212,8 +264,8 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(self.status("触摸", self.merged), "PASS")
         self.assertEqual(self.merged["signals"]["touch_last_count"], 4)
 
-    def test_merge_takes_the_best_network_event(self):
-        self.assertEqual(self.merged["signals"]["net_event"], 4)
+    def test_network_events_merge_as_a_set_not_a_max(self):
+        self.assertEqual(self.merged["signals"]["net_events"], [0, 3, 4])
         self.assertEqual(self.merged["signals"]["wifi_no_ap"], 1)
 
     def test_signal_source_is_recorded(self):
