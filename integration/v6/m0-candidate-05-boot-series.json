@@ -1,0 +1,130 @@
+{
+  "candidate": "m0-candidate-05.json",
+  "elf_sha256": "533d4a15d547d96df91943a24fbca63e2d227282e3838a9c45aa49640f40788d",
+  "requested_rounds": 20,
+  "capture_seconds_per_round": 20,
+  "rounds": [
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 1,
+      "sha256": "8ec9ac8eec7f6b30fff87d324c958c4a2188a5dbb23695be7097f1ef416d203a",
+      "elapsed_seconds": 20.66,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 2,
+      "sha256": "2c0b9adfdc321dfe6022d81a90fdff8145003d06dc1d8ee54bc969a9fa47be78",
+      "elapsed_seconds": 20.66,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 3,
+      "sha256": "a8d1e149b84af39d5fdd470c7f1ba3f625ee6ee60c638b7d320d9e3332c03851",
+      "elapsed_seconds": 20.56,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 4,
+      "sha256": "00ecc7b6a3293f106f05b2c9675cb1b5c0e924fcd8e04fff4bce9010ad4a269f",
+      "elapsed_seconds": 20.66,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 5,
+      "sha256": "5eb1514feb1f4cc2dc05ca8d2c5b80f38761b6c2d9dabdcd456f39111bc9cce1",
+      "elapsed_seconds": 20.7,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 6,
+      "sha256": "d0e89b06b51f9ee59a4519cc6648a85746c6992af5ed4ad49857e0d9750539a3",
+      "elapsed_seconds": 20.8,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 7,
+      "sha256": "c1253e34d0635305ed6bdf833ded51f0b101ff78666f42c956f7570b286df2fb",
+      "elapsed_seconds": 20.69,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 8,
+      "sha256": "6e1d96b47b913945cc9701a90ac4bb3aceb1b90d16732fb73c115945faccf843",
+      "elapsed_seconds": 20.7,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 9,
+      "sha256": "c944d595fb16cd8205285a5816a5e7c18ffb8dcfc463abc3236bbfcc56db1b0e",
+      "elapsed_seconds": 20.66,
+      "capture_exit": 0
+    },
+    {
+      "passed": true,
+      "attempts": 1,
+      "boot_ready": 1,
+      "blocked_or_panic": false,
+      "i2c_retries": 0,
+      "i2c_recovered": 0,
+      "round": 10,
+      "sha256": "81e65030beea72d2ba27edcf2df0852f03f7dfd81207e476b8cd3c34e7c74742",
+      "elapsed_seconds": 20.66,
+      "capture_exit": 0
+    }
+  ],
+  "status": "STOPPED_FOR_WORKBUDDY_HANDOFF",
+  "note": "User reassigned subsequent device tests to WorkBuddy; only completed recorded rounds count."
+}

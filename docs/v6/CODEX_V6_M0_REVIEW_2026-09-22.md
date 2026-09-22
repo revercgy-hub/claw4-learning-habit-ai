@@ -30,7 +30,7 @@ build-07 三个修改的 C++ 编译单元生成成功，在链接阶段无法启
 
 被拦截文件：E:/workbuddy/claw4-v6/toolchains/idf61/tools/riscv32-esp-elf/esp-15.2.0_20251204/riscv32-esp-elf/libexec/gcc/riscv32-esp-elf/15.2.0/collect2.exe。
 
-没有新的完整 ELF/候选冻结/Flash 操作。旧设备候选与完整备份不受影响。构建目录里的旧 bin 不能当作本轮产物。
+此处为当时状态：没有新的完整 ELF/候选冻结/Flash 操作，旧设备候选与完整备份不受影响。后续用户处理应用控制后，候选 05 已成功构建并刷入；最新结果见 V6_M0_CANDIDATE_05_REPORT.md。
 
 ## 后续顺序
 
