@@ -1,6 +1,7 @@
 #include "wifi_board.h"
 #include "config.h"
 #include "claw4_audio.h"
+#include "board_algorithms.h"
 #include "display/lcd_display.h"
 #include "esp_lcd_nv3051f.h"
 #include <driver/i2c_master.h>
@@ -70,21 +71,19 @@ class Claw4Board final : public WifiBoard {
     }
     template<typename Operation>
     void ExpanderTransaction(const char* name, Operation operation) {
-        esp_err_t error = ESP_FAIL;
-        for (unsigned attempt = 1; attempt <= 3; ++attempt) {
-            error = operation();
+        const auto error = claw4::RetryThree([&](unsigned attempt) {
+            const auto error = operation();
             if (error == ESP_OK) {
                 if (attempt > 1) ESP_LOGI("Claw4V6", "I2C_RECOVERED operation=%s attempt=%u", name, attempt);
-                return;
+            } else {
+                ESP_LOGW("Claw4V6", "I2C_RETRY operation=%s attempt=%u error=%s", name, attempt, esp_err_to_name(error));
             }
-            ESP_LOGW("Claw4V6", "I2C_RETRY operation=%s attempt=%u error=%s", name, attempt, esp_err_to_name(error));
-            if (attempt < 3) {
-                const auto reset = i2c_master_bus_reset(bus_);
-                ESP_LOGI("Claw4V6", "I2C_BUS_RESET result=%s", esp_err_to_name(reset));
-                vTaskDelay(pdMS_TO_TICKS(100 * attempt));
-            }
-        }
-        HaltHardware(name, error);
+            return error;
+        }, [&] {
+            const auto reset = i2c_master_bus_reset(bus_);
+            ESP_LOGI("Claw4V6", "I2C_BUS_RESET result=%s", esp_err_to_name(reset));
+        }, [](unsigned delay_ms) { vTaskDelay(pdMS_TO_TICKS(delay_ms)); });
+        if (error != ESP_OK) HaltHardware(name, error);
     }
 
     uint16_t ReadExpander(uint8_t reg) {

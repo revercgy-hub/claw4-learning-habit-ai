@@ -3,6 +3,7 @@
 #include <functional>
 #include <mutex>
 #include <cstdint>
+#include <atomic>
 
 // Only the electrical codec adapter. XiaoZhi owns capture, AFE and voice state.
 class Claw4Audio final : public AudioCodec {
@@ -25,6 +26,10 @@ private:
     uint32_t raw_peak_[2]{};
     uint32_t samples_[2]{};
     uint32_t read_failures_ = 0;
+    uint32_t tx_overlap_samples_[2]{};
+    uint32_t tx_overlap_peak_[2]{};
+    std::atomic<bool> tx_nonzero_active_{false};
+    std::atomic<uint32_t> tx_frames_{0};
     int64_t last_stats_us_ = 0;
     void ReportInputStats();
 #endif

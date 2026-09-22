@@ -82,6 +82,11 @@ extern "C" void app_main() {
         if (record_requested.exchange(false) && test == LocalTest::Idle) {
             ESP_LOGI("V6M0", "TOUCH count=%u; audio record begin", taps.load());
             audio.EnableWakeWordDetection(false);
+            rearm_after = 0;
+            rearm_requested.store(false);
+            // Start before recording: EnableVoiceProcessing resets decoder queues.
+            // Keeping this input consumer alive permits RX during local playback.
+            audio.EnableVoiceProcessing(true);
             audio.EnableAudioTesting(true);
             test = LocalTest::Recording;
             deadline = now + 3000000;
@@ -89,13 +94,22 @@ extern "C" void app_main() {
         if (test == LocalTest::Recording && now >= deadline) {
             audio.EnableAudioTesting(false);
             ESP_LOGI("V6M0", "Audio testing playback queued");
+            ESP_LOGI("V6M0", "LOCAL_REFERENCE_PROBE_BEGIN; RX active; no upload");
             test = LocalTest::Playback;
-            deadline = now + 3500000;
+            deadline = now + 10000000;
         }
-        if (test == LocalTest::Playback && now >= deadline) {
+        if (test == LocalTest::Playback && (audio.IsPlaybackIdle() || now >= deadline)) {
+            const bool drained = audio.IsPlaybackIdle();
+            ESP_LOGI("V6M0", "LOCAL_REFERENCE_PROBE_END drained=%d", drained);
+            if (!drained) audio.ResetDecoder();
+            audio.EnableVoiceProcessing(false);
             rearm_requested.store(false);
             audio.EnableWakeWordDetection(true);
             test = LocalTest::Idle;
+        }
+        // AFE output is local diagnostic data, never handed to a protocol.
+        for (unsigned discarded = 0; discarded < 8; ++discarded) {
+            if (!audio.PopPacketFromSendQueue()) break;
         }
         if (test == LocalTest::Idle && rearm_requested.exchange(false)) rearm_after = now + 1000000;
         if (test == LocalTest::Idle && rearm_after && now >= rearm_after) {
@@ -105,10 +119,11 @@ extern "C" void app_main() {
         }
         if (now >= next_health) {
             next_health = now + 10000000;
-            ESP_LOGI("V6M0", "HEALTH free=%u psram=%u wake=%d taps=%u wakes=%u vads=%u vad_observable=0",
+            ESP_LOGI("V6M0", "HEALTH free=%u psram=%u wake=%d taps=%u wakes=%u vads=%u vad_observable=%d",
                      unsigned(esp_get_free_heap_size()),
                      unsigned(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)),
-                     audio.IsWakeWordRunning(), taps.load(), wake_events.load(), vad_events.load());
+                     audio.IsWakeWordRunning(), taps.load(), wake_events.load(), vad_events.load(),
+                     test == LocalTest::Playback);
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }

@@ -1,5 +1,6 @@
 #include "claw4_audio.h"
 #include "config.h"
+#include "board_algorithms.h"
 #include <algorithm>
 #include <array>
 #include <utility>
@@ -75,8 +76,9 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
             return 0;
         }
         for (int i = 0; i < count; ++i) {
-            // Preserve the source board's ADC alignment/gain, verify both channels on hardware.
-            dest[total + i] = static_cast<int16_t>(std::clamp<int32_t>(buffer[i] >> 12, -32768, 32767));
+            // Candidate 05 measured full-width slots; >>12 added 24 dB before
+            // saturation. Normalize first; any later gain must be explicit.
+            dest[total + i] = claw4::DecodePcm16(buffer[i]);
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
             const unsigned channel = (total + i) % 2;
             const int64_t value = dest[total + i];
@@ -85,7 +87,12 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
             peak_[channel] = std::max(peak_[channel], magnitude);
             const int64_t raw = buffer[i];
             raw_peak_[channel] = std::max(raw_peak_[channel], uint32_t(raw < 0 ? -raw : raw));
-            clipped_[channel] += (buffer[i] >> 12) < -32768 || (buffer[i] >> 12) > 32767;
+            // Full-width normalization has no out-of-range conversion. Raw
+            // near-full-scale peaks still need independent source analysis.
+            if (tx_nonzero_active_.load(std::memory_order_relaxed)) {
+                ++tx_overlap_samples_[channel];
+                tx_overlap_peak_[channel] = std::max(tx_overlap_peak_[channel], magnitude);
+            }
             ++samples_[channel];
 #endif
         }
@@ -103,10 +110,12 @@ void Claw4Audio::ReportInputStats() {
     if (now - last_stats_us_ < 1000000) return;
     for (unsigned ch = 0; ch < 2; ++ch) {
         const unsigned rms = samples_[ch] ? unsigned(std::sqrt(double(energy_[ch]) / samples_[ch])) : 0;
-        ESP_LOGI("Claw4Audio", "INPUT ch=%u n=%u rms=%u peak=%u clipped=%u raw_peak=%u read_failures=%u",
+        ESP_LOGI("Claw4Audio", "INPUT ch=%u n=%u rms=%u peak=%u clipped=%u raw_peak=%u read_failures=%u tx_overlap_n=%u tx_overlap_peak=%u tx_frames=%u",
                  ch, unsigned(samples_[ch]), rms, unsigned(peak_[ch]), unsigned(clipped_[ch]),
-                 unsigned(raw_peak_[ch]), unsigned(read_failures_));
+                 unsigned(raw_peak_[ch]), unsigned(read_failures_), unsigned(tx_overlap_samples_[ch]),
+                 unsigned(tx_overlap_peak_[ch]), unsigned(tx_frames_.load()));
         energy_[ch] = peak_[ch] = clipped_[ch] = raw_peak_[ch] = samples_[ch] = 0;
+        tx_overlap_samples_[ch] = tx_overlap_peak_[ch] = 0;
     }
     read_failures_ = 0;
     last_stats_us_ = now;
@@ -128,8 +137,16 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
             buffer[i * 2] = buffer[i * 2 + 1] = sample;
         }
         size_t bytes = 0;
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+        tx_nonzero_active_.store(std::any_of(buffer.begin(), buffer.begin() + count * 2,
+                                            [](int32_t value) { return value != 0; }));
+#endif
         const auto err = i2s_channel_write(tx_handle_, buffer.data(), count * 2 * sizeof(int32_t),
                                            &bytes, 200);
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+        tx_nonzero_active_.store(false);
+        tx_frames_.fetch_add(bytes / (2 * sizeof(int32_t)));
+#endif
         total += static_cast<int>(bytes / (2 * sizeof(int32_t)));
         if (err != ESP_OK || bytes != count * 2 * sizeof(int32_t)) {
             ESP_LOGW("Claw4Audio", "I2S output incomplete: %s", esp_err_to_name(err));
