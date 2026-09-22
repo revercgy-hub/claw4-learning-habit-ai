@@ -1,6 +1,6 @@
 {
   "schema": "claw4-v6-m0-hw-matrix/1",
-  "generated_at": "2026-09-22T03:14:10+00:00",
+  "generated_at": "2026-09-22T03:21:45+00:00",
   "candidate": {
     "path": "m0-candidate-04.json",
     "name": "claw4-learning-v6-m0.1",
@@ -858,6 +858,99 @@
           "taps": 0
         }
       ]
+    },
+    {
+      "log": "netprobe-m0-07.txt",
+      "sha256": "1f130d22f4424ba3a76152a9884889e09206babe0a8ec2a9e03b44d1fbb2af81",
+      "bytes": 30369,
+      "lines": 501,
+      "last_timestamp_ms": 38585,
+      "preamble": [
+        "Build:Jul 10 2024",
+        "rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)",
+        "Core0 Saved PC:0x4ff17b36",
+        "Core1 Saved PC:0x4ff17b36",
+        "SPI mode:DIO, clock div:2",
+        "load:0x4ff33ce0,len:0x152c",
+        "load:0x4ff28ed0,len:0x1168",
+        "load:0x4ff2bbd0,len:0x3cd4"
+      ],
+      "signals": {
+        "reset_reason": "rst:0x17 (CHIP_USB_UART_RESET)",
+        "boot_ready": "V6M0: BOOT_READY IDF=v6.1;",
+        "idf_version": "v6.1",
+        "display_rgb888": "Claw4V6: Native RGB888 display, panel double buffers, full refresh",
+        "display_init": "Claw4V6: NV3051F display initialized, native RGB888",
+        "lvgl_first_refresh": "Claw4V6: LVGL first refresh completed (physical image still requires confirmation)",
+        "assets_applied": 1,
+        "assets_mapped": "Assets: The assets map size is 576 KB (partition 15360 KB)",
+        "touch_init": "Claw4V6: GT911 touch initialized",
+        "touch_last_count": null,
+        "audio_i2s": "Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO",
+        "audio_module_probe": "Claw4V6: Audio module local-mode response bytes=21 (clock test still required)",
+        "afe_pipeline": "AFE: AFE Pipeline: [input] -> |AEC(FD_LOW_COST, NLP_VERY_AGGRESSIVE)| -> |VAD(WebRTC)| -> |WakeNet(wn9_nihaoxiaozhi_tts,)| -> [output]",
+        "wakenet_model": "AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts",
+        "c5_slave": "transport: Identified slave [esp32c5]",
+        "sdio_card_init": "H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE",
+        "c5_bootup": "RPC_WRAP: Coprocessor Boot-up",
+        "saved_channel_scan": 11,
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
+        "found_ap": "realme",
+        "sta_ip": "10.76.189.105",
+        "sta_gateway": "10.76.189.222",
+        "wifi_connected": "Connected to WiFi: realme",
+        "net_events": [
+          0,
+          1,
+          2
+        ],
+        "health_last": "V6M0: HEALTH free=27133675 psram=26841568 wake=1 taps=0",
+        "assertions": 2,
+        "panel_capability_errors": 2,
+        "touch_record_cycles": 0,
+        "playback_queued": 0,
+        "wake_detected": 0,
+        "wifi_attempt": 1,
+        "wifi_scan_cycles": 0,
+        "no_ap_on_saved_ch": 0,
+        "wifi_scan_done": 1,
+        "wifi_no_ap": 0,
+        "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
+        "found_ap_count": 1,
+        "wifi_connecting": 1,
+        "sta_connected_event": 1,
+        "mac_not_ready": 1,
+        "health_samples": 4
+      },
+      "health": [
+        {
+          "ts_ms": 18569,
+          "free": 27133675,
+          "psram": 26841568,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 28579,
+          "free": 27133675,
+          "psram": 26841568,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 38585,
+          "free": 27133675,
+          "psram": 26841568,
+          "wake_word_running": 1,
+          "taps": 0
+        }
+      ]
     }
   ],
   "flash_captures": [
@@ -977,7 +1070,7 @@
     "reset_reason": "rst:0x17 (CHIP_USB_UART_RESET)",
     "boot_ready": "V6M0: BOOT_READY IDF=v6.1;",
     "idf_version": "v6.1",
-    "assertions": 0,
+    "assertions": 2,
     "display_rgb888": "Claw4V6: Native RGB888 display, panel double buffers, full refresh",
     "display_init": "Claw4V6: NV3051F display initialized, RGB565 -> RGB888",
     "lvgl_first_refresh": "Claw4V6: LVGL first refresh completed (physical image still requires confirmation)",
@@ -1045,7 +1138,7 @@
     "c5_bootup": "boot-m0-02.txt",
     "net_events": "netprobe-m0-06.txt",
     "health_last": "boot-m0-02.txt",
-    "assertions": "boot-m0-02.txt",
+    "assertions": "netprobe-m0-07.txt",
     "panel_capability_errors": "boot-m0-04.txt",
     "touch_record_cycles": "boot-m0-04.txt",
     "playback_queued": "boot-m0-04.txt",
@@ -1079,35 +1172,21 @@
   },
   "health": [
     {
-      "ts_ms": 18581,
+      "ts_ms": 18569,
       "free": 27133675,
       "psram": 26841568,
       "wake_word_running": 1,
       "taps": 0
     },
     {
-      "ts_ms": 28586,
+      "ts_ms": 28579,
       "free": 27133675,
       "psram": 26841568,
       "wake_word_running": 1,
       "taps": 0
     },
     {
-      "ts_ms": 38595,
-      "free": 27133675,
-      "psram": 26841568,
-      "wake_word_running": 1,
-      "taps": 0
-    },
-    {
-      "ts_ms": 48605,
-      "free": 27133675,
-      "psram": 26841568,
-      "wake_word_running": 1,
-      "taps": 0
-    },
-    {
-      "ts_ms": 58615,
+      "ts_ms": 38585,
       "free": 27133675,
       "psram": 26841568,
       "wake_word_running": 1,
@@ -1378,21 +1457,45 @@
       "wake_word_running": 1,
       "taps": 0,
       "log": "netprobe-m0-06.txt"
+    },
+    {
+      "ts_ms": 18569,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-07.txt"
+    },
+    {
+      "ts_ms": 28579,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-07.txt"
+    },
+    {
+      "ts_ms": 38585,
+      "free": 27133675,
+      "psram": 26841568,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-07.txt"
     }
   ],
   "rows": [
     {
       "item": "Flash / PSRAM",
       "evidence": "candidate manifest + flash log 'Hash of data verified.'",
-      "status": "PASS",
+      "status": "NOT_VERIFIED",
       "note": "verified writes in this capture: 1; long-run stress still not exercised",
       "source": null
     },
     {
       "item": "启动",
       "evidence": "V6M0: BOOT_READY IDF=v6.1;",
-      "status": "PASS",
-      "note": "assertions=0; longest capture 110.7s",
+      "status": "NOT_VERIFIED",
+      "note": "assertions=2; longest capture 110.7s",
       "source": "boot-m0-02.txt"
     },
     {

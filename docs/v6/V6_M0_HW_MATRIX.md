@@ -1,15 +1,15 @@
 # V6 M0 硬件验收矩阵（自动生成）
 
-> 生成时间 2026-09-22T03:14:10+00:00；schema `claw4-v6-m0-hw-matrix/1`。
+> 生成时间 2026-09-22T03:21:45+00:00；schema `claw4-v6-m0-hw-matrix/1`。
 > 冻结候选 `m0-candidate-04.json`，应用 SHA256 `196d8718a211e660…`。
-> 证据来源 9 份启动捕获 / 1 份刷写捕获。
+> 证据来源 10 份启动捕获 / 1 份刷写捕获。
 > 数值型信号按**跨捕获取最大值**合并，避免后一份没点击的日志抹掉前一份的触摸证据；
 > 缺信号一律 NOT_VERIFIED，绝不由相邻项推断。
 
 | 项目 | 证据 | 状态 | 来源 | 说明 |
 | --- | --- | --- | --- | --- |
-| Flash / PSRAM | `candidate manifest + flash log 'Hash of data verified.'` | **PASS** | — | verified writes in this capture: 1; long-run stress still not exercised |
-| 启动 | `V6M0: BOOT_READY IDF=v6.1;` | **PASS** | boot-m0-02.txt | assertions=0; longest capture 110.7s |
+| Flash / PSRAM | `candidate manifest + flash log 'Hash of data verified.'` | **NOT_VERIFIED** | — | verified writes in this capture: 1; long-run stress still not exercised |
+| 启动 | `V6M0: BOOT_READY IDF=v6.1;` | **NOT_VERIFIED** | boot-m0-02.txt | assertions=2; longest capture 110.7s |
 | 显示 | `Claw4V6: Native RGB888 display, panel double buffers, full refresh` | **PASS** | boot-m0-04.txt | display init=yes, user confirmed visible=yes, unsupported-capability errors=2 |
 | 触摸 | `Claw4V6: GT911 touch initialized` | **PASS** | boot-m0-04.txt | tap-driven record cycles=3, last tap count=5 |
 | 音频 | `Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO` | **PASS** | boot-m0-02.txt | AFE=yes, loopback user-confirmed=yes, WakeNet=AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts, WAKE_DETECTED events=0 |
@@ -26,7 +26,7 @@
 | 信号 | 值 | 来源 |
 | --- | --- | --- |
 | `afe_pipeline` | `AFE: AFE Pipeline: [input] -> \|AEC(FD_LOW_COST, NLP_VERY_AGGRESSIVE)\| -> \|VAD(WebRTC)\| -> \|WakeNet(wn9_nihaoxiaozhi_tts,)\| -> [output]` | boot-m0-02.txt |
-| `assertions` | `0` | boot-m0-02.txt |
+| `assertions` | `2` | netprobe-m0-07.txt |
 | `assets_applied` | `1` | boot-m0-03.txt |
 | `assets_mapped` | `Assets: The assets map size is 576 KB (partition 15360 KB)` | boot-m0-02.txt |
 | `audio_i2s` | `Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO` | boot-m0-02.txt |
@@ -110,6 +110,9 @@
 | `netprobe-m0-06.txt` | 38595 | 27133675 | 26841568 | 1 | 0 |
 | `netprobe-m0-06.txt` | 48605 | 27133675 | 26841568 | 1 | 0 |
 | `netprobe-m0-06.txt` | 58615 | 27133675 | 26841568 | 1 | 0 |
+| `netprobe-m0-07.txt` | 18569 | 27133675 | 26841568 | 1 | 0 |
+| `netprobe-m0-07.txt` | 28579 | 27133675 | 26841568 | 1 | 0 |
+| `netprobe-m0-07.txt` | 38585 | 27133675 | 26841568 | 1 | 0 |
 
 `WakeWordRunning` 是 `audio.IsWakeWordRunning()` 的运行态，**不是**检测到唤醒；只有 `V6M0: WAKE_DETECTED` 才算正事件。
 
