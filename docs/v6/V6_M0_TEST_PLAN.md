@@ -63,7 +63,6 @@ $PY tools/v6/capture_device.py --port COM7 --seconds 60 --output "$B/wakeword-m0
 **误触发是可用性噪音，不是功能可用性证据**，两者不能混。
 
 ### 1.2 长稳 soak —— 补掉矩阵里"long-run stress not exercised"
-
 矩阵当前只测到 **110 秒**，`Flash / PSRAM` 行的备注明写"长期压力未测"。这条没人排过期，但它是唯一
 能在**不刷机**的前提下暴露内存泄漏 / 看门狗 / 协议栈退化的手段。
 
@@ -87,6 +86,36 @@ done
 | WiFi 断连（`WifiBoard: WiFi disconnected`） | 计数 = 0，或 ≤1 且能自动重连 |
 
 **这一条我可以自己跑，不需要你配合**（30 分钟无人值守）。
+
+### 1.3 启动可靠性（N 次冷启动计数）—— **已从"顺带"升级为必测项**
+
+**为什么必须有这一条**：2026-09-22 查出一条真实缺陷 —— `claw4_board.cc:92` 的
+`ESP_ERROR_CHECK(i2c_master_probe(bus_, 0x20, 100))` 把**间歇性** I2C 探测超时升级成
+致命 abort，实测到 **3 次启动尝试 / 2 次 abort / 1 次成功**。
+而在此之前，连续 10 份捕获都是一次启动成功 —— **"几次没崩"完全不能证明启动可靠**。
+
+**执行**：连续 N 次冷启动（建议 **N ≥ 20**），每轮抓 ≥15 s 串口并单独落盘：
+
+```bash
+for i in $(seq -w 1 20); do
+  $PY tools/v6/capture_device.py --port COM7 --seconds 20 --reset \
+      --output "$B/bootcount-m0-$i.txt"
+done
+```
+
+> ⚠️ 若某轮起不来，设备可能卡在 `SW_CPU_RESET` 循环里；**不要立即重跑**，
+> 先保存该轮日志（它就是证据），必要时断电再继续。
+
+**判据**：
+
+| 检查 | 通过条件 |
+| --- | --- |
+| `Calling app_main()` 出现次数 == 轮次 | 每轮只启动一次，无内部重启 |
+| `abort() was called` / `rst:0x.. (SW_CPU_RESET)` | **计数 = 0** |
+| `V6M0: BOOT_READY` | 每轮都出现 |
+| 失败率 | **0/20 才算通过**；任何 1 次失败都要先修 `claw4_board.cc:92` 再复测 |
+
+串口日志用 `hw_matrix.py` 直接给出这四项（`boot attempts` / `aborts` / `panic resets` / `BOOT_READY`）。
 
 ---
 
