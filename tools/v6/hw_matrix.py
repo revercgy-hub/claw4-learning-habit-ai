@@ -309,8 +309,10 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
     # Wake word (separate row: loopback PASS must not imply wake-word PASS) --
     row("唤醒词", "V6M0: WAKE_DETECTED count",
         _state(wake),
-        "model is loaded, but a positive detection has never been captured "
-        "on the wire; wake=1 in HEALTH is IsWakeWordRunning(), not a detection")
+        "model is loaded and the engine is armed, but a positive detection has never "
+        "been captured on the wire. Note the direction of the HEALTH field: wake= is "
+        "IsWakeWordRunning(), and a detection CLEARS that bit, so an unbroken run of "
+        "wake=1 corroborates zero detections — it is never evidence of one")
 
     # C5 / network ---------------------------------------------------------
     c5_link = bool(s.get("c5_slave")) and bool(s.get("sdio_card_init")) and bool(s.get("c5_bootup"))
@@ -442,8 +444,10 @@ def render_markdown(matrix: dict) -> str:
         for h in health:
             out.append(f"| `{h['log']}` | {h['ts_ms']} | {h['free']} | {h['psram']} | "
                        f"{h['wake_word_running']} | {h['taps']} |")
-        out += ["", "`WakeWordRunning` 是 `audio.IsWakeWordRunning()` 的运行态，"
-                    "**不是**检测到唤醒；只有 `V6M0: WAKE_DETECTED` 才算正事件。"]
+        out += ["", "`WakeWordRunning` 是 `audio.IsWakeWordRunning()`。**注意方向**："
+                    "`EnableWakeWordDetection(true)` 置位、**检测到唤醒时清位**，"
+                    "所以持续为 1 只能说明「从未检测到」，任何一次 0 才代表刚发生过检测。"
+                    "真正的正事件只有 `V6M0: WAKE_DETECTED`。"]
     else:
         out.append("所有捕获都没有 HEALTH 采样。这是证据缺口，不是通过。")
 

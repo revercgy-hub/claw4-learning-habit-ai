@@ -1,19 +1,19 @@
 # V6 M0 硬件验收矩阵（自动生成）
 
-> 生成时间 2026-09-22T03:21:45+00:00；schema `claw4-v6-m0-hw-matrix/1`。
+> 生成时间 2026-09-22T03:27:51+00:00；schema `claw4-v6-m0-hw-matrix/1`。
 > 冻结候选 `m0-candidate-04.json`，应用 SHA256 `196d8718a211e660…`。
-> 证据来源 10 份启动捕获 / 1 份刷写捕获。
+> 证据来源 12 份启动捕获 / 1 份刷写捕获。
 > 数值型信号按**跨捕获取最大值**合并，避免后一份没点击的日志抹掉前一份的触摸证据；
 > 缺信号一律 NOT_VERIFIED，绝不由相邻项推断。
 
 | 项目 | 证据 | 状态 | 来源 | 说明 |
 | --- | --- | --- | --- | --- |
 | Flash / PSRAM | `candidate manifest + flash log 'Hash of data verified.'` | **NOT_VERIFIED** | — | verified writes in this capture: 1; long-run stress still not exercised |
-| 启动 | `V6M0: BOOT_READY IDF=v6.1;` | **NOT_VERIFIED** | boot-m0-02.txt | assertions=2; longest capture 110.7s |
+| 启动 | `V6M0: BOOT_READY IDF=v6.1;` | **NOT_VERIFIED** | boot-m0-02.txt | assertions=2; longest capture 449.0s |
 | 显示 | `Claw4V6: Native RGB888 display, panel double buffers, full refresh` | **PASS** | boot-m0-04.txt | display init=yes, user confirmed visible=yes, unsupported-capability errors=2 |
 | 触摸 | `Claw4V6: GT911 touch initialized` | **PASS** | boot-m0-04.txt | tap-driven record cycles=3, last tap count=5 |
 | 音频 | `Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO` | **PASS** | boot-m0-02.txt | AFE=yes, loopback user-confirmed=yes, WakeNet=AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts, WAKE_DETECTED events=0 |
-| 唤醒词 | `V6M0: WAKE_DETECTED count` | **NOT_VERIFIED** | — | model is loaded, but a positive detection has never been captured on the wire; wake=1 in HEALTH is IsWakeWordRunning(), not a detection |
+| 唤醒词 | `V6M0: WAKE_DETECTED count` | **NOT_VERIFIED** | — | model is loaded and the engine is armed, but a positive detection has never been captured on the wire. Note the direction of the HEALTH field: wake= is IsWakeWordRunning(), and a detection CLEARS that bit, so an unbroken run of wake=1 corroborates zero detections — it is never evidence of one |
 | C5 链路 | `transport: Identified slave [esp32c5]` | **PASS** | boot-m0-02.txt | SDIO card init=yes, coprocessor boot-up=yes |
 | 配网模式（热点/配置页） | `WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9` | **PASS** | netprobe-m0-02.txt | AP SSID=WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9, DHCP=DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1, softap events=2, connect timeout after=1 cycle(s); a started softap proves the radio transmits, it does not prove association |
 | 网络 / IP | `Connected to WiFi: realme` | **PASS** | netprobe-m0-06.txt | SSID=realme, IP=10.76.189.105, gw=10.76.189.222, NETWORK_EVENT seen=[0, 1, 2, 3, 4] (0=Scanning 1=Connecting 2=Connected 3=Disconnected 4=ConfigModeEnter), found-AP=1, connecting=1, connected=1; scan cycles=3, 'No AP found' cycles=3, saved-channel scans=1 (saved channel=11), config-mode entries=1; 'No AP found' means no saved SSID matched, not that the scan returned nothing |
@@ -113,8 +113,18 @@
 | `netprobe-m0-07.txt` | 18569 | 27133675 | 26841568 | 1 | 0 |
 | `netprobe-m0-07.txt` | 28579 | 27133675 | 26841568 | 1 | 0 |
 | `netprobe-m0-07.txt` | 38585 | 27133675 | 26841568 | 1 | 0 |
+| `wakeword-m0-01.txt` | 48593 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-01.txt` | 368912 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-01.txt` | 378922 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-01.txt` | 388933 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-02.txt` | 398942 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-02.txt` | 408947 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-02.txt` | 418956 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-02.txt` | 428966 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-02.txt` | 438977 | 27133695 | 26841588 | 1 | 0 |
+| `wakeword-m0-02.txt` | 448982 | 27133695 | 26841588 | 1 | 0 |
 
-`WakeWordRunning` 是 `audio.IsWakeWordRunning()` 的运行态，**不是**检测到唤醒；只有 `V6M0: WAKE_DETECTED` 才算正事件。
+`WakeWordRunning` 是 `audio.IsWakeWordRunning()`。**注意方向**：`EnableWakeWordDetection(true)` 置位、**检测到唤醒时清位**，所以持续为 1 只能说明「从未检测到」，任何一次 0 才代表刚发生过检测。真正的正事件只有 `V6M0: WAKE_DETECTED`。
 
 ## 未闭合项
 

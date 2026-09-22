@@ -1,6 +1,6 @@
 {
   "schema": "claw4-v6-m0-hw-matrix/1",
-  "generated_at": "2026-09-22T03:21:45+00:00",
+  "generated_at": "2026-09-22T03:27:51+00:00",
   "candidate": {
     "path": "m0-candidate-04.json",
     "name": "claw4-learning-v6-m0.1",
@@ -951,6 +951,194 @@
           "taps": 0
         }
       ]
+    },
+    {
+      "log": "wakeword-m0-01.txt",
+      "sha256": "26f02089737edfaf6a1e473f7b0c32a0ae348c61eb79f0d7a8eb2f9d93de0b94",
+      "bytes": 336,
+      "lines": 4,
+      "last_timestamp_ms": 388933,
+      "preamble": [],
+      "signals": {
+        "reset_reason": null,
+        "boot_ready": null,
+        "idf_version": null,
+        "display_rgb888": null,
+        "display_init": null,
+        "lvgl_first_refresh": null,
+        "assets_applied": null,
+        "assets_mapped": null,
+        "touch_init": null,
+        "touch_last_count": null,
+        "audio_i2s": null,
+        "audio_module_probe": null,
+        "afe_pipeline": null,
+        "wakenet_model": null,
+        "c5_slave": null,
+        "sdio_card_init": null,
+        "c5_bootup": null,
+        "saved_channel_scan": null,
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
+        "wifi_connected": null,
+        "net_events": [],
+        "health_last": "V6M0: HEALTH free=27133695 psram=26841588 wake=1 taps=0",
+        "assertions": 0,
+        "panel_capability_errors": 0,
+        "touch_record_cycles": 0,
+        "playback_queued": 0,
+        "wake_detected": 0,
+        "wifi_attempt": 0,
+        "wifi_scan_cycles": 0,
+        "no_ap_on_saved_ch": 0,
+        "wifi_scan_done": 0,
+        "wifi_no_ap": 0,
+        "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
+        "mac_not_ready": 0,
+        "health_samples": 4
+      },
+      "health": [
+        {
+          "ts_ms": 48593,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 368912,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 378922,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 388933,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        }
+      ]
+    },
+    {
+      "log": "wakeword-m0-02.txt",
+      "sha256": "f920edd745c352f3bb336ca00ca68475b3ab3ef09521ac27c68e1733ca25474b",
+      "bytes": 408,
+      "lines": 6,
+      "last_timestamp_ms": 448982,
+      "preamble": [],
+      "signals": {
+        "reset_reason": null,
+        "boot_ready": null,
+        "idf_version": null,
+        "display_rgb888": null,
+        "display_init": null,
+        "lvgl_first_refresh": null,
+        "assets_applied": null,
+        "assets_mapped": null,
+        "touch_init": null,
+        "touch_last_count": null,
+        "audio_i2s": null,
+        "audio_module_probe": null,
+        "afe_pipeline": null,
+        "wakenet_model": null,
+        "c5_slave": null,
+        "sdio_card_init": null,
+        "c5_bootup": null,
+        "saved_channel_scan": null,
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
+        "found_ap": null,
+        "sta_ip": null,
+        "sta_gateway": null,
+        "wifi_connected": null,
+        "net_events": [],
+        "health_last": "V6M0: HEALTH free=27133695 psram=26841588 wake=1 taps=0",
+        "assertions": 0,
+        "panel_capability_errors": 0,
+        "touch_record_cycles": 0,
+        "playback_queued": 0,
+        "wake_detected": 0,
+        "wifi_attempt": 0,
+        "wifi_scan_cycles": 0,
+        "no_ap_on_saved_ch": 0,
+        "wifi_scan_done": 0,
+        "wifi_no_ap": 0,
+        "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
+        "found_ap_count": 0,
+        "wifi_connecting": 0,
+        "sta_connected_event": 0,
+        "mac_not_ready": 0,
+        "health_samples": 6
+      },
+      "health": [
+        {
+          "ts_ms": 398942,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 408947,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 418956,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 428966,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 438977,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 448982,
+          "free": 27133695,
+          "psram": 26841588,
+          "wake_word_running": 1,
+          "taps": 0
+        }
+      ]
     }
   ],
   "flash_captures": [
@@ -1172,23 +1360,44 @@
   },
   "health": [
     {
-      "ts_ms": 18569,
-      "free": 27133675,
-      "psram": 26841568,
+      "ts_ms": 398942,
+      "free": 27133695,
+      "psram": 26841588,
       "wake_word_running": 1,
       "taps": 0
     },
     {
-      "ts_ms": 28579,
-      "free": 27133675,
-      "psram": 26841568,
+      "ts_ms": 408947,
+      "free": 27133695,
+      "psram": 26841588,
       "wake_word_running": 1,
       "taps": 0
     },
     {
-      "ts_ms": 38585,
-      "free": 27133675,
-      "psram": 26841568,
+      "ts_ms": 418956,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 428966,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 438977,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 448982,
+      "free": 27133695,
+      "psram": 26841588,
       "wake_word_running": 1,
       "taps": 0
     }
@@ -1481,6 +1690,86 @@
       "wake_word_running": 1,
       "taps": 0,
       "log": "netprobe-m0-07.txt"
+    },
+    {
+      "ts_ms": 48593,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-01.txt"
+    },
+    {
+      "ts_ms": 368912,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-01.txt"
+    },
+    {
+      "ts_ms": 378922,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-01.txt"
+    },
+    {
+      "ts_ms": 388933,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-01.txt"
+    },
+    {
+      "ts_ms": 398942,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-02.txt"
+    },
+    {
+      "ts_ms": 408947,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-02.txt"
+    },
+    {
+      "ts_ms": 418956,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-02.txt"
+    },
+    {
+      "ts_ms": 428966,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-02.txt"
+    },
+    {
+      "ts_ms": 438977,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-02.txt"
+    },
+    {
+      "ts_ms": 448982,
+      "free": 27133695,
+      "psram": 26841588,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "wakeword-m0-02.txt"
     }
   ],
   "rows": [
@@ -1495,7 +1784,7 @@
       "item": "启动",
       "evidence": "V6M0: BOOT_READY IDF=v6.1;",
       "status": "NOT_VERIFIED",
-      "note": "assertions=2; longest capture 110.7s",
+      "note": "assertions=2; longest capture 449.0s",
       "source": "boot-m0-02.txt"
     },
     {
@@ -1523,7 +1812,7 @@
       "item": "唤醒词",
       "evidence": "V6M0: WAKE_DETECTED count",
       "status": "NOT_VERIFIED",
-      "note": "model is loaded, but a positive detection has never been captured on the wire; wake=1 in HEALTH is IsWakeWordRunning(), not a detection",
+      "note": "model is loaded and the engine is armed, but a positive detection has never been captured on the wire. Note the direction of the HEALTH field: wake= is IsWakeWordRunning(), and a detection CLEARS that bit, so an unbroken run of wake=1 corroborates zero detections — it is never evidence of one",
       "source": null
     },
     {
