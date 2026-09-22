@@ -1,6 +1,6 @@
 {
   "schema": "claw4-v6-m0-hw-matrix/1",
-  "generated_at": "2026-09-22T01:46:07+00:00",
+  "generated_at": "2026-09-22T02:15:05+00:00",
   "candidate": {
     "path": "m0-candidate-04.json",
     "name": "claw4-learning-v6-m0.1",
@@ -47,6 +47,8 @@
         "c5_slave": "transport: Identified slave [esp32c5]",
         "sdio_card_init": "H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE",
         "c5_bootup": "RPC_WRAP: Coprocessor Boot-up",
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
         "wifi_connected": null,
         "net_event": 0,
         "health_last": "V6M0: HEALTH free=28027643 psram=27878204 wake=1 taps=0",
@@ -60,6 +62,11 @@
         "wifi_scan_done": 1,
         "wifi_no_ap": 1,
         "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
         "mac_not_ready": 1,
         "health_samples": 2
       },
@@ -114,6 +121,8 @@
         "c5_slave": "transport: Identified slave [esp32c5]",
         "sdio_card_init": "H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE",
         "c5_bootup": "RPC_WRAP: Coprocessor Boot-up",
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
         "wifi_connected": null,
         "net_event": 0,
         "health_last": "V6M0: HEALTH free=28027003 psram=27878604 wake=1 taps=0",
@@ -127,6 +136,11 @@
         "wifi_scan_done": 2,
         "wifi_no_ap": 2,
         "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
         "mac_not_ready": 1,
         "health_samples": 3
       },
@@ -188,6 +202,8 @@
         "c5_slave": "transport: Identified slave [esp32c5]",
         "sdio_card_init": "H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE",
         "c5_bootup": "RPC_WRAP: Coprocessor Boot-up",
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
         "wifi_connected": null,
         "net_event": 0,
         "health_last": null,
@@ -201,10 +217,196 @@
         "wifi_scan_done": 2,
         "wifi_no_ap": 2,
         "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
         "mac_not_ready": 1,
         "health_samples": 0
       },
       "health": []
+    },
+    {
+      "log": "netprobe-m0-01.txt",
+      "sha256": "022a6186f6ebc5ae91243956113f1f98282cb94bda0ece2322d3338782e52b2d",
+      "bytes": 11373,
+      "lines": 208,
+      "last_timestamp_ms": 58613,
+      "preamble": [
+        "ESP-ROM:esp32p4-eco2-20240710",
+        "Build:Jul 10 2024",
+        "rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)",
+        "Core0 Saved PC:0x4ff17b36",
+        "Core1 Saved PC:0x4ff17b36",
+        "SPI mode:DIO, clock div:2",
+        "load:0x4ff33ce0,len:0x152c",
+        "load:0x4ff28ed0,len:0x1168"
+      ],
+      "signals": {
+        "reset_reason": "rst:0x17 (CHIP_USB_UART_RESET)",
+        "boot_ready": "V6M0: BOOT_READY IDF=v6.1;",
+        "idf_version": "v6.1",
+        "display_rgb888": "Claw4V6: Native RGB888 display, panel double buffers, full refresh",
+        "display_init": "Claw4V6: NV3051F display initialized, native RGB888",
+        "lvgl_first_refresh": "Claw4V6: LVGL first refresh completed (physical image still requires confirmation)",
+        "assets_applied": 1,
+        "assets_mapped": "Assets: The assets map size is 576 KB (partition 15360 KB)",
+        "touch_init": "Claw4V6: GT911 touch initialized",
+        "touch_last_count": null,
+        "audio_i2s": "Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO",
+        "audio_module_probe": "Claw4V6: Audio module local-mode response bytes=21 (clock test still required)",
+        "afe_pipeline": "AFE: AFE Pipeline: [input] -> |AEC(FD_LOW_COST, NLP_VERY_AGGRESSIVE)| -> |VAD(WebRTC)| -> |WakeNet(wn9_nihaoxiaozhi_tts,)| -> [output]",
+        "wakenet_model": "AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts",
+        "c5_slave": "transport: Identified slave [esp32c5]",
+        "sdio_card_init": "H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE",
+        "c5_bootup": "RPC_WRAP: Coprocessor Boot-up",
+        "config_ap_ssid": null,
+        "config_ap_dhcp": null,
+        "wifi_connected": null,
+        "net_event": 0,
+        "health_last": "V6M0: HEALTH free=27134019 psram=26841788 wake=1 taps=0",
+        "assertions": 0,
+        "panel_capability_errors": 2,
+        "touch_record_cycles": 0,
+        "playback_queued": 0,
+        "wake_detected": 0,
+        "wifi_attempt": 1,
+        "wifi_scan_cycles": 3,
+        "wifi_scan_done": 3,
+        "wifi_no_ap": 3,
+        "wifi_config_mode": 0,
+        "connect_timeout": 0,
+        "wifi_disconnected": 0,
+        "softap_started": 0,
+        "config_web_server": 0,
+        "state_machine_reject": 0,
+        "mac_not_ready": 1,
+        "health_samples": 5
+      },
+      "health": [
+        {
+          "ts_ms": 18579,
+          "free": 27134019,
+          "psram": 26841788,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 28584,
+          "free": 27134019,
+          "psram": 26841788,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 38593,
+          "free": 27134019,
+          "psram": 26841788,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 48603,
+          "free": 27134019,
+          "psram": 26841788,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 58613,
+          "free": 27134019,
+          "psram": 26841788,
+          "wake_word_running": 1,
+          "taps": 0
+        }
+      ]
+    },
+    {
+      "log": "netprobe-m0-02.txt",
+      "sha256": "b75efe4403826f396ed8ba5122ae454fd1497096010307e5357d4b412b48f1d0",
+      "bytes": 1710,
+      "lines": 37,
+      "last_timestamp_ms": 110695,
+      "preamble": [],
+      "signals": {
+        "reset_reason": null,
+        "boot_ready": null,
+        "idf_version": null,
+        "display_rgb888": null,
+        "display_init": null,
+        "lvgl_first_refresh": null,
+        "assets_applied": null,
+        "assets_mapped": null,
+        "touch_init": null,
+        "touch_last_count": null,
+        "audio_i2s": null,
+        "audio_module_probe": null,
+        "afe_pipeline": null,
+        "wakenet_model": null,
+        "c5_slave": null,
+        "sdio_card_init": null,
+        "c5_bootup": null,
+        "config_ap_ssid": "WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9",
+        "config_ap_dhcp": "DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1",
+        "wifi_connected": null,
+        "net_event": 4,
+        "health_last": "V6M0: HEALTH free=27118047 psram=26837296 wake=1 taps=0",
+        "assertions": 0,
+        "panel_capability_errors": 0,
+        "touch_record_cycles": 0,
+        "playback_queued": 0,
+        "wake_detected": 0,
+        "wifi_attempt": 0,
+        "wifi_scan_cycles": 0,
+        "wifi_scan_done": 4,
+        "wifi_no_ap": 0,
+        "wifi_config_mode": 1,
+        "connect_timeout": 1,
+        "wifi_disconnected": 1,
+        "softap_started": 2,
+        "config_web_server": 1,
+        "state_machine_reject": 1,
+        "mac_not_ready": 0,
+        "health_samples": 5
+      },
+      "health": [
+        {
+          "ts_ms": 68622,
+          "free": 27134019,
+          "psram": 26841788,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 78628,
+          "free": 27118527,
+          "psram": 26837296,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 88637,
+          "free": 27118047,
+          "psram": 26837296,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 98643,
+          "free": 27118047,
+          "psram": 26837296,
+          "wake_word_running": 1,
+          "taps": 0
+        },
+        {
+          "ts_ms": 108653,
+          "free": 27118047,
+          "psram": 26837296,
+          "wake_word_running": 1,
+          "taps": 0
+        }
+      ]
     }
   ],
   "flash_captures": [
@@ -324,37 +526,120 @@
     "reset_reason": "rst:0x17 (CHIP_USB_UART_RESET)",
     "boot_ready": "V6M0: BOOT_READY IDF=v6.1;",
     "idf_version": "v6.1",
+    "assertions": 0,
     "display_rgb888": "Claw4V6: Native RGB888 display, panel double buffers, full refresh",
-    "display_init": "Claw4V6: NV3051F display initialized, native RGB888",
+    "display_init": "Claw4V6: NV3051F display initialized, RGB565 -> RGB888",
     "lvgl_first_refresh": "Claw4V6: LVGL first refresh completed (physical image still requires confirmation)",
+    "panel_capability_errors": 2,
     "assets_applied": 1,
     "assets_mapped": "Assets: The assets map size is 576 KB (partition 15360 KB)",
     "touch_init": "Claw4V6: GT911 touch initialized",
     "touch_last_count": 5,
+    "touch_record_cycles": 3,
     "audio_i2s": "Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO",
     "audio_module_probe": "Claw4V6: Audio module local-mode response bytes=21 (clock test still required)",
     "afe_pipeline": "AFE: AFE Pipeline: [input] -> |AEC(FD_LOW_COST, NLP_VERY_AGGRESSIVE)| -> |VAD(WebRTC)| -> |WakeNet(wn9_nihaoxiaozhi_tts,)| -> [output]",
     "wakenet_model": "AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts",
+    "playback_queued": 3,
+    "wake_detected": 0,
     "c5_slave": "transport: Identified slave [esp32c5]",
     "sdio_card_init": "H_SDIO_DRV: Card init success, TRANSPORT_RX_ACTIVE",
     "c5_bootup": "RPC_WRAP: Coprocessor Boot-up",
-    "wifi_connected": null,
-    "net_event": 0,
-    "health_last": null,
-    "assertions": 0,
-    "panel_capability_errors": 2,
-    "touch_record_cycles": 3,
-    "playback_queued": 3,
-    "wake_detected": 0,
     "wifi_attempt": 1,
-    "wifi_scan_cycles": 2,
-    "wifi_scan_done": 2,
-    "wifi_no_ap": 2,
-    "wifi_config_mode": 0,
+    "wifi_scan_cycles": 3,
+    "wifi_scan_done": 4,
+    "wifi_no_ap": 3,
+    "wifi_config_mode": 1,
+    "connect_timeout": 1,
+    "wifi_disconnected": 1,
+    "softap_started": 2,
+    "config_ap_ssid": "WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9",
+    "config_ap_dhcp": "DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1",
+    "config_web_server": 1,
+    "state_machine_reject": 1,
+    "wifi_connected": null,
+    "net_event": 4,
     "mac_not_ready": 1,
-    "health_samples": 0
+    "health_last": "V6M0: HEALTH free=28027643 psram=27878204 wake=1 taps=0",
+    "health_samples": 5
   },
-  "health": [],
+  "signal_source": {
+    "reset_reason": "boot-m0-02.txt",
+    "boot_ready": "boot-m0-02.txt",
+    "idf_version": "boot-m0-02.txt",
+    "display_init": "boot-m0-02.txt",
+    "assets_applied": "boot-m0-03.txt",
+    "assets_mapped": "boot-m0-02.txt",
+    "touch_init": "boot-m0-02.txt",
+    "audio_i2s": "boot-m0-02.txt",
+    "audio_module_probe": "boot-m0-02.txt",
+    "afe_pipeline": "boot-m0-02.txt",
+    "wakenet_model": "boot-m0-02.txt",
+    "c5_slave": "boot-m0-02.txt",
+    "sdio_card_init": "boot-m0-02.txt",
+    "c5_bootup": "boot-m0-02.txt",
+    "net_event": "netprobe-m0-02.txt",
+    "health_last": "boot-m0-02.txt",
+    "assertions": "boot-m0-02.txt",
+    "panel_capability_errors": "boot-m0-04.txt",
+    "touch_record_cycles": "boot-m0-04.txt",
+    "playback_queued": "boot-m0-04.txt",
+    "wake_detected": "boot-m0-02.txt",
+    "wifi_attempt": "boot-m0-02.txt",
+    "wifi_scan_cycles": "boot-m0-03.txt",
+    "wifi_scan_done": "netprobe-m0-02.txt",
+    "wifi_no_ap": "netprobe-m0-01.txt",
+    "wifi_config_mode": "netprobe-m0-02.txt",
+    "connect_timeout": "netprobe-m0-02.txt",
+    "wifi_disconnected": "netprobe-m0-02.txt",
+    "softap_started": "netprobe-m0-02.txt",
+    "config_web_server": "netprobe-m0-02.txt",
+    "state_machine_reject": "netprobe-m0-02.txt",
+    "mac_not_ready": "boot-m0-02.txt",
+    "health_samples": "netprobe-m0-01.txt",
+    "display_rgb888": "boot-m0-04.txt",
+    "lvgl_first_refresh": "boot-m0-04.txt",
+    "touch_last_count": "boot-m0-04.txt",
+    "config_ap_ssid": "netprobe-m0-02.txt",
+    "config_ap_dhcp": "netprobe-m0-02.txt"
+  },
+  "health": [
+    {
+      "ts_ms": 68622,
+      "free": 27134019,
+      "psram": 26841788,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 78628,
+      "free": 27118527,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 88637,
+      "free": 27118047,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 98643,
+      "free": 27118047,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0
+    },
+    {
+      "ts_ms": 108653,
+      "free": 27118047,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0
+    }
+  ],
   "health_all": [
     {
       "ts_ms": 18557,
@@ -395,6 +680,86 @@
       "wake_word_running": 1,
       "taps": 0,
       "log": "boot-m0-03.txt"
+    },
+    {
+      "ts_ms": 18579,
+      "free": 27134019,
+      "psram": 26841788,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-01.txt"
+    },
+    {
+      "ts_ms": 28584,
+      "free": 27134019,
+      "psram": 26841788,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-01.txt"
+    },
+    {
+      "ts_ms": 38593,
+      "free": 27134019,
+      "psram": 26841788,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-01.txt"
+    },
+    {
+      "ts_ms": 48603,
+      "free": 27134019,
+      "psram": 26841788,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-01.txt"
+    },
+    {
+      "ts_ms": 58613,
+      "free": 27134019,
+      "psram": 26841788,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-01.txt"
+    },
+    {
+      "ts_ms": 68622,
+      "free": 27134019,
+      "psram": 26841788,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-02.txt"
+    },
+    {
+      "ts_ms": 78628,
+      "free": 27118527,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-02.txt"
+    },
+    {
+      "ts_ms": 88637,
+      "free": 27118047,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-02.txt"
+    },
+    {
+      "ts_ms": 98643,
+      "free": 27118047,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-02.txt"
+    },
+    {
+      "ts_ms": 108653,
+      "free": 27118047,
+      "psram": 26837296,
+      "wake_word_running": 1,
+      "taps": 0,
+      "log": "netprobe-m0-02.txt"
     }
   ],
   "rows": [
@@ -402,72 +767,90 @@
       "item": "Flash / PSRAM",
       "evidence": "candidate manifest + flash log 'Hash of data verified.'",
       "status": "PASS",
-      "note": "verified writes in this capture: 1; long-run stress still not exercised"
+      "note": "verified writes in this capture: 1; long-run stress still not exercised",
+      "source": null
     },
     {
       "item": "启动",
       "evidence": "V6M0: BOOT_READY IDF=v6.1;",
       "status": "PASS",
-      "note": "assertions=0; observed 29.6s"
+      "note": "assertions=0; longest capture 110.7s",
+      "source": "boot-m0-02.txt"
     },
     {
       "item": "显示",
       "evidence": "Claw4V6: Native RGB888 display, panel double buffers, full refresh",
       "status": "PASS",
-      "note": "display init=yes, user confirmed visible=yes, unsupported-capability errors=2"
+      "note": "display init=yes, user confirmed visible=yes, unsupported-capability errors=2",
+      "source": "boot-m0-04.txt"
     },
     {
       "item": "触摸",
       "evidence": "Claw4V6: GT911 touch initialized",
       "status": "PASS",
-      "note": "tap-driven record cycles=3, last tap count=5"
+      "note": "tap-driven record cycles=3, last tap count=5",
+      "source": "boot-m0-04.txt"
     },
     {
       "item": "音频",
       "evidence": "Claw4Audio: I2S slave 16kHz stereo32; mic+reference; bounded IO",
       "status": "PASS",
-      "note": "AFE=yes, loopback user-confirmed=yes, WakeNet=AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts, WAKE_DETECTED events=0"
+      "note": "AFE=yes, loopback user-confirmed=yes, WakeNet=AFE_CONFIG: Set WakeNet Model: wn9_nihaoxiaozhi_tts, WAKE_DETECTED events=0",
+      "source": "boot-m0-02.txt"
     },
     {
       "item": "唤醒词",
       "evidence": "V6M0: WAKE_DETECTED count",
       "status": "NOT_VERIFIED",
-      "note": "model is loaded, but a positive detection has never been captured on the wire; wake=1 in HEALTH is IsWakeWordRunning(), not a detection"
+      "note": "model is loaded, but a positive detection has never been captured on the wire; wake=1 in HEALTH is IsWakeWordRunning(), not a detection",
+      "source": null
     },
     {
       "item": "C5 链路",
       "evidence": "transport: Identified slave [esp32c5]",
       "status": "PASS",
-      "note": "SDIO card init=yes, coprocessor boot-up=yes"
+      "note": "SDIO card init=yes, coprocessor boot-up=yes",
+      "source": "boot-m0-02.txt"
+    },
+    {
+      "item": "配网模式（热点/配置页）",
+      "evidence": "WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9",
+      "status": "PASS",
+      "note": "AP SSID=WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9, DHCP=DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1, softap events=2, connect timeout after=1 cycle(s); a started softap proves the radio transmits, it does not prove association",
+      "source": "netprobe-m0-02.txt"
     },
     {
       "item": "网络 / IP",
       "evidence": "no 'Connected to WiFi' line",
       "status": "NOT_VERIFIED",
-      "note": "scan cycles=2, 'No AP found' cycles=2, config-mode entries=0, NETWORK_EVENT=0"
+      "note": "scan cycles=3, 'No AP found' cycles=3, config-mode entries=1, NETWORK_EVENT=4 (3=Disconnected, 4=ConfigModeEnter); 'No AP found' means no saved SSID matched, not that the scan returned nothing",
+      "source": "boot-m0-03.txt"
     },
     {
       "item": "资源分区",
       "evidence": "V6M0: Assets applied=1",
       "status": "PASS",
-      "note": "assets_apply() returned true"
+      "note": "assets_apply() returned true",
+      "source": "boot-m0-03.txt"
     },
     {
       "item": "SD 卡 / Camera / 电源键",
       "evidence": "no signal in candidate",
       "status": "NOT_TESTED",
-      "note": "not integrated in m0.1"
+      "note": "not integrated in m0.1",
+      "source": null
     },
     {
       "item": "回滚（恢复写回）",
       "evidence": "out/v6-device-private/pre-v6-flash.bin",
       "status": "NOT_TESTED",
-      "note": "a full 32MiB image was read back and hashed, but it has never been written back; until then rollback is unproven"
+      "note": "a full 32MiB image was read back and hashed, but it has never been written back; until then rollback is unproven",
+      "source": null
     }
   ],
   "open_items": [
     "唤醒词从未捕获到正事件（WAKE_DETECTED=0）",
-    "从未取得 IP；C5 射频能力未被独立验证",
+    "从未取得 IP（NETWORK_EVENT 只到 4=ConfigModeEnter）；需在配置页提交真实凭据",
     "恢复写回未实测，回滚不可信",
     "SD 卡 / Camera / 电源键未集成"
   ]

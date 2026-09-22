@@ -49,6 +49,29 @@ Writing at 0x00200000... (100 %)
 Hash of data verified.
 """
 
+# A later capture of the same candidate with no taps: it must not erase the
+# touch evidence carried by SYNTHETIC_BOOT, and it adds config-portal evidence.
+SYNTHETIC_NETPROBE = """\
+rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+I (8515) RPC_WRAP: Coprocessor Boot-up
+I (8677) WifiBoard: Starting WiFi connection attempt
+I (9599) WifiStation: Scanning all channels
+I (12057) WifiStation: No AP found, next scan in 10 seconds
+I (68677) WifiBoard: WiFi connection timeout, entering config mode
+W (68732) WifiBoard: WiFi disconnected
+I (68733) V6M0: NETWORK_EVENT=3
+W (68736) StateMachine: Invalid state transition: unknown -> wifi_configuring
+I (68748) WifiManager: Starting config AP
+I (69131) RPC_WRAP: ESP Event: softap started
+I (69151) WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9
+I (69175) esp_netif_lwip: DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1
+I (69191) WifiConfigurationAp: Web server started
+I (69210) WifiBoard: WiFi config mode entered
+I (69210) V6M0: NETWORK_EVENT=4
+I (78579) V6M0: HEALTH free=27118527 psram=26837296 wake=1 taps=0
+I (88584) V6M0: HEALTH free=27118527 psram=26837296 wake=1 taps=0
+"""
+
 CANDIDATE = {
     "candidate": "claw4-learning-v6-m0.1",
     "files": {"build/xiaozhi.bin": {"sha256": "a" * 64, "bytes": 3042864}},
@@ -66,6 +89,7 @@ class SignalTests(unittest.TestCase):
     def setUp(self):
         self._dir = tempfile.TemporaryDirectory()
         self.boot_path = _write(self._dir.name, "boot.txt", SYNTHETIC_BOOT)
+        self.netprobe_path = _write(self._dir.name, "netprobe.txt", SYNTHETIC_NETPROBE)
         self.flash_path = _write(self._dir.name, "flash.txt", SYNTHETIC_FLASH)
         self.cand_path = os.path.join(self._dir.name, "candidate.json")
         with open(self.cand_path, "w", encoding="utf-8") as handle:
@@ -77,10 +101,26 @@ class SignalTests(unittest.TestCase):
     def boot(self):
         return hw_matrix.parse_boot_log(self.boot_path)
 
+    def netprobe(self):
+        return hw_matrix.parse_boot_log(self.netprobe_path)
+
     def test_timestamped_and_preamble_lines(self):
         parsed = self.boot()
         self.assertEqual(parsed["last_timestamp_ms"], 28557)
         self.assertTrue(parsed["preamble"][0].startswith("rst:0x17"))
+
+    def test_config_portal_signals(self):
+        s = self.netprobe()["signals"]
+        self.assertEqual(s["config_ap_ssid"],
+                         "WifiConfigurationAp: Access Point started with SSID Xiaozhi-79D9")
+        self.assertEqual(s["config_ap_dhcp"],
+                         "DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1")
+        self.assertEqual(s["softap_started"], 1)
+        self.assertEqual(s["config_web_server"], 1)
+        self.assertEqual(s["connect_timeout"], 1)
+        self.assertEqual(s["wifi_config_mode"], 1)
+        self.assertEqual(s["net_event"], 4)
+        self.assertEqual(s["state_machine_reject"], 1)
 
     def test_boot_and_version_signals(self):
         s = self.boot()["signals"]
@@ -124,6 +164,7 @@ class MatrixTests(unittest.TestCase):
     def setUp(self):
         self._dir = tempfile.TemporaryDirectory()
         self.boot_path = _write(self._dir.name, "boot.txt", SYNTHETIC_BOOT)
+        self.netprobe_path = _write(self._dir.name, "netprobe.txt", SYNTHETIC_NETPROBE)
         self.flash_path = _write(self._dir.name, "flash.txt", SYNTHETIC_FLASH)
         self.cand_path = os.path.join(self._dir.name, "candidate.json")
         with open(self.cand_path, "w", encoding="utf-8") as handle:
@@ -135,15 +176,50 @@ class MatrixTests(unittest.TestCase):
             CANDIDATE,
             dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
         )
+        # Two captures of the same candidate, in chronological order.
+        self.merged = hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(self.boot_path),
+             hw_matrix.parse_boot_log(self.netprobe_path)],
+            [hw_matrix.parse_flash_log(self.flash_path)],
+            self.cand_path,
+            CANDIDATE,
+            dict(hw_matrix.DEFAULT_USER_CONFIRMATIONS),
+        )
 
     def tearDown(self):
         self._dir.cleanup()
 
-    def status(self, item: str) -> str:
-        for row in self.matrix["rows"]:
+    def status(self, item: str, matrix=None) -> str:
+        for row in (matrix or self.matrix)["rows"]:
             if row["item"] == item:
                 return row["status"]
         raise AssertionError(f"missing row: {item}")
+
+    def test_merge_by_max_keeps_earlier_touch_evidence(self):
+        """The netprobe capture has zero taps; it must not erase tap evidence."""
+        self.assertEqual(self.merged["signals"]["touch_record_cycles"], 2)
+        self.assertEqual(self.status("触摸", self.merged), "PASS")
+        self.assertEqual(self.merged["signals"]["touch_last_count"], 4)
+
+    def test_merge_takes_the_best_network_event(self):
+        self.assertEqual(self.merged["signals"]["net_event"], 4)
+        self.assertEqual(self.merged["signals"]["wifi_no_ap"], 1)
+
+    def test_signal_source_is_recorded(self):
+        src = self.merged["signal_source"]
+        self.assertEqual(src["touch_record_cycles"], "boot.txt")
+        self.assertEqual(src["config_ap_ssid"], "netprobe.txt")
+
+    def test_config_portal_row_passes_only_with_softap_evidence(self):
+        self.assertEqual(self.status("配网模式（热点/配置页）"), "NOT_VERIFIED")
+        self.assertEqual(self.status("配网模式（热点/配置页）", self.merged), "PASS")
+        # A started softap must never be promoted into a successful association.
+        self.assertEqual(self.status("网络 / IP", self.merged), "NOT_VERIFIED")
+
+    def test_numeric_signals_are_not_merged_by_simple_overwrite(self):
+        """Guard against regressing to 'last capture wins', which would drop the
+        touch evidence as soon as a quiet capture is appended."""
+        self.assertNotEqual(self.merged["signals"]["touch_record_cycles"], 0)
 
     def test_confirmed_items_pass(self):
         self.assertEqual(self.status("启动"), "PASS")
@@ -201,11 +277,11 @@ class MatrixTests(unittest.TestCase):
 
     def test_render_escapes_pipes_that_would_break_the_table(self):
         md = hw_matrix.render_markdown(self.matrix)
-        # The AFE pipeline string contains literal '|'; it must not split a cell,
-        # so the row may only carry the three structural delimiters unescaped.
+        # The AFE pipeline string contains literal '|'; it must not split a cell.
+        # The signal table has three columns, i.e. four structural delimiters.
         line = next(l for l in md.splitlines() if l.startswith("| `afe_pipeline`"))
         unescaped = len(re.findall(r"(?<!\\)\|", line))
-        self.assertEqual(unescaped, 3, line)
+        self.assertEqual(unescaped, 4, line)
 
     def test_health_is_aggregated_across_captures(self):
         self.assertEqual(len(self.matrix["health_all"]), 2)

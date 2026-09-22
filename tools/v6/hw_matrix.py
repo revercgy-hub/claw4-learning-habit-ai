@@ -71,6 +71,13 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("wifi_scan_done",      "count", r"RPC_WRAP: ESP Event: StaScanDone"),
     ("wifi_no_ap",          "count", r"WifiStation: No AP found"),
     ("wifi_config_mode",    "count", r"WiFi config mode entered"),
+    ("connect_timeout",     "count", r"WifiBoard: WiFi connection timeout, entering config mode"),
+    ("wifi_disconnected",   "count", r"WifiBoard: WiFi disconnected"),
+    ("softap_started",      "count", r"RPC_WRAP: ESP Event: softap started"),
+    ("config_ap_ssid",      "line",  r"WifiConfigurationAp: Access Point started with SSID (\S+)"),
+    ("config_ap_dhcp",      "line",  r"DHCP server started on interface WIFI_AP_DEF with IP: (\S+)"),
+    ("config_web_server",   "count", r"WifiConfigurationAp: Web server started"),
+    ("state_machine_reject", "count", r"StateMachine: Invalid state transition"),
     ("wifi_connected",      "line",  r"Connected to WiFi: (\S+)"),
     ("net_event",           "int",   r"V6M0: NETWORK_EVENT=(\d+)"),
     ("mac_not_ready",       "count", r"system_api: .*mac type is incorrect"),
@@ -79,11 +86,18 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("health_samples",      "count", r"V6M0: HEALTH free=\d+"),
 )
 
+KIND = {key: kind for key, kind, _ in SIGNALS}
+
+# Numeric signals are merged across captures by maximum, so a later capture that
+# happens to contain no taps cannot erase an earlier capture's tap evidence. Every
+# numeric signal here is a counter, a monotonic state code, or a peak value.
+_NUMERIC = frozenset(KIND[k] for k in KIND if KIND[k] in ("count", "int"))
+
 _HEALTH = re.compile(r"V6M0: HEALTH free=(\d+) psram=(\d+) wake=(\d+) taps=(\d+)")
 
 # Signals where the newest occurrence is the interesting one. Everything else
 # keeps its first match so a later retry does not rewrite the first observation.
-LAST_WINS = frozenset({"touch_last_count", "health_last"})
+LAST_WINS = frozenset({"touch_last_count", "health_last", "net_event"})
 
 
 def sha256_file(path: str) -> str:
@@ -183,19 +197,47 @@ def parse_flash_log(path: str) -> dict:
     }
 
 
+def aggregate_signals(boots: list[dict]) -> tuple[dict, dict]:
+    """Merge signals across captures and record which capture supplied each one.
+
+    All captures passed to one run must come from the same frozen candidate;
+    mixing candidates would let one build inherit another build's evidence.
+    """
+    merged: dict[str, object] = {key: None for key in KIND}
+    source: dict[str, str] = {}
+    for capture in boots:
+        for key, value in capture["signals"].items():
+            if value is None:
+                continue
+            if KIND[key] in ("count", "int"):
+                current = merged.get(key)
+                if current is None or value > current:
+                    merged[key] = value
+                    source[key] = capture["log"]
+            elif merged.get(key) is None:
+                merged[key] = value
+                source[key] = capture["log"]
+    for key in KIND:
+        if KIND[key] == "count" and merged.get(key) is None:
+            merged[key] = 0
+    return merged, source
+
+
 def _state(ok: bool, partial: bool = False) -> str:
     if ok:
         return "PASS"
     return "PARTIAL" if partial else "NOT_VERIFIED"
 
 
-def build_rows(boot: dict, flash: dict, user_confirmations: dict) -> list[dict]:
+def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
+               user_confirmations: dict) -> list[dict]:
     """One row per M0 hardware item. Every row cites the concrete signal it used."""
-    s = boot["signals"]
     rows: list[dict] = []
+    observed_s = max((c["last_timestamp_ms"] for c in boots), default=0) / 1000.0
 
-    def row(item, evidence, status, note=""):
-        rows.append({"item": item, "evidence": evidence, "status": status, "note": note})
+    def row(item, evidence, status, note="", source_key=None):
+        rows.append({"item": item, "evidence": evidence, "status": status, "note": note,
+                     "source": src.get(source_key) if source_key else None})
 
     # Flash / PSRAM --------------------------------------------------------
     flash_ok = flash.get("verified_images", 0) > 0 and not s.get("assertions")
@@ -207,8 +249,8 @@ def build_rows(boot: dict, flash: dict, user_confirmations: dict) -> list[dict]:
     # Boot -----------------------------------------------------------------
     row("启动", s.get("boot_ready") or "BOOT_READY absent",
         _state(bool(s.get("boot_ready")) and s.get("assertions", 0) == 0),
-        f"assertions={s.get('assertions', 0)}; observed "
-        f"{boot['last_timestamp_ms'] / 1000:.1f}s")
+        f"assertions={s.get('assertions', 0)}; longest capture {observed_s:.1f}s",
+        source_key="boot_ready")
 
     # Display --------------------------------------------------------------
     display_built = bool(s.get("display_rgb888")) and bool(s.get("lvgl_first_refresh"))
@@ -217,13 +259,15 @@ def build_rows(boot: dict, flash: dict, user_confirmations: dict) -> list[dict]:
         _state(display_built and display_user),
         f"display init={'yes' if s.get('display_init') else 'no'}, "
         f"user confirmed visible={'yes' if display_user else 'no'}, "
-        f"unsupported-capability errors={s.get('panel_capability_errors', 0)}")
+        f"unsupported-capability errors={s.get('panel_capability_errors', 0)}",
+        source_key="display_rgb888")
 
     # Touch ----------------------------------------------------------------
     row("触摸", s.get("touch_init") or "GT911 init line absent",
         _state(bool(s.get("touch_init")) and s.get("touch_record_cycles", 0) > 0),
         f"tap-driven record cycles={s.get('touch_record_cycles', 0)}, "
-        f"last tap count={s.get('touch_last_count', 0)}")
+        f"last tap count={s.get('touch_last_count', 0)}",
+        source_key="touch_record_cycles")
 
     # Audio ----------------------------------------------------------------
     audio_pipeline = bool(s.get("audio_i2s")) and bool(s.get("afe_pipeline"))
@@ -235,7 +279,7 @@ def build_rows(boot: dict, flash: dict, user_confirmations: dict) -> list[dict]:
         f"loopback user-confirmed={'yes' if loopback else 'no'}, "
         f"WakeNet={s.get('wakenet_model', 'n/a')}, "
         f"WAKE_DETECTED events={s.get('wake_detected', 0)}",
-        )
+        source_key="audio_i2s")
 
     # Wake word (separate row: loopback PASS must not imply wake-word PASS) --
     row("唤醒词", "V6M0: WAKE_DETECTED count",
@@ -248,7 +292,20 @@ def build_rows(boot: dict, flash: dict, user_confirmations: dict) -> list[dict]:
     row("C5 链路", s.get("c5_slave") or "slave identification line absent",
         _state(c5_link),
         f"SDIO card init={'yes' if s.get('sdio_card_init') else 'no'}, "
-        f"coprocessor boot-up={'yes' if s.get('c5_bootup') else 'no'}")
+        f"coprocessor boot-up={'yes' if s.get('c5_bootup') else 'no'}",
+        source_key="sdio_card_init")
+
+    # Config portal: proves the C5 radio transmits, not that it can associate.
+    softap = (s.get("config_ap_ssid") and s.get("config_ap_dhcp")
+              and s.get("config_web_server", 0) > 0)
+    row("配网模式（热点/配置页）", s.get("config_ap_ssid") or "no 'Access Point started' line",
+        _state(bool(softap)),
+        f"AP SSID={s.get('config_ap_ssid', 'n/a')}, "
+        f"DHCP={s.get('config_ap_dhcp', 'n/a')}, "
+        f"softap events={s.get('softap_started', 0)}, "
+        f"connect timeout after={s.get('connect_timeout', 0)} cycle(s); "
+        "a started softap proves the radio transmits, it does not prove association",
+        source_key="config_ap_ssid")
 
     ip_ok = bool(s.get("wifi_connected"))
     row("网络 / IP", s.get("wifi_connected") or "no 'Connected to WiFi' line",
@@ -256,14 +313,16 @@ def build_rows(boot: dict, flash: dict, user_confirmations: dict) -> list[dict]:
         f"scan cycles={s.get('wifi_scan_cycles', 0)}, "
         f"'No AP found' cycles={s.get('wifi_no_ap', 0)}, "
         f"config-mode entries={s.get('wifi_config_mode', 0)}, "
-        f"NETWORK_EVENT={s.get('net_event', 'n/a')}",
-        )
+        f"NETWORK_EVENT={s.get('net_event', 'n/a')} (3=Disconnected, 4=ConfigModeEnter); "
+        "'No AP found' means no saved SSID matched, not that the scan returned nothing",
+        source_key="wifi_scan_cycles")
 
     # Resource partition ---------------------------------------------------
     applied = s.get("assets_applied")
     row("资源分区", f"V6M0: Assets applied={applied}",
         _state(applied == 1),
-        "assets_apply() returned " + ("true" if applied == 1 else "false/absent"))
+        "assets_apply() returned " + ("true" if applied == 1 else "false/absent"),
+        source_key="assets_applied")
 
     # Not integrated -------------------------------------------------------
     row("SD 卡 / Camera / 电源键", "no signal in candidate",
@@ -286,6 +345,7 @@ DEFAULT_USER_CONFIRMATIONS = {
 
 def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) -> dict:
     primary = boots[-1]
+    signals, source = aggregate_signals(boots)
     health_all = [dict(sample, log=capture["log"])
                   for capture in boots for sample in capture["health"]]
     return {
@@ -298,13 +358,15 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
         "user_confirmations": user_confirmations,
         "boot_captures": boots,
         "flash_captures": flashes,
-        "signals": primary["signals"],
+        "signals": signals,
+        "signal_source": source,
         "health": primary["health"],
         "health_all": health_all,
-        "rows": build_rows(primary, flashes[-1] if flashes else {}, user_confirmations),
+        "rows": build_rows(signals, source, flashes[-1] if flashes else {}, boots,
+                           user_confirmations),
         "open_items": [
             "唤醒词从未捕获到正事件（WAKE_DETECTED=0）",
-            "从未取得 IP；C5 射频能力未被独立验证",
+            "从未取得 IP（NETWORK_EVENT 只到 4=ConfigModeEnter）；需在配置页提交真实凭据",
             "恢复写回未实测，回滚不可信",
             "SD 卡 / Camera / 电源键未集成",
         ],
@@ -318,24 +380,28 @@ def _cell(text: object) -> str:
 
 def render_markdown(matrix: dict) -> str:
     s = matrix["signals"]
+    src = matrix.get("signal_source", {})
     out = [
         "# V6 M0 硬件验收矩阵（自动生成）",
         "",
         f"> 生成时间 {matrix['generated_at']}；schema `{matrix['schema']}`。",
-        f"> 主证据 `{matrix['boot_captures'][-1]['log']}` "
-        f"SHA256 `{matrix['boot_captures'][-1]['sha256'][:16]}…`。",
-        "> 本表只记录日志与用户确认能支撑的事实；缺信号一律 NOT_VERIFIED，不由相邻项推断。",
+        f"> 冻结候选 `{matrix['candidate']['path']}`，"
+        f"应用 SHA256 `{matrix['candidate']['xiaozhi_bin_sha256'][:16]}…`。",
+        f"> 证据来源 {len(matrix['boot_captures'])} 份启动捕获 / "
+        f"{len(matrix['flash_captures'])} 份刷写捕获。",
+        "> 数值型信号按**跨捕获取最大值**合并，避免后一份没点击的日志抹掉前一份的触摸证据；",
+        "> 缺信号一律 NOT_VERIFIED，绝不由相邻项推断。",
         "",
-        "| 项目 | 证据 | 状态 | 说明 |",
-        "| --- | --- | --- | --- |",
+        "| 项目 | 证据 | 状态 | 来源 | 说明 |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for r in matrix["rows"]:
         out.append(f"| {_cell(r['item'])} | `{_cell(r['evidence'])}` | "
-                   f"**{r['status']}** | {_cell(r['note'])} |")
+                   f"**{r['status']}** | {_cell(r.get('source') or '—')} | {_cell(r['note'])} |")
 
-    out += ["", "## 关键信号（主捕获）", "", "| 信号 | 值 |", "| --- | --- |"]
+    out += ["", "## 关键信号（跨捕获合并）", "", "| 信号 | 值 | 来源 |", "| --- | --- | --- |"]
     for key in sorted(s):
-        out.append(f"| `{key}` | `{_cell(s[key])}` |")
+        out.append(f"| `{key}` | `{_cell(s[key])}` | {_cell(src.get(key) or '—')} |")
 
     health = matrix.get("health_all") or []
     out += ["", "## HEALTH 采样（全部捕获）", ""]
