@@ -1,7 +1,7 @@
 {
   "date": "2026-09-22",
-  "current_candidate": "m0-candidate-03.json",
-  "result": "BOOT_AND_ASSETS_PASS_INTERACTION_PENDING",
+  "current_candidate": "m0-candidate-04.json",
+  "result": "BOOT_ASSETS_DISPLAY_TOUCH_PASS_AUDIO_QUALITY_PENDING",
   "private_logs": {
     "flash-m0-01.txt": {
       "sha256": "24eefe1db45d15bfea49700ab09d7799c7fe457fd6e2e585394e456321f340fe",
@@ -44,12 +44,26 @@
       "bytes": 10985,
       "assertions": 0,
       "verified_images": 0
+    },
+    "flash-m0-04.txt": {
+      "sha256": "ca04838961ec82884dc3aedbbf365df932d91689f2812700fba0d6387528cc80",
+      "bytes": 9230,
+      "assertions": 0,
+      "verified_images": 1
+    },
+    "boot-m0-04.txt": {
+      "sha256": "8aa8ccec897362a5aeade72bd5cfbac44475155883fbf952d69a757ce9661f60",
+      "bytes": 11586,
+      "assertions": 0,
+      "verified_images": 0
     }
   },
-  "final_observation_seconds": 45,
+  "final_observation_seconds": 35,
   "final_assets_applied": true,
   "final_boot_ready": true,
-  "touch_and_audio_quality": "USER_CONFIRMATION_PENDING",
+  "touch_and_audio_quality": "TOUCH_EVENTS_PASS_AUDIO_QUALITY_PENDING",
   "network_ip": "NOT_VERIFIED",
-  "recovery_writeback": "NOT_TESTED"
+  "recovery_writeback": "NOT_TESTED",
+  "display_user_confirmation": "Visible text and button, 2026-09-22",
+  "touch_events_observed": 5
 }

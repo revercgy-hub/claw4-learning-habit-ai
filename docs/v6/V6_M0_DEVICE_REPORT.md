@@ -49,3 +49,13 @@ build-04 成功，冻结 m0-candidate-03.json。第三轮仅写 Bootloader 与 f
 boot-m0-03.txt 45 秒观察：Assets applied=1、BOOT_READY、三次 HEALTH，free=28,027,003 B / PSRAM=27,878,604 B，无断言或重启。结论 BOOT_AND_ASSETS_PASS_INTERACTION_PENDING；尚未收到用户屏侧反馈，taps=0，不宣称触摸/录放音/唤醒实测通过。保留初始化阶段 system_api MAC 未就绪告警，后续 C5 枚举和扫描可运行，IP 连接及 M1 网络联调尚未验证。
 
 工具测试 12/12 PASS；新增冻结要求检查 Flash 40MHz、ESP-Hosted PSRAM 内存池、高地址映射选项。当前设备保留第三版诊断固件；原完整镜像和全部原始串口日志留在忽略目录。脱敏证据索引见 integration/v6/m0-device-evidence.json。
+
+## 第四轮：用户蓝屏反馈与显示修正
+
+用户报告第三轮实际屏幕为整块纯蓝、无文字或按钮；因此此前启动/资源检查不代表显示通过。板级显示由通用 RGB565 partial-transfer MipiLcdDisplay 改为独立 Claw4Display，继承上游 LcdDisplay UI；采用与原硬件参考一致的原生 RGB888，两个 panel framebuffer、full refresh、避免撕裂。上游应用、UI 源码、音频逻辑未修改。不能仅凭本次联合改动断言蓝屏来自单个寄存器或唯一颜色转换缺陷。
+
+build-05 的 C++ 初始化类型错误修正后，build-06 exit=0；冻结 m0-candidate-04.json。核对其余四个固件产物哈希不变，仅刷 factory app；flash-m0-04.txt exit=0。boot-m0-04.txt 记录 Native RGB888、LVGL first refresh completed、Assets applied=1。
+
+2026-09-22 用户明确反馈“已显示文字和按钮”：DISPLAY_VISIBLE=PASS，蓝屏消除。触摸点击、音频录放与唤醒效果仍未验收。当前零旋转配置下，通用 LVGL port 调用面板不支持的 swap_xy/mirror 时有日志告警；没有要求旋转，画面已由用户确认，后续适配时再消除这类能力探测告警。
+
+完整 35 秒串口取证随后确认 TOUCH count 最大为 5，三次启动本地录音并进入 playback queued；触摸事件链通过。此证据仍不代表麦克风和扬声器音质通过，待用户试听反馈。

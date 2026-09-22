@@ -13,6 +13,42 @@
 #include <esp_log.h>
 #include <mutex>
 
+// Keep the upstream UI, but give this panel its native RGB888 frame buffers.
+// The generic MipiLcdDisplay defaults to RGB565 partial transfers.
+class Claw4Display final : public LcdDisplay {
+public:
+    Claw4Display(esp_lcd_panel_io_handle_t io, esp_lcd_panel_handle_t panel)
+        : LcdDisplay(io, panel, 720, 720) {
+        lv_init();
+        lvgl_port_cfg_t port = ESP_LVGL_PORT_INIT_CONFIG();
+        ESP_ERROR_CHECK(lvgl_port_init(&port));
+        lvgl_port_display_cfg_t config{};
+        config.io_handle = io;
+        config.panel_handle = panel;
+        config.buffer_size = 720 * 720;
+        config.double_buffer = true;
+        config.hres = 720;
+        config.vres = 720;
+        config.color_format = LV_COLOR_FORMAT_RGB888;
+        config.flags.buff_spiram = true;
+        config.flags.full_refresh = true;
+        lvgl_port_display_dsi_cfg_t dsi{};
+        dsi.flags.avoid_tearing = true;
+        display_ = lvgl_port_add_disp_dsi(&config, &dsi);
+        ESP_ERROR_CHECK(display_ ? ESP_OK : ESP_FAIL);
+        ESP_ERROR_CHECK(lvgl_port_lock(1000) ? ESP_OK : ESP_ERR_TIMEOUT);
+        lv_display_add_event_cb(display_, [](lv_event_t*) {
+            static bool reported = false;
+            if (!reported) {
+                reported = true;
+                ESP_LOGI("Claw4V6", "LVGL first refresh completed (physical image still requires confirmation)");
+            }
+        }, LV_EVENT_REFR_READY, nullptr);
+        lvgl_port_unlock();
+        ESP_LOGI("Claw4V6", "Native RGB888 display, panel double buffers, full refresh");
+    }
+};
+
 // M0 scope: boot, display, touch, Wi-Fi and electrical audio. Camera/SD next.
 // The original expansion latch is read before writing; unrelated rails are preserved.
 class Claw4Board final : public WifiBoard {
@@ -100,7 +136,7 @@ class Claw4Board final : public WifiBoard {
         dpi.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
         dpi.dpi_clock_freq_mhz = 36;
         dpi.num_fbs = 2;
-        dpi.in_color_format = LCD_COLOR_FMT_RGB565;
+        dpi.in_color_format = LCD_COLOR_FMT_RGB888;
         dpi.out_color_format = LCD_COLOR_FMT_RGB888;
         dpi.video_timing.h_size = 720;
         dpi.video_timing.v_size = 720;
@@ -123,9 +159,9 @@ class Claw4Board final : public WifiBoard {
         ESP_ERROR_CHECK(esp_lcd_dpi_panel_enable_dma2d(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
-        display_ = new MipiLcdDisplay(io, panel, 720, 720, 0, 0, false, false, false);
+        display_ = new Claw4Display(io, panel);
         GetBacklight()->SetBrightness(65);
-        ESP_LOGI("Claw4V6", "NV3051F display initialized, RGB565 -> RGB888");
+        ESP_LOGI("Claw4V6", "NV3051F display initialized, native RGB888");
     }
     void InitializeTouch() {
         esp_lcd_panel_io_i2c_config_t config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
