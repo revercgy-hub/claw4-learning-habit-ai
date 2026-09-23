@@ -23,3 +23,8 @@
 #define SDMMC_D2_PIN GPIO_NUM_41
 #define SDMMC_D3_PIN GPIO_NUM_42
 #define SDMMC_LDO_CHAN_ID 4
+
+// Claw4 MIPI camera clock from the read-only Metalio camera backend.
+// The one-shot M0 probe does not open a video device or capture frames.
+#define CAMERA_XCLK_PIN GPIO_NUM_32
+#define CAMERA_XCLK_FREQ_HZ 24000000

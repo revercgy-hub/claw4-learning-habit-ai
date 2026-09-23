@@ -8,6 +8,7 @@
 #include <driver/i2c_master.h>
 #include <driver/sdmmc_host.h>
 #include <driver/uart.h>
+#include <esp_cam_sensor_xclk.h>
 #include <esp_lcd_mipi_dsi.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_touch_gt911.h>
@@ -16,6 +17,7 @@
 #include <esp_lvgl_port.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <esp_video_init.h>
 #include <esp_vfs_fat.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -263,7 +265,9 @@ class Claw4Board final : public WifiBoard {
                  static_cast<unsigned long long>(capacity_bytes));
     }
     static void SdCardTask(void* context) {
-        static_cast<Claw4Board*>(context)->MountSdCardDiagnostic();
+        auto* board = static_cast<Claw4Board*>(context);
+        board->MountSdCardDiagnostic();
+        board->LaunchCameraDiagnostic();
         vTaskDelete(nullptr);
     }
     void LaunchSdCardDiagnostic() {
@@ -273,6 +277,65 @@ class Claw4Board final : public WifiBoard {
                                               kStackSize, this, kPriority, nullptr);
         if (result != pdPASS) {
             ESP_LOGW("Claw4V6", "SD_DIAGNOSTIC task creation failed");
+        }
+    }
+    void ProbeCameraSensor() {
+        // Sensor presence probe only: initialize then deinitialize esp_video.
+        // Never open /dev/video*, start streaming, dequeue a frame, or store data.
+        SetOutput(2, false); // CAM_PWDN is active-low.
+        vTaskDelay(pdMS_TO_TICKS(200));
+
+        esp_cam_sensor_xclk_handle_t xclk = nullptr;
+        bool xclk_started = false;
+        bool video_initialized = false;
+        esp_err_t error = esp_cam_sensor_xclk_allocate(
+            ESP_CAM_SENSOR_XCLK_ESP_CLOCK_ROUTER, &xclk);
+        if (error == ESP_OK) {
+            esp_cam_sensor_xclk_config_t xclk_config{};
+            xclk_config.esp_clock_router_cfg.xclk_pin = CAMERA_XCLK_PIN;
+            xclk_config.esp_clock_router_cfg.xclk_freq_hz = CAMERA_XCLK_FREQ_HZ;
+            error = esp_cam_sensor_xclk_start(xclk, &xclk_config);
+            xclk_started = error == ESP_OK;
+        }
+        if (error == ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+            esp_video_init_csi_config_t csi_config{};
+            csi_config.reset_pin = static_cast<gpio_num_t>(-1);
+            csi_config.pwdn_pin = static_cast<gpio_num_t>(-1);
+            csi_config.sccb_config.init_sccb = false;
+            csi_config.sccb_config.i2c_handle = bus_;
+            csi_config.sccb_config.freq = 100000;
+            esp_video_init_config_t video_config{};
+            video_config.csi = &csi_config;
+            error = esp_video_init(&video_config);
+            video_initialized = error == ESP_OK;
+        }
+        if (video_initialized) {
+            ESP_LOGI("Claw4V6", "CAMERA_DIAGNOSTIC sensor_stack_initialized=1 frame_capture=0");
+            const esp_err_t deinit_error = esp_video_deinit();
+            if (deinit_error != ESP_OK) {
+                ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC deinit=%s",
+                         esp_err_to_name(deinit_error));
+            }
+        } else {
+            ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC sensor_stack_initialized=0 error=%s frame_capture=0",
+                     esp_err_to_name(error));
+        }
+        if (xclk_started) esp_cam_sensor_xclk_stop(xclk);
+        if (xclk != nullptr) esp_cam_sensor_xclk_free(xclk);
+        SetOutput(2, true); // Return the camera to its powered-down state.
+    }
+    static void CameraDiagnosticTask(void* context) {
+        static_cast<Claw4Board*>(context)->ProbeCameraSensor();
+        vTaskDelete(nullptr);
+    }
+    void LaunchCameraDiagnostic() {
+        constexpr uint32_t kStackSize = 4096;
+        constexpr UBaseType_t kPriority = 1;
+        const BaseType_t result = xTaskCreate(CameraDiagnosticTask, "v6_camera_probe",
+                                              kStackSize, this, kPriority, nullptr);
+        if (result != pdPASS) {
+            ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC task creation failed");
         }
     }
     void InitializeAudioModule() {
