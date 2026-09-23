@@ -119,7 +119,7 @@ extern "C" void app_main() {
         }
         if (now >= next_health) {
             next_health = now + 10000000;
-            ESP_LOGI("V6M0", "HEALTH free=%u psram=%u wake=%d taps=%u wakes=%u vads=%u vad_observable=%d",
+            ESP_LOGI("V6M0", "HEALTH free=%u psram=%u wake=%d taps=%u wakes=%u vads=%u local_playback_active=%d",
                      unsigned(esp_get_free_heap_size()),
                      unsigned(heap_caps_get_free_size(MALLOC_CAP_SPIRAM)),
                      audio.IsWakeWordRunning(), taps.load(), wake_events.load(), vad_events.load(),
