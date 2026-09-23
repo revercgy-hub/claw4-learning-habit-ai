@@ -1,5 +1,50 @@
 # Claw4 项目协作总则
 
+## 2026-09-23 接管实施规则（当前唯一有效调度）
+
+本节依据用户本轮 T-00 → A-01 → 第一实施波 → R-01 → S-03 → A-02 指令，覆盖下方历史角色、READY 入口、复检取消和设备授权表述。下方历史调度全部 **SUPERSEDED**；技术事实按候选及证据范围保留，不删除或补盖 PASS。
+
+### 基线和当前事实
+
+- 接管基线：`760b2aa66819f8d90186b43af4c02d9b33c8849e`。T-00 在干净的 `E:/workbuddy/claw4-v6` 核对 HEAD 后，以普通 push 创建 `origin/takeover-v6-m0-c19-baseline`，随后 GitHub 按分支名重新读取的 SHA 与本地一致，`BASELINE_PROTECTED=YES`。禁止 force push、rebase 或改写保护分支历史。
+- `main` 与 `workbuddy-v6-m0-candidate08-review @ 28bbda911e6074fca4930dfca3263060a59e1215` 均为历史基线，不是实施入口。后续独立工作树从 A-01 或明确列出的已审查集成 SHA 出发，不使用 HEAD 损坏的旧中文目录。
+- Candidate19 (`claw4-learning-v6-m0.19`) 已构建、**未刷机**；Candidate17 的 DEVICE PASS 不继承给 Candidate19。当前 `M0=IN_PROGRESS`、接管审查 `CHANGES_REQUIRED`、`M1=BACKLOG`。83 项是接管基线的 Host 工具测试数，不是设备验收数；后续数量以各提交实跑为准。
+- 旧 Candidate08 网络重连同步返回处理和诊断字段问题已由后续提交修复，不重新实施。AEC 仍未通过，旧 `clipped=0` 不构成削波证据。
+
+### 模型、所有权和升级
+
+- **Astra**：亲自完成 A-01/A-02，维护架构、ADR、公共接口、证据契约、M0/M1/M2 Gate、高风险 Flash/恢复决策与整合；本轮不改变 V6 ADR-001～005。
+- **Sol**：S-01 Audio/AEC，S-02 Network/Camera 及复杂生命周期问题；R-01 另派未参与实施的 `sol_reviewer`。S-03 由单一 Sol owner 执行。
+- **Luna**：L-01 状态文档；L-02 有界工具修复和测试。第一次失败可根据新失败证据修复一次，第二次失败立即升级 Sol；涉及架构/公共契约则交 Astra 决策，不能无限重试或扩大白名单。
+- 最多四个 Agent 同时运行（包括 Astra）。每项使用独立工作树、分支和独立 Host 输出目录；同一文件只有一个 owner。若三个实施槽已满，S-02 等空槽后启动。
+- 每项提交只包含自己的允许文件，返回实际文件、测试命令、精确测试/失败数、commit SHA、未验证项。不得自行验收、合 main 或扩大范围；不回滚别人的改动。
+- **COM7、Claw4 真机、E:/v6/s1、Candidate 镜像、Flash 与 NVS recovery 是一个排他资源集合，只能有一个执行 owner**。第一实施波与 R-01 无 owner、全部禁止访问这些资源；R-01 PASS 后才交 S-03。Build → identity verify → flash → readback/evidence → device matrix 串行，不并行 build/flash。
+
+### 第一实施波 Task Contract
+
+所有路径相对各自独立工作树；白名单外文件禁止修改，第三方源码/固件/NVS/分区和设备操作禁止。A-01 只修改本文件及 `docs/v6/V6_ARCHITECTURE.md`。
+
+| ID / owner | 允许修改文件 | 验证与停止条件 |
+| --- | --- | --- |
+| L-01 / Luna | `docs/project_management/TASK_BOARD.md`、`docs/v6/V6_TASK_BOARD.md`、`docs/v6/V6_M0_TEST_PLAN.md` | 核对链接、SHA、当前状态；旧 READY 标 SUPERSEDED；USB reset 不称 cold boot；不得改变架构 |
+| L-02 / Luna | `tools/v6/hw_matrix.py`、`tools/v6/test_hw_matrix.py` | `py -3.14 -B -m unittest discover -s tools/v6 -p "test_*.py"`；拒绝缺身份、错误/混合候选；续段只能继承已验证会话，遵守架构文档的既有证据协议 |
+| S-01 / Sol | `integration/v6/board/claw4-learning-v6/claw4_audio.cc`、`claw4_audio.h`、`board_algorithms.h`、`m0_diagnostics.cc`（后三者同目录）；`tools/v6/test_board_algorithms.cc` | C++17 `-Wall -Wextra -Werror`；队列开始/结束、溢出/欠载、提前结束、旧 session 写入和连续周期；不得盲调 gain/delay 或宣称 Host 证明 AEC |
+| S-02 / Sol | `integration/v6/board/claw4-learning-v6/claw4_board.cc`、`integration/v6/network/overlay.json`、`tools/v6/network_station_fixture.cc`、`tools/v6/test_network_station.py`；直接相关新增测试仅 `tools/v6/test_camera_cleanup.py`、`tools/v6/camera_cleanup_fixture.cc` | 独立 Host 依赖夹具和输出目录；网络生产方法错误返回/有界恢复；实际 Camera 生产清理路径故障注入；不得读写 E:/v6/s1 或仅复制一套伪生产算法来测试 |
+
+全部实施完成并整合后，独立 R-01 对不可变集成 SHA 的四项 diff、测试、证据身份、AEC claim、生命周期、ADR 和跨任务语义冲突进行只读复核。`CHANGES_REQUIRED` 只退回原 owner 定向修复；仅 `R-01=PASS` 才能启动 S-03。
+
+### S-03 与最终 Gate
+
+S-03 冻结一个全新 Candidate ID，记录已审查 source SHA、源码/工具链/依赖/配置输入、镜像完整 SHA、manifest 与日志会话绑定。不得沿用 Candidate17/18/19 的 DEVICE PASS。普通设备批次授权按用户本轮 S-03 指令执行，但必须先核对实际布局、设备身份、备份和精确 application 写入范围。
+
+恢复写回须由 Astra 在执行前明确其具体安全范围；没有完成范围审定时记 NOT_VERIFIED，不自行扩大。partition、bootloader、ota_1、eFuse、Secure Boot、Flash Encryption，以及数据丢失风险均触发停止并报告用户。不存在用历史全片写回方案自动取得新授权的例外。
+
+最终 A-02 同时核对 CODE / HOST / BUILD / DEVICE、candidate identity、manifest、source/image SHA、log/session binding 和 recovery evidence。缺失证据记 NOT_VERIFIED，反面证据记 FAIL。只有全部 M0 必需项属于同一有效候选且证据成立才能 `M0=PASS`；否则 `M0=CHANGES_REQUIRED` 并列剩余缺口。**M0 PASS 前禁止进入 M1。**
+
+---
+
+## 历史规则与证据（调度 SUPERSEDED）
+
 > 当前有效：2026-09-22已按用户要求统一构建并冻结候选08（1907730），包含网络失败恢复；BUILD通过、尚未刷机。唯一WorkBuddy活动流 WB-V6-M0-CANDIDATE08-REVIEW / READY，入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE08-REVIEW.md。06/07调度已HOLD/SUPERSEDED，旧READY文字只作历史；M0总验收和M1门禁不变。任务包本地发布，未通过外部工具发送。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。

@@ -1,5 +1,28 @@
 # V6 架构决策（2026-09-21）
 
+## 2026-09-23 接管补充：证据与实施治理（不改变 ADR）
+
+接管基线为 `760b2aa66819f8d90186b43af4c02d9b33c8849e`，已保护到 `origin/takeover-v6-m0-c19-baseline` 且远端 SHA 复读一致。main 与远端 Candidate08 是历史，不是当前起点。Candidate19 已构建但未刷机；Candidate17 的设备证据只属于 Candidate17。M0 IN_PROGRESS、接管审查 CHANGES_REQUIRED、M1 BACKLOG。
+
+Astra 负责架构/公共接口/Gate、A-01/A-02 和高风险恢复决策；Sol 负责复杂固件/跨模块及独立 R-01；Luna 负责明确的小任务、工具测试与文档，失败一次可修一次，第二次失败升级 Sol，架构/公共契约问题回 Astra。根 [AGENTS.md](../../AGENTS.md) 的当前 Task Contract 是实施白名单；下方历史“Codex亲自开发/WorkBuddy实施”角色描述被本节覆盖，ADR-001～005 的产品设计保持不变。
+
+### 同一 Candidate 证据契约
+
+1. **CODE** 证明指定 source SHA 的实现/静态性质；**HOST** 证明指定源码和工具在主机夹具下的行为；**BUILD** 证明冻结输入生成了指定镜像；**DEVICE** 证明该镜像在指定设备/会话/刺激下的观察。四类证据不可互相替代，CODE/HOST/BUILD PASS 不升级为 DEVICE PASS。
+2. 每个新候选具有唯一 ID，绑定不可变的集成 source SHA、构建工具/依赖/配置与源码输入、完整 app/ELF SHA256、字节数及 manifest。Git LF 与工作树 CRLF 的差异须明确记录；不能将换行归一化的源码比较冒充镜像逐字节一致。源码或固件输入改变后，旧 DEVICE 结果不能自动转移给新镜像。
+3. 继续使用现有 `tools/v6/audio_evidence.py` 的证据协议：完整 `elf_sha256`；有序 `captures` 中的 `path`、`sha256`、`session`。不改这些字段的意义，也不改变固件日志协议。工具可消费该既有清单来校验身份；不得仅凭文件名、CLI 指定的 Candidate ID、uptime 相似或日志先后关系猜测同一会话。
+4. 每个会话首段必须有且只有一个匹配完整 ELF SHA 的有效启动身份锚点（沿用现有至少 9 位前缀规则）；每份日志的完整 SHA256 必须匹配且不能重复。续段只有在清单中明确属于已经验证的 session、没有复位/新启动标记、时间戳严格连续递增且捕获不重叠时才能继承身份。连续性仍需操作者确认，不能把 uptime 当物理连续性的充分证明。没有会话清单时，每份独立日志都须自带有效身份；缺身份、错误候选、混合候选必须 fail-closed，不产生 Candidate PASS。
+5. 保留历史日志和历史候选报告，通过 SUPERSEDED 与替代报告说明撤回的解释。USB reset 不等于断电 cold boot；空载观察不等于语音/网络负载稳定；参考样本进入 AFE 不等于 AEC 有效；`near_full_scale_n` 只描述 PCM16 数字余量，不证明模拟削波。旧未更新的 `clipped=0` 不用于验收。
+6. M0 必需项至少包括 Audio/AEC 受控刺激与播放期近端唤醒、Network failure/recovery、Camera 取帧/清理、SD、电源键识别、cold boot/I2C/TCA9555、稳定性、故障注入及审定范围内的 recovery evidence。每项须有实际执行步骤/刺激、会话、源码与镜像身份、预期/实际结果；无刺激/未执行为 NOT_VERIFIED，有反面证据为 FAIL。不得借用另一候选的设备结果凑齐 M0。
+
+### 实施和设备门禁
+
+最多四个同时运行的 Agent（含 Astra），独立工作树与测试输出；COM7、真机、E:/v6/s1、Candidate 镜像和恢复操作是一个排他资源集合。第一波 L-01/L-02/S-01/S-02 只做 Host/代码，禁止访问该集合。独立 R-01 未 PASS 不构建新候选。R-01 PASS 后 S-03 单一 owner 串行 Build → identity verify → flash → readback/evidence → matrix；其他 Agent 不并发 build/flash/monitor。
+
+恢复写回的具体范围由 Astra 先审定；若涉及 partition/bootloader/ota_1/eFuse/Secure Boot/Flash Encryption、扩大不可逆范围或数据丢失风险，停止并向用户报告。新构建、成功刷写或局部测试均不自动开 M1。A-02 只有在同一有效候选的全部必需证据成立时才能 M0 PASS，否则 CHANGES_REQUIRED 并保留缺口。**M0 PASS 前禁止进入 M1。**
+
+---
+
 状态：首批架构与迁移隔离已实现；M0 设备基线尚未验收。
 依据：用户本轮要求 Codex 亲自进行重要架构开发、必要时交 WorkBuddy 辅助并复核；输入为《CLAW4_V6_开发总任务与迁移方案》。附件是需求参考，其中“已授权”等历史叙述不单独产生新设备操作授权。
 
