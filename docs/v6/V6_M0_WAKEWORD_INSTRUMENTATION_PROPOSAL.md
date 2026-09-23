@@ -2,7 +2,9 @@
 
 > Codex 复检修正：P2/P3 采纳；P1 回调已接，但 wake-only 模式不产生 VAD，不能按原判据解释。录放音绕过 AFE，原“依赖 OnOutput”推论不成立。实施双通道电平统计，保持增益不变。详见 CODEX_V6_M0_REVIEW_2026-09-22.md。
 
-状态：**提案，未实施**。WorkBuddy 只写文档层，不改 `main/`、不改板级 overlay 逻辑。
+状态：**原提案已由 Candidate13 实施并实机复核，本文后续章节保留为历史设计记录，不是当前工作项**。P1 VAD 回调、P2 wake rearm、P3 事件计数和 P4 双通道 RMS/peak 插桩均已进入 Candidate13。2026-09-23 实测四次低音量唤醒词有两次命中且均 rearm；但输入参考通道 ch1 在所有窗口保持全零，安静回放期间 VAD 触发两次，AEC/参考链路现在是明确的修复门禁。当前证据与后续工作见 [`V6_M0_CANDIDATE13_REPORT.md`](V6_M0_CANDIDATE13_REPORT.md)。
+
+下列提案文字记录 Candidate13 实施前的假设与建议；其中“尚未观测 VAD / 电平”的表述已被后续插桩和实测取代。不要据此推断 AEC 已通过。
 背景证据：`WB-V6-M0-AUDIT_2026-09-22.md` §14、`V6_M0_NETWORK_PROBE.md`。
 目标文件（唯一）：`integration/v6/board/claw4-learning-v6/m0_diagnostics.cc`
 （当前内容哈希经 LF 归一化后 `0a090868223bbb1499c30e2877250f7bcc79479578eb8fc89db089f2f5a7f141`，

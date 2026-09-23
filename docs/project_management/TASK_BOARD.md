@@ -1,6 +1,6 @@
 # Claw4 当前任务看板
 
-> 当前有效（2026-09-23）：Candidate13 已完成 IDF 构建、仅应用分区刷写/回读，60 秒启动稳定；SD Slot 0 挂载约 4 GiB 卡成功，摄像头传感器栈初始化成功后关闭，未启动视频流或取帧。报告 `docs/v6/V6_M0_CANDIDATE13_REPORT.md`，清单 `integration/v6/m0-candidate-13.json`；原始串口证据留在 `.gitignore` 覆盖的 `out/v6-device-private/`。Candidate11 电源键物理短/长按尚未验证；音量余量与 AEC 参考仍未验证。M0总验收未通过，M1保持 BACKLOG。用户已要求 Codex 直接负责后续测试与开发；当前没有 WorkBuddy 活动流。
+> 当前有效（2026-09-23）：Candidate13 已完成 IDF 构建与仅应用分区刷写/回读；多段串口测试确认启动稳定、SD挂载、camera sensor init、触摸录放、Wi-Fi连通、电源键短/长按识别。4次低音量唤醒词命中2次且均重新布防。AEC缺陷已复现：用户确认回放期间安静，VAD仍触发2次，输入参考ch1在113个音频窗口中全零。报告 `docs/v6/V6_M0_CANDIDATE13_REPORT.md`；原始串口证据留在 `.gitignore` 覆盖的 `out/v6-device-private/`。M0未验收，需处理AEC参考链路、真机网络同步失败注入、长稳与相机取帧；M1保持 BACKLOG。用户已要求Codex直接负责后续测试与开发；当前没有WorkBuddy活动流。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 

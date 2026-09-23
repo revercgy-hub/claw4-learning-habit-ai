@@ -1,6 +1,6 @@
 # V6 唯一阶段看板
 
-> 当前有效（2026-09-23）：Candidate13 已完成 IDF 构建、62 项 Python、19 个网络 Host 场景和 C++ 按键状态机测试；app-only 写入/回读 SHA256 一致，启动后共120秒健康观察稳定，SD Slot 0 挂载 4 GiB 卡成功；camera sensor stack 初始化成功后退出，未开视频节点、流或取帧。详见 `V6_M0_CANDIDATE13_REPORT.md`。电源键短/长按事件仍待用户操作确认；音量余量、真机同步重连故障注入及 AEC 参考仍未验证。M0 未总验收，M1 BACKLOG。
+> 当前有效（2026-09-23）：Candidate13 已完成 IDF 构建、62 项 Python、19 个网络 Host 场景和 C++ 测试；app-only 写入/回读 SHA256 一致。多段串口测试确认冷启动、SD 挂载、camera sensor init、触摸录放、Wi-Fi 最终连通、电源键短/长按识别；4 次低音量唤醒词有 2 次命中且均重新布防。新发现 AEC 缺陷：安静回放期间 VAD 仍触发两次，输入参考 ch1 在全部 113 个窗口全零。详见 `V6_M0_CANDIDATE13_REPORT.md`。M0 未验收，AEC/参考链路修复、网络同步失败故障注入、长稳和相机取帧仍未闭合；M1 BACKLOG。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 
@@ -13,10 +13,10 @@
 | --- | --- | --- | --- | --- |
 | 0 | 架构/迁移构建入口/边界检查 | Codex | REVIEW_READY | 代码/文档已交付；78 case PASS，协调器受应用控制阻断，不能标全量 PASS |
 | M0-1 | 四方源码冻结 + 环境/恢复清单 | Codex | IN_PROGRESS | SHA/IDF6.1/依赖锁已冻结；32MiB 完整备份和实际布局已核对，恢复写回尚未实测 |
-| M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | Candidate13 的 SD 挂载与 metadata-only camera sensor init 实机通过；sensor probe 后 camera 返回掉电态，无帧采集。短/长按事件日志待用户操作确认；产品电源键动作仍未实现 |
+| M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | SD 挂载、metadata-only camera sensor init、触摸与侧键短/长按识别已实机确认；相机未取帧，电源键产品动作未实现。AEC 输入参考 ch1 实测全零，需修复或安全降级 |
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
-| M0-3 | 候选08复检与候选10回归 | Codex | IN_PROGRESS | Candidate13 启动、资源、网络扫描、SD与camera sensor 诊断后 60 秒 capture 通过；录放可闻已用户确认。AEC参考与音量余量、同步重连故障注入未闭合 |
+| M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | 唤醒词4次低音量说话命中2次，两次后均rearm；网络最终取得IP，短/长按识别通过；但安静回放触发2次VAD且AEC参考ch1全零。录放可闻已用户确认；AEC修复、音量余量、同步重连故障注入、长稳未闭合 |
 | M1 | NAS 连续语音 20 轮 | Codex | BACKLOG | M0 完成后再启；当前不链接学习代码 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
