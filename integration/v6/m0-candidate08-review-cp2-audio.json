@@ -1,0 +1,66 @@
+{
+  "checkpoint": "CP2-audio",
+  "date": "2026-09-23T09:28:22+08:00",
+  "worktree": "E:\\workbuddy\\claw4-v6-wb-c08",
+  "branch": "workbuddy-v6-m0-candidate08-review",
+  "implementation_base_sha": "578b0b2c78d68d4d527769113e3100487b33ac90",
+  "candidate_boot_identity": {
+    "elf_prefix": "50fb62c30",
+    "note": "All candidate 08 device evidence in this stream carries this anchor; no capture from candidate 05, 06 or 07 is used anywhere in it."
+  },
+  "status": "NOT_VERIFIED",
+  "reason": "The operator was asked to run the stimulus batch and chose to defer it. No wake-word utterance, no button press and therefore no playback cycle was performed on candidate 08.",
+  "explicitly_not_a_failure": "Per the task package, a window without operator stimulus does not count as a failure rate. Nothing here is recorded as 0/4 or as a negative result, and no gain, threshold or channel was touched.",
+  "not_borrowed_from_other_candidates": {
+    "why": "Candidate 08 changes both the microphone conversion and the playback-time input consumer, so earlier candidate results cannot stand in for it, in either direction.",
+    "candidate05_or_06_audio_results_used": false
+  },
+  "rows": {
+    "wake_word_repeat_4": "NOT_VERIFIED - no stimulus",
+    "wake_rearm_after_hit": "NOT_VERIFIED - depends on a detection",
+    "loopback_record_3s_playback_x2": "NOT_VERIFIED - no button press",
+    "playback_input_continuity": "NOT_VERIFIED - LOCAL_REFERENCE_PROBE_BEGIN/END were never emitted because no playback cycle ran",
+    "probe_end_drained": "NOT_VERIFIED",
+    "tx_overlap_windows": "NOT_VERIFIED - tx_overlap is only meaningful while a local playback drives the I2S transmit path",
+    "reference_channel": "NOT_VERIFIED - the earlier candidate-05 claim about this channel was withdrawn by Codex as SUPERSEDED, and candidate 08 has no measurement of its own",
+    "mic_input_level_with_stimulus": "NOT_VERIFIED - only idle windows exist"
+  },
+  "idle_only_observations": {
+    "windows": 148,
+    "rms_range": [
+      20,
+      135
+    ],
+    "peak_range": [
+      42,
+      2904
+    ],
+    "clipped_total": 0,
+    "raw_peak_max": 190316544,
+    "read_failures_total": 0,
+    "tx_overlap_nonzero_windows": 0,
+    "note": "These are idle values from the CP1 boot capture and the CP2 network capture, both with no audio stimulus. They are a baseline, not an audio result: with the 16x implicit gain removed, the expected idle level is roughly 1/16 of the candidate 05 idle level, and that is what appears."
+  },
+  "captures": [
+    {
+      "file": "cp1-boot-01.txt",
+      "sha256": "faa6cea2be1f203ba4161053db844b3e6b44814be65852d1a1e7233f81afe8fa",
+      "bytes": 27530
+    },
+    {
+      "file": "cp2-net-fallback-01.txt",
+      "sha256": "0128226a393420297e188aae457c1705a80be9f6e86a9c815e9299b15d243b2e",
+      "bytes": 28249
+    },
+    {
+      "file": "cp2-net-fallback-02.txt",
+      "sha256": "7ca9ccf54d412724d5925a95b2cf5a5a3358aadb55ed048073027df306b03224",
+      "bytes": 11769
+    }
+  ],
+  "how_to_close": [
+    "Operator present: 10s quiet, four wake-word utterances at 20-30cm normal volume >=3s apart, then at least two record-3s/playback cycles with a report of what was heard.",
+    "Then check wake detections and re-arm, LOCAL_REFERENCE_PROBE_BEGIN/END drained, INPUT continuity during playback, and tx_overlap windows."
+  ],
+  "result": "NOT_VERIFIED (deferred by the operator, not a failure)"
+}
