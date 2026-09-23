@@ -1,6 +1,6 @@
 # V6 唯一阶段看板
 
-> 当前有效（2026-09-23）：Candidate13 已完成 IDF 构建、62 项 Python、19 个网络 Host 场景和 C++ 按键状态机测试；app-only 写入/回读 SHA256 一致，60 秒 `BOOT_READY`/HEALTH 稳定，SD Slot 0 挂载 4 GiB 卡成功；camera sensor stack 初始化成功后退出，未开视频节点、流或取帧。详见 `V6_M0_CANDIDATE13_REPORT.md`。电源键短/长按事件仍待用户操作确认；音量余量、真机同步重连故障注入及 AEC 参考仍未验证。M0 未总验收，M1 BACKLOG。
+> 当前有效（2026-09-23）：Candidate13 已完成 IDF 构建、62 项 Python、19 个网络 Host 场景和 C++ 按键状态机测试；app-only 写入/回读 SHA256 一致，启动后共120秒健康观察稳定，SD Slot 0 挂载 4 GiB 卡成功；camera sensor stack 初始化成功后退出，未开视频节点、流或取帧。详见 `V6_M0_CANDIDATE13_REPORT.md`。电源键短/长按事件仍待用户操作确认；音量余量、真机同步重连故障注入及 AEC 参考仍未验证。M0 未总验收，M1 BACKLOG。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 

@@ -25,6 +25,7 @@ Date: 2026-09-23. Candidate13 extends Candidate12 with a one-shot camera sensor-
 - esptool verified the app write. A full 3,244,128-byte app-region readback matched the build image SHA256 exactly.
 - A 60-second capture reported `Assets applied=1`, `BOOT_READY`, the 4 GiB-class SD card mounted, and `CAMERA_DIAGNOSTIC sensor_stack_initialized=1 frame_capture=0`. It showed no panic, abort, or `BOOT_BLOCKED` marker.
 - Five health samples ranged from 26,923,451 to 26,924,475 bytes of internal heap and 26,640,256 to 26,641,280 bytes of PSRAM. The final readings were about 152 KB internal / 144 KB PSRAM below Candidate12's steady readings, with no further downward trend beyond 1 KiB sampling variation in this single-minute run. The delta is recorded for follow-up and not attributed to a specific allocator.
+- A second 60-second capture without reset, at roughly 250–300 seconds of app uptime, held at 26,923,471 bytes internal / 26,640,276 bytes PSRAM across all six health samples. `taps=0`; no power-key or audio interaction occurred during that window. Combined observation time after this flash is 120 seconds, with physical short/long and playback-reference testing still pending.
 
 ## Limits and next checks
 
