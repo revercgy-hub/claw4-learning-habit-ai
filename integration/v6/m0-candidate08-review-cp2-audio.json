@@ -1,0 +1,229 @@
+{
+  "checkpoint": "CP2-audio",
+  "date": "2026-09-23T09:43:47+08:00",
+  "worktree": "E:\\workbuddy\\claw4-v6-wb-c08",
+  "branch": "workbuddy-v6-m0-candidate08-review",
+  "implementation_base_sha": "3dedb813c63df8173cb47cd26c6bf30a613d8aab",
+  "candidate_boot_identity": {
+    "elf_prefix": "50fb62c30",
+    "full_elf_sha256": "50fb62c30f8e82797f40ee6e3ab085cebc9281986883db06823d61da761708ca",
+    "note": "Every candidate 08 device capture in this stream carries this anchor. No capture from candidate 05, 06 or 07 is used anywhere in it."
+  },
+  "status": "NOT_VERIFIED",
+  "reason": "The operator was asked twice for the stimulus batch and was not able to speak either time. No wake-word utterance and no button press happened on candidate 08, so no detection run and no record/playback cycle were performed.",
+  "explicitly_not_a_failure": "A window with no stimulus says nothing about a failure rate. Nothing here is recorded as 0/4 or as a negative result, and no gain, threshold, PGA or channel was touched.",
+  "not_borrowed_from_other_candidates": {
+    "why": "Candidate 08 changes both the microsecond-to-int16 conversion and the playback-time input consumer, so earlier candidate results cannot stand in for it in either direction.",
+    "candidate05_or_06_audio_results_used": false
+  },
+  "operator_dependent_rows": {
+    "wake_word_x4_in_one_capture": "NOT_VERIFIED - no stimulus",
+    "wake_during_sustained_capture": "NOT_VERIFIED - no stimulus",
+    "wake_rearm_after_hit": "NOT_VERIFIED - depends on a detection",
+    "loopback_record_3s_playback_x2": "NOT_VERIFIED - no button press",
+    "playback_audibility": "NOT_VERIFIED - no playback cycle",
+    "input_continuity_during_playback": "NOT_VERIFIED - tx_overlap_n was 0 in every window because the transmit path was never active",
+    "tx_overlap_sample_sufficiency": "NOT_VERIFIED - no transmit activity to overlap with",
+    "probe_end_drained": "NOT_VERIFIED - LOCAL_REFERENCE_PROBE_BEGIN/END were never emitted",
+    "wake_restoration_after_playback": "NOT_VERIFIED - no playback cycle ran",
+    "reference_channel": "NOT_VERIFIED - no playback cycle; candidate 05's claim about this channel was withdrawn as SUPERSEDED and candidate 08 has no measurement of its own",
+    "normal_volume_no_visible_clipping": "OBSERVED, see normalisation_verification - no clipping occurred up to 78.92% of ADC full scale, but no controlled normal-volume speech stimulus was applied"
+  },
+  "normalisation_verification": {
+    "why_this_is_independent_of_the_operator": "raw_peak is the pre-shift ADC value and peak is the post-shift int16 value, both printed by the same window line, so the conversion can be checked arithmetically from any capture that contains input at all.",
+    "windows_with_nonzero_raw_peak": 202,
+    "windows_where_raw_peak_shifted_by_16_differs_from_peak": 0,
+    "method": "For every ch0 window, compare (raw_peak >> 16) with the reported peak.",
+    "result": "peak equals raw_peak >> 16 in all 202 windows that carry input, out of 202 channel-0 windows; there is no additional scaling, rounding or dithering beyond the shift itself. No shifted value exceeds the int16 ceiling.",
+    "peak_observation": {
+      "file": "cp2-audio-wake-01.txt",
+      "uptime_ms": 22069,
+      "raw_peak": 1694695424,
+      "raw_peak_as_percent_of_2_to_the_31": 78.92,
+      "observed_peak": 25859,
+      "peak_as_percent_of_int16_full_scale": 78.92,
+      "observed_clipped": 0,
+      "linearity": "The two percentages agree to 0.01 percentage points, i.e. the int32-to-int16 conversion is full-width and lossless.",
+      "what_the_old_shift_would_have_done": {
+        "shift": 12,
+        "value": 413744,
+        "times_int16_ceiling": 12.6,
+        "consequence": "Compulsory clipping for a large fraction of samples in that second."
+      },
+      "what_the_new_shift_does": {
+        "shift": 16,
+        "value": 25859,
+        "clipped_in_that_window": 0
+      }
+    },
+    "named_limits": [
+      "This verifies the conversion arithmetic under a real input event; it does not verify wake detection or playback, and it is not a substitute for a controlled normal-volume stimulus.",
+      "The input event at that timestamp is not attributed to speech: the operator was not speaking. What made the sound is unknown and irrelevant to the arithmetic."
+    ],
+    "cross_check_against_candidate_05": {
+      "candidate_05_worst_window": {
+        "raw_peak": 2147418112,
+        "clipped": 1098,
+        "note": "candidate 05 also reached ~2^31 but recorded 1098 clipped samples in a second"
+      },
+      "candidate_08_same_scale": {
+        "raw_peak": 1694695424,
+        "clipped": 0,
+        "note": "at 78.92% of full scale candidate 08 records zero clipped samples"
+      }
+    },
+    "windows_where_shifted_value_exceeds_int16_ceiling": 0
+  },
+  "idle_only_observations": {
+    "note": "Per-capture totals across four captures from three separate boot sessions. These are not a continuous observation and no cross-capture sum is presented as a session total.",
+    "ch0_all_captures": {
+      "windows": 202,
+      "rms_max": 2380,
+      "peak_max": 25859,
+      "raw_peak_max": 1694695424,
+      "clipped_total": 0,
+      "read_failures_total": 0,
+      "tx_overlap_n_total": 0,
+      "tx_frames_total": 0
+    },
+    "ch1_all_captures": {
+      "windows": 202,
+      "rms_max": 4,
+      "peak_max": 56,
+      "raw_peak_max": 3670016,
+      "clipped_total": 0,
+      "read_failures_total": 0,
+      "tx_overlap_n_total": 0,
+      "tx_frames_total": 0
+    },
+    "per_capture": {
+      "cp1-boot-01.txt": {
+        "abort_or_panic": 0,
+        "boot_blocked": 0,
+        "task_wdt": 0,
+        "ch0": {
+          "windows": 54,
+          "rms_max": 107,
+          "peak_max": 1124,
+          "raw_peak_max": 73662464,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        },
+        "ch1": {
+          "windows": 54,
+          "rms_max": 4,
+          "peak_max": 56,
+          "raw_peak_max": 3670016,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        }
+      },
+      "cp2-net-fallback-01.txt": {
+        "abort_or_panic": 0,
+        "boot_blocked": 0,
+        "task_wdt": 0,
+        "ch0": {
+          "windows": 54,
+          "rms_max": 135,
+          "peak_max": 2904,
+          "raw_peak_max": 190316544,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        },
+        "ch1": {
+          "windows": 54,
+          "rms_max": 0,
+          "peak_max": 0,
+          "raw_peak_max": 1,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        }
+      },
+      "cp2-net-fallback-02.txt": {
+        "abort_or_panic": 0,
+        "boot_blocked": 0,
+        "task_wdt": 0,
+        "ch0": {
+          "windows": 40,
+          "rms_max": 53,
+          "peak_max": 316,
+          "raw_peak_max": 20709376,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        },
+        "ch1": {
+          "windows": 40,
+          "rms_max": 0,
+          "peak_max": 0,
+          "raw_peak_max": 1,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        }
+      },
+      "cp2-audio-wake-01.txt": {
+        "abort_or_panic": 0,
+        "boot_blocked": 0,
+        "task_wdt": 0,
+        "ch0": {
+          "windows": 54,
+          "rms_max": 2380,
+          "peak_max": 25859,
+          "raw_peak_max": 1694695424,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        },
+        "ch1": {
+          "windows": 54,
+          "rms_max": 0,
+          "peak_max": 0,
+          "raw_peak_max": 1,
+          "clipped_total": 0,
+          "read_failures_total": 0,
+          "tx_overlap_n_total": 0,
+          "tx_frames_total": 0
+        }
+      }
+    }
+  },
+  "captures": [
+    {
+      "file": "cp1-boot-01.txt",
+      "sha256": "faa6cea2be1f203ba4161053db844b3e6b44814be65852d1a1e7233f81afe8fa",
+      "bytes": 27530
+    },
+    {
+      "file": "cp2-net-fallback-01.txt",
+      "sha256": "0128226a393420297e188aae457c1705a80be9f6e86a9c815e9299b15d243b2e",
+      "bytes": 28249
+    },
+    {
+      "file": "cp2-net-fallback-02.txt",
+      "sha256": "7ca9ccf54d412724d5925a95b2cf5a5a3358aadb55ed048073027df306b03224",
+      "bytes": 11769
+    },
+    {
+      "file": "cp2-audio-wake-01.txt",
+      "sha256": "3ea3c1b7f928c4b68cd638740fc738733eeb9265c724e12233dc3364d67884ac",
+      "bytes": 27538
+    }
+  ],
+  "how_to_close": [
+    "Operator present: in one capture, 4 wake-word utterances at 20-30cm normal volume >=3s apart; then at least two record-3s/playback cycles with a report of what was heard.",
+    "Then check wake detections plus re-arm, LOCAL_REFERENCE_PROBE_END drained, INPUT continuity during playback via tx_overlap_n, and HEALTH wake=1 after the probe ends."
+  ],
+  "result": "NOT_VERIFIED on the operator-dependent audio rows; the int32-to-int16 normalisation is independently verified as lossless by arithmetic"
+}

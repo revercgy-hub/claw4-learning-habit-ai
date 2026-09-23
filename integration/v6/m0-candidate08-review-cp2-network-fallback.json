@@ -1,0 +1,135 @@
+{
+  "checkpoint": "CP2-network",
+  "date": "2026-09-23T09:25:47+08:00",
+  "worktree": "E:\\workbuddy\\claw4-v6-wb-c08",
+  "branch": "workbuddy-v6-m0-candidate08-review",
+  "implementation_base_sha": "c52080982cb69c2e0fb283d13de37f972dbeca57",
+  "candidate_boot_identity": {
+    "elf_prefix": "50fb62c30",
+    "boot_anchor_count": 1,
+    "note": "Both segments come from one reset-backed boot captured at 09:23:06; segment 2 is a continuation with no reset."
+  },
+  "scenario": "Saved credentials absent from scan results — the boot the hidden-SSID gap used to break",
+  "operator_confirmation": {
+    "who_configured_the_network": "Nobody in this session. The device booted on the credentials already in NVS; the AP appeared on its own.",
+    "stimulus_window": "2026-09-23T09:23:06 to 09:24:49 (103s), no user action"
+  },
+  "timeline_ms": [
+    {
+      "t": 8680,
+      "event": "WifiBoard: Starting WiFi connection attempt"
+    },
+    {
+      "t": 9590,
+      "event": "WifiStation: Scanning saved channel 11"
+    },
+    {
+      "t": 9611,
+      "event": "V6M0: NETWORK_EVENT=0 (Scanning)"
+    },
+    {
+      "t": 9756,
+      "event": "No AP on saved channels, starting full scan"
+    },
+    {
+      "t": 12209,
+      "event": "SAVED_DIRECT_FALLBACK candidates=2  <- the new fallback engages"
+    },
+    {
+      "t": 12209,
+      "event": "WiFi connecting to realme"
+    },
+    {
+      "t": 14683,
+      "event": "WiFi disconnected, reason: 201 (NO_AP_FOUND)"
+    },
+    {
+      "t": 14684,
+      "event": "WiFi connecting to JianGuanJu (next candidate)"
+    },
+    {
+      "t": 17158,
+      "event": "WiFi disconnected, reason: 201"
+    },
+    {
+      "t": 17158,
+      "event": "No more AP to connect, next scan in 10 seconds  <- bounded backoff, queue exhausted"
+    },
+    {
+      "t": 27163,
+      "event": "Scanning all channels (retry after backoff)"
+    },
+    {
+      "t": 29611,
+      "event": "SAVED_DIRECT_FALLBACK candidates=2"
+    },
+    {
+      "t": 32086,
+      "event": "realme -> reason 201"
+    },
+    {
+      "t": 32089,
+      "event": "WiFi connecting to JianGuanJu"
+    },
+    {
+      "t": 36316,
+      "event": "Got IP: 192.168.16.172"
+    },
+    {
+      "t": 36317,
+      "event": "Connected to WiFi: JianGuanJu"
+    },
+    {
+      "t": 36321,
+      "event": "V6M0: NETWORK_EVENT=2 (Connected)"
+    }
+  ],
+  "observed_properties": {
+    "fallback_trigger_scope": "Only after a successful all-channel scan found no saved network: the saved-channel scan ran first, escalated to a full scan, and the fallback only then produced candidates.",
+    "candidate_cap_and_dedup": "candidates=2, matching the two distinct valid saved credentials; the cap of three was not reached.",
+    "one_connect_call_per_candidate": "Each candidate produced exactly one 'WiFi connecting to <ssid>' line, then a disconnect and advance — no five-fold repeat of the same fallback entry.",
+    "bounded_backoff": "After the queue drained the station armed 'next scan in 10 seconds' and did retry at 27163, 10s later.",
+    "retry_succeeded": "The second fallback cycle associated and obtained a DHCP lease.",
+    "no_driver_config_or_start_failures": "No CONNECT_CONFIG_FAILED or CONNECT_START_FAILED, and no SCAN_COMPLETION_FAILED, appeared in either segment.",
+    "stability_after_association": "From 36.3s to the end of segment 2 no disconnect, no config mode and no connect timeout occurred; NETWORK_EVENT stayed at 2."
+  },
+  "hidden_ssid_evidence": {
+    "device_side": "The device associated with SSID JianGuanJu, which the all-channel scan did not list as a match, via the direct path that uses channel 0 and no pinned BSSID.",
+    "host_side": "An independent host WLAN survey taken in the same period lists 7 visible SSIDs — one of them an empty/hidden name plus DIRECT-*, ChinaNet-*, HP-* and nova 13 — and JianGuanJu is not among them.",
+    "conclusion": "A network that does not advertise its SSID was joined on boot. This is the exact gap the network stage set out to close, and on this boot it is closed.",
+    "not_claimed": [
+      "I did not verify a wrong-password case.",
+      "I did not verify reconnect after the AP is switched off and back on.",
+      "A scan finding no match is not proof the AP was absent; the host survey is what makes hidden rather than absent the better explanation here."
+    ]
+  },
+  "network_rows": {
+    "fallback_trigger_limited_to_full_channel_no_match": "PASS",
+    "visible_ap_priority_preserved": "PASS (no visible match existed this boot; the direct queue was used only after the full scan returned nothing)",
+    "three_candidate_cap": "PASS (2 present, cap not exercised)",
+    "bounded_backoff_and_retry": "PASS (10s backoff then retry)",
+    "hidden_ssid_boot_association_and_ip": "PASS",
+    "visible_ssid_boot_association_and_ip": "NOT_VERIFIED (no visible saved AP was on the air)",
+    "ap_off_then_on_reconnect": "NOT_VERIFIED (needs the operator to toggle the AP)",
+    "wrong_credential": "NOT_VERIFIED",
+    "bounded_return_to_config_portal": "PARTIAL (backoff observed and bounded; the portal was never reached because the device associated at 36.3s, before the board 60s deadline)"
+  },
+  "captures": [
+    {
+      "file": "cp2-net-fallback-01.txt",
+      "sha256": "0128226a393420297e188aae457c1705a80be9f6e86a9c815e9299b15d243b2e",
+      "bytes": 28249
+    },
+    {
+      "file": "cp2-net-fallback-02.txt",
+      "sha256": "7ca9ccf54d412724d5925a95b2cf5a5a3358aadb55ed048073027df306b03224",
+      "bytes": 11769
+    }
+  ],
+  "limitations": [
+    "This is one boot on one network; it does not establish success rates.",
+    "The privacy-relevant SSID names appear in the private logs and are not reproduced in committed files; the SSID names quoted here are needed to describe what was verified and are already public in the earlier device reports.",
+    "No credentials, no audio and no NVS content are committed."
+  ],
+  "result": "PASS on the fallback and hidden-SSID rows; four network rows remain NOT_VERIFIED/partial"
+}
