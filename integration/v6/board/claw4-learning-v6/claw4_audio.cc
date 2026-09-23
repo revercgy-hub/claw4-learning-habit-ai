@@ -31,6 +31,10 @@ Claw4Audio::Claw4Audio(std::function<void(bool)> amplifier)
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &config));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &config));
     ESP_LOGI("Claw4Audio", "I2S slave 16kHz stereo32; mic+reference; bounded IO");
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+    ESP_LOGI("Claw4Audio", "M0 software playback reference delay_frames=%u source=post-volume TX",
+             unsigned(kPlaybackReferenceDelayFrames));
+#endif
 }
 
 void Claw4Audio::EnableInput(bool enable) {
@@ -75,12 +79,21 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
 #endif
             return 0;
         }
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+        std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+#endif
         for (int i = 0; i < count; ++i) {
             // Candidate 05 measured full-width slots; >>12 added 24 dB before
             // saturation. Normalize first; any later gain must be explicit.
             dest[total + i] = claw4::DecodePcm16(buffer[i]);
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
             const unsigned channel = (total + i) % 2;
+            // Replace the silent hardware R slot before deriving AFE input
+            // statistics, so ch=1 reports the reference actually fed to AFE.
+            // raw_peak_ remains tied to the physical RX slot below.
+            if (channel == 1) {
+                dest[total + i] = playback_reference_.Next();
+            }
             const int64_t value = dest[total + i];
             const uint32_t magnitude = value < 0 ? -value : value;
             energy_[channel] += value * value;
@@ -119,6 +132,17 @@ void Claw4Audio::ReportInputStats() {
     }
     read_failures_ = 0;
     last_stats_us_ = now;
+    uint32_t queue_drops = 0;
+    std::size_t pending_reference = 0;
+    {
+        std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+        queue_drops = reference_queue_drops_;
+        reference_queue_drops_ = 0;
+        pending_reference = playback_reference_.pending_size();
+    }
+    ESP_LOGI("Claw4Audio", "TX_REFERENCE source=software_post_volume delay_frames=%u queue_drops=%u pending=%u",
+             unsigned(kPlaybackReferenceDelayFrames),
+             unsigned(queue_drops), unsigned(pending_reference));
 }
 #endif
 
@@ -146,6 +170,15 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
         tx_nonzero_active_.store(false);
         tx_frames_.fetch_add(bytes / (2 * sizeof(int32_t)));
+        const int written_frames = static_cast<int>(bytes / (2 * sizeof(int32_t)));
+        {
+            std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+            for (int i = 0; i < written_frames; ++i) {
+                if (!playback_reference_.Push(claw4::DecodePcm16(buffer[i * 2]))) {
+                    ++reference_queue_drops_;
+                }
+            }
+        }
 #endif
         total += static_cast<int>(bytes / (2 * sizeof(int32_t)));
         if (err != ESP_OK || bytes != count * 2 * sizeof(int32_t)) {

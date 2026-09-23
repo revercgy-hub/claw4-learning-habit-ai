@@ -12,7 +12,7 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def freeze(source, output):
+def freeze(source, output, candidate='claw4-learning-v6-m0.1'):
     network_files = verify(source)
     description = json.loads((source / 'build/project_description.json').read_text(encoding='utf-8'))
     component = description['build_component_info'][PACKAGE]
@@ -53,7 +53,7 @@ def freeze(source, output):
              'CMakeLists.txt', 'partitions/claw4-v6.csv', 'build/xiaozhi.bin', 'build/xiaozhi.elf',
              'build/bootloader/bootloader.bin', 'build/partition_table/partition-table.bin',
              'build/srmodels/srmodels.bin', 'build/generated_assets.bin', 'build/flasher_args.json']
-    manifest = {'candidate': 'claw4-learning-v6-m0.1',
+    manifest = {'candidate': candidate,
                 'network_override_sha256': network_files,
                 'network_component_directory': component['dir'],
                 'upstream_runtime_unchanged': unchanged,
@@ -69,5 +69,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--candidate', default='claw4-learning-v6-m0.1')
     args = parser.parse_args()
-    freeze(args.source.resolve(), args.output)
+    freeze(args.source.resolve(), args.output, args.candidate)

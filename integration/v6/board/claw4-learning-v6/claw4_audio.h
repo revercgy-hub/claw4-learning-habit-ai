@@ -1,8 +1,10 @@
 #pragma once
 #include "audio/audio_codec.h"
+#include "board_algorithms.h"
 #include <functional>
 #include <mutex>
 #include <cstdint>
+#include <cstddef>
 #include <atomic>
 
 // Only the electrical codec adapter. XiaoZhi owns capture, AFE and voice state.
@@ -16,10 +18,15 @@ protected:
     int Read(int16_t* data, int samples) override;
     int Write(const int16_t* data, int samples) override;
 private:
+    static constexpr std::size_t kPlaybackReferenceDelayFrames = 0;
     std::function<void(bool)> amplifier_;
     std::mutex input_mutex_;
     std::mutex output_mutex_;
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
+    std::mutex reference_mutex_;
+    claw4::PlaybackReferenceDelay playback_reference_{
+        kPlaybackReferenceDelayFrames};
+    uint32_t reference_queue_drops_ = 0;
     uint64_t energy_[2]{};
     uint32_t peak_[2]{};
     uint32_t clipped_[2]{};

@@ -36,6 +36,38 @@ int main() {
     assert(claw4::DecodePcm16(-1) == -1);
     assert(claw4::DecodePcm16(65535) == 0);
     assert(claw4::DecodePcm16(-65537) == -2);
+
+    claw4::PlaybackReferenceDelay reference(3);
+    assert(reference.Push(10));
+    assert(reference.Push(11));
+    assert(reference.Next() == 0);
+    assert(reference.Next() == 0);
+    assert(reference.Push(12));
+    assert(reference.Next() == 0);
+    assert(reference.Push(13));
+    assert(reference.Next() == 10);
+    assert(reference.Next() == 11);
+    assert(reference.Next() == 12);
+    assert(reference.Next() == 13);
+    assert(reference.pending_size() == 0);
+
+    claw4::PlaybackReferenceDelay immediate_reference(0);
+    assert(immediate_reference.Next() == 0);
+    assert(immediate_reference.Push(-1234));
+    assert(immediate_reference.Next() == -1234);
+    for (std::size_t i = 0; i < claw4::PlaybackReferenceDelay::kPendingCapacity; ++i)
+        assert(immediate_reference.Push(static_cast<int16_t>(i)));
+    assert(!immediate_reference.Push(99)); // bounded queue fails without overwriting old PCM
+    assert(immediate_reference.Next() == 0);
+    assert(immediate_reference.pending_size() == claw4::PlaybackReferenceDelay::kPendingCapacity - 1);
+
+    claw4::PlaybackReferenceDelay oversized_reference(
+        claw4::PlaybackReferenceDelay::kMaxDelaySamples + 1);
+    assert(oversized_reference.Push(7));
+    for (std::size_t i = 0; i < claw4::PlaybackReferenceDelay::kMaxDelaySamples; ++i)
+        assert(oversized_reference.Next() == 0);
+    assert(oversized_reference.Next() == 7);
+
     for (unsigned success = 1; success <= 4; ++success) {
         std::vector<unsigned> attempts, waits;
         unsigned resets = 0;

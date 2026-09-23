@@ -1,4 +1,6 @@
 #pragma once
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace claw4 {
@@ -8,6 +10,51 @@ constexpr int16_t DecodePcm16(int32_t slot) {
     const int64_t value = slot;
     return static_cast<int16_t>(value >= 0 ? value / 65536 : -((-value + 65535) / 65536));
 }
+
+// Bounded, host-testable software playback reference. Push accepted I2S TX
+// frames, then call Next() once per RX frame. The fixed delay aligns the TX
+// stream with the later acoustic echo; callers serialize Push/Next externally.
+class PlaybackReferenceDelay {
+public:
+    static constexpr std::size_t kPendingCapacity = 8192;
+    static constexpr std::size_t kMaxDelaySamples = 2048;
+
+    explicit constexpr PlaybackReferenceDelay(std::size_t delay_samples)
+        : delay_samples_(delay_samples > kMaxDelaySamples ? kMaxDelaySamples : delay_samples) {}
+
+    bool Push(int16_t sample) {
+        if (pending_size_ == pending_.size()) return false;
+        pending_[pending_tail_] = sample;
+        pending_tail_ = (pending_tail_ + 1) % pending_.size();
+        ++pending_size_;
+        return true;
+    }
+
+    int16_t Next() {
+        int16_t current = 0;
+        if (pending_size_ != 0) {
+            current = pending_[pending_head_];
+            pending_head_ = (pending_head_ + 1) % pending_.size();
+            --pending_size_;
+        }
+        if (delay_samples_ == 0) return current;
+        const int16_t delayed = delay_[delay_pos_];
+        delay_[delay_pos_] = current;
+        delay_pos_ = (delay_pos_ + 1) % delay_samples_;
+        return delayed;
+    }
+
+    std::size_t pending_size() const { return pending_size_; }
+
+private:
+    std::array<int16_t, kPendingCapacity> pending_{};
+    std::array<int16_t, kMaxDelaySamples> delay_{};
+    std::size_t delay_samples_;
+    std::size_t pending_head_ = 0;
+    std::size_t pending_tail_ = 0;
+    std::size_t pending_size_ = 0;
+    std::size_t delay_pos_ = 0;
+};
 
 enum class ButtonEvent { None, ShortPress, LongPress };
 
