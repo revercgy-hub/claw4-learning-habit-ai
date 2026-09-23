@@ -1,6 +1,6 @@
 # V6 唯一阶段看板
 
-> 当前有效（2026-09-23，Candidate18 后）：Candidate14/15 的软件参考已进入 AFE ch1，但各两次播放的 VAD 结果不一致且条件未配对，AEC **NOT PASS**。Candidate16 增加逐次 probe 编号与阶段 VAD 计数；Candidate17 在本地自动回放期间启用 WakeNet 并记录播放期命中。Candidate17 已刷写并冷启动；其后约 5 分钟无触摸串口观察无复位，音频读取失败/削波/参考队列丢帧均为 0。Candidate18 增加限时一次性 RAW8 相机取帧诊断，IDF build 和 63 项工具测试通过，但未刷机，物理取帧待验证；交互音频复测也待用户方便时进行。详细证据见 `V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md` 与 `V6_M0_CANDIDATE18_CAMERA_REPORT.md`。M0 仍 IN_PROGRESS；设备网络同步失败注入、完整长稳、相机实际取帧、受控 AEC/近端唤醒复测与唤醒灵敏度余量未闭合；M1 BACKLOG。
+> 当前有效（2026-09-23，Candidate19 已构建）：Candidate14/15 的软件参考已进入 AFE ch1，但各两次播放的 VAD 结果不一致且条件未配对，AEC **NOT PASS**。Candidate16 增加逐次 probe 编号与阶段 VAD 计数；Candidate17 在本地自动回放期间启用 WakeNet 并记录播放期命中，之后约 5 分钟无触摸观察未见复位。复核发现旧 `clipped=0` 计数器在归一化后没有递增路径，不能作为削波证据；Candidate19 改为统计 PCM16 接近满量程样本，并保留峰值与原始峰值。Candidate19 固件构建与 68 项工具测试通过，C++ 算法测试通过；尚未刷机，真实电平观察待测。Candidate18 增加限时一次性 RAW8 相机取帧诊断，已构建但未刷机；物理取帧待验证，交互音频复测也待用户方便时进行。详细证据见 `V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`、`V6_M0_CANDIDATE18_CAMERA_REPORT.md` 与 `V6_M0_CANDIDATE19_AUDIO_METRIC_REPORT.md`。M0 仍 IN_PROGRESS；设备网络同步失败注入、完整长稳、相机实际取帧、受控 AEC/近端唤醒复测与唤醒灵敏度余量未闭合；M1 BACKLOG。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 
@@ -16,7 +16,7 @@
 | M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | SD 挂载、metadata-only camera sensor init、触摸与侧键短/长按识别已实机确认；Candidate18 的限时单帧 RAW8 诊断已构建，尚未刷机验证。电源键产品动作未实现。物理 RX ch1 保持静默；诊断版软件参考可进入 AFE ch1，但 AEC 效果未通过 |
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
-| M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/削波/参考丢帧为 0；交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
+| M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
 | M1 | NAS 连续语音 20 轮 | Codex | BACKLOG | M0 完成后再启；当前不链接学习代码 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |

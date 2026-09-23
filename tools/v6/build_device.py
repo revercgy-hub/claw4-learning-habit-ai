@@ -1,11 +1,33 @@
 """Build the isolated M0 variant; never flashes or changes global environment."""
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from baseline import ROOT
 from network_overlay import prepare
+
+BOARD_OVERLAY = ROOT / 'integration/v6/board/claw4-learning-v6'
+BOARD_RELATIVE = Path('main/boards/metalio/claw4-learning-v6')
+
+
+def sync_board(source, overlay=BOARD_OVERLAY):
+    """Copy the authoritative board overlay into a staged source tree."""
+    staged_board = source / BOARD_RELATIVE
+    if not staged_board.is_dir():
+        raise ValueError(f'Missing staged board directory: {staged_board}')
+
+    expected = {path.relative_to(overlay).as_posix()
+                for path in overlay.rglob('*') if path.is_file()}
+    actual = {path.relative_to(staged_board).as_posix()
+              for path in staged_board.rglob('*') if path.is_file()}
+    if actual != expected:
+        raise ValueError('Staged board inventory differs from authoritative overlay')
+
+    for relative in sorted(expected):
+        shutil.copyfile(overlay / relative, staged_board / relative)
+    return len(expected)
 
 
 def environment(idf, tools):
@@ -34,6 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--idf', type=Path, default=ROOT / 'vendor/esp-idf')
     parser.add_argument('--tools', type=Path, default=ROOT / 'toolchains/idf61')
     args = parser.parse_args()
+    sync_board(args.source.resolve())
     env = environment(args.idf.resolve(), args.tools.resolve())
     if args.incremental:
         if not (args.source / 'sdkconfig').is_file():

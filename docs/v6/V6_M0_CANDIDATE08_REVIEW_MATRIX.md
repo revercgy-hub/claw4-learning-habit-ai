@@ -1,5 +1,7 @@
 # V6 M0 候选 08 独立复核验收矩阵
 
+> 2026-09-23 correction: the `clipped=0` interpretation below is **SUPERSEDED** because the normalized firmware did not increment that counter. Peak/shift arithmetic and raw capture records remain; analog clipping was not measured. See [`V6_M0_CANDIDATE19_AUDIO_METRIC_REPORT.md`](V6_M0_CANDIDATE19_AUDIO_METRIC_REPORT.md).
+
 > 流：`WB-V6-M0-CANDIDATE08-REVIEW`（任务书 `6ed2a39` 修订版）
 > 分支：`workbuddy-v6-m0-candidate08-review`（连字符名；任务书要的带斜杠名在本机沙箱无法持久建立，见 §4.5 DEV-08-2）
 > 冻结实现基点：`1907730926d383072dc267201c6f359c4a001231`
@@ -99,7 +101,7 @@
 | 项目 | 证据 | 状态 | 说明 |
 | --- | --- | --- | --- |
 | int32→int16 归一化正确（无额外缩放/削顶） | 逐窗口验算 `raw_peak >> 16` 与 `peak` | **PASS** | 202 个 ch0 窗口**全部**成立，0 例外，0 个超 int16 上限 |
-| 正常音量下无明显削顶 | 同一批窗口 | `NOT_VERIFIED`（有旁证） | 全程 `clipped=0`，最大输入达 ADC 满量程 **78.92%**（`raw_peak=1694695424`）时仍 `clipped=0`；但无受控的正常音量语音刺激，故不判 PASS |
+| 正常音量下无明显削顶 | 同一批窗口 | `NOT_VERIFIED` | `raw_peak=1694695424` 是 `INT32_MAX` 的约 78.92%，但未校准其与 ADC 模拟满量程的关系；`clipped=0` 字段未更新，不作削波证据；无受控正常音量语音刺激 |
 | 单次捕获内 4 次唤醒词 | — | `NOT_VERIFIED` | 操作者两次均无法发声，未施加刺激 |
 | 播放期间 INPUT 仍持续产生 | `tx_overlap_n` | `NOT_VERIFIED` | 所有窗口 `tx_overlap_n=0`、`tx_frames=0`，因发送通路从未激活（无按钮点击） |
 | 至少两次 3 秒录音/回放 | — | `NOT_VERIFIED` | 无按钮点击 |

@@ -36,6 +36,12 @@ int main() {
     assert(claw4::DecodePcm16(-1) == -1);
     assert(claw4::DecodePcm16(65535) == 0);
     assert(claw4::DecodePcm16(-65537) == -2);
+    assert(!claw4::IsNearFullScalePcm16(32759));
+    assert(claw4::IsNearFullScalePcm16(32760));
+    assert(claw4::IsNearFullScalePcm16(32767));
+    assert(!claw4::IsNearFullScalePcm16(-32759));
+    assert(claw4::IsNearFullScalePcm16(-32760));
+    assert(claw4::IsNearFullScalePcm16(INT16_MIN));
 
     claw4::PlaybackReferenceDelay reference(3);
     assert(reference.Push(10));

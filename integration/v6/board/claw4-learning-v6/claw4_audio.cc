@@ -98,6 +98,9 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
             const uint32_t magnitude = value < 0 ? -value : value;
             energy_[channel] += value * value;
             peak_[channel] = std::max(peak_[channel], magnitude);
+            if (claw4::IsNearFullScalePcm16(dest[total + i])) {
+                ++near_full_scale_[channel];
+            }
             const int64_t raw = buffer[i];
             raw_peak_[channel] = std::max(raw_peak_[channel], uint32_t(raw < 0 ? -raw : raw));
             // Full-width normalization has no out-of-range conversion. Raw
@@ -123,11 +126,11 @@ void Claw4Audio::ReportInputStats() {
     if (now - last_stats_us_ < 1000000) return;
     for (unsigned ch = 0; ch < 2; ++ch) {
         const unsigned rms = samples_[ch] ? unsigned(std::sqrt(double(energy_[ch]) / samples_[ch])) : 0;
-        ESP_LOGI("Claw4Audio", "INPUT ch=%u n=%u rms=%u peak=%u clipped=%u raw_peak=%u read_failures=%u tx_overlap_n=%u tx_overlap_peak=%u tx_frames=%u",
-                 ch, unsigned(samples_[ch]), rms, unsigned(peak_[ch]), unsigned(clipped_[ch]),
+        ESP_LOGI("Claw4Audio", "INPUT ch=%u n=%u rms=%u peak=%u near_full_scale_n=%u raw_peak=%u read_failures=%u tx_overlap_n=%u tx_overlap_peak=%u tx_frames=%u",
+                 ch, unsigned(samples_[ch]), rms, unsigned(peak_[ch]), unsigned(near_full_scale_[ch]),
                  unsigned(raw_peak_[ch]), unsigned(read_failures_), unsigned(tx_overlap_samples_[ch]),
                  unsigned(tx_overlap_peak_[ch]), unsigned(tx_frames_.load()));
-        energy_[ch] = peak_[ch] = clipped_[ch] = raw_peak_[ch] = samples_[ch] = 0;
+        energy_[ch] = peak_[ch] = near_full_scale_[ch] = raw_peak_[ch] = samples_[ch] = 0;
         tx_overlap_samples_[ch] = tx_overlap_peak_[ch] = 0;
     }
     read_failures_ = 0;

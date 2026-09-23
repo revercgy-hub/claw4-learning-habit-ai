@@ -22,9 +22,16 @@ def summarize(manifest, base):
     if not re.fullmatch(r'[0-9a-f]{64}', elf):
         raise ValueError('Full ELF SHA256 required')
     sessions = {}
-    channels = {str(ch): dict(windows=0, samples=0, clipped=0, peak=0,
-                             rms_max=0, raw_peak=0, read_failures=0, tx_overlap_n=0,
-                             tx_overlap_peak=0) for ch in range(2)}
+    channels = {
+        str(ch): dict(windows=0, samples=0, legacy_clipped_samples=0,
+                      legacy_clipped_status='NOT_AVAILABLE',
+                      near_full_scale_samples=0, near_full_scale_status='NOT_AVAILABLE',
+                      peak=0, rms_max=0, raw_peak=0, read_failures=0,
+                      tx_overlap_n=0, tx_overlap_peak=0)
+        for ch in range(2)
+    }
+    legacy_clipped_seen = {str(ch): False for ch in range(2)}
+    near_full_scale_seen = {str(ch): False for ch in range(2)}
     seen_hashes = set()
     for capture in manifest['captures']:
         data = (base / capture['path']).read_bytes()
@@ -72,14 +79,33 @@ def summarize(manifest, base):
                 fields = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', msg)}
                 ch = channels[str(fields['ch'])]
                 ch['windows'] += 1
-                for target, source in [('samples', 'n'), ('clipped', 'clipped'), ('read_failures', 'read_failures'), ('tx_overlap_n', 'tx_overlap_n')]:
+                for target, source in [
+                    ('samples', 'n'),
+                    ('legacy_clipped_samples', 'clipped'),
+                    ('near_full_scale_samples', 'near_full_scale_n'),
+                    ('read_failures', 'read_failures'),
+                    ('tx_overlap_n', 'tx_overlap_n'),
+                ]:
                     ch[target] += fields.get(source, 0)
-                for target, source in [('peak', 'peak'), ('rms_max', 'rms'), ('raw_peak', 'raw_peak'), ('tx_overlap_peak', 'tx_overlap_peak')]:
+                if 'clipped' in fields:
+                    legacy_clipped_seen[str(fields['ch'])] = True
+                if 'near_full_scale_n' in fields:
+                    near_full_scale_seen[str(fields['ch'])] = True
+                for target, source in [
+                    ('peak', 'peak'), ('rms_max', 'rms'), ('raw_peak', 'raw_peak'),
+                    ('tx_overlap_peak', 'tx_overlap_peak'),
+                ]:
                     ch[target] = max(ch[target], fields.get(source, 0))
-    for ch in channels.values():
-        ch['input_status'] = ('FAIL' if ch['clipped'] or ch['read_failures'] else
+    for channel, ch in channels.items():
+        ch['near_full_scale_status'] = (
+            'OBSERVED' if ch['near_full_scale_samples'] else 'NO_SAMPLES_OVER_THRESHOLD'
+        ) if near_full_scale_seen[channel] else 'NOT_AVAILABLE'
+        ch['legacy_clipped_status'] = (
+            'NONZERO_REQUIRES_FIRMWARE_CONTEXT' if ch['legacy_clipped_samples'] else 'ZERO_UNTRUSTED'
+        ) if legacy_clipped_seen[channel] else 'NOT_AVAILABLE'
+        ch['input_status'] = ('FAIL' if ch['read_failures'] else
                               'OBSERVED' if ch['samples'] else 'NOT_VERIFIED')
-    return dict(schema='claw4-v6-audio-evidence/1', sessions=len(sessions),
+    return dict(schema='claw4-v6-audio-evidence/2', sessions=len(sessions),
                 captures=len(seen_hashes), elf_sha256=elf,
                 wake_events_observed=sum(len(s['wakes']) for s in sessions.values()),
                 health_samples_observed=sum(len(s['health']) for s in sessions.values()),
@@ -87,7 +113,11 @@ def summarize(manifest, base):
                 channels=channels, reference_status='HARDWARE_VERIFY_REQUIRED',
                 limits='Session continuity operator-attested. TX overlap is write-call overlap, '
                        'not physical DAC timing. Zero idle reference does not prove failure; '
-                       'nonzero reference does not prove AEC quality. Counts cover captured events only.')
+                       'nonzero reference does not prove AEC quality. near_full_scale_samples counts '
+                       'normalized PCM16 samples with absolute value >=32760; it is not proof of '
+                       'ADC or acoustic clipping. legacy_clipped_samples preserves the old log field, '
+                       'but its meaning depends on the frozen firmware; a zero is untrusted. Counts '
+                       'cover captured events only.')
 
 
 if __name__ == '__main__':

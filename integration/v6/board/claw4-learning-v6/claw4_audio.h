@@ -29,7 +29,7 @@ private:
     uint32_t reference_queue_drops_ = 0;
     uint64_t energy_[2]{};
     uint32_t peak_[2]{};
-    uint32_t clipped_[2]{};
+    uint32_t near_full_scale_[2]{};
     uint32_t raw_peak_[2]{};
     uint32_t samples_[2]{};
     uint32_t read_failures_ = 0;

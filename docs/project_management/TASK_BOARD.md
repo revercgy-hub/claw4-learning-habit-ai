@@ -1,6 +1,6 @@
 # Claw4 当前任务看板
 
-> 当前有效（2026-09-23，Candidate18 后）：Candidate14/15 app-only 刷写确认软件参考进入 AFE ch1，但 AEC **NOT PASS**，两组 VAD 结果不一致且测试未配对。Candidate16 增加 probe/阶段/VAD 归属；Candidate17 只在本地回放测试阶段启用 WakeNet，并记录播放期命中，随后完成约 5 分钟无触摸稳定性观察。Candidate18 增加限时一次性 RAW8 相机取帧诊断，IDF build 与 63 项工具测试通过，但未刷机，物理取帧待验证。AEC/播放期唤醒交互也尚未复测。详细证据见 `docs/v6/V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md` 与 `docs/v6/V6_M0_CANDIDATE18_CAMERA_REPORT.md`；原始 UART 保存在忽略目录 `out/v6-device-private/`。M0 保持 IN_PROGRESS，M1 BACKLOG；仍待受控 AEC/播放中近端唤醒、设备网络同步失败注入、完整长稳与 Candidate18 相机实机取帧。用户授权 Codex 继续直接开发与测试；没有 WorkBuddy 活动流。
+> 当前有效（2026-09-23，Candidate19 已构建）：Candidate14/15 app-only 刷写确认软件参考进入 AFE ch1，但 AEC **NOT PASS**，两组 VAD 结果不一致且测试未配对。Candidate16 增加 probe/阶段/VAD 归属；Candidate17 只在本地回放测试阶段启用 WakeNet，并完成约 5 分钟无触摸稳定性观察。复核发现旧 `clipped=0` 计数在归一化后未被写入，不能作为削波证据；Candidate19 改用 PCM16 接近满量程计数。Candidate19 固件构建、68 项工具测试和 C++ 算法测试通过，尚未刷机。Candidate18 的 RAW8 单帧相机诊断已构建但未刷机，物理取帧仍待验证；AEC/播放期唤醒交互复测也待用户方便时操作。详见 `docs/v6/V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`、`docs/v6/V6_M0_CANDIDATE18_CAMERA_REPORT.md` 与 `docs/v6/V6_M0_CANDIDATE19_AUDIO_METRIC_REPORT.md`。M0 IN_PROGRESS，M1 BACKLOG；设备网络同步失败注入、完整长稳、相机实机取帧、受控 AEC/播放期唤醒及灵敏度余量仍未闭合。原始 UART 在忽略目录 `out/v6-device-private/`；无 WorkBuddy 活动流。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 

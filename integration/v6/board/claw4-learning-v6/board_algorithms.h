@@ -11,6 +11,16 @@ constexpr int16_t DecodePcm16(int32_t slot) {
     return static_cast<int16_t>(value >= 0 ? value / 65536 : -((-value + 65535) / 65536));
 }
 
+// This is a headroom indicator on normalized PCM16, not proof of ADC or
+// acoustic clipping. Eight or fewer PCM16 counts of positive headroom is near
+// full scale; the negative endpoint is handled symmetrically.
+constexpr uint32_t kPcm16NearFullScaleThreshold = 32760;
+constexpr bool IsNearFullScalePcm16(int16_t sample) {
+    const int32_t value = sample;
+    const uint32_t magnitude = static_cast<uint32_t>(value < 0 ? -value : value);
+    return magnitude >= kPcm16NearFullScaleThreshold;
+}
+
 // Bounded, host-testable software playback reference. Push accepted I2S TX
 // frames, then call Next() once per RX frame. The fixed delay aligns the TX
 // stream with the later acoustic echo; callers serialize Push/Next externally.

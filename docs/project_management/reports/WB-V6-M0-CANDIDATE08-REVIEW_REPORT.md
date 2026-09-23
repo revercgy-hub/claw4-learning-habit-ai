@@ -1,5 +1,7 @@
 # WB-V6-M0-CANDIDATE08-REVIEW 执行报告
 
+> 2026-09-23 Codex correction: interpretations of `clipped=0` in this report are **SUPERSEDED**. The normalized firmware path never incremented that counter. Raw UART and normalization arithmetic evidence remain historical; zero in this field is not evidence about ADC or analog clipping. Replacement telemetry and limits are documented in [`V6_M0_CANDIDATE19_AUDIO_METRIC_REPORT.md`](../../v6/V6_M0_CANDIDATE19_AUDIO_METRIC_REPORT.md).
+
 | 项 | 值 |
 | --- | --- |
 | 任务包 | `WB-V6-M0-CANDIDATE08-REVIEW`（修订版，提交 `6ed2a39`） |
@@ -111,12 +113,12 @@ python tools/v6/capture_device.py --port COM7 --seconds 60 --reset --output <pri
 
 # 归一化算术验证（不依赖操作者）
 对每个 ch0 窗口比较 (raw_peak >> 16) 与 peak
-→ 202/202 窗口成立，0 例外；0 个移位值超 int16 上限；clipped 合计 0；read_failures 合计 0
+→ 202/202 窗口成立，0 例外；0 个移位值超 int16 上限；日志中的 clipped 合计 0（该固件计数器未更新，不能作削波证据）；read_failures 合计 0
 
 # audio_evidence
 python tools/v6/audio_evidence.py --manifest <private>/audio-evidence-manifest.json \
   --output integration/v6/m0-candidate08-review-audio-evidence.json
-→ exit 0；sessions=3 captures=4 health_samples=19 ch0 windows=202 clipped=0 read_failures=0
+→ exit 0；sessions=3 captures=4 health_samples=19 ch0 windows=202 clipped=0（字段未更新）read_failures=0
 ```
 
 ### 4.4 真机网络时间线（候选 08 新增分支，本次核心）
@@ -213,7 +215,7 @@ python tools/v6/audio_evidence.py --manifest <private>/audio-evidence-manifest.j
 1. **不宣称 M0 总通过**，也不宣称候选 08 可发布。SD 卡 / Camera / 电源键、故障注入、恢复写回均未覆盖。
 2. **不宣称音频通过。** 操作者未能提供刺激，本轮**没有**任何唤醒、回放或播放期间采集的候选 08 证据。无刺激窗口不是失败率，也绝不是通过。
 3. **不宣称参考通道或 AEC 有结论。** 候选 05 那条关于参考通道的说法已被 Codex 以 `SUPERSEDED` 撤回（旧 harness 在 Playback 阶段关闭了输入消费者，"入队之后"被误当成"播放期间"）；本包未对候选 08 做任何参考通道测量。
-4. **不宣称"正常音量无削顶"已验证。** 只能说：在最大输入达 ADC 满量程 **78.92%** 的窗口里 `clipped=0`，且 `peak == raw_peak >> 16` 在 202/202 窗口精确成立。**未施加受控的正常音量语音刺激。**
+4. **不宣称"正常音量无削顶"已验证。** 原始槽峰值最高为 `raw_peak=1694695424`，等于 `INT32_MAX` 的约 78.92%；它与 ADC 模拟满量程的对应关系未校准。`peak == raw_peak >> 16` 在 202/202 窗口精确成立。日志 `clipped=0` 字段未被该固件更新，不能用作佐证。**未施加受控的正常音量语音刺激。**
 5. **不把候选 05 的结论当候选 08 结果。** 20 轮复位与 31.3 分钟空载仅作基线引用；6 次唤醒与清晰回放同样只作历史基线，不重复声称。
 6. **不宣称冷启动、小时级稳定性或负载稳定性。** USB 复位不是冷启动；三会话各仅 60–100 s。
 7. **不宣称网络稳定。** 只验证到本地关联与 IP；未测 NAS 协议，未施加断连刺激。

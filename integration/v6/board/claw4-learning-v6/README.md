@@ -29,6 +29,11 @@ does not save or upload image data, and returns the camera rail to power-down;
 the physical frame-capture check is still pending. SD repeated-mount behavior and
 product power-key actions also remain outstanding; no M0 PASS claim.
 
+Candidate19 replaces the unused `clipped` counter with `near_full_scale_n`: per-channel
+normalized PCM16 samples whose absolute value is at least 32760. This reports digital
+headroom only; it does not establish ADC or acoustic clipping. The evidence parser keeps
+legacy `clipped` values separate and marks near-full-scale data unavailable for older logs.
+
 Build with tools/v6/stage_device.py into a fresh short ASCII path, then
 tools/v6/build_device.py. Stage script must match the pinned upstream anchors.
 The generated partition CSV preserves every existing range and renames only
