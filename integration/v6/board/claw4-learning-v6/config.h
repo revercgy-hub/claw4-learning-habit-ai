@@ -12,3 +12,14 @@
 #define AUDIO_WS GPIO_NUM_10
 #define AUDIO_DOUT GPIO_NUM_9
 #define AUDIO_DIN GPIO_NUM_11
+
+// Claw4 SD Slot 0 mapping copied from the read-only Metalio board reference.
+// The reference asks integrators to verify these assignments against the
+// hardware schematic; runtime SD success remains a device-level check.
+#define SDMMC_CLK_PIN GPIO_NUM_43
+#define SDMMC_CMD_PIN GPIO_NUM_44
+#define SDMMC_D0_PIN GPIO_NUM_39
+#define SDMMC_D1_PIN GPIO_NUM_40
+#define SDMMC_D2_PIN GPIO_NUM_41
+#define SDMMC_D3_PIN GPIO_NUM_42
+#define SDMMC_LDO_CHAN_ID 4

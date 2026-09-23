@@ -15,6 +15,8 @@
 #include <esp_timer.h>
 #include <esp_app_desc.h>
 
+void Claw4StartSdCardDiagnostic();
+
 // Bounded local hardware harness, never starts the application protocol/OTA loop.
 // M1 uses upstream main.cc unchanged by disabling this build option.
 static std::atomic<bool> record_requested{false};
@@ -22,6 +24,7 @@ static std::atomic<unsigned> taps{0};
 static std::atomic<unsigned> wake_events{0};
 static std::atomic<unsigned> vad_events{0};
 static std::atomic<bool> rearm_requested{false};
+static std::atomic<bool> sd_diagnostic_requested{false};
 
 extern "C" void app_main() {
     char app_sha[65]{};
@@ -66,6 +69,10 @@ extern "C" void app_main() {
     }
     board.SetNetworkEventCallback([](NetworkEvent event, const std::string&) {
         ESP_LOGI("V6M0", "NETWORK_EVENT=%d", int(event)); // No SSIDs/credentials in our diagnostic log.
+        if (event == NetworkEvent::Scanning) {
+            // ESP-Hosted/C5 must own SDMMC Slot 1 before the Slot 0 card probe.
+            sd_diagnostic_requested.store(true);
+        }
     });
     board.StartNetwork();
     ESP_LOGI("V6M0", "BOOT_READY IDF=%s; no protocol or OTA started", esp_get_idf_version());
@@ -77,8 +84,13 @@ extern "C" void app_main() {
     int64_t deadline = 0;
     int64_t next_health = esp_timer_get_time() + 10000000;
     int64_t rearm_after = 0;
+    bool sd_diagnostic_started = false;
     for (;;) {
         const int64_t now = esp_timer_get_time();
+        if (!sd_diagnostic_started && sd_diagnostic_requested.exchange(false)) {
+            sd_diagnostic_started = true;
+            Claw4StartSdCardDiagnostic();
+        }
         if (record_requested.exchange(false) && test == LocalTest::Idle) {
             ESP_LOGI("V6M0", "TOUCH count=%u; audio record begin", taps.load());
             audio.EnableWakeWordDetection(false);

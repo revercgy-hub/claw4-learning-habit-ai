@@ -6,16 +6,21 @@
 #include "display/lcd_display.h"
 #include "esp_lcd_nv3051f.h"
 #include <driver/i2c_master.h>
+#include <driver/sdmmc_host.h>
 #include <driver/uart.h>
 #include <esp_lcd_mipi_dsi.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_touch_gt911.h>
+#include <esp_idf_version.h>
 #include <esp_ldo_regulator.h>
 #include <esp_lvgl_port.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <esp_vfs_fat.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <sd_pwr_ctrl_by_on_chip_ldo.h>
+#include <sdmmc_cmd.h>
 #include <mutex>
 
 // Keep the upstream UI, but give this panel its native RGB888 frame buffers.
@@ -54,7 +59,8 @@ public:
     }
 };
 
-// M0 scope: boot, display, touch, Wi-Fi and electrical audio. Camera/SD next.
+// M0 scope: boot, display, touch, Wi-Fi, electrical audio and SD mount diagnostics.
+// Camera stays powered down pending a separate capture task.
 // The original expansion latch is read before writing; unrelated rails are preserved.
 class Claw4Board final : public WifiBoard {
     i2c_master_bus_handle_t bus_ = nullptr;
@@ -63,7 +69,8 @@ class Claw4Board final : public WifiBoard {
     Display* display_ = nullptr;
     Claw4Audio* audio_ = nullptr;
     esp_ldo_channel_handle_t dsi_power_ = nullptr;
-    esp_ldo_channel_handle_t sd_io_power_ = nullptr;
+    sd_pwr_ctrl_handle_t sd_power_control_ = nullptr;
+    sdmmc_card_t* sd_card_ = nullptr;
 
     [[noreturn]] void HaltHardware(const char* operation, esp_err_t error) {
         // Do not proceed with unknown rail state or turn a missing device into
@@ -191,8 +198,82 @@ class Claw4Board final : public WifiBoard {
         SetOutput(1, true);  // Local Wi-Fi audio route.
         SetOutput(6, true);  // Board audio module supplies I2S clocks.
         SetOutput(2, true);  // Camera remains powered down until explicit capture.
+        SetOutput(3, true);  // SD card power is active-low; leave it off until probe.
         SetInput(5);         // User power-key input, active low.
         ESP_LOGI("Claw4V6", "I2C/TCA9555 initialized");
+    }
+    static esp_err_t SharedHostedSdmmcInit() { return ESP_OK; }
+    static esp_err_t SharedHostedSdmmcDeinit() { return ESP_OK; }
+    void MountSdCardDiagnostic() {
+        // The board reference places the SD card on Slot 0 and ESP-Hosted C5
+        // on Slot 1. Start only after NetworkEvent::Scanning proves Hosted
+        // initialization has reached the Wi-Fi path.
+        SetOutput(3, false); // TCA9555 SD rail is active-low.
+        sd_pwr_ctrl_ldo_config_t ldo_config{};
+        ldo_config.ldo_chan_id = SDMMC_LDO_CHAN_ID;
+        esp_err_t error = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config,
+                                                      &sd_power_control_);
+        if (error != ESP_OK) {
+            ESP_LOGW("Claw4V6", "SD_DIAGNOSTIC unavailable power_control=%s",
+                     esp_err_to_name(error));
+            return;
+        }
+
+        sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+        host.slot = SDMMC_HOST_SLOT_0;
+        host.max_freq_khz = 20000; // Conservative 20 MHz M0 probe.
+        host.flags &= ~SDMMC_HOST_FLAG_DDR;
+#if CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE && \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+        host.init = SharedHostedSdmmcInit;
+        host.deinit = SharedHostedSdmmcDeinit;
+#endif
+        host.pwr_ctrl_handle = sd_power_control_;
+
+        sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
+#ifdef SOC_SDMMC_USE_GPIO_MATRIX
+        slot.clk = SDMMC_CLK_PIN;
+        slot.cmd = SDMMC_CMD_PIN;
+        slot.d0 = SDMMC_D0_PIN;
+        slot.d1 = SDMMC_D1_PIN;
+        slot.d2 = SDMMC_D2_PIN;
+        slot.d3 = SDMMC_D3_PIN;
+#endif
+        slot.width = 4;
+        slot.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+        const esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+            .format_if_mount_failed = false,
+            .max_files = 1,
+            .allocation_unit_size = 16 * 1024,
+        };
+        error = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot,
+                                        &mount_config, &sd_card_);
+        if (error != ESP_OK) {
+            sd_card_ = nullptr;
+            ESP_LOGW("Claw4V6", "SD_DIAGNOSTIC not_mounted error=%s; no format or file access",
+                     esp_err_to_name(error));
+            return;
+        }
+
+        const uint64_t capacity_bytes =
+            uint64_t(sd_card_->csd.capacity) * sd_card_->csd.sector_size;
+        ESP_LOGI("Claw4V6", "SD_DIAGNOSTIC mounted blocks=%lu sector_bytes=%u capacity_bytes=%llu",
+                 static_cast<unsigned long>(sd_card_->csd.capacity),
+                 unsigned(sd_card_->csd.sector_size),
+                 static_cast<unsigned long long>(capacity_bytes));
+    }
+    static void SdCardTask(void* context) {
+        static_cast<Claw4Board*>(context)->MountSdCardDiagnostic();
+        vTaskDelete(nullptr);
+    }
+    void LaunchSdCardDiagnostic() {
+        constexpr uint32_t kStackSize = 6144;
+        constexpr UBaseType_t kPriority = 1;
+        const BaseType_t result = xTaskCreate(SdCardTask, "v6_sd_probe",
+                                              kStackSize, this, kPriority, nullptr);
+        if (result != pdPASS) {
+            ESP_LOGW("Claw4V6", "SD_DIAGNOSTIC task creation failed");
+        }
     }
     void InitializeAudioModule() {
         uart_config_t config{};
@@ -279,12 +360,6 @@ class Claw4Board final : public WifiBoard {
     }
 public:
     Claw4Board() {
-        // Original Claw4 initializes this rail through its SD-card manager.
-        // Keep the same 3.3V rail even before the SD test is integrated.
-        esp_ldo_channel_config_t sd_power{};
-        sd_power.chan_id = 4;
-        sd_power.voltage_mv = 3300;
-        ESP_ERROR_CHECK(esp_ldo_acquire_channel(&sd_power, &sd_io_power_));
         InitializeBus();
         InitializeAudioModule();
         InitializeDisplay();
@@ -294,6 +369,7 @@ public:
         StartPowerKeyDiagnostic();
 #endif
     }
+    void RequestSdCardDiagnostic() { LaunchSdCardDiagnostic(); }
     Display* GetDisplay() override { return display_; }
     AudioCodec* GetAudioCodec() override { return audio_; }
     Backlight* GetBacklight() override {
@@ -302,3 +378,7 @@ public:
     }
 };
 DECLARE_BOARD(Claw4Board);
+
+void Claw4StartSdCardDiagnostic() {
+    static_cast<Claw4Board&>(Board::GetInstance()).RequestSdCardDiagnostic();
+}

@@ -1,6 +1,6 @@
 # Claw4 当前任务看板
 
-> 当前有效（2026-09-23）：候选08复检修复已提交 `26f60ec`；候选10完整构建、app-only 刷写/回读及启动和隐藏网络路径验证通过。当前固件清单 `docs/v6/V6_M0_CANDIDATE10_REPORT.md`；串口私密证据留在 `.gitignore` 覆盖的 `out/v6-device-private/`。播放可闻性获用户确认；正常音量余量与参考/AEC仍未验证。M0总验收未通过，M1保持 BACKLOG。用户已要求 Codex 直接负责后续测试与开发；当前没有 WorkBuddy 活动流。
+> 当前有效（2026-09-23）：Candidate12 已完成 IDF 构建、仅应用分区刷写与回读；启动正常，SD Slot 0 实机挂载 4,026,531,840 字节卡成功，未格式化、未枚举/读写文件。报告 `docs/v6/V6_M0_CANDIDATE12_REPORT.md`，清单 `integration/v6/m0-candidate-12.json`；原始串口证据仅留在 `.gitignore` 覆盖的 `out/v6-device-private/`。Candidate11 电源键物理短/长按尚未验证；正常音量余量与参考/AEC仍未验证，摄像头未集成。M0总验收未通过，M1保持 BACKLOG。用户已要求 Codex 直接负责后续测试与开发；当前没有 WorkBuddy 活动流。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 
