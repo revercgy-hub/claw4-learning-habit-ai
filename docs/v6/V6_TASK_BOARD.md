@@ -1,6 +1,6 @@
 # V6 唯一阶段看板
 
-> 当前有效（2026-09-23，Candidate17 后）：Candidate14/15 的软件参考已进入 AFE ch1，但各两次播放的 VAD 结果不一致且条件未配对，AEC **NOT PASS**。Candidate16 增加逐次 probe 编号与阶段 VAD 计数；Candidate17 在本地自动回放期间启用 WakeNet 并记录播放期命中。Candidate17 IDF 构建、app-only 刷写、哈希校验与 60 秒 BOOT_READY 冷启动通过，但窗口无触摸，尚未验证播放/AEC/播放中唤醒。详细证据见 `V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`。M0 仍 IN_PROGRESS；网络同步失败注入、长稳、真实相机取帧、受控 AEC/近端唤醒复测与唤醒灵敏度余量未闭合；M1 BACKLOG。
+> 当前有效（2026-09-23，Candidate17 后）：Candidate14/15 的软件参考已进入 AFE ch1，但各两次播放的 VAD 结果不一致且条件未配对，AEC **NOT PASS**。Candidate16 增加逐次 probe 编号与阶段 VAD 计数；Candidate17 在本地自动回放期间启用 WakeNet 并记录播放期命中。Candidate17 IDF 构建、app-only 刷写、哈希校验与 60 秒 BOOT_READY 冷启动通过；其后约 5 分钟无触摸串口观察无复位，音频读取失败/削波/参考队列丢帧均为 0，但该静置窗口不能代表长稳、AEC 或播放期唤醒。交互复测尚待用户方便时进行。详细证据见 `V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`。M0 仍 IN_PROGRESS；网络同步失败注入、长稳、真实相机取帧、受控 AEC/近端唤醒复测与唤醒灵敏度余量未闭合；M1 BACKLOG。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 
@@ -16,7 +16,7 @@
 | M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | SD 挂载、metadata-only camera sensor init、触摸与侧键短/长按识别已实机确认；相机未取帧，电源键产品动作未实现。物理 RX ch1 保持静默；诊断版软件参考可进入 AFE ch1，但 AEC 效果未通过 |
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
-| M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 已准备播放期 WakeNet 测试，但尚无触摸交互证据。需受控同内容重复、播放时近端唤醒保持、网络同步失败注入、长稳与取帧 |
+| M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/削波/参考丢帧为 0；交互/AEC/播放期 WakeNet 仍待复测。还需网络同步失败注入、完整长稳与实际取帧 |
 | M1 | NAS 连续语音 20 轮 | Codex | BACKLOG | M0 完成后再启；当前不链接学习代码 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
