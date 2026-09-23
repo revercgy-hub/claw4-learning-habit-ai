@@ -35,10 +35,19 @@ Candidate16 retains Candidate15's zero-added-delay software reference and adds a
 - No touch occurred in this capture, so it verifies boot stability only. Playback and AEC have not yet been retested on Candidate16.
 - Boot capture SHA256: `dd0dc8b782092c0b0d120be62fdc041e4e296d4adc3092e37a9b7f5480477c42`; raw capture stays in the ignored private directory.
 
+## Candidate 17 — local WakeNet during playback
+
+Candidate16 disabled WakeNet for the whole recording/playback probe. Candidate17 now re-enables the local detector at playback start while voice processing and the software reference are active, and attaches the probe ID/phase to any wake callback. Detected audio still stays local; the protocol and OTA loop are not started.
+
+- App image SHA256: `5f78d7f7b1e0412cb2cae1c38971b3c14c72b4d325f4dd986c00f933c43ca53c` (3,245,616 bytes); ELF SHA256: `6735476b1504efa21b257dba018e3e4c626c58b39fec4adf4cddd3a5d3e50e4`.
+- Only the factory app region at `0x200000` was written; esptool reported `Hash of data verified`. A 60-second cold-boot capture contains the matching ELF prefix and `BOOT_READY`, with no panic, abort, or `BOOT_BLOCKED` marker.
+- The boot window had no touch, so local WakeNet during playback and AEC are not yet tested on Candidate17.
+- Boot capture SHA256: `2e8d9397fb600b7176567160e23d0d9515cd5862a66b88e763101c0fffd35692`.
+
 ## Conclusion and next gate
 
 The software reference substitution is observable on AFE channel 1, and the bounded queue drained without reported drops during both candidates. The experiment does not show that AEC cancels speaker echo. VAD activity remained in quiet playback windows, and Candidate 14/15 outcomes differ without controlled, paired audio. The hardware reference channel remains physically silent; `tx_overlap_n` is a software write-call overlap statistic, not proof of acoustic or DAC alignment.
 
-**AEC is NOT PASS; M0 remains IN_PROGRESS and M1 remains BACKLOG.** Do not claim simultaneous playback/listening or wake-word performance during playback. The next meaningful test must use the same short spoken phrase and volume for several paired trials, with the operator quiet during playback, then a separate near-end wake phrase while playback is active. Candidate16 now logs each probe ID, recording/playback phase, VAD transitions, and playback VAD-onset total; correlate these with injected reference level, queue drops, and the user's audibility report. Until those results are available, do not tune delay based on Candidates 14/15 alone. AEC product integration stays behind this gate.
+**AEC is NOT PASS; M0 remains IN_PROGRESS and M1 remains BACKLOG.** Do not claim simultaneous playback/listening or wake-word performance during playback. Candidate17 is ready for a controlled test: first use the same short spoken phrase and volume for several paired trials, staying quiet during playback; then repeat with one near-end “你好小智” during playback. Candidate17 logs each probe ID, recording/playback phase, VAD transitions, playback VAD-onset total, and wake detections during playback; correlate these with injected reference level, queue drops, and the user's audibility report. Until those results are available, do not tune delay based on Candidates 14/15 alone. AEC product integration stays behind this gate.
 
 Other M0 gaps remain: synchronous network failure injection, longer stability coverage, actual camera frame capture, and wake-word sensitivity/headroom. Candidate 13's sensor initialization and wake tests do not close those items. Raw UART captures remain in ignored `out/v6-device-private/`; no raw audio is stored in the repository.

@@ -60,9 +60,10 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("touch_init",          "line",  r"Claw4V6: GT911 touch initialized"),
     ("touch_last_count",    "int",   r"V6M0: TOUCH count=(\d+)"),
     ("touch_record_cycles", "count", r"V6M0: TOUCH count=\d+; (?:audio record begin|probe=\d+ phase=recording begin)"),
-    ("reference_probe_begins", "count", r"V6M0: LOCAL_REFERENCE_PROBE_BEGIN id=\d+ phase=playback;"),
+    ("reference_probe_begins", "count", r"V6M0: LOCAL_REFERENCE_PROBE_BEGIN id=\d+ phase=playback(?: wake_enabled=1)?;"),
     ("reference_probe_ends", "count", r"V6M0: LOCAL_REFERENCE_PROBE_END id=\d+ drained=\d+ playback_vad_onsets=\d+"),
     ("reference_probe_vad", "count", r"V6M0: LOCAL_REFERENCE_PROBE_END id=\d+ drained=\d+ playback_vad_onsets=[1-9]\d*"),
+    ("reference_probe_wake", "count", r"V6M0: WAKE_DETECTED \(local only\) probe=\d+ phase=2 count=\d+"),
     # --- audio --------------------------------------------------------------
     ("audio_i2s",           "line",  r"Claw4Audio: I2S slave .*"),
     ("audio_module_probe",  "line",  r"Claw4V6: Audio module local-mode response .*"),

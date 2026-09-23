@@ -175,15 +175,17 @@ class SignalTests(unittest.TestCase):
     def test_candidate16_phase_tagged_probe_signals(self):
         path = _write(self._dir.name, "candidate16.txt", """\
 I (17000) V6M0: TOUCH count=1; probe=1 phase=recording begin
-I (20000) V6M0: LOCAL_REFERENCE_PROBE_BEGIN id=1 phase=playback; RX active; no upload
+I (20000) V6M0: LOCAL_REFERENCE_PROBE_BEGIN id=1 phase=playback wake_enabled=1; RX active; no upload
 I (20100) V6M0: VAD probe=1 phase=2 speaking=1 count=1 playback_onsets=1
-I (21000) V6M0: LOCAL_REFERENCE_PROBE_END id=1 drained=1 playback_vad_onsets=1
+I (20200) V6M0: WAKE_DETECTED (local only) probe=1 phase=2 count=1
+I (21000) V6M0: LOCAL_REFERENCE_PROBE_END id=1 drained=1 playback_vad_onsets=1 playback_wake_detections=1
 """)
         signals = hw_matrix.parse_boot_log(path)["signals"]
         self.assertEqual(signals["touch_record_cycles"], 1)
         self.assertEqual(signals["reference_probe_begins"], 1)
         self.assertEqual(signals["reference_probe_ends"], 1)
         self.assertEqual(signals["reference_probe_vad"], 1)
+        self.assertEqual(signals["reference_probe_wake"], 1)
 
     def test_health_samples_carry_real_semantics(self):
         health = self.boot()["health"]

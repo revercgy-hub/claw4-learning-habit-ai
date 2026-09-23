@@ -1,6 +1,6 @@
 # Claw4 当前任务看板
 
-> 当前有效（2026-09-23，Candidate16 后）：Candidate14/15 app-only 刷写成功并确认软件参考进入 AFE ch1，但 AEC **NOT PASS**；两组 VAD 结果不一致且测试未配对。Candidate16 增加逐次 probe/音频阶段/VAD 汇总日志，完成 IDF 构建、app-only 刷写和 60 秒 BOOT_READY 冷启动；此窗口无触摸，Candidate16 播放/AEC 尚未测试。详细证据见 `docs/v6/V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`；原始 UART 保存在忽略目录 `out/v6-device-private/`。M0 保持 IN_PROGRESS，M1 BACKLOG；待受控 AEC/播放中近端唤醒、网络同步失败注入、长稳与真实相机取帧。用户授权 Codex 继续直接开发与测试；没有 WorkBuddy 活动流。
+> 当前有效（2026-09-23，Candidate17 后）：Candidate14/15 app-only 刷写确认软件参考进入 AFE ch1，但 AEC **NOT PASS**，两组 VAD 结果不一致且测试未配对。Candidate16 增加 probe/阶段/VAD 归属；Candidate17 只在本地回放测试阶段启用 WakeNet，并记录播放期命中。Candidate17 已 IDF 构建、app-only 刷写并通过 60 秒 BOOT_READY 冷启动，但该窗口无触摸，播放/AEC/播放中唤醒都尚未测试。详细证据见 `docs/v6/V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`；原始 UART 保存在忽略目录 `out/v6-device-private/`。M0 保持 IN_PROGRESS，M1 BACKLOG；待受控 AEC/播放中近端唤醒、网络同步失败注入、长稳与真实相机取帧。用户授权 Codex 继续直接开发与测试；没有 WorkBuddy 活动流。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 

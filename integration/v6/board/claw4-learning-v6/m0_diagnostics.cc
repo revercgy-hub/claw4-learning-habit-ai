@@ -26,6 +26,7 @@ static std::atomic<unsigned> vad_events{0};
 static std::atomic<unsigned> probe_sequence{0};
 static std::atomic<unsigned> active_probe_id{0};
 static std::atomic<unsigned> playback_vad_onsets{0};
+static std::atomic<unsigned> playback_wake_detections{0};
 static std::atomic<unsigned> probe_phase{0}; // 0=idle, 1=recording, 2=playback
 static std::atomic<bool> rearm_requested{false};
 static std::atomic<bool> sd_diagnostic_requested{false};
@@ -49,7 +50,11 @@ extern "C" void app_main() {
     AudioServiceCallbacks callbacks;
     callbacks.on_wake_word_detected = [](const std::string&) {
         const auto count = wake_events.fetch_add(1) + 1;
-        ESP_LOGI("V6M0", "WAKE_DETECTED (local only) count=%u", count);
+        const unsigned phase = probe_phase.load();
+        const unsigned probe = phase == 0 ? 0 : active_probe_id.load();
+        if (phase == 2) playback_wake_detections.fetch_add(1);
+        ESP_LOGI("V6M0", "WAKE_DETECTED (local only) probe=%u phase=%u count=%u",
+                 probe, phase, count);
         rearm_requested.store(true);
     };
     callbacks.on_vad_change = [](bool speaking) {
@@ -106,6 +111,7 @@ extern "C" void app_main() {
             const unsigned probe = probe_sequence.fetch_add(1) + 1;
             active_probe_id.store(probe);
             playback_vad_onsets.store(0);
+            playback_wake_detections.store(0);
             probe_phase.store(1);
             ESP_LOGI("V6M0", "TOUCH count=%u; probe=%u phase=recording begin", taps.load(), probe);
             audio.EnableWakeWordDetection(false);
@@ -120,9 +126,10 @@ extern "C" void app_main() {
         }
         if (test == LocalTest::Recording && now >= deadline) {
             probe_phase.store(2);
+            audio.EnableWakeWordDetection(true);
             audio.EnableAudioTesting(false);
             ESP_LOGI("V6M0", "Audio testing playback queued probe=%u", active_probe_id.load());
-            ESP_LOGI("V6M0", "LOCAL_REFERENCE_PROBE_BEGIN id=%u phase=playback; RX active; no upload",
+            ESP_LOGI("V6M0", "LOCAL_REFERENCE_PROBE_BEGIN id=%u phase=playback wake_enabled=1; RX active; no upload",
                      active_probe_id.load());
             test = LocalTest::Playback;
             deadline = now + 10000000;
@@ -132,8 +139,9 @@ extern "C" void app_main() {
             if (!drained) audio.ResetDecoder();
             audio.EnableVoiceProcessing(false);
             probe_phase.store(0);
-            ESP_LOGI("V6M0", "LOCAL_REFERENCE_PROBE_END id=%u drained=%d playback_vad_onsets=%u",
-                     active_probe_id.load(), drained, playback_vad_onsets.load());
+            ESP_LOGI("V6M0", "LOCAL_REFERENCE_PROBE_END id=%u drained=%d playback_vad_onsets=%u playback_wake_detections=%u",
+                     active_probe_id.load(), drained, playback_vad_onsets.load(),
+                     playback_wake_detections.load());
             rearm_requested.store(false);
             audio.EnableWakeWordDetection(true);
             test = LocalTest::Idle;
