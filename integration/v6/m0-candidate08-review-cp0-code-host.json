@@ -1,0 +1,113 @@
+{
+  "checkpoint": "CP0",
+  "date": "2026-09-23T09:19:00+08:00",
+  "worktree": "E:\\workbuddy\\claw4-v6-wb-c08",
+  "branch": "workbuddy-v6-m0-candidate08-review",
+  "implementation_base_sha": "1907730926d383072dc267201c6f359c4a001231",
+  "expected_base_sha": "1907730926d383072dc267201c6f359c4a001231",
+  "candidate_manifest": "m0-candidate-08.json",
+  "verification_commands": [
+    {
+      "what": "62 Python unittests",
+      "command": "python -m unittest discover -s tools/v6 -t tools/v6 -p test_*.py",
+      "result": "Ran 62 tests, OK"
+    },
+    {
+      "what": "C++ policy tests",
+      "command": "g++ -std=c++17 -Wall -Wextra -Werror tools/v6/test_saved_network_policy.cc -o out/v6-network-policy-test.exe && ./out/v6-network-policy-test.exe",
+      "result": "compile exit=0, run exit=0 (silent success)"
+    },
+    {
+      "what": "16 production-method host scenarios",
+      "command": "python tools/v6/test_network_station.py --source E:/v6/s1 --cxx E:/workbuddy/toolchains/w64devkit-2.9.1/bin/g++.exe",
+      "result": "PASS: 16 production-method host scenarios; no hardware claims."
+    }
+  ],
+  "code_review": {
+    "concern_config_failure_never_reuses_stale_config": {
+      "verdict": "OK",
+      "evidence": "wifi_station.cc:381-385 — on esp_wifi_set_config error it logs CONNECT_CONFIG_FAILED and `continue`s the loop without calling esp_wifi_connect(), so no connect can be issued with the previous credential."
+    },
+    "concern_sync_failures_bounded_no_abort": {
+      "verdict": "OK",
+      "evidence": "wifi_station.cc:387-392 — esp_wifi_connect error logs CONNECT_START_FAILED and advances; the finite queue is drained by a while loop (no recursion, no ESP_ERROR_CHECK), then the scan timer is armed with the current backoff."
+    },
+    "concern_failed_scan_never_triggers_hidden_fallback": {
+      "verdict": "OK",
+      "evidence": "wifi_station.cc:239-250 HandleScanDone(false) clears the queue, esp_wifi_clear_ap_list(), logs SCAN_COMPLETION_FAILED and backs off; HandleScanResult is not reached. wifi_station.cc:479 gates it on `scan != nullptr && scan->status == 0`, so a missing event payload also fails closed."
+    },
+    "concern_fallback_only_after_full_channel_no_match": {
+      "verdict": "OK",
+      "evidence": "wifi_station.cc:299-320 — the fallback sits after the `last_scan_used_saved_channels_` escalation branch, so it only runs on a successful scan that used all channels. StartScan sets last_scan_used_saved_channels_ per attempt (182-227) and clears it when it falls back to a full scan."
+    },
+    "concern_visible_ap_priority_pin_bounds_and_cap": {
+      "verdict": "OK",
+      "evidence": "Visible matches fill connect_queue_ from the RSSI-sorted scan and StartConnect consumes that queue first (275-296, 327). saved_network_policy.h:13 returns empty when pinned; :14-22 caps at 3, skips empty/over-32/over-64/NUL credentials instead of truncating, and de-duplicates by SSID. wifi_station.cc:309-315 marks them direct with channel 0 and no BSSID."
+    },
+    "concern_direct_state_transitions": {
+      "verdict": "OK",
+      "evidence": "wifi_station.cc:386 sets reconnect_count_ = MAX_RECONNECT_COUNT for a direct entry, so wifi_station.cc:492 skips the upstream five retries of the same fallback entry on disconnect and advances; :512-536 clears the queue, zeroes reconnect_count_, restores use_saved_channels_scan_ and resets the scan interval on got-IP; :116-126 resets the same state on every Start()."
+    },
+    "concern_async_disconnect_and_stop_boundary": {
+      "verdict": "OK with one observation",
+      "evidence": "WifiStation::Stop (59-98) unregisters both event handler instances first, then stops and deletes the scan timer, then stops scan/disconnect/stop and only then sets the STOPPED bit — so no callback or timer can fire after stop. STA_DISCONNECTED (480-507) has a bounded path: retries, then queue, then backoff.",
+      "observation": "wifi_station.cc:493 calls esp_wifi_connect() in the disconnect-retry path without checking its return value. A synchronous failure there arms no timer and produces no further event, so the station can go quiet until the board's 60s deadline. This is pre-existing upstream behaviour and is bounded by the board layer, but it is asymmetric with the new StartConnect handling that the same increment added. Reported, not fixed."
+    },
+    "concern_overlay_integrity_and_cmake_selection": {
+      "verdict": "OK",
+      "evidence": [
+        "Generated component vs overlay.json: 22 of 24 recorded files are byte-identical to the pinned upstream commit; the 2 files listed in `replacements` (include/wifi_station.h, wifi_station.cc) differ as intended; no unexpected differences.",
+        "`.component_hash` and `CHECKSUMS.json` are absent from the generated copy, which is what integration/v6/network/README.md states (registry checksums omitted because they describe the unmodified package). Checked, expected.",
+        "One extra file, `include/saved_network_policy.h`, is present by design (project-owned policy).",
+        "tools/v6/network_overlay.py fails closed: dependency inventory mismatch, anchor count != 1, and a missing/stale/modified local override all raise.",
+        "CMake really selects the override: E:/v6/s1/build/compile_commands.json compiles E://v6//s1//components//78__esp-wifi-connect//wifi_station.cc and out/v6-device-build-12.txt:11 says 'Using component placed at E://v6//s1//components//78__esp-wifi-connect for dependency 78/esp-wifi-connect', with :289 listing that path among the component paths."
+      ],
+      "artifact_contains_new_literals": {
+        "SAVED_DIRECT_FALLBACK": 1,
+        "SCAN_COMPLETION_FAILED": 1,
+        "CONNECT_CONFIG_FAILED": 1,
+        "LOCAL_REFERENCE_PROBE_BEGIN": 1,
+        "note": "Each appears exactly once in build/xiaozhi.bin, so the network patch and the audio probe are in the image, not only in the source tree."
+      }
+    },
+    "concern_audio_playback_consumer_local_drop_wake_restore": {
+      "verdict": "OK with one naming observation",
+      "evidence": [
+        "m0_diagnostics.cc:82-95 — on record it disables wake, clears the rearm state, then calls EnableVoiceProcessing(true) BEFORE EnableAudioTesting(true), with a comment that EnableVoiceProcessing resets decoder queues and the live consumer is what permits RX during local playback.",
+        "m0_diagnostics.cc:96-104 — playback is bounded: it ends on IsPlaybackIdle() OR a 10s deadline, and logs LOCAL_REFERENCE_PROBE_END drained=<bool>, so drained=0 is observable rather than silent.",
+        "m0_diagnostics.cc:105-110 — on a not-drained end it calls ResetDecoder(), disables voice processing and re-enables wake detection; AFE output packets are discarded locally in a bounded drain of up to 8 per loop iteration (119-122), never handed to a protocol.",
+        "m0_diagnostics.cc:135 — the loop yields with vTaskDelay(100ms), so the 8-per-iteration drain is about 80 packets/s, comfortably above an AFE packet rate of about 17/s at 60ms frames; no backpressure expected."
+      ],
+      "observation": "m0_diagnostics.cc:120-126 — the HEALTH format string ends with `vad_observable=%d` but the last argument is `test == LocalTest::Playback`. The field therefore reports whether the local playback state is active, not VAD observability. This is a mislabel in a diagnostic that this project has already relied on for judgements; I decoded it as a playback flag in my own analysis and am reporting it for Codex to rename rather than changing the tool myself."
+    }
+  },
+  "no_p0_p1": {
+    "verdict": "No P0/P1, no credential leakage in the new logs (they carry counts and error codes only), serial not opened by anyone else, and the frozen artifact matches the archive.",
+    "artifacts_match": {
+      "build_sha256": "1ef710aec525df3f91142d9ca6188b26e6881e448e72007804515a7f6ae6e7c2",
+      "archived_sha256": "1ef710aec525df3f91142d9ca6188b26e6881e448e72007804515a7f6ae6e7c2",
+      "manifest_sha256": "1ef710aec525df3f91142d9ca6188b26e6881e448e72007804515a7f6ae6e7c2"
+    }
+  },
+  "findings": [
+    {
+      "id": "OBS-08-1",
+      "severity": "P2",
+      "file": "E:/v6/s1/components/78__esp-wifi-connect/wifi_station.cc",
+      "lines": "492-497",
+      "summary": "disconnect-retry calls esp_wifi_connect() without checking the return value; no timer is armed on synchronous failure",
+      "repro": "code reading; forcing it on hardware needs a driver-state fault",
+      "impact": "station can stall until the board 60s deadline; bounded, but asymmetric with the new StartConnect path"
+    },
+    {
+      "id": "OBS-08-2",
+      "severity": "P2",
+      "file": "E:/v6/s1/main/boards/metalio/claw4-learning-v6/m0_diagnostics.cc",
+      "lines": "120-126",
+      "summary": "HEALTH's final field is printed as vad_observable= but carries `test == LocalTest::Playback`",
+      "repro": "read the format string against the argument list; during playback the field reads 1",
+      "impact": "evidence-interpretation hazard, not a functional defect"
+    }
+  ],
+  "result": "PASS - proceed to CP1"
+}
