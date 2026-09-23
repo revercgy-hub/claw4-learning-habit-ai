@@ -11,7 +11,7 @@
 
 - IDF 6.1，目标 ESP32-P4，完整重配置、编译、链接通过。
 - `python -m unittest discover -s tools/v6 -p "test_*.py"`：62 项通过。
-- `test_network_station.py --source E:/v6/s1 --cxx E:/workbuddy/toolchains/w64devkit-2.9.1/bin/g++.exe`：16 个生产方法 Host 场景通过；此套件不注入异步断线回调中的同步连接失败。
+- `test_network_station.py --source E:/v6/s1 --cxx E:/workbuddy/toolchains/w64devkit-2.9.1/bin/g++.exe`：19 个生产方法 Host 场景通过，包括直接执行生产 `WifiEventHandler` 的同步重连成功、同步失败进入退避、同步失败后推进有限候选队列三种场景。该故障仍未在真机上注入。
 - 冻结清单：[`integration/v6/m0-candidate-10.json`](../../integration/v6/m0-candidate-10.json)。
 
 ## 真机结果

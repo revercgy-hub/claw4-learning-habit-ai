@@ -14,6 +14,9 @@
 #define ESP_ERROR_CHECK(x) assert((x) == 0)
 constexpr int ESP_OK = 0, MAX_RECONNECT_COUNT = 5, WIFI_IF_STA = 0;
 constexpr int WIFI_ALL_CHANNEL_SCAN = 1, WIFI_FAST_SCAN = 2, WIFI_CONNECT_AP_BY_SIGNAL = 1;
+constexpr int WIFI_EVENT_STA_START = 1, WIFI_EVENT_SCAN_DONE = 2;
+constexpr int WIFI_EVENT_STA_DISCONNECTED = 3, WIFI_EVENT_STA_CONNECTED = 4;
+constexpr int WIFI_EVENT_CONNECTED = 1, WIFI_EVENT_SCAN_DONE_BIT = 4;
 using esp_err_t = int;
 struct wifi_ap_record_t { uint8_t ssid[33]{}, bssid[6]{}; int rssi=0, primary=0, authmode=0; };
 struct wifi_config_t {
@@ -22,6 +25,9 @@ struct wifi_config_t {
         bool bssid_set=false; } sta;
 };
 struct Saved { std::string ssid, password; };
+struct wifi_event_sta_disconnected_t { int reason = 0; };
+struct wifi_event_sta_scan_done_t { int status = 0; };
+using esp_event_base_t = int;
 using SsidItem = Saved;
 void bzero(void* p, std::size_t n) { std::memset(p, 0, n); }
 struct WifiApRecord { std::string ssid, password; int channel, authmode; uint8_t bssid[6]; bool direct=false; };
@@ -45,23 +51,32 @@ int esp_wifi_set_config(int, wifi_config_t* c) {
     return config_error;
 }
 int esp_wifi_connect() { ++connects; return connect_error; }
+int cleared_bits = 0;
+void xEventGroupClearBits(int, int bits) { cleared_bits |= bits; }
+void xEventGroupSetBits(int, int) {}
 struct WifiStation {
     std::vector<WifiApRecord> connect_queue_;
     bool last_scan_used_saved_channels_=false, use_saved_channels_scan_=false;
     uint8_t remember_bssid_=0, failure_retry_cnt_=3;
     int timer_handle_=0, scan_current_interval_microseconds_=10000000, reconnect_count_=0, scans=0, backoffs=0;
+    int event_group_=0;
+    bool was_connected_=false;
     std::string ssid_, password_;
     std::function<void(const std::string&)> on_connect_;
+    std::function<void(int)> on_disconnected_;
+    std::function<void()> on_scan_begin_;
     void StartScan() { ++scans; }
     void UpdateScanInterval() { ++backoffs; }
     void HandleScanResult();
     void HandleScanDone(bool success);
     void StartFullScan();
     void StartConnect();
+    static void WifiEventHandler(void*, esp_event_base_t, int32_t, void*);
 };
 // INSERT_PRODUCTION_METHODS
 void reset() {
     aps.clear(); configs.clear(); connects=timers=scan_error=connect_error=0;
+    cleared_bits=0;
     config_error=config_failures_left=scan_start_error=scan_starts=clears=0;
     SsidManager::GetInstance().saved={{"hidden", "password"}, {"two", "second"}, {"three", "third"}, {"four", "fourth"}};
 }
@@ -110,4 +125,18 @@ int main() {
     start_ok.StartFullScan(); assert(scan_starts==1 && timers==0);
     reset(); WifiStation completed; aps.push_back(ap);
     completed.HandleScanDone(true); assert(connects==1 && timers==0);
+    reset(); WifiStation reconnect_ok; reconnect_ok.ssid_="saved";
+    reconnect_ok.reconnect_count_=2; wifi_event_sta_disconnected_t event{};
+    WifiStation::WifiEventHandler(&reconnect_ok, 0, WIFI_EVENT_STA_DISCONNECTED, &event);
+    assert(connects==1 && reconnect_ok.reconnect_count_==3 && timers==0);
+    reset(); WifiStation reconnect_failed; reconnect_failed.ssid_="saved";
+    reconnect_failed.reconnect_count_=2; connect_error=9;
+    WifiStation::WifiEventHandler(&reconnect_failed, 0, WIFI_EVENT_STA_DISCONNECTED, &event);
+    assert(connects==1 && reconnect_failed.reconnect_count_==MAX_RECONNECT_COUNT);
+    assert(timers==1 && reconnect_failed.backoffs==1);
+    reset(); WifiStation reconnect_advance; reconnect_advance.ssid_="saved";
+    reconnect_advance.reconnect_count_=2; reconnect_advance.connect_queue_.push_back({"next","secret",0,0,{0},true});
+    connect_error=9;
+    WifiStation::WifiEventHandler(&reconnect_advance, 0, WIFI_EVENT_STA_DISCONNECTED, &event);
+    assert(connects==2 && reconnect_advance.ssid_=="next" && timers==1);
 }

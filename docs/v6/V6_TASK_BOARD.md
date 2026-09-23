@@ -1,6 +1,6 @@
 # V6 唯一阶段看板
 
-> 当前有效（2026-09-23）：`26f60ec` 修复断线同步重连错误处理和 HEALTH 字段命名；候选10 IDF 构建、62 项 Python、16 个网络 Host 场景通过。设备 app-only 写入/回读一致，BOOT_READY、资源应用和隐藏网络回退/IP PASS。用户确认说话录放可闻；正常音量余量、同步重连故障注入及 AEC 参考仍待验证。证据见 `V6_M0_CANDIDATE10_REPORT.md`。M0 未总验收，M1 BACKLOG。
+> 当前有效（2026-09-23）：`26f60ec` 修复断线同步重连错误处理和 HEALTH 字段命名；候选10 IDF 构建、62 项 Python、19 个网络 Host 场景通过。设备 app-only 写入/回读一致，BOOT_READY、资源应用和隐藏网络回退/IP PASS。用户确认说话录放可闻；正常音量余量、真机同步重连故障注入及 AEC 参考仍待验证。证据见 `V6_M0_CANDIDATE10_REPORT.md`。M0 未总验收，M1 BACKLOG。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 

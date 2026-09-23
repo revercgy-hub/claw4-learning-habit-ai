@@ -27,7 +27,7 @@ if __name__ == '__main__':
     fixture = (ROOT / 'tools/v6/network_station_fixture.cc').read_text()
     fixture = fixture.replace('// INSERT_PRODUCTION_METHODS',
                               ''.join(method(source, name) for name in
-                                      ['HandleScanResult', 'StartConnect', 'HandleScanDone', 'StartFullScan']))
+                                      ['HandleScanResult', 'StartConnect', 'HandleScanDone', 'StartFullScan', 'WifiEventHandler']))
     env = os.environ.copy()
     env['PATH'] = str(args.cxx.parent) + os.pathsep + env['PATH']
     with tempfile.TemporaryDirectory(prefix='claw4-network-') as temp:
@@ -38,4 +38,4 @@ if __name__ == '__main__':
                         '-Wno-class-memaccess', '-Wno-missing-field-initializers',
                         '-I' + str(SPEC), str(cpp), '-o', str(exe)], check=True, env=env)
         subprocess.run([str(exe)], check=True, env=env)
-    print('PASS: 16 production-method host scenarios; no hardware claims.')
+    print('PASS: 19 production-method host scenarios; no hardware claims.')
