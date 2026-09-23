@@ -1,0 +1,37 @@
+{
+  "schema": "claw4-v6-audio-evidence/1",
+  "sessions": 3,
+  "captures": 4,
+  "elf_sha256": "50fb62c30f8e82797f40ee6e3ab085cebc9281986883db06823d61da761708ca",
+  "wake_events_observed": 0,
+  "health_samples_observed": 19,
+  "rearm_lines_observed": 0,
+  "channels": {
+    "0": {
+      "windows": 202,
+      "samples": 3200160,
+      "clipped": 0,
+      "peak": 25859,
+      "rms_max": 2380,
+      "raw_peak": 1694695424,
+      "read_failures": 0,
+      "tx_overlap_n": 0,
+      "tx_overlap_peak": 0,
+      "input_status": "OBSERVED"
+    },
+    "1": {
+      "windows": 202,
+      "samples": 3200160,
+      "clipped": 0,
+      "peak": 56,
+      "rms_max": 4,
+      "raw_peak": 3670016,
+      "read_failures": 0,
+      "tx_overlap_n": 0,
+      "tx_overlap_peak": 0,
+      "input_status": "OBSERVED"
+    }
+  },
+  "reference_status": "HARDWARE_VERIFY_REQUIRED",
+  "limits": "Session continuity operator-attested. TX overlap is write-call overlap, not physical DAC timing. Zero idle reference does not prove failure; nonzero reference does not prove AEC quality. Counts cover captured events only."
+}
