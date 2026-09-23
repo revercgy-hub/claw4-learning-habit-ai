@@ -37,7 +37,7 @@ Date: 2026-09-23. Candidate13 extends Candidate12 with a one-shot camera sensor-
 - Camera behavior beyond successful sensor-stack initialization remains unverified. No image was captured or viewed.
 - Power-key short/long detection is verified; product power behavior is not implemented. Wake word is functional at low volume but only two of four requested utterances were detected. Normal-volume headroom remains only partially characterized.
 - AEC/reference-channel behavior is a reproduced defect and blocks M0 closure. The Claw4 RX reference slot is silent during playback; the M0 harness uses the configured device AEC. Do not proceed to concurrent TTS/listen claims or M1 until the reference source/timing is corrected and re-tested.
-- Next engineering experiment: feed a bounded, post-volume copy of I2S TX PCM as the AFE `R` channel, with delay tied to measured playback/input timing. Check both VAD suppression during quiet playback and wake-word retention for near-end speech. This is a software-reference hypothesis, not yet a fix or a claim that the hardware module cannot provide a reference.
+- Follow-up experiment: bounded, post-volume I2S TX PCM was fed to AFE channel 1 in Candidates 14 and 15, with 90 ms and zero added delay. The reference samples reached AFE, but VAD activity remained in quiet playback windows and the two short trials were not controlled or paired. **AEC did not pass.** See [`V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`](V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md) for hashes, constraints, and the next test gate.
 - Actual Wi-Fi synchronous failure injection, SD hot-plug/repeated mounts, and long-duration stress remain open. Recovery writeback remains outside this candidate.
 - M0 is not accepted; M1 remains BACKLOG.
 
