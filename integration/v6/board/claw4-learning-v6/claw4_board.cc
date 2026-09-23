@@ -1,5 +1,6 @@
 #include "wifi_board.h"
 #include "config.h"
+#include "sdkconfig.h"
 #include "claw4_audio.h"
 #include "board_algorithms.h"
 #include "display/lcd_display.h"
@@ -12,6 +13,9 @@
 #include <esp_ldo_regulator.h>
 #include <esp_lvgl_port.h>
 #include <esp_log.h>
+#include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <mutex>
 
 // Keep the upstream UI, but give this panel its native RGB888 frame buffers.
@@ -102,6 +106,72 @@ class Claw4Board final : public WifiBoard {
         WriteExpander(2, output); // Configure latch before changing direction.
         WriteExpander(6, ReadExpander(6) & ~(1U << pin));
     }
+    void SetInput(uint8_t pin) {
+        std::lock_guard<std::mutex> lock(expander_mutex_);
+        WriteExpander(6, ReadExpander(6) | (1U << pin));
+    }
+    esp_err_t ReadInputLevels(uint16_t* levels) {
+        std::lock_guard<std::mutex> lock(expander_mutex_);
+        uint8_t reg = 0; // TCA9555 input port 0/1 registers.
+        uint8_t data[2]{};
+        const esp_err_t error = i2c_master_transmit_receive(
+            expander_, &reg, 1, data, sizeof(data), 100);
+        if (error == ESP_OK) {
+            *levels = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+        }
+        return error;
+    }
+    void MonitorPowerKey() {
+        constexpr uint16_t kPowerKeyInput = 1U << 5; // TCA9555 P0_5, active low.
+        constexpr uint32_t kPollMs = 20;
+        uint16_t input_levels = 0;
+        esp_err_t read_error = ReadInputLevels(&input_levels);
+        if (read_error != ESP_OK) {
+            ESP_LOGW("Claw4V6", "POWER_KEY_DIAGNOSTIC unavailable at start error=%s",
+                     esp_err_to_name(read_error));
+            return;
+        }
+        const bool pressed = (input_levels & kPowerKeyInput) == 0;
+        claw4::ActiveLowButtonDebouncer debounce(50, 1500);
+        debounce.Begin(pressed, uint64_t(esp_timer_get_time() / 1000));
+        ESP_LOGI("Claw4V6", "POWER_KEY_DIAGNOSTIC armed_after_boot_release=%d",
+                 pressed ? 0 : 1);
+        unsigned consecutive_read_errors = 0;
+        for (;;) {
+            read_error = ReadInputLevels(&input_levels);
+            if (read_error != ESP_OK) {
+                if (consecutive_read_errors++ % 50 == 0) {
+                    ESP_LOGW("Claw4V6", "POWER_KEY_DIAGNOSTIC read error=%s",
+                             esp_err_to_name(read_error));
+                }
+                vTaskDelay(pdMS_TO_TICKS(kPollMs));
+                continue;
+            }
+            consecutive_read_errors = 0;
+            const bool current_pressed = (input_levels & kPowerKeyInput) == 0;
+            const auto event = debounce.Sample(
+                current_pressed, uint64_t(esp_timer_get_time() / 1000));
+            if (event == claw4::ButtonEvent::ShortPress) {
+                ESP_LOGI("Claw4V6", "POWER_KEY_SHORT detected; diagnostic has no power side effects");
+            } else if (event == claw4::ButtonEvent::LongPress) {
+                ESP_LOGI("Claw4V6", "POWER_KEY_LONG detected; diagnostic has no power side effects");
+            }
+            vTaskDelay(pdMS_TO_TICKS(kPollMs));
+        }
+    }
+    static void PowerKeyTask(void* context) {
+        static_cast<Claw4Board*>(context)->MonitorPowerKey();
+        vTaskDelete(nullptr);
+    }
+    void StartPowerKeyDiagnostic() {
+        constexpr uint32_t kStackSize = 3072;
+        constexpr UBaseType_t kPriority = 2;
+        const BaseType_t result = xTaskCreate(PowerKeyTask, "v6_power_key",
+                                              kStackSize, this, kPriority, nullptr);
+        if (result != pdPASS) {
+            ESP_LOGE("Claw4V6", "POWER_KEY_DIAGNOSTIC task creation failed");
+        }
+    }
     void InitializeBus() {
         i2c_master_bus_config_t config{};
         config.i2c_port = I2C_NUM_1;
@@ -121,6 +191,7 @@ class Claw4Board final : public WifiBoard {
         SetOutput(1, true);  // Local Wi-Fi audio route.
         SetOutput(6, true);  // Board audio module supplies I2S clocks.
         SetOutput(2, true);  // Camera remains powered down until explicit capture.
+        SetInput(5);         // User power-key input, active low.
         ESP_LOGI("Claw4V6", "I2C/TCA9555 initialized");
     }
     void InitializeAudioModule() {
@@ -219,6 +290,9 @@ public:
         InitializeDisplay();
         InitializeTouch();
         audio_ = new Claw4Audio([this](bool enable) { SetOutput(8, enable); });
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
+        StartPowerKeyDiagnostic();
+#endif
     }
     Display* GetDisplay() override { return display_; }
     AudioCodec* GetAudioCodec() override { return audio_; }

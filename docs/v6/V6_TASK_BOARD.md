@@ -1,6 +1,6 @@
 # V6 唯一阶段看板
 
-> 当前有效（2026-09-23）：`26f60ec` 修复断线同步重连错误处理和 HEALTH 字段命名；候选10 IDF 构建、62 项 Python、19 个网络 Host 场景通过。设备 app-only 写入/回读一致，BOOT_READY、资源应用和隐藏网络回退/IP PASS。用户确认说话录放可闻；正常音量余量、真机同步重连故障注入及 AEC 参考仍待验证。证据见 `V6_M0_CANDIDATE10_REPORT.md`。M0 未总验收，M1 BACKLOG。
+> 当前有效（2026-09-23）：候选10网络修复及候选11板级按键诊断已通过 IDF 构建、62 项 Python 与 19 个网络 Host 场景；候选11 app-only 写入/完整回读哈希一致，`BOOT_READY`、资源应用、按键诊断 armed。短按/长按的真机事件日志仍待操作确认。用户确认说话录放可闻；正常音量余量、真机同步重连故障注入及 AEC 参考仍待验证。证据见 `V6_M0_CANDIDATE10_REPORT.md` 与 `V6_M0_CANDIDATE11_REPORT.md`。M0 未总验收，M1 BACKLOG。
 
 > 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
 
@@ -13,7 +13,7 @@
 | --- | --- | --- | --- | --- |
 | 0 | 架构/迁移构建入口/边界检查 | Codex | REVIEW_READY | 代码/文档已交付；78 case PASS，协调器受应用控制阻断，不能标全量 PASS |
 | M0-1 | 四方源码冻结 + 环境/恢复清单 | Codex | IN_PROGRESS | SHA/IDF6.1/依赖锁已冻结；32MiB 完整备份和实际布局已核对，恢复写回尚未实测 |
-| M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | m0.1 构建通过；屏幕/触摸/音频/C5 诊断候选，Camera/SD/电源键待补 |
+| M0-2 | Claw4 Board Port | Codex | IN_PROGRESS | 候选11加入只记录、不控电源的 TCA9555 P0_5 短按/长按诊断；待真机事件日志确认；Camera/SD 与产品电源键动作待补 |
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | 候选08复检与候选10回归 | Codex | IN_PROGRESS | 报告 V6_M0_CANDIDATE10_REPORT.md；基础稳定性引用05，候选08网络差异已测，候选10启动/网络/录放部分已测；AEC参考与音量余量未闭合 |

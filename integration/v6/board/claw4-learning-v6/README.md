@@ -21,7 +21,10 @@ Disabling the option restores upstream main.cc for the later M1 stage.
 Implemented candidate: NV3051F/GT911, TCA9555, audio module local mode, stereo32
 I2S slave input/reference, amplifier gating, C5 SDIO configuration. Actual panel
 and microphone/reference channel order must be checked on hardware.
-Camera/SD and power-key integration remain outstanding; no M0 PASS claim.
+The M0 diagnostics also sample the active-low TCA9555 P0_5 power key and log
+debounced short/long presses. A key held during boot is ignored until release;
+this diagnostic has no shutdown, standby, or other power-state side effects.
+Camera/SD and product power-key actions remain outstanding; no M0 PASS claim.
 
 Build with tools/v6/stage_device.py into a fresh short ASCII path, then
 tools/v6/build_device.py. Stage script must match the pinned upstream anchors.

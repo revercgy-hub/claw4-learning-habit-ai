@@ -4,6 +4,31 @@
 #include <vector>
 
 int main() {
+    using claw4::ActiveLowButtonDebouncer;
+    using claw4::ButtonEvent;
+    ActiveLowButtonDebouncer boot_held;
+    boot_held.Begin(true, 0);
+    assert(boot_held.Sample(true, 2000) == ButtonEvent::None);
+    assert(boot_held.Sample(false, 2100) == ButtonEvent::None);
+    assert(boot_held.Sample(false, 2150) == ButtonEvent::None);
+    assert(boot_held.Sample(true, 2200) == ButtonEvent::None);
+    assert(boot_held.Sample(true, 2250) == ButtonEvent::None);
+    assert(boot_held.Sample(false, 2300) == ButtonEvent::None); // rejected bounce
+    assert(boot_held.Sample(true, 2320) == ButtonEvent::None);
+    assert(boot_held.Sample(true, 2370) == ButtonEvent::None);
+    assert(boot_held.Sample(false, 2500) == ButtonEvent::None);
+    assert(boot_held.Sample(false, 2550) == ButtonEvent::ShortPress);
+
+    ActiveLowButtonDebouncer long_press;
+    long_press.Begin(false, 0);
+    assert(long_press.Sample(true, 100) == ButtonEvent::None);
+    assert(long_press.Sample(true, 150) == ButtonEvent::None);
+    assert(long_press.Sample(true, 1649) == ButtonEvent::None);
+    assert(long_press.Sample(true, 1650) == ButtonEvent::LongPress);
+    assert(long_press.Sample(true, 3000) == ButtonEvent::None);
+    assert(long_press.Sample(false, 3010) == ButtonEvent::None);
+    assert(long_press.Sample(false, 3060) == ButtonEvent::None);
+
     for (int sample = -32768; sample <= 32767; ++sample)
         assert(claw4::DecodePcm16(int32_t(int64_t(sample) * 65536)) == sample);
     assert(claw4::DecodePcm16(INT32_MIN) == -32768);
