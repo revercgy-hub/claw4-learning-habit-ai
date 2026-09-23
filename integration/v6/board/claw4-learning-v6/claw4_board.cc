@@ -17,13 +17,22 @@
 #include <esp_lvgl_port.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <esp_video_device.h>
+#include <esp_video_ioctl.h>
 #include <esp_video_init.h>
 #include <esp_vfs_fat.h>
+#include <fcntl.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <linux/videodev2.h>
 #include <sd_pwr_ctrl_by_on_chip_ldo.h>
 #include <sdmmc_cmd.h>
 #include <mutex>
+#include <sys/errno.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 // Keep the upstream UI, but give this panel its native RGB888 frame buffers.
 // The generic MipiLcdDisplay defaults to RGB565 partial transfers.
@@ -61,8 +70,8 @@ public:
     }
 };
 
-// M0 scope: boot, display, touch, Wi-Fi, electrical audio and SD mount diagnostics.
-// Camera stays powered down pending a separate capture task.
+// M0 scope: boot, display, touch, Wi-Fi, electrical audio, SD mount and one-frame camera diagnostics.
+// The camera returns to power-down after each boot-time diagnostic.
 // The original expansion latch is read before writing; unrelated rails are preserved.
 class Claw4Board final : public WifiBoard {
     i2c_master_bus_handle_t bus_ = nullptr;
@@ -279,9 +288,235 @@ class Claw4Board final : public WifiBoard {
             ESP_LOGW("Claw4V6", "SD_DIAGNOSTIC task creation failed");
         }
     }
+
+    bool CaptureSingleCameraFrame() {
+        constexpr uint32_t kBufferCount = 2;
+        constexpr uint32_t kMaxFrameBytes = 2 * 1024 * 1024;
+        constexpr v4l2_buf_type kType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        struct MappedBuffer {
+            void* address = nullptr;
+            size_t length = 0;
+        } buffers[kBufferCount];
+
+        bool captured = false;
+        bool buffers_requested = false;
+        bool streaming = false;
+        uint32_t mapped_count = 0;
+        uint32_t frame_width = 0;
+        uint32_t frame_height = 0;
+        uint32_t frame_format = 0;
+        uint32_t frame_bytes = 0;
+        int cleanup_error = 0;
+        const char* failed_stage = "open";
+        int capture_error = 0;
+        int fd = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDONLY);
+        if (fd >= 0) {
+            do {
+                v4l2_capability capability{};
+                failed_stage = "query_capability";
+                if (ioctl(fd, VIDIOC_QUERYCAP, &capability) != 0) {
+                    capture_error = errno;
+                    break;
+                }
+                const uint32_t capabilities =
+                    (capability.capabilities & V4L2_CAP_DEVICE_CAPS)
+                        ? capability.device_caps : capability.capabilities;
+                if ((capabilities & V4L2_CAP_VIDEO_CAPTURE) == 0 ||
+                    (capabilities & V4L2_CAP_STREAMING) == 0) {
+                    capture_error = ENOTSUP;
+                    break;
+                }
+
+                bool raw8_supported = false;
+                for (uint32_t index = 0; index < 32; ++index) {
+                    v4l2_fmtdesc description{};
+                    description.index = index;
+                    description.type = kType;
+                    if (ioctl(fd, VIDIOC_ENUM_FMT, &description) != 0) break;
+                    if (description.pixelformat == V4L2_PIX_FMT_SBGGR8) {
+                        raw8_supported = true;
+                        break;
+                    }
+                }
+                failed_stage = "enumerate_raw8";
+                if (!raw8_supported) {
+                    capture_error = ENOTSUP;
+                    break;
+                }
+
+                uint32_t selected_width = 0;
+                uint32_t selected_height = 0;
+                uint64_t selected_area = UINT64_MAX;
+                for (uint32_t index = 0; index < 32; ++index) {
+                    v4l2_frmsizeenum size{};
+                    size.index = index;
+                    size.pixel_format = V4L2_PIX_FMT_SBGGR8;
+                    if (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &size) != 0) break;
+                    uint32_t width = 0;
+                    uint32_t height = 0;
+                    if (size.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
+                        width = size.discrete.width;
+                        height = size.discrete.height;
+                    } else if (size.type == V4L2_FRMSIZE_TYPE_STEPWISE ||
+                               size.type == V4L2_FRMSIZE_TYPE_CONTINUOUS) {
+                        width = size.stepwise.min_width;
+                        height = size.stepwise.min_height;
+                    }
+                    if (width == 0 || height == 0) continue;
+                    const uint64_t area = uint64_t(width) * height;
+                    if (area < selected_area) {
+                        selected_area = area;
+                        selected_width = width;
+                        selected_height = height;
+                    }
+                }
+                failed_stage = "enumerate_frame_size";
+                if (selected_width == 0 || selected_height == 0) {
+                    capture_error = ENOTSUP;
+                    break;
+                }
+
+                v4l2_format format{};
+                format.type = kType;
+                format.fmt.pix.width = selected_width;
+                format.fmt.pix.height = selected_height;
+                format.fmt.pix.pixelformat = V4L2_PIX_FMT_SBGGR8;
+                failed_stage = "set_frame_format";
+                if (ioctl(fd, VIDIOC_S_FMT, &format) != 0) {
+                    capture_error = errno;
+                    break;
+                }
+                if (format.fmt.pix.pixelformat != V4L2_PIX_FMT_SBGGR8 ||
+                    format.fmt.pix.width == 0 || format.fmt.pix.height == 0 ||
+                    format.fmt.pix.sizeimage == 0 ||
+                    format.fmt.pix.sizeimage > kMaxFrameBytes) {
+                    capture_error = EOVERFLOW;
+                    break;
+                }
+
+                v4l2_requestbuffers request{};
+                request.count = kBufferCount;
+                request.type = kType;
+                request.memory = V4L2_MEMORY_MMAP;
+                failed_stage = "request_buffers";
+                if (ioctl(fd, VIDIOC_REQBUFS, &request) != 0) {
+                    capture_error = errno;
+                    break;
+                }
+                buffers_requested = true;
+                if (request.count == 0 || request.count > kBufferCount) {
+                    capture_error = ENOMEM;
+                    break;
+                }
+
+                for (uint32_t index = 0; index < request.count; ++index) {
+                    v4l2_buffer buffer{};
+                    buffer.type = kType;
+                    buffer.memory = V4L2_MEMORY_MMAP;
+                    buffer.index = index;
+                    failed_stage = "query_buffer";
+                    if (ioctl(fd, VIDIOC_QUERYBUF, &buffer) != 0) {
+                        capture_error = errno;
+                        break;
+                    }
+                    if (buffer.length == 0 || buffer.length > kMaxFrameBytes) {
+                        capture_error = EOVERFLOW;
+                        break;
+                    }
+                    buffers[index].length = buffer.length;
+                    buffers[index].address = mmap(nullptr, buffer.length,
+                                                  PROT_READ | PROT_WRITE, MAP_SHARED,
+                                                  fd, buffer.m.offset);
+                    if (buffers[index].address == MAP_FAILED) {
+                        buffers[index].address = nullptr;
+                        capture_error = errno;
+                        break;
+                    }
+                    ++mapped_count;
+                    failed_stage = "queue_buffer";
+                    if (ioctl(fd, VIDIOC_QBUF, &buffer) != 0) {
+                        capture_error = errno;
+                        break;
+                    }
+                }
+                if (capture_error != 0) break;
+
+                timeval dequeue_timeout{};
+                dequeue_timeout.tv_sec = 3;
+                failed_stage = "set_dequeue_timeout";
+                if (ioctl(fd, VIDIOC_S_DQBUF_TIMEOUT, &dequeue_timeout) != 0) {
+                    capture_error = errno;
+                    break;
+                }
+
+                int type = kType;
+                failed_stage = "stream_on";
+                if (ioctl(fd, VIDIOC_STREAMON, &type) != 0) {
+                    capture_error = errno;
+                    break;
+                }
+                streaming = true;
+
+                failed_stage = "dequeue_frame";
+                v4l2_buffer frame{};
+                frame.type = kType;
+                frame.memory = V4L2_MEMORY_MMAP;
+                if (ioctl(fd, VIDIOC_DQBUF, &frame) != 0) {
+                    capture_error = errno;
+                } else if (frame.index >= mapped_count ||
+                           (frame.flags & V4L2_BUF_FLAG_DONE) == 0 ||
+                           (frame.flags & V4L2_BUF_FLAG_ERROR) != 0 ||
+                           frame.bytesused == 0 ||
+                           frame.bytesused > buffers[frame.index].length) {
+                    capture_error = EIO;
+                } else {
+                    captured = true;
+                    frame_width = format.fmt.pix.width;
+                    frame_height = format.fmt.pix.height;
+                    frame_format = format.fmt.pix.pixelformat;
+                    frame_bytes = frame.bytesused;
+                }
+            } while (false);
+        } else {
+            capture_error = errno;
+        }
+
+        if (streaming) {
+            int type = kType;
+            if (ioctl(fd, VIDIOC_STREAMOFF, &type) != 0) cleanup_error = errno;
+        }
+        for (uint32_t index = 0; index < mapped_count; ++index) {
+            if (munmap(buffers[index].address, buffers[index].length) != 0 &&
+                cleanup_error == 0) {
+                cleanup_error = errno;
+            }
+        }
+        if (buffers_requested) {
+            v4l2_requestbuffers release{};
+            release.count = 0;
+            release.type = kType;
+            release.memory = V4L2_MEMORY_MMAP;
+            if (ioctl(fd, VIDIOC_REQBUFS, &release) != 0 && cleanup_error == 0) {
+                cleanup_error = errno;
+            }
+        }
+        if (fd >= 0 && close(fd) != 0 && cleanup_error == 0) cleanup_error = errno;
+
+        if (captured) {
+            ESP_LOGI("Claw4V6", "CAMERA_DIAGNOSTIC frame_capture=1 width=%u height=%u format=0x%08lx bytes=%u saved=0 uploaded=0 cleanup_error=%d",
+                     unsigned(frame_width), unsigned(frame_height),
+                     static_cast<unsigned long>(frame_format), unsigned(frame_bytes),
+                     cleanup_error);
+        } else {
+            ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC frame_capture=0 stage=%s error=%d cleanup_error=%d",
+                     failed_stage, capture_error, cleanup_error);
+        }
+        return captured && cleanup_error == 0;
+    }
+
     void ProbeCameraSensor() {
-        // Sensor presence probe only: initialize then deinitialize esp_video.
-        // Never open /dev/video*, start streaming, dequeue a frame, or store data.
+        // Take one bounded RAW8 frame into driver-owned RAM, report only format
+        // metadata, then release its buffers before powering the camera down.
         SetOutput(2, false); // CAM_PWDN is active-low.
         vTaskDelay(pdMS_TO_TICKS(200));
 
@@ -311,7 +546,8 @@ class Claw4Board final : public WifiBoard {
             video_initialized = error == ESP_OK;
         }
         if (video_initialized) {
-            ESP_LOGI("Claw4V6", "CAMERA_DIAGNOSTIC sensor_stack_initialized=1 frame_capture=0");
+            ESP_LOGI("Claw4V6", "CAMERA_DIAGNOSTIC sensor_stack_initialized=1");
+            CaptureSingleCameraFrame();
             const esp_err_t deinit_error = esp_video_deinit();
             if (deinit_error != ESP_OK) {
                 ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC deinit=%s",

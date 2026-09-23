@@ -24,7 +24,10 @@ and microphone/reference channel order must be checked on hardware.
 The M0 diagnostics also sample the active-low TCA9555 P0_5 power key and log
 debounced short/long presses. A key held during boot is ignored until release;
 this diagnostic has no shutdown, standby, or other power-state side effects.
-Camera/SD and product power-key actions remain outstanding; no M0 PASS claim.
+Candidate18 adds a bounded one-frame-per-boot RAW8 camera diagnostic. It logs metadata only,
+does not save or upload image data, and returns the camera rail to power-down;
+the physical frame-capture check is still pending. SD repeated-mount behavior and
+product power-key actions also remain outstanding; no M0 PASS claim.
 
 Build with tools/v6/stage_device.py into a fresh short ASCII path, then
 tools/v6/build_device.py. Stage script must match the pinned upstream anchors.
