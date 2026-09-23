@@ -1,0 +1,134 @@
+{
+  "checkpoint": "CP1",
+  "date": "2026-09-23T09:22:42+08:00",
+  "worktree": "E:\\workbuddy\\claw4-v6-wb-c08",
+  "branch": "workbuddy-v6-m0-candidate08-review",
+  "implementation_base_sha": "d8ab97cf3d358829c35f985fbb025db7e960f08b",
+  "candidate_manifest": "m0-candidate-08.json",
+  "preconditions": {
+    "manifest_files_checked": 13,
+    "manifest_files_mismatched": [],
+    "overlay_files_checked": 11,
+    "overlay_files_mismatched": [],
+    "backup": {
+      "bytes": 33554432,
+      "sha256": "b77343691c97359eaedba4d7d8353ef6df55b10ae2f5f9a13059943c04bb9413",
+      "matches_task_package": true
+    },
+    "device": {
+      "chip": "ESP32-P4 (revision v1.3)",
+      "flash_size": "32MB",
+      "mac": "80:f1:b2:d2:ed:14"
+    },
+    "flash_plan": {
+      "status": "PLAN_ONLY_NOT_FLASHED",
+      "file": "flash-plan-08.json",
+      "note": "Layout check only; it lists all five images but this package writes the application alone."
+    }
+  },
+  "flash": {
+    "command": "python -m esptool --chip esp32p4 --port COM7 --baud 460800 --before default-reset --after hard-reset write-flash --flash-mode dio --flash-size 32MB --flash-freq 40m 0x200000 E:/v6/s1/build/xiaozhi.bin",
+    "scope": "application only at 0x200000; no other image, no partition change, no NVS erase, no C5/eFuse/security change, no recovery write-back",
+    "exit_code": 0,
+    "hash_verified": true,
+    "log": {
+      "file": "flash-c08-01.txt",
+      "sha256": "f15336fbb26bd95fe06bf82774fee8cea6dab224736da48465b59311c9fd97ad"
+    }
+  },
+  "device_binary_binding": {
+    "method": "read_flash 0x200000 0x2E8FF0 (length computed from the manifest, read-only) compared byte-for-byte with the candidate build",
+    "device_bytes": 3051504,
+    "device_sha256": "1ef710aec525df3f91142d9ca6188b26e6881e448e72007804515a7f6ae6e7c2",
+    "manifest_sha256": "1ef710aec525df3f91142d9ca6188b26e6881e448e72007804515a7f6ae6e7c2",
+    "identical_to_build": true
+  },
+  "boot_capture": {
+    "file": "cp1-boot-01.txt",
+    "sha256": "faa6cea2be1f203ba4161053db844b3e6b44814be65852d1a1e7233f81afe8fa",
+    "seconds": 60,
+    "reset": true,
+    "continue_conditions": {
+      "elf_prefix": "50fb62c30",
+      "elf_prefix_matches_manifest": true,
+      "app_main_calls": 1,
+      "boot_ready": 1,
+      "assets_applied_1": 1,
+      "abort_or_panic": 0,
+      "boot_blocked": 0
+    },
+    "network_sequence_first_60s": [
+      "WifiBoard: Connected to WiFi: JianGuanJu",
+      "WifiBoard: Starting WiFi connection attempt",
+      "WifiBoard: WiFi connecting to JianGuanJu",
+      "WifiBoard: WiFi connecting to realme",
+      "WifiBoard: WiFi scanning",
+      "WifiStation: Got IP: 192.168.16.172",
+      "WifiStation: No AP on saved channels, starting full scan",
+      "WifiStation: SAVED_DIRECT_FALLBACK candidates=2"
+    ],
+    "idle_ch0_rms_values": [
+      29,
+      27,
+      25,
+      25,
+      29,
+      28,
+      27,
+      27,
+      26,
+      33,
+      44,
+      61,
+      107,
+      26,
+      26,
+      27,
+      25,
+      26,
+      26,
+      26,
+      25,
+      25,
+      25,
+      24,
+      25,
+      29,
+      33,
+      31,
+      30,
+      26,
+      26,
+      26,
+      25,
+      26,
+      29,
+      28,
+      34,
+      54,
+      46,
+      30,
+      32,
+      28,
+      29,
+      28,
+      25,
+      27,
+      27,
+      25,
+      30,
+      28,
+      28,
+      24,
+      25,
+      25
+    ],
+    "note": "The device is not flashed with a saved AP that is on the air, so this boot is expected to exercise the connect/backoff path rather than association. That is CP2's subject, not a CP1 result."
+  },
+  "limitations": [
+    "Verifies the write landed and the candidate boots; it says nothing about behaviour under the network or audio scenarios.",
+    "Only the application partition was written; the other four images are identical to candidate 07 and were not re-flashed.",
+    "The runtime prints a 9-hex-digit ELF prefix; full-hash binding comes from the read-only readback."
+  ],
+  "result": "PASS - proceed to CP2"
+}
