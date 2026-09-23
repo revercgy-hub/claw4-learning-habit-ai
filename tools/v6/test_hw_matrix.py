@@ -52,7 +52,7 @@ Hash of data verified.
 """
 
 SYNTHETIC_CAMERA_INIT_ONLY = """\
-I (1000) Claw4V6: CAMERA_DIAGNOSTIC sensor_stack_initialized=1
+I (1000) Claw4V6: CAMERA_DIAGNOSTIC sensor_stack_initialized=1 frame_capture=0
 """
 
 SYNTHETIC_CAMERA_CLEAN_FRAME = """\
@@ -63,6 +63,13 @@ I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480 format=
 SYNTHETIC_CAMERA_FAILURE = """\
 I (1000) Claw4V6: CAMERA_DIAGNOSTIC sensor_stack_initialized=1
 W (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=0 stage=dequeue error=11 cleanup_error=0
+"""
+
+SYNTHETIC_SD_AND_POWER_KEY = """\
+I (1000) Claw4V6: SD_DIAGNOSTIC mounted blocks=7864320 sector_bytes=512 capacity_bytes=4026531840
+I (1100) Claw4V6: POWER_KEY_DIAGNOSTIC armed_after_boot_release=1
+I (1200) Claw4V6: POWER_KEY_SHORT detected; diagnostic has no power side effects
+I (3000) Claw4V6: POWER_KEY_LONG detected; diagnostic has no power side effects
 """
 
 # Third capture of the same candidate: the AP now broadcasts its SSID, so the
@@ -209,9 +216,20 @@ I (21000) V6M0: LOCAL_REFERENCE_PROBE_END id=1 drained=1 playback_vad_onsets=1 p
         self.assertEqual(clean["camera_sensor_init"], 1)
         self.assertEqual(clean["camera_frame_capture"], 1)
         self.assertEqual(clean["camera_frame_clean"], 1)
+        init_only_path = _write(self._dir.name, "camera-init-only.txt", SYNTHETIC_CAMERA_INIT_ONLY)
+        init_only = hw_matrix.parse_boot_log(init_only_path)["signals"]
+        self.assertEqual(init_only["camera_frame_failure"], 0)
         self.assertEqual(failure["camera_sensor_init"], 1)
         self.assertEqual(failure["camera_frame_failure"], 1)
         self.assertEqual(failure["camera_frame_clean"], 0)
+
+    def test_sd_and_power_key_diagnostic_signals(self):
+        path = _write(self._dir.name, "sd-power.txt", SYNTHETIC_SD_AND_POWER_KEY)
+        signals = hw_matrix.parse_boot_log(path)["signals"]
+        self.assertIn("SD_DIAGNOSTIC mounted", signals["sd_mounted"])
+        self.assertEqual(signals["power_key_armed"], 1)
+        self.assertEqual(signals["power_key_short"], 1)
+        self.assertEqual(signals["power_key_long"], 1)
 
     def test_health_samples_carry_real_semantics(self):
         health = self.boot()["health"]
@@ -347,33 +365,33 @@ class MatrixTests(unittest.TestCase):
     def test_rollback_stays_unproven(self):
         self.assertEqual(self.status("回滚（恢复写回）"), "NOT_TESTED")
 
-    def camera_matrix(self, name: str, body: str):
+    def matrix_for_log(self, name: str, body: str):
         path = _write(self._dir.name, name, body)
         return hw_matrix.build_matrix(
             [hw_matrix.parse_boot_log(path)], [], self.cand_path, CANDIDATE, {})
 
     def test_camera_sensor_init_alone_does_not_pass_capture(self):
-        matrix = self.camera_matrix("camera-init-only.txt", SYNTHETIC_CAMERA_INIT_ONLY)
+        matrix = self.matrix_for_log("camera-init-only.txt", SYNTHETIC_CAMERA_INIT_ONLY)
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "NOT_VERIFIED")
         self.assertIn("相机 RAW8 单帧取帧未通过硬件矩阵", matrix["open_items"])
 
     def test_camera_requires_clean_metadata_only_frame(self):
-        matrix = self.camera_matrix("camera-clean.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
+        matrix = self.matrix_for_log("camera-clean.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PASS")
         self.assertNotIn("相机 RAW8 单帧取帧未通过硬件矩阵", matrix["open_items"])
 
     def test_camera_capture_failure_is_not_verified(self):
-        matrix = self.camera_matrix("camera-failure.txt", SYNTHETIC_CAMERA_FAILURE)
+        matrix = self.matrix_for_log("camera-failure.txt", SYNTHETIC_CAMERA_FAILURE)
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "FAIL")
 
     def test_camera_cleanup_error_blocks_pass(self):
         dirty = SYNTHETIC_CAMERA_CLEAN_FRAME.replace("cleanup_error=0", "cleanup_error=5")
-        matrix = self.camera_matrix("camera-dirty.txt", dirty)
+        matrix = self.matrix_for_log("camera-dirty.txt", dirty)
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "FAIL")
 
     def test_camera_missing_metadata_does_not_count_as_clean(self):
         incomplete = "I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480\n"
-        matrix = self.camera_matrix("camera-incomplete.txt", incomplete)
+        matrix = self.matrix_for_log("camera-incomplete.txt", incomplete)
         self.assertEqual(matrix["signals"]["camera_frame_unqualified"], 1)
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "FAIL")
 
@@ -396,6 +414,43 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
         camera_row = next(r for r in matrix["rows"] if r["item"] == "相机 RAW8 单帧取帧")
         self.assertEqual(camera_row["source"], "camera-failed.txt")
+
+    def test_sd_mount_is_one_boot_only_pass(self):
+        matrix = self.matrix_for_log("sd-mounted.txt", SYNTHETIC_SD_AND_POWER_KEY.splitlines()[0] + "\n")
+        self.assertEqual(self.status("SD 卡单次挂载", matrix), "PASS")
+        row = next(r for r in matrix["rows"] if r["item"] == "SD 卡单次挂载")
+        self.assertIn("hot-plug", row["note"])
+
+    def test_sd_mount_failure_is_not_hidden(self):
+        failed = "W (1000) Claw4V6: SD_DIAGNOSTIC not_mounted error=ESP_FAIL; no format or file access\n"
+        matrix = self.matrix_for_log("sd-failed.txt", failed)
+        self.assertEqual(self.status("SD 卡单次挂载", matrix), "FAIL")
+
+    def test_sd_success_and_failure_are_partial(self):
+        good = _write(self._dir.name, "sd-good.txt", SYNTHETIC_SD_AND_POWER_KEY.splitlines()[0] + "\n")
+        failed = _write(self._dir.name, "sd-failed.txt", "W (1000) Claw4V6: SD_DIAGNOSTIC not_mounted error=ESP_FAIL\n")
+        matrix = hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(good), hw_matrix.parse_boot_log(failed)], [],
+            self.cand_path, CANDIDATE, {})
+        self.assertEqual(self.status("SD 卡单次挂载", matrix), "PARTIAL")
+
+    def test_power_key_requires_both_press_types(self):
+        events_only = "\n".join(SYNTHETIC_SD_AND_POWER_KEY.splitlines()[2:]) + "\n"
+        matrix = self.matrix_for_log("power-complete.txt", events_only)
+        self.assertEqual(self.status("电源键短按/长按识别", matrix), "PASS")
+        self.assertIn("no shutdown/standby", next(
+            r["note"] for r in matrix["rows"] if r["item"] == "电源键短按/长按识别"))
+
+    def test_power_key_one_press_type_is_partial(self):
+        partial = "I (1000) Claw4V6: POWER_KEY_DIAGNOSTIC armed_after_boot_release=1\n" \
+                  "I (1200) Claw4V6: POWER_KEY_SHORT detected; diagnostic has no power side effects\n"
+        matrix = self.matrix_for_log("power-partial.txt", partial)
+        self.assertEqual(self.status("电源键短按/长按识别", matrix), "PARTIAL")
+
+    def test_power_key_armed_without_operator_press_is_unverified(self):
+        armed = "I (1000) Claw4V6: POWER_KEY_DIAGNOSTIC armed_after_boot_release=1\n"
+        matrix = self.matrix_for_log("power-armed.txt", armed)
+        self.assertEqual(self.status("电源键短按/长按识别", matrix), "NOT_VERIFIED")
 
     def test_display_fails_without_user_confirmation(self):
         confirmations = dict(display_visible=True, audio_loopback=True)

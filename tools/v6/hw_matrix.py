@@ -60,7 +60,7 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("camera_sensor_init",       "count", r"CAMERA_DIAGNOSTIC sensor_stack_initialized=1(?:\s|$)"),
     ("camera_sensor_init_failed", "count", r"CAMERA_DIAGNOSTIC sensor_stack_initialized=0(?:\s|$)"),
     ("camera_frame_capture",     "count", r"CAMERA_DIAGNOSTIC frame_capture=1(?:\s|$)"),
-    ("camera_frame_failure",     "count", r"CAMERA_DIAGNOSTIC frame_capture=0(?:\s|$)"),
+    ("camera_frame_failure",     "count", r"CAMERA_DIAGNOSTIC frame_capture=0\s+stage=\S+ error=-?\d+ cleanup_error=\d+"),
     ("camera_frame_clean",       "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\bsaved=0\b.*\buploaded=0\b.*\bcleanup_error=0\b"),
     ("camera_frame_unqualified", "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b(?!.*\bsaved=0\b.*\buploaded=0\b.*\bcleanup_error=0\b).*"),
     ("camera_cleanup_failure",   "count", r"CAMERA_DIAGNOSTIC .*\bcleanup_error=[1-9]\d*\b"),
@@ -68,6 +68,16 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("camera_uploaded_frame",    "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\buploaded=[1-9]\d*\b"),
     ("camera_deinit_failure",    "count", r"CAMERA_DIAGNOSTIC deinit=\S+"),
     ("camera_task_failure",      "count", r"CAMERA_DIAGNOSTIC task creation failed"),
+    # --- SD mount and power-key diagnostics -------------------------------
+    ("sd_mounted",               "line",  r"SD_DIAGNOSTIC mounted blocks=\d+ sector_bytes=\d+ capacity_bytes=\d+"),
+    ("sd_mount_failure",         "count", r"SD_DIAGNOSTIC not_mounted error=\S+"),
+    ("sd_task_failure",          "count", r"SD_DIAGNOSTIC task creation failed"),
+    ("power_key_armed",          "int",   r"POWER_KEY_DIAGNOSTIC armed_after_boot_release=(\d+)"),
+    ("power_key_start_failure",  "count", r"POWER_KEY_DIAGNOSTIC unavailable at start error=\S+"),
+    ("power_key_read_failure",   "count", r"POWER_KEY_DIAGNOSTIC read error=\S+"),
+    ("power_key_task_failure",   "count", r"POWER_KEY_DIAGNOSTIC task creation failed"),
+    ("power_key_short",          "count", r"POWER_KEY_SHORT detected; diagnostic has no power side effects"),
+    ("power_key_long",           "count", r"POWER_KEY_LONG detected; diagnostic has no power side effects"),
     # --- touch --------------------------------------------------------------
     ("touch_init",          "line",  r"Claw4V6: GT911 touch initialized"),
     ("touch_last_count",    "int",   r"V6M0: TOUCH count=(\d+)"),
@@ -422,9 +432,45 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
         f"{s.get('camera_uploaded_frame', 0)}; sensor init alone is not a frame result",
         source_key=camera_source)
 
-    # These checks still need dedicated evidence/integration in the matrix.
-    row("SD 卡 / 电源键", "no dedicated matrix signal",
-        "NOT_TESTED", "SD mount is not parsed here; product power-key action is not implemented")
+    # An SD mount proves one boot-time mount only, not hot-plug or storage I/O.
+    sd_mounted = bool(s.get("sd_mounted"))
+    sd_errors = s.get("sd_mount_failure", 0) + s.get("sd_task_failure", 0)
+    sd_source = next((key for key in ("sd_mount_failure", "sd_task_failure")
+                      if s.get(key, 0)), "sd_mounted")
+    if sd_mounted:
+        sd_status = "PARTIAL" if sd_errors else "PASS"
+    else:
+        sd_status = "FAIL" if sd_errors else "NOT_VERIFIED"
+    row("SD 卡单次挂载", s.get("sd_mounted") or "SD_DIAGNOSTIC mounted line absent",
+        sd_status,
+        f"mount failures={s.get('sd_mount_failure', 0)}, task failures={s.get('sd_task_failure', 0)}; "
+        "hot-plug, repeated mount/unmount, and sustained I/O are not proven",
+        source_key=sd_source)
+
+    # Recognition is a hardware input check; the diagnostic intentionally has
+    # no product shutdown or standby action.
+    power_short = s.get("power_key_short", 0) > 0
+    power_long = s.get("power_key_long", 0) > 0
+    power_errors = sum(s.get(key, 0) for key in (
+        "power_key_start_failure", "power_key_read_failure", "power_key_task_failure"))
+    if power_short and power_long:
+        power_status = "PARTIAL" if power_errors else "PASS"
+    elif power_errors and not (power_short or power_long):
+        power_status = "FAIL"
+    elif power_short or power_long:
+        power_status = "PARTIAL"
+    else:
+        power_status = "NOT_VERIFIED"
+    power_source = next((key for key in (
+        "power_key_start_failure", "power_key_read_failure", "power_key_task_failure",
+        "power_key_short", "power_key_long", "power_key_armed")
+        if s.get(key, 0)), "power_key_armed")
+    row("电源键短按/长按识别", "POWER_KEY_SHORT + POWER_KEY_LONG",
+        power_status,
+        f"short={s.get('power_key_short', 0)}, long={s.get('power_key_long', 0)}, "
+        f"armed after boot release={s.get('power_key_armed', 'absent')}, "
+        f"diagnostic errors={power_errors}; no shutdown/standby action is implemented",
+        source_key=power_source)
 
     # Rollback -------------------------------------------------------------
     row("回滚（恢复写回）", "out/v6-device-private/pre-v6-flash.bin",
@@ -454,6 +500,8 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
     rows = build_rows(signals, source, flashes[-1] if flashes else {}, boots,
                       user_confirmations)
     camera_row = next(r for r in rows if r["item"] == "相机 RAW8 单帧取帧")
+    sd_row = next(r for r in rows if r["item"] == "SD 卡单次挂载")
+    power_row = next(r for r in rows if r["item"] == "电源键短按/长按识别")
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -474,7 +522,10 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
             "恢复写回未实测，回滚不可信",
             *(["相机 RAW8 单帧取帧未通过硬件矩阵"]
               if camera_row["status"] != "PASS" else []),
-            "SD 卡 / 电源键证据未进入硬件矩阵",
+            *(["SD 卡单次挂载未通过硬件矩阵"]
+              if sd_row["status"] != "PASS" else []),
+            *(["电源键短按/长按识别未通过硬件矩阵"]
+              if power_row["status"] != "PASS" else []),
         ],
     }
 
