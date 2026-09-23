@@ -1,0 +1,279 @@
+{
+  "checkpoint": "CP3",
+  "date": "2026-09-23T09:44:33+08:00",
+  "worktree": "E:\\workbuddy\\claw4-v6-wb-c08",
+  "branch": "workbuddy-v6-m0-candidate08-review",
+  "implementation_base_sha": "c7ed262b5e2ef917ed8bddeea5379fcd809bb38e",
+  "scope_per_revised_task_book": "Bounded smoke regression only. The revised CP3 states that candidate 05 already carries a same-image 20/20 USB-reset series and a ~31.3 minute idle observation as the M0 stability baseline, that this package must not repeat them, and that no further captures are needed unless an anomaly appears.",
+  "inherited_baseline_not_reproven": {
+    "source": "candidate 05 test report (WB-V6-M0-CANDIDATE05-TEST_REPORT.md) and this stream's earlier CP3 evidence, independently recomputed by Codex",
+    "content": "20 of 20 USB resets passed; ~31.3 minutes idle with zero aborts, zero watchdog events, no serial dropout and single-valued free/PSRAM across 180 HEALTH samples",
+    "status": "REFERENCED, NOT RE-RUN, NOT RE-CLAIMED AS A CANDIDATE 08 RESULT"
+  },
+  "smoke_check_on_candidate_08_captures": {
+    "sessions": {
+      "S1": {
+        "captures": [
+          "cp1-boot-01.txt"
+        ],
+        "boot_anchors": [
+          "50fb62c30"
+        ],
+        "app_main_calls": 1,
+        "reset_lines": 1,
+        "abort_or_panic": 0,
+        "boot_blocked": 0,
+        "wdt_canary": 0,
+        "warning_or_error_lines": 6,
+        "health_samples": 5,
+        "health_cadence_s": 10,
+        "free_first": 27125439,
+        "free_last": 27124927,
+        "free_distinct": [
+          27124927,
+          27125439
+        ],
+        "free_spread_bytes": 512,
+        "psram_first": 26833440,
+        "psram_last": 26832928,
+        "psram_spread_bytes": 512,
+        "wake_values": [
+          1
+        ],
+        "wakes_values": [
+          0
+        ],
+        "net_events": [
+          0,
+          1,
+          2
+        ]
+      },
+      "S2": {
+        "captures": [
+          "cp2-net-fallback-01.txt",
+          "cp2-net-fallback-02.txt"
+        ],
+        "boot_anchors": [
+          "50fb62c30"
+        ],
+        "app_main_calls": 1,
+        "reset_lines": 1,
+        "abort_or_panic": 0,
+        "boot_blocked": 0,
+        "wdt_canary": 0,
+        "warning_or_error_lines": 6,
+        "health_samples": 9,
+        "health_cadence_s": 10,
+        "free_first": 27125607,
+        "free_last": 27124895,
+        "free_distinct": [
+          27124567,
+          27124895,
+          27125407,
+          27125607
+        ],
+        "free_spread_bytes": 1040,
+        "psram_first": 26833640,
+        "psram_last": 26832928,
+        "psram_spread_bytes": 712,
+        "wake_values": [
+          1
+        ],
+        "wakes_values": [
+          0
+        ],
+        "net_events": [
+          0,
+          1,
+          2
+        ]
+      },
+      "S3": {
+        "captures": [
+          "cp2-audio-wake-01.txt"
+        ],
+        "boot_anchors": [
+          "50fb62c30"
+        ],
+        "app_main_calls": 1,
+        "reset_lines": 1,
+        "abort_or_panic": 0,
+        "boot_blocked": 0,
+        "wdt_canary": 0,
+        "warning_or_error_lines": 6,
+        "health_samples": 5,
+        "health_cadence_s": 10,
+        "free_first": 27125403,
+        "free_last": 27124911,
+        "free_distinct": [
+          27124911,
+          27125403,
+          27125423
+        ],
+        "free_spread_bytes": 512,
+        "psram_first": 26833420,
+        "psram_last": 26832928,
+        "psram_spread_bytes": 512,
+        "wake_values": [
+          1
+        ],
+        "wakes_values": [
+          0
+        ],
+        "net_events": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    "across_all_three_sessions": {
+      "sessions": 3,
+      "boot_anchors_seen": [
+        "50fb62c30"
+      ],
+      "abort_or_panic": 0,
+      "boot_blocked": 0,
+      "wdt_or_canary": 0,
+      "warning_or_error_lines": 18,
+      "app_main_calls": 3,
+      "reset_lines": 3
+    },
+    "verdict": "No panic, no BOOT_BLOCKED, no watchdog event, one app_main per session and the same ELF anchor throughout, so no additional capture was warranted. Each boot prints the same six boot-time warning-or-error lines as candidate 05, all previously documented and none indicating a fault.",
+    "memory": {
+      "reading": "Within each session, free heap and PSRAM spread by at most a few hundred bytes to about 1 kB across all HEALTH samples, and the last sample is not systematically below the first. That is jitter, not a downward trend.",
+      "not_claimed": "This is 60-100 s per session, so it says nothing about hour-scale drift, and cross-session values are not compared because each session begins with a different allocation state."
+    },
+    "wake_latch": {
+      "reading": "wake stayed 1 in every sample of every session and wakes stayed 0, so no spurious wake detection occurred in a quiet room.",
+      "note": "In candidate 08 the HEALTH field named vad_observable is the local playback flag, not a VAD indicator; see finding OBS-08-2 in the CP0 record."
+    },
+    "warning_and_error_lines": {
+      "correction": "An earlier version of this record said there were zero warning-or-error lines. That was wrong: each boot session prints 6. The claim is corrected here rather than left standing.",
+      "total_across_the_three_boot_sessions": 18,
+      "total_in_the_continuation_capture": 0,
+      "per_capture": {
+        "cp1-boot-01.txt": {
+          "total": 6,
+          "by_class": {
+            "nv3051f_36h_command": 2,
+            "lcd_swap_xy_unsupported": 1,
+            "lcd_mirror_unsupported": 1,
+            "mac_read_before_c5": 1,
+            "sdio_slave_reset": 1
+          },
+          "unclassified": []
+        },
+        "cp2-net-fallback-01.txt": {
+          "total": 6,
+          "by_class": {
+            "nv3051f_36h_command": 2,
+            "lcd_swap_xy_unsupported": 1,
+            "lcd_mirror_unsupported": 1,
+            "mac_read_before_c5": 1,
+            "sdio_slave_reset": 1
+          },
+          "unclassified": []
+        },
+        "cp2-net-fallback-02.txt": {
+          "total": 0,
+          "by_class": {},
+          "unclassified": []
+        },
+        "cp2-audio-wake-01.txt": {
+          "total": 6,
+          "by_class": {
+            "nv3051f_36h_command": 2,
+            "lcd_swap_xy_unsupported": 1,
+            "lcd_mirror_unsupported": 1,
+            "mac_read_before_c5": 1,
+            "sdio_slave_reset": 1
+          },
+          "unclassified": []
+        }
+      },
+      "classification": [
+        {
+          "class": "nv3051f_36h_command",
+          "meaning": "display init; benign, present since the first V6 boot",
+          "examples_per_boot": 2
+        },
+        {
+          "class": "lcd_swap_xy_unsupported",
+          "meaning": "panel reports no swap_xy; the board uses zero rotation",
+          "examples_per_boot": 1
+        },
+        {
+          "class": "lcd_mirror_unsupported",
+          "meaning": "panel reports no mirror; the board uses zero rotation",
+          "examples_per_boot": 1
+        },
+        {
+          "class": "mac_read_before_c5",
+          "meaning": "MAC read at ~6.0s, C5 coprocessor boot-up is ~8.5s; documented in the candidate 05 stream",
+          "examples_per_boot": 1
+        },
+        {
+          "class": "sdio_slave_reset",
+          "meaning": "hosted SDIO bring-up of the C5; expected",
+          "examples_per_boot": 1
+        }
+      ],
+      "unclassified_lines": [],
+      "not_new_in_this_candidate": "The candidate 05 boot capture in this project (cp0-boot-01.txt) prints the identical set: 2 x nv3051f 36h command, 1 x swap_xy unsupported, 1 x mirror unsupported, 1 x MAC read before C5, 1 x SDIO slave reset. So none of them is introduced by candidate 08.",
+      "none_indicates_a_fault": "No abort, no panic, no watchdog event, no BOOT_BLOCKED and no repeated retry loop appears in any session; these six lines are boot-time and precede BOOT_READY.",
+      "still_reported": [
+        "The MAC read timing remains a real M1 hazard: a device ID derived from the WiFi MAC would read it before the C5 has booted. It is carried forward, not dismissed.",
+        "The two unsupported-panel calls remain a latent issue if rotation is ever enabled."
+      ]
+    }
+  },
+  "scope_deviation": {
+    "id": "DEV-08-1",
+    "what": "A 20-round USB reset series was started before the revised task book (6ed2a39) took effect, under the previous CP3 wording which required it. On user instruction the run was stopped during round 19; 18 rounds had completed, all of them passed, and the 30-minute idle phase never started.",
+    "why_it_matters": "It must not be counted as this package's stability evidence in either direction, so it is excluded from the acceptance matrix.",
+    "local_artifacts": "out/v6-device-private/candidate08-review/cp3-aborted-superseded-scope/ (gitignored, renamed to make its status unmistakable) and the interruption note appended to cp3-wallclock.txt",
+    "partial_result_for_transparency": {
+      "rounds_completed": 18,
+      "rounds_passed": 18,
+      "phase_b_completed": false,
+      "i2c_retry_total": 0,
+      "i2c_recovered_total": 0,
+      "elf_sha256": "50fb62c30f8e82797f40ee6e3ab085cebc9281986883db06823d61da761708ca",
+      "note": "Every completed round showed one app_main, one BOOT_READY, the matching ELF prefix and no blocked-or-panic state, consistent with the candidate 05 baseline. It is recorded as a side observation, not as acceptance evidence."
+    },
+    "nothing_was_written_to_the_device_to_effect_it": "No flash, erase, partition, C5, eFuse or security operation was involved in starting or stopping it."
+  },
+  "not_verified": [
+    "cold start by power cycle (USB reset is not a cold start)",
+    "hour-scale stability",
+    "stability under voice or network load",
+    "reconnect after the AP goes away",
+    "SD card, camera, power key",
+    "recovery write-back"
+  ],
+  "captures": [
+    {
+      "file": "cp1-boot-01.txt",
+      "sha256": "faa6cea2be1f203ba4161053db844b3e6b44814be65852d1a1e7233f81afe8fa",
+      "bytes": 27530
+    },
+    {
+      "file": "cp2-net-fallback-01.txt",
+      "sha256": "0128226a393420297e188aae457c1705a80be9f6e86a9c815e9299b15d243b2e",
+      "bytes": 28249
+    },
+    {
+      "file": "cp2-net-fallback-02.txt",
+      "sha256": "7ca9ccf54d412724d5925a95b2cf5a5a3358aadb55ed048073027df306b03224",
+      "bytes": 11769
+    },
+    {
+      "file": "cp2-audio-wake-01.txt",
+      "sha256": "3ea3c1b7f928c4b68cd638740fc738733eeb9265c724e12233dc3364d67884ac",
+      "bytes": 27538
+    }
+  ],
+  "result": "PASS as a bounded smoke check - no anomaly found, no additional capture required"
+}
