@@ -51,6 +51,20 @@ Writing at 0x00200000... (100 %)
 Hash of data verified.
 """
 
+SYNTHETIC_CAMERA_INIT_ONLY = """\
+I (1000) Claw4V6: CAMERA_DIAGNOSTIC sensor_stack_initialized=1
+"""
+
+SYNTHETIC_CAMERA_CLEAN_FRAME = """\
+I (1000) Claw4V6: CAMERA_DIAGNOSTIC sensor_stack_initialized=1
+I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480 format=0x00000001 bytes=307200 saved=0 uploaded=0 cleanup_error=0
+"""
+
+SYNTHETIC_CAMERA_FAILURE = """\
+I (1000) Claw4V6: CAMERA_DIAGNOSTIC sensor_stack_initialized=1
+W (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=0 stage=dequeue error=11 cleanup_error=0
+"""
+
 # Third capture of the same candidate: the AP now broadcasts its SSID, so the
 # scan matches and the station associates. Same firmware, same saved channel.
 SYNTHETIC_NETCONNECTED = """\
@@ -187,6 +201,18 @@ I (21000) V6M0: LOCAL_REFERENCE_PROBE_END id=1 drained=1 playback_vad_onsets=1 p
         self.assertEqual(signals["reference_probe_vad"], 1)
         self.assertEqual(signals["reference_probe_wake"], 1)
 
+    def test_camera_diagnostic_success_and_error_signals(self):
+        clean_path = _write(self._dir.name, "camera-clean.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
+        failure_path = _write(self._dir.name, "camera-failure.txt", SYNTHETIC_CAMERA_FAILURE)
+        clean = hw_matrix.parse_boot_log(clean_path)["signals"]
+        failure = hw_matrix.parse_boot_log(failure_path)["signals"]
+        self.assertEqual(clean["camera_sensor_init"], 1)
+        self.assertEqual(clean["camera_frame_capture"], 1)
+        self.assertEqual(clean["camera_frame_clean"], 1)
+        self.assertEqual(failure["camera_sensor_init"], 1)
+        self.assertEqual(failure["camera_frame_failure"], 1)
+        self.assertEqual(failure["camera_frame_clean"], 0)
+
     def test_health_samples_carry_real_semantics(self):
         health = self.boot()["health"]
         self.assertEqual(len(health), 2)
@@ -320,6 +346,56 @@ class MatrixTests(unittest.TestCase):
 
     def test_rollback_stays_unproven(self):
         self.assertEqual(self.status("回滚（恢复写回）"), "NOT_TESTED")
+
+    def camera_matrix(self, name: str, body: str):
+        path = _write(self._dir.name, name, body)
+        return hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(path)], [], self.cand_path, CANDIDATE, {})
+
+    def test_camera_sensor_init_alone_does_not_pass_capture(self):
+        matrix = self.camera_matrix("camera-init-only.txt", SYNTHETIC_CAMERA_INIT_ONLY)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "NOT_VERIFIED")
+        self.assertIn("相机 RAW8 单帧取帧未通过硬件矩阵", matrix["open_items"])
+
+    def test_camera_requires_clean_metadata_only_frame(self):
+        matrix = self.camera_matrix("camera-clean.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PASS")
+        self.assertNotIn("相机 RAW8 单帧取帧未通过硬件矩阵", matrix["open_items"])
+
+    def test_camera_capture_failure_is_not_verified(self):
+        matrix = self.camera_matrix("camera-failure.txt", SYNTHETIC_CAMERA_FAILURE)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "FAIL")
+
+    def test_camera_cleanup_error_blocks_pass(self):
+        dirty = SYNTHETIC_CAMERA_CLEAN_FRAME.replace("cleanup_error=0", "cleanup_error=5")
+        matrix = self.camera_matrix("camera-dirty.txt", dirty)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "FAIL")
+
+    def test_camera_missing_metadata_does_not_count_as_clean(self):
+        incomplete = "I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480\n"
+        matrix = self.camera_matrix("camera-incomplete.txt", incomplete)
+        self.assertEqual(matrix["signals"]["camera_frame_unqualified"], 1)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "FAIL")
+
+    def test_camera_unqualified_retry_keeps_mixed_history_visible(self):
+        incomplete = _write(
+            self._dir.name, "camera-incomplete.txt",
+            "I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480\n")
+        good = _write(self._dir.name, "camera-good.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
+        matrix = hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(good), hw_matrix.parse_boot_log(incomplete)], [],
+            self.cand_path, CANDIDATE, {})
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
+
+    def test_camera_clean_and_failed_runs_are_reported_as_partial(self):
+        good = _write(self._dir.name, "camera-good.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
+        failed = _write(self._dir.name, "camera-failed.txt", SYNTHETIC_CAMERA_FAILURE)
+        matrix = hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(good), hw_matrix.parse_boot_log(failed)], [],
+            self.cand_path, CANDIDATE, {})
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
+        camera_row = next(r for r in matrix["rows"] if r["item"] == "相机 RAW8 单帧取帧")
+        self.assertEqual(camera_row["source"], "camera-failed.txt")
 
     def test_display_fails_without_user_confirmation(self):
         confirmations = dict(display_visible=True, audio_loopback=True)

@@ -56,6 +56,18 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("panel_capability_errors", "count", r"lcd_panel: esp_lcd_panel_(swap_xy|mirror).*not supported"),
     ("assets_applied",      "int",   r"V6M0: Assets applied=(\d+)"),
     ("assets_mapped",       "line",  r"Assets: The assets map size is .*"),
+    # --- camera diagnostic (metadata only; one RAW8 frame is never stored) --
+    ("camera_sensor_init",       "count", r"CAMERA_DIAGNOSTIC sensor_stack_initialized=1(?:\s|$)"),
+    ("camera_sensor_init_failed", "count", r"CAMERA_DIAGNOSTIC sensor_stack_initialized=0(?:\s|$)"),
+    ("camera_frame_capture",     "count", r"CAMERA_DIAGNOSTIC frame_capture=1(?:\s|$)"),
+    ("camera_frame_failure",     "count", r"CAMERA_DIAGNOSTIC frame_capture=0(?:\s|$)"),
+    ("camera_frame_clean",       "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\bsaved=0\b.*\buploaded=0\b.*\bcleanup_error=0\b"),
+    ("camera_frame_unqualified", "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b(?!.*\bsaved=0\b.*\buploaded=0\b.*\bcleanup_error=0\b).*"),
+    ("camera_cleanup_failure",   "count", r"CAMERA_DIAGNOSTIC .*\bcleanup_error=[1-9]\d*\b"),
+    ("camera_saved_frame",       "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\bsaved=[1-9]\d*\b"),
+    ("camera_uploaded_frame",    "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\buploaded=[1-9]\d*\b"),
+    ("camera_deinit_failure",    "count", r"CAMERA_DIAGNOSTIC deinit=\S+"),
+    ("camera_task_failure",      "count", r"CAMERA_DIAGNOSTIC task creation failed"),
     # --- touch --------------------------------------------------------------
     ("touch_init",          "line",  r"Claw4V6: GT911 touch initialized"),
     ("touch_last_count",    "int",   r"V6M0: TOUCH count=(\d+)"),
@@ -378,9 +390,41 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
         "assets_apply() returned " + ("true" if applied == 1 else "false/absent"),
         source_key="assets_applied")
 
-    # Not integrated -------------------------------------------------------
-    row("SD 卡 / Camera / 电源键", "no signal in candidate",
-        "NOT_TESTED", "not integrated in m0.1")
+    # Camera: sensor init alone is not evidence of a captured frame. A clean
+    # frame requires cleanup_error=0 and explicit saved=0/uploaded=0 metadata.
+    camera_clean = s.get("camera_frame_clean", 0)
+    camera_errors = sum(s.get(key, 0) for key in (
+        "camera_sensor_init_failed", "camera_frame_failure", "camera_frame_unqualified",
+        "camera_cleanup_failure",
+        "camera_saved_frame", "camera_uploaded_frame", "camera_deinit_failure",
+        "camera_task_failure"))
+    camera_has_result = bool(camera_errors)
+    if camera_clean:
+        camera_status = "PARTIAL" if camera_errors else "PASS"
+    elif camera_has_result:
+        camera_status = "FAIL"
+    else:
+        camera_status = "NOT_VERIFIED"
+    camera_source = next((key for key in (
+        "camera_sensor_init_failed", "camera_frame_failure", "camera_frame_unqualified",
+        "camera_cleanup_failure", "camera_saved_frame", "camera_uploaded_frame",
+        "camera_deinit_failure", "camera_task_failure")
+        if s.get(key, 0)), "camera_frame_clean" if camera_clean else "camera_sensor_init")
+    row("相机 RAW8 单帧取帧", "CAMERA_DIAGNOSTIC frame_capture=1; saved=0; uploaded=0; cleanup_error=0",
+        camera_status,
+        f"sensor init={s.get('camera_sensor_init', 0)}, clean frame={camera_clean}, "
+        f"capture failures={s.get('camera_frame_failure', 0)}, "
+        f"unqualified frames={s.get('camera_frame_unqualified', 0)}, "
+        f"cleanup failures={s.get('camera_cleanup_failure', 0)}, "
+        f"deinit/task failures={s.get('camera_deinit_failure', 0)}/"
+        f"{s.get('camera_task_failure', 0)}, "
+        f"saved/uploaded nonzero={s.get('camera_saved_frame', 0)}/"
+        f"{s.get('camera_uploaded_frame', 0)}; sensor init alone is not a frame result",
+        source_key=camera_source)
+
+    # These checks still need dedicated evidence/integration in the matrix.
+    row("SD 卡 / 电源键", "no dedicated matrix signal",
+        "NOT_TESTED", "SD mount is not parsed here; product power-key action is not implemented")
 
     # Rollback -------------------------------------------------------------
     row("回滚（恢复写回）", "out/v6-device-private/pre-v6-flash.bin",
@@ -407,6 +451,9 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
     signals, source = aggregate_signals(boots)
     health_all = [dict(sample, log=capture["log"])
                   for capture in boots for sample in capture["health"]]
+    rows = build_rows(signals, source, flashes[-1] if flashes else {}, boots,
+                      user_confirmations)
+    camera_row = next(r for r in rows if r["item"] == "相机 RAW8 单帧取帧")
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -421,12 +468,13 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) 
         "signal_source": source,
         "health": primary["health"],
         "health_all": health_all,
-        "rows": build_rows(signals, source, flashes[-1] if flashes else {}, boots,
-                           user_confirmations),
+        "rows": rows,
         "open_items": [
             *(["唤醒词未捕获到正事件"] if not signals.get("wake_detected") else []),
             "恢复写回未实测，回滚不可信",
-            "SD 卡 / Camera / 电源键未集成",
+            *(["相机 RAW8 单帧取帧未通过硬件矩阵"]
+              if camera_row["status"] != "PASS" else []),
+            "SD 卡 / 电源键证据未进入硬件矩阵",
         ],
     }
 
