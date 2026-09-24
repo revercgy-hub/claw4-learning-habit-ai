@@ -11,9 +11,11 @@
 class Claw4Audio final : public AudioCodec {
 public:
     explicit Claw4Audio(std::function<void(bool)> amplifier);
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
     // M0 local probe boundary; XiaoZhi retains ownership of audio playback.
     void BeginReferenceSession();
     void EndReferenceSession();
+#endif
     void EnableInput(bool enable) override;
     void EnableOutput(bool enable) override;
     bool InputData(std::vector<int16_t>& data) override;
@@ -21,15 +23,17 @@ protected:
     int Read(int16_t* data, int samples) override;
     int Write(const int16_t* data, int samples) override;
 private:
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
     // Zero is an uncalibrated software ordering baseline, not acoustic alignment.
     static constexpr std::size_t kPlaybackReferenceDelayFrames = 0;
+#endif
     std::function<void(bool)> amplifier_;
     std::mutex input_mutex_;
     std::mutex output_mutex_;
+#if CONFIG_CLAW4_M0_DIAGNOSTICS
     std::mutex reference_mutex_;
     claw4::PlaybackReferenceDelay playback_reference_{
         kPlaybackReferenceDelayFrames};
-#if CONFIG_CLAW4_M0_DIAGNOSTICS
     uint64_t energy_[2]{};
     uint32_t peak_[2]{};
     uint32_t near_full_scale_[2]{};
