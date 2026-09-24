@@ -1,10 +1,10 @@
 # V6-M1 NAS Voice 验证方案
 
-状态：`IN_PROGRESS (HOST PREPARATION ONLY)`。M0 仍 `CHANGES_REQUIRED`。用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发；该例外只涵盖主机/工具开发与服务预检，不代表 M0 PASS 或 M1 20 轮验证开始/通过。目前未部署服务、未配置用户凭据、未验证 NAS 连接或 CPU 架构。
+状态：`SERVICE_DEPLOYED / DEVICE_VOICE_NOT_VERIFIED`。M0 仍 `CHANGES_REQUIRED`。用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发，随后明确授权在铭凡 N5 x86 NAS 上部署小智服务。该进展不代表 M0 PASS 或 M1 20 轮验证通过。部署与合成连通性证据见 [NAS 部署报告](V6_M1_NAS_DEPLOYMENT_REPORT.md)；未配置外部提供商凭据，未使用儿童数据。
 
-服务候选暂定 `xinnan-tech/xiaozhi-esp32-server` v0.9.6，tag commit `f5ed1aaec88471ba00ac778045331514066d63dc`，server image digest `sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc`。这是可重复部署的候选 pin，仍待 NAS 架构核对后冻结：该 release 自带的单服务 Docker 部署说明只支持 x86；ARM64 需要本地构建专用镜像。当前 NAS CPU/内存/存储和地址未知，不在 NAS 上拉取、部署或写入任何内容。上游单服务配置还要求模型文件与 `.config.yaml`；ASR/LLM/TTS 的 provider、各自版本和配置 schema 必须从该 tag 的配置核对并冻结，不能拿浮动 `latest` 或空值当成已配置。
+服务固定为 `xinnan-tech/xiaozhi-esp32-server` v0.9.6，tag commit `f5ed1aaec88471ba00ac778045331514066d63dc`，server image digest `sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc`。NAS 已确认 `x86_64`、60 GiB 内存，部署在用户指定的 `/vol2/1008/docker/xiaozhi-v6`。已核对并固定模型文件、`.config.yaml`、本地 ASR/Ollama LLM 与 EdgeTTS 选择；镜像不使用浮动 `latest`。完整文件哈希、端口、组件与局域网连通性结果见部署报告。
 
-上游核对输入：[`v0.9.6` release](https://github.com/xinnan-tech/xiaozhi-esp32-server/releases/tag/v0.9.6)、[tagged single-server deployment guide](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/Deployment.md)、[tagged Compose](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/main/xiaozhi-server/docker-compose.yml)、[GHCR package digest](https://github.com/xinnan-tech/xiaozhi-esp32-server/pkgs/container/xiaozhi-esp32-server)。NAS 地址、资源与模型/ASR/TTS 可用性核验仍是部署前置条件。密钥置本地环境或密钥存储，报告只记录脱敏标识。先用合成内容，默认不上传儿童数据。
+上游核对输入：[`v0.9.6` release](https://github.com/xinnan-tech/xiaozhi-esp32-server/releases/tag/v0.9.6)、[tagged single-server deployment guide](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/Deployment.md)、[tagged Compose](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/main/xiaozhi-server/docker-compose.yml)、[GHCR package digest](https://github.com/xinnan-tech/xiaozhi-esp32-server/pkgs/container/xiaozhi-esp32-server)。密钥只允许置 NAS 本地环境或密钥存储，报告只记录脱敏标识。当前仅用合成内容，不上传儿童数据。
 
 设备仅运行官方 Voice Core，经配置连接 NAS；没有 Learning UI/命令路由补丁。记录协议版本、鉴权和时间同步，确认关闭不需要的工具。仅完成网络连接不算语音通过。
 

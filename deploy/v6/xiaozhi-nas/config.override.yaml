@@ -1,0 +1,38 @@
+# Copy to data/.config.yaml on the NAS. The pinned upstream image merges this
+# override with its bundled config.yaml. No provider credentials are required.
+server:
+  websocket: ws://192.168.3.100:8000/xiaozhi/v1/
+  vision_explain: http://192.168.3.100:8003/mcp/vision/explain
+  auth:
+    enabled: false
+
+prompt: |
+  你是小智。请用简短、清晰、友好的中文回答问题。
+  当前是 Claw4 V6 合成语音验证环境；不要请求或记录儿童个人信息。
+
+selected_module:
+  VAD: SileroVAD
+  ASR: FunASR
+  LLM: OllamaLLM
+  TTS: EdgeTTS
+  Memory: nomem
+  Intent: nointent
+
+LLM:
+  OllamaLLM:
+    type: ollama
+    model_name: qwen3.5:2b
+    base_url: http://host.docker.internal:11434
+
+ASR:
+  FunASR:
+    type: fun_local
+    model_dir: models/SenseVoiceSmall
+    output_dir: tmp/
+    language: zh
+
+TTS:
+  EdgeTTS:
+    type: edge
+    voice: zh-CN-XiaoxiaoNeural
+    output_dir: tmp/

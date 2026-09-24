@@ -2,7 +2,7 @@
 
 ## 2026-09-24 用户指令覆盖：开始 M1 开发准备
 
-用户明确要求跳过 Candidate20 的 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，A-02 仍是 `M0=CHANGES_REQUIRED`。该授权仅覆盖 M1 开发准备及主机/工具工作；不宣称 M0 PASS 或 M1 20 轮 PASS，不自动授权 NAS 部署、凭据设置、儿童数据上传、设备重刷或扩大 Flash/recovery 范围。当前活动项见 [V6_TASK_BOARD](docs/v6/V6_TASK_BOARD.md) 与 [M1 计划](docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md)。此条只覆盖下文 2026-09-23 调度中的 M1 阶段状态，不改变 M0 证据契约和剩余验收项。
+用户明确要求跳过 Candidate20 的 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，A-02 仍是 `M0=CHANGES_REQUIRED`。2026-09-24 用户又明确提供铭凡 N5 x86 NAS 和 SSH 访问，授权部署小智服务；该授权覆盖 NAS 上隔离的 Docker 服务与合成内容连通性验证，不涵盖儿童数据上传、设备重刷或扩大 Flash/recovery 范围。NAS 部署不构成 M0 PASS 或 M1 20 轮 PASS。当前活动项见 [V6_TASK_BOARD](docs/v6/V6_TASK_BOARD.md)、[M1 计划](docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md) 和 [NAS 部署报告](docs/v6/V6_M1_NAS_DEPLOYMENT_REPORT.md)。此条只覆盖下文 2026-09-23 调度中的 M1 阶段状态，不改变 M0 证据契约和剩余验收项。
 
 ## 2026-09-23 接管实施规则（当前唯一有效调度）
 
@@ -12,7 +12,7 @@
 
 - 接管基线：`760b2aa66819f8d90186b43af4c02d9b33c8849e`。T-00 在干净的 `E:/workbuddy/claw4-v6` 核对 HEAD 后，以普通 push 创建 `origin/takeover-v6-m0-c19-baseline`，随后 GitHub 按分支名重新读取的 SHA 与本地一致，`BASELINE_PROTECTED=YES`。禁止 force push、rebase 或改写保护分支历史。
 - `main` 与 `workbuddy-v6-m0-candidate08-review @ 28bbda911e6074fca4930dfca3263060a59e1215` 均为历史基线，不是实施入口。后续独立工作树从 A-01 或明确列出的已审查集成 SHA 出发，不使用 HEAD 损坏的旧中文目录。
-- Candidate19 (`claw4-learning-v6-m0.19`) 已构建、**未刷机**。Candidate20 已 app-only 写入 live `ota_0` 并完成 app hash 读回；Candidate20 DEVICE 仅部分观察，M0 缺口及用户跳过的 AP failure/recovery 见 [A-02 Gate](docs/v6/V6_M0_CANDIDATE20_GATE.md)。当前 `M0=CHANGES_REQUIRED`；用户仅授权 M1 主机/工具准备，M1 设备 20 轮验证未开始。Candidate17 的 DEVICE PASS 不继承给 Candidate19/20。83 项是接管基线的 Host 工具测试数，不是设备验收数；后续数量以各提交实跑为准。
+- Candidate19 (`claw4-learning-v6-m0.19`) 已构建、**未刷机**。Candidate20 已 app-only 写入 live `ota_0` 并完成 app hash 读回；Candidate20 DEVICE 仅部分观察，M0 缺口及用户跳过的 AP failure/recovery 见 [A-02 Gate](docs/v6/V6_M0_CANDIDATE20_GATE.md)。当前 `M0=CHANGES_REQUIRED`；M1 NAS 服务已部署并做合成连通性验证，设备 20 轮验证未开始。Candidate17 的 DEVICE PASS 不继承给 Candidate19/20。83 项是接管基线的 Host 工具测试数，不是设备验收数；后续数量以各提交实跑为准。
 - 旧 Candidate08 网络重连同步返回处理和诊断字段问题已由后续提交修复，不重新实施。AEC 仍未通过，旧 `clipped=0` 不构成削波证据。
 
 ### 模型、所有权和升级

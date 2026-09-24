@@ -1,0 +1,18 @@
+name: claw4-xiaozhi-v6
+
+services:
+  xiaozhi:
+    image: ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc
+    container_name: claw4-xiaozhi-v6
+    restart: unless-stopped
+    init: true
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "192.168.3.100:8000:8000"
+      - "192.168.3.100:8003:8003"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/opt/xiaozhi-esp32-server/data
+      - ./models/SenseVoiceSmall/model.pt:/opt/xiaozhi-esp32-server/models/SenseVoiceSmall/model.pt:ro
