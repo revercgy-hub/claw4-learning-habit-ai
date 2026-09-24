@@ -10,7 +10,7 @@
 
 ## 20 轮连续流程
 
-当前主机工具任务：`M1-DEV-01`（Luna）实现 JSON 证据校验器，只验证未来整理好的 evidence，不连接设备、服务器或 NAS；提交 SHA 和测试结果见 V6 唯一看板。工具开发结果不能替代实际 20 轮设备测试。
+`M1-DEV-01` 已由 Astra 验收（Sol 最终修复提交 `75d0059a1f0ac6380c1e1e3ee5f41125a44139f2`；base `db97ad5994f3ee0c5e1fb4deb2fa4fa2ec3ee1ee`）。校验器绑定 reviewed source/app/ELF SHA、server commit/image digest、config SHA、ASR/LLM/TTS 版本、同一会话下恰好 20 个有序轮次，并要求每轮 synthetic stimulus ID、分域时延、资源数值和故障测试结果；PASS 只表示证据结构齐备且所有故障项显式 PASS，不代表语音质量或 M1 已验收。验证：定向 13/13、V6 tools 109/109。运行方式：`py -3.14 -B tools/v6/m1_round_evidence.py input.json output.json`。工具不连接设备、服务或 NAS，也不输出刺激 ID/原始文本。
 
 同一候选、同一服务版本，唤醒→学生说话→ASR→LLM→TTS→下一轮，至少连续 20 轮。不重启、不手工逐轮恢复服务。用合成问句覆盖短句、长句、静默、打断；验证 TTS 播放期间与结束后不会触发自我对话。
 
