@@ -2,6 +2,7 @@
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
 #include "application.h"
 #include "board.h"
+#include "claw4_audio.h"
 #include "display/display.h"
 #include "assets.h"
 #include "assets/lang_config.h"
@@ -43,7 +44,8 @@ extern "C" void app_main() {
     display->SetStatus("Claw4 V6 / M0");
     display->SetChatMessage("system", "M0 hardware test: tap to record 3s then play. No cloud connection.");
     auto& audio = Application::GetInstance().GetAudioService();
-    audio.Initialize(board.GetAudioCodec());
+    auto* codec = static_cast<Claw4Audio*>(board.GetAudioCodec());
+    audio.Initialize(codec);
     audio.Start();
     const bool assets = Assets::GetInstance().Apply();
     ESP_LOGI("V6M0", "Assets applied=%d", assets);
@@ -125,6 +127,7 @@ extern "C" void app_main() {
             deadline = now + 3000000;
         }
         if (test == LocalTest::Recording && now >= deadline) {
+            codec->BeginReferenceSession();
             probe_phase.store(2);
             audio.EnableWakeWordDetection(true);
             audio.EnableAudioTesting(false);
@@ -137,6 +140,7 @@ extern "C" void app_main() {
         if (test == LocalTest::Playback && (audio.IsPlaybackIdle() || now >= deadline)) {
             const bool drained = audio.IsPlaybackIdle();
             if (!drained) audio.ResetDecoder();
+            codec->EndReferenceSession();
             audio.EnableVoiceProcessing(false);
             probe_phase.store(0);
             ESP_LOGI("V6M0", "LOCAL_REFERENCE_PROBE_END id=%u drained=%d playback_vad_onsets=%u playback_wake_detections=%u",

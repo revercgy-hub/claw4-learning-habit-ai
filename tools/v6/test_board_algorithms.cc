@@ -44,35 +44,80 @@ int main() {
     assert(claw4::IsNearFullScalePcm16(INT16_MIN));
 
     claw4::PlaybackReferenceDelay reference(3);
-    assert(reference.Push(10));
-    assert(reference.Push(11));
+    const auto first = reference.Begin();
+    assert(first != 0 && reference.active());
+    assert(reference.Push(first, 10));
+    assert(reference.Push(first, 11));
     assert(reference.Next() == 0);
     assert(reference.Next() == 0);
-    assert(reference.Push(12));
+    assert(reference.Push(first, 12));
     assert(reference.Next() == 0);
-    assert(reference.Push(13));
+    assert(reference.Push(first, 13));
     assert(reference.Next() == 10);
     assert(reference.Next() == 11);
     assert(reference.Next() == 12);
     assert(reference.Next() == 13);
     assert(reference.pending_size() == 0);
+    auto stats = reference.TakeStats();
+    assert(stats.underflow == 3 && stats.overflow == 0);
+    assert(reference.Push(first, 77));
+    assert(reference.Next() == 0);
+    assert(reference.Push(first, 78));
+    reference.End(); // Early stop discards both pending and delayed audio.
+    assert(!reference.active() && reference.pending_size() == 0);
+    assert(reference.Next() == 0);
+    assert(!reference.Push(first, 88)); // A blocked old TX write returned late.
+    const auto second = reference.Begin();
+    assert(second != first);
+    assert(!reference.Push(first, 99));
+    assert(reference.Push(second, 20));
+    assert(reference.Next() == 0);
+    assert(reference.Next() == 0);
+    assert(reference.Next() == 0);
+    assert(reference.Next() == 20);
+    stats = reference.TakeStats();
+    assert(stats.discarded == 2 && stats.stale_writes == 2);
+    reference.End();
 
     claw4::PlaybackReferenceDelay immediate_reference(0);
     assert(immediate_reference.Next() == 0);
-    assert(immediate_reference.Push(-1234));
+    const auto immediate_token = immediate_reference.Begin();
+    assert(immediate_reference.Push(immediate_token, -1234));
     assert(immediate_reference.Next() == -1234);
     for (std::size_t i = 0; i < claw4::PlaybackReferenceDelay::kPendingCapacity; ++i)
-        assert(immediate_reference.Push(static_cast<int16_t>(i)));
-    assert(!immediate_reference.Push(99)); // bounded queue fails without overwriting old PCM
+        assert(immediate_reference.Push(immediate_token, static_cast<int16_t>(i)));
+    assert(!immediate_reference.Push(immediate_token, 99)); // overflow invalidates alignment
     assert(immediate_reference.Next() == 0);
-    assert(immediate_reference.pending_size() == claw4::PlaybackReferenceDelay::kPendingCapacity - 1);
+    assert(!immediate_reference.active() && immediate_reference.pending_size() == 0);
+    stats = immediate_reference.TakeStats();
+    assert(stats.overflow == 1 && stats.discarded == claw4::PlaybackReferenceDelay::kPendingCapacity);
+    const auto recovery_token = immediate_reference.Begin();
+    assert(recovery_token != immediate_token);
+    assert(!immediate_reference.Push(immediate_token, 123));
+    assert(immediate_reference.Push(recovery_token, 456));
+    assert(immediate_reference.Next() == 456);
+    assert(immediate_reference.Next() == 0);
+    stats = immediate_reference.TakeStats();
+    assert(stats.stale_writes == 1 && stats.underflow == 1);
+    immediate_reference.End();
 
     claw4::PlaybackReferenceDelay oversized_reference(
         claw4::PlaybackReferenceDelay::kMaxDelaySamples + 1);
-    assert(oversized_reference.Push(7));
+    const auto oversized_token = oversized_reference.Begin();
+    assert(oversized_reference.Push(oversized_token, 7));
     for (std::size_t i = 0; i < claw4::PlaybackReferenceDelay::kMaxDelaySamples; ++i)
         assert(oversized_reference.Next() == 0);
     assert(oversized_reference.Next() == 7);
+    oversized_reference.End();
+
+    // Consecutive playback cycles must never emit the prior cycle's delayed tail.
+    for (int cycle = 0; cycle < 20; ++cycle) {
+        const auto token = reference.Begin();
+        assert(reference.Push(token, static_cast<int16_t>(cycle + 1)));
+        assert(reference.Next() == 0);
+        reference.End();
+        assert(reference.Next() == 0);
+    }
 
     for (unsigned success = 1; success <= 4; ++success) {
         std::vector<unsigned> attempts, waits;

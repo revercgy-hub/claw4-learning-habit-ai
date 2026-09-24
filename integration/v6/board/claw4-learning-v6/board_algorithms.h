@@ -21,9 +21,9 @@ constexpr bool IsNearFullScalePcm16(int16_t sample) {
     return magnitude >= kPcm16NearFullScaleThreshold;
 }
 
-// Bounded, host-testable software playback reference. Push accepted I2S TX
-// frames, then call Next() once per RX frame. The fixed delay aligns the TX
-// stream with the later acoustic echo; callers serialize Push/Next externally.
+// Bounded software TX reference. A token rejects I2S writes that complete after
+// a playback session ended. This preserves sample order, but does not establish
+// the physical TX-to-RX/acoustic delay; that requires device measurements.
 class PlaybackReferenceDelay {
 public:
     static constexpr std::size_t kPendingCapacity = 8192;
@@ -32,8 +32,42 @@ public:
     explicit constexpr PlaybackReferenceDelay(std::size_t delay_samples)
         : delay_samples_(delay_samples > kMaxDelaySamples ? kMaxDelaySamples : delay_samples) {}
 
-    bool Push(int16_t sample) {
-        if (pending_size_ == pending_.size()) return false;
+    struct Stats {
+        uint32_t overflow = 0;
+        uint32_t underflow = 0;
+        uint32_t stale_writes = 0;
+        uint32_t discarded = 0;
+    };
+
+    uint64_t Begin() {
+        End();
+        active_ = true;
+        return generation_;
+    }
+
+    void End() {
+        Add(stats_.discarded, pending_size_ + delayed_pending_);
+        pending_head_ = pending_tail_ = pending_size_ = delay_pos_ = 0;
+        delay_.fill(0);
+        delay_occupied_.fill(false);
+        delayed_pending_ = 0;
+        active_ = false;
+        ++generation_;
+        if (generation_ == 0) ++generation_;
+    }
+
+    bool Push(uint64_t token, int16_t sample) {
+        if (!active_ || token != generation_) {
+            Add(stats_.stale_writes, 1);
+            return false;
+        }
+        if (pending_size_ == pending_.size()) {
+            Add(stats_.overflow, 1);
+            // A lost sample destroys the reference time base. Silence this
+            // session until the owner explicitly begins another one.
+            End();
+            return false;
+        }
         pending_[pending_tail_] = sample;
         pending_tail_ = (pending_tail_ + 1) % pending_.size();
         ++pending_size_;
@@ -41,29 +75,56 @@ public:
     }
 
     int16_t Next() {
+        if (!active_) return 0;
         int16_t current = 0;
+        bool current_valid = false;
         if (pending_size_ != 0) {
             current = pending_[pending_head_];
             pending_head_ = (pending_head_ + 1) % pending_.size();
             --pending_size_;
+            current_valid = true;
         }
-        if (delay_samples_ == 0) return current;
+        if (delay_samples_ == 0) {
+            if (!current_valid) Add(stats_.underflow, 1);
+            return current;
+        }
         const int16_t delayed = delay_[delay_pos_];
+        const bool delayed_valid = delay_occupied_[delay_pos_];
+        if (delayed_valid) --delayed_pending_;
         delay_[delay_pos_] = current;
+        delay_occupied_[delay_pos_] = current_valid;
+        if (current_valid) ++delayed_pending_;
         delay_pos_ = (delay_pos_ + 1) % delay_samples_;
+        if (!delayed_valid) Add(stats_.underflow, 1);
         return delayed;
     }
 
     std::size_t pending_size() const { return pending_size_; }
+    bool active() const { return active_; }
+    uint64_t token() const { return active_ ? generation_ : 0; }
+    Stats TakeStats() {
+        const Stats result = stats_;
+        stats_ = {};
+        return result;
+    }
 
 private:
+    static void Add(uint32_t& counter, std::size_t amount) {
+        const uint32_t room = UINT32_MAX - counter;
+        counter += static_cast<uint32_t>(amount > room ? room : amount);
+    }
     std::array<int16_t, kPendingCapacity> pending_{};
     std::array<int16_t, kMaxDelaySamples> delay_{};
+    std::array<bool, kMaxDelaySamples> delay_occupied_{};
     std::size_t delay_samples_;
     std::size_t pending_head_ = 0;
     std::size_t pending_tail_ = 0;
     std::size_t pending_size_ = 0;
     std::size_t delay_pos_ = 0;
+    std::size_t delayed_pending_ = 0;
+    uint64_t generation_ = 0;
+    bool active_ = false;
+    Stats stats_{};
 };
 
 enum class ButtonEvent { None, ShortPress, LongPress };
