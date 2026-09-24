@@ -22,7 +22,7 @@ def valid_input():
                                                                'looping_capture', 'lost_response')}})
     return {'schema': SCHEMA, 'session_id': 'session-001', 'candidate': identity, 'server': server,
             'config_version': 'config-v1', 'provider_versions': {'llm': 'l1', 'asr': 'a1', 'tts': 't1'},
-            'rounds': rounds, 'fault_checks': {key: 'RECORDED' for key in FAULT_CHECKS}}
+            'rounds': rounds, 'fault_checks': {key: 'PASS' for key in FAULT_CHECKS}}
 
 
 class M1RoundEvidenceTests(unittest.TestCase):
@@ -50,6 +50,11 @@ class M1RoundEvidenceTests(unittest.TestCase):
             with self.subTest(doc=doc):
                 with self.assertRaises(ValueError): summarize(doc)
 
+    def test_round_number_must_be_an_exact_integer(self):
+        for invalid in (True, 1.0):
+            doc = valid_input(); doc['rounds'][0]['round'] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError): summarize(doc)
+
     def test_rejects_nonfinite_and_negative_metrics_and_mixed_session(self):
         for value in (-1, float('nan'), float('inf')):
             doc = valid_input(); doc['rounds'][0]['latencies_ms']['asr_final']['value'] = value
@@ -57,10 +62,19 @@ class M1RoundEvidenceTests(unittest.TestCase):
         doc = valid_input(); doc['rounds'][0]['session_id'] = 'other-session'
         with self.assertRaises(ValueError): summarize(doc)
 
-    def test_missing_fault_checks_and_explicit_na_never_become_pass(self):
+    def test_fault_check_fail_not_verified_and_missing_have_distinct_outcomes(self):
+        doc = valid_input(); doc['fault_checks']['nas_disconnect_recovery'] = 'FAIL'
+        result = summarize(doc)
+        self.assertEqual(result['status'], 'FAIL')
+        self.assertEqual(result['fault_checks']['nas_disconnect_recovery'], 'FAIL')
+        doc = valid_input(); doc['fault_checks']['nas_disconnect_recovery'] = 'NOT_VERIFIED'
+        result = summarize(doc)
+        self.assertEqual(result['status'], 'NOT_VERIFIED')
+        self.assertEqual(result['fault_checks']['nas_disconnect_recovery'], 'NOT_VERIFIED')
         doc = valid_input(); doc['fault_checks'].pop('wake_without_asr')
         result = summarize(doc)
         self.assertEqual(result['status'], 'NOT_VERIFIED')
+        self.assertEqual(result['fault_checks']['wake_without_asr'], 'NOT_VERIFIED')
         self.assertTrue(any('wake_without_asr' in reason for reason in result['reasons']))
         doc = valid_input(); doc['rounds'][0]['latencies_ms']['tts_first_audio']['value'] = None
         self.assertEqual(summarize(doc)['metrics']['tts_first_audio']['status'], 'NOT_VERIFIED')

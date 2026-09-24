@@ -13,7 +13,7 @@ Input JSON schema (unknown fields are ignored):
  "resources":{"heap_min_bytes":123,"psram_min_bytes":null},
  "flags":{"misrecapture":false,"stuck":false,"crash":false,"wdt":false,
  "reboot":false,"looping_capture":false,"lost_response":false}}, ...],
- "fault_checks":{"nas_disconnect_recovery":"RECORDED", ...}}
+ "fault_checks":{"nas_disconnect_recovery":"PASS|FAIL|NOT_VERIFIED", ...}}
 Fault check keys: nas_disconnect_recovery, websocket_reconnect,
 tts_midstream_network_loss, silence_timeout, wake_without_asr,
 repeated_interruptions, self_capture_during_tts, self_capture_after_tts.
@@ -91,7 +91,8 @@ def summarize(doc):
     unavailable = set(); coverage = {s: 0 for s in SCENARIOS}; reasons = []
     fail = False
     for index, row in enumerate(rounds, 1):
-        _require(isinstance(row, dict) and row.get('round') == index, 'rounds must be unique and ordered 1..20')
+        _require(isinstance(row, dict) and type(row.get('round')) is int and row['round'] == index,
+                 'rounds must be unique integer values ordered 1..20')
         _require(row.get('session_id') == sid, 'mixed or missing session identity')
         _require(_identity(row.get('candidate')) == candidate, 'mixed candidate identity')
         _require(_server(row.get('server')) == server, 'mixed server identity')
@@ -127,8 +128,12 @@ def summarize(doc):
                 fail = True; reasons.append(f'round {index}: {key}')
     checks = doc.get('fault_checks')
     _require(isinstance(checks, dict), 'fault checks required')
-    missing_checks = [k for k in FAULT_CHECKS if checks.get(k) != 'RECORDED']
-    if missing_checks: reasons.extend(f'fault check not recorded: {k}' for k in missing_checks)
+    check_states = {k: checks.get(k) if checks.get(k) in ('PASS', 'FAIL', 'NOT_VERIFIED') else 'NOT_VERIFIED'
+                    for k in FAULT_CHECKS}
+    failed_checks = [k for k, state in check_states.items() if state == 'FAIL']
+    missing_checks = [k for k, state in check_states.items() if state == 'NOT_VERIFIED']
+    reasons.extend(f'fault check failed: {k}' for k in failed_checks)
+    reasons.extend(f'fault check not verified: {k}' for k in missing_checks)
     metrics = {}
     for metric in METRICS:
         by_clock = {clock: {'n': len(vals), 'p50_ms': _pctl(vals, .5), 'p95_ms': _pctl(vals, .95),
@@ -146,13 +151,13 @@ def summarize(doc):
                         'min': min(vals) if vals else None}
     required_coverage = all(coverage[s] > 0 for s in SCENARIOS)
     reasons.extend(f'scenario not covered: {s}' for s in SCENARIOS if coverage[s] == 0)
-    status = 'FAIL' if fail else ('NOT_VERIFIED' if missing_checks or unavailable or not required_coverage else 'PASS')
+    status = 'FAIL' if fail or failed_checks else ('NOT_VERIFIED' if missing_checks or unavailable or not required_coverage else 'PASS')
     if fail: reasons.insert(0, 'critical failure flag observed')
     if not reasons and status == 'PASS': reasons.append('20-round continuity and recorded checks satisfy declared evidence rules; no performance thresholds are defined')
     return {'schema': 'claw4-v6-m1-round-report/1', 'status': status, 'session_id': sid,
             'candidate': candidate, 'server': server, **versions, 'round_count': len(rounds),
             'scenario_coverage': coverage, 'metrics': metrics,
-            'fault_checks': {k: checks.get(k) == 'RECORDED' for k in FAULT_CHECKS}, 'reasons': reasons,
+            'fault_checks': check_states, 'reasons': reasons,
             'limits': 'No latency/resource pass thresholds or scenario quotas are defined. PASS means evidence structure and recorded checks only; it does not establish voice quality. Timing aggregates are per metric and retain source monotonic clock domain; no cross-host timing is derived.'}
 
 
