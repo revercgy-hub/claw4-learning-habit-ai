@@ -1,0 +1,51 @@
+{
+  "candidate": "claw4-learning-v6-m0.20",
+  "result": "BLOCKED_PRE_FLASH_PARTITION_MISMATCH",
+  "reviewed_source_sha": "a164f11ab5f5843d6ace5c4b990d86a29195a2fe",
+  "build_manifest": "integration/v6/m0-candidate-20.json",
+  "build_manifest_commit": "481c43803a9388ab400ad5022bc7137b5f28ee3c",
+  "build": {
+    "status": "PASS",
+    "directory": "E:/v6/s3",
+    "app_sha256": "b44397058ae7d714cb2acb7adb9c63d5ca01e214327d957705c9ac1e6c4ff4e0",
+    "app_bytes": 3249664,
+    "elf_sha256": "92562dfedc9ad11be32c3be34c15c8666b403ed5694e8a2aa04335c9264e8f4a",
+    "candidate_partition_table_sha256": "aeb3753bf4f27414820e29ea3282038357bffb6a4e65cb64c45bb263bd80f5de",
+    "build_log": {
+      "path": "out/s03/build-02.txt",
+      "sha256": "7ec38d4b1ba0904df2cbbbcc35f5b29306902dd63da7b2f79a671b89da441507"
+    }
+  },
+  "read_only_device_identity": {
+    "chip": "ESP32-P4",
+    "revision": "v1.3",
+    "mac": "80:f1:b2:d2:ed:14",
+    "flash_size_bytes": 33554432,
+    "secure_boot": "Disabled",
+    "flash_encryption": "Disabled",
+    "live_partition_table_sha256": "8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a"
+  },
+  "layout_conflict": {
+    "candidate_0x200000": "factory app; 14680064 bytes",
+    "live_0x200000": "ota_0 app; 9437184 bytes",
+    "candidate_model": "0x10f000; 978944 bytes",
+    "live_model": "0x110000; 978944 bytes",
+    "candidate_assets": "0x1000000; 15728640 bytes",
+    "live_resources": "0xf00000; 4194304 bytes",
+    "live_extra": ["otadata 0x10e000", "ota_1 0xb00000", "emote 0x1396000", "system 0x1796000", "storage 0x1896000", "coredump 0x1f96000"],
+    "historical_full_backup_sha256": "b77343691c97359eaedba4d7d8353ef6df55b10ae2f5f9a13059943c04bb9413",
+    "historical_backup_partition_table_sha256": "c254591397860d7c8e59e8c8c2762ed2efaec053b6ce5b4cfe1d69b19ecc4dc8",
+    "historical_backup_matches_live_partition_table": false,
+    "live_layout_matches_candidate": false
+  },
+  "private_evidence": {
+    "identity_log": {"path": "out/s03/device-identity.txt", "sha256": "e3b1429ba1255efdf6d3a2fa4e4471e7dbaeb70fbb58376b6bea774dde1626e1"},
+    "security_log": {"path": "out/s03/device-security.txt", "sha256": "962226784bce567b199146192cc7a61655fc8233ebe4ed56cc5cb1d9bf4c1858"},
+    "partition_read_log": {"path": "out/s03/device-partition-read.txt", "sha256": "7d7b7db03c13f76d0f9c1500a6347c37b3bc94249eba5cf4f47b6d79599cb7f5"},
+    "partition_read_binary": {"path": "out/s03/device-partition-before.bin", "sha256": "8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a"}
+  },
+  "flash_write_performed": false,
+  "device_matrix": "NOT_VERIFIED",
+  "recovery_writeback": "NOT_VERIFIED",
+  "m0_gate": "IN_PROGRESS"
+}
