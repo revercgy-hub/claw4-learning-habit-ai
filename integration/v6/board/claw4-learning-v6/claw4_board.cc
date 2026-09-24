@@ -399,11 +399,13 @@ class Claw4Board final : public WifiBoard {
                 request.type = kType;
                 request.memory = V4L2_MEMORY_MMAP;
                 failed_stage = "request_buffers";
+                // The driver may have allocated some buffers before reporting
+                // failure. Always request release after attempting allocation.
+                buffers_requested = true;
                 if (ioctl(fd, VIDIOC_REQBUFS, &request) != 0) {
                     capture_error = errno;
                     break;
                 }
-                buffers_requested = true;
                 if (request.count == 0 || request.count > kBufferCount) {
                     capture_error = ENOMEM;
                     break;
@@ -427,7 +429,10 @@ class Claw4Board final : public WifiBoard {
                     buffers[index].address = mmap(nullptr, buffer.length,
                                                   PROT_READ | PROT_WRITE, MAP_SHARED,
                                                   fd, buffer.m.offset);
-                    if (buffers[index].address == MAP_FAILED) {
+                    // esp_video_mman returns nullptr on failure; also accept
+                    // MAP_FAILED for conventional mmap implementations.
+                    if (buffers[index].address == nullptr ||
+                        buffers[index].address == MAP_FAILED) {
                         buffers[index].address = nullptr;
                         capture_error = errno;
                         break;
@@ -557,8 +562,20 @@ class Claw4Board final : public WifiBoard {
             ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC sensor_stack_initialized=0 error=%s frame_capture=0",
                      esp_err_to_name(error));
         }
-        if (xclk_started) esp_cam_sensor_xclk_stop(xclk);
-        if (xclk != nullptr) esp_cam_sensor_xclk_free(xclk);
+        if (xclk_started) {
+            const esp_err_t stop_error = esp_cam_sensor_xclk_stop(xclk);
+            if (stop_error != ESP_OK) {
+                ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC xclk_stop=%s",
+                         esp_err_to_name(stop_error));
+            }
+        }
+        if (xclk != nullptr) {
+            const esp_err_t free_error = esp_cam_sensor_xclk_free(xclk);
+            if (free_error != ESP_OK) {
+                ESP_LOGW("Claw4V6", "CAMERA_DIAGNOSTIC xclk_free=%s",
+                         esp_err_to_name(free_error));
+            }
+        }
         SetOutput(2, true); // Return the camera to its powered-down state.
     }
     static void CameraDiagnosticTask(void* context) {

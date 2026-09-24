@@ -50,7 +50,7 @@
       ],
       [
         "    uint16_t ap_num = 0;\n    esp_wifi_scan_get_ap_num(&ap_num);\n    wifi_ap_record_t *ap_records = (wifi_ap_record_t *)malloc(ap_num * sizeof(wifi_ap_record_t));\n    esp_wifi_scan_get_ap_records(&ap_num, ap_records);",
-        "    uint16_t ap_num = 0;\n    auto scan_error = esp_wifi_scan_get_ap_num(&ap_num);\n    std::vector<wifi_ap_record_t> records(ap_num);\n    if (scan_error == ESP_OK && ap_num != 0) {\n        scan_error = esp_wifi_scan_get_ap_records(&ap_num, records.data());\n    }\n    if (scan_error != ESP_OK) {\n        ESP_LOGW(TAG, \"SCAN_READ_FAILED code=%d\", int(scan_error));\n        esp_wifi_clear_ap_list();\n        esp_timer_start_once(timer_handle_, scan_current_interval_microseconds_);\n        UpdateScanInterval();\n        return;\n    }\n    records.resize(ap_num);\n    connect_queue_.clear();"
+        "    // A failed scan must not leave candidates from the previous scan.\n    connect_queue_.clear();\n    uint16_t ap_num = 0;\n    auto scan_error = esp_wifi_scan_get_ap_num(&ap_num);\n    std::vector<wifi_ap_record_t> records(scan_error == ESP_OK ? ap_num : 0);\n    if (scan_error == ESP_OK && ap_num != 0) {\n        scan_error = esp_wifi_scan_get_ap_records(&ap_num, records.data());\n    }\n    if (scan_error != ESP_OK) {\n        ESP_LOGW(TAG, \"SCAN_READ_FAILED code=%d\", int(scan_error));\n        esp_wifi_clear_ap_list();\n        esp_timer_start_once(timer_handle_, scan_current_interval_microseconds_);\n        UpdateScanInterval();\n        return;\n    }\n    records.resize(ap_num);"
       ],
       [
         "std::sort(ap_records, ap_records + ap_num,",

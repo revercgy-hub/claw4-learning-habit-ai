@@ -27,15 +27,19 @@ if __name__ == '__main__':
     fixture = (ROOT / 'tools/v6/network_station_fixture.cc').read_text()
     fixture = fixture.replace('// INSERT_PRODUCTION_METHODS',
                               ''.join(method(source, name) for name in
-                                      ['HandleScanResult', 'StartConnect', 'HandleScanDone', 'StartFullScan', 'WifiEventHandler']))
+                                      ['StartScan', 'HandleScanResult', 'StartConnect',
+                                       'HandleScanDone', 'StartFullScan', 'WifiEventHandler']))
     env = os.environ.copy()
     env['PATH'] = str(args.cxx.parent) + os.pathsep + env['PATH']
-    with tempfile.TemporaryDirectory(prefix='claw4-network-') as temp:
+    output_dir = ROOT / 'out/s02'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='network-', dir=output_dir) as temp:
         cpp = Path(temp) / 'station.cc'
         exe = Path(temp) / 'station.exe'
         cpp.write_text(fixture, encoding='utf-8')
-        subprocess.run([str(args.cxx), '-std=c++17', '-Wall', '-Wextra',
-                        '-Wno-class-memaccess', '-Wno-missing-field-initializers',
+        subprocess.run([str(args.cxx), '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                        '-Wno-unused-parameter', '-Wno-class-memaccess',
+                        '-Wno-missing-field-initializers',
                         '-I' + str(SPEC), str(cpp), '-o', str(exe)], check=True, env=env)
         subprocess.run([str(exe)], check=True, env=env)
-    print('PASS: 19 production-method host scenarios; no hardware claims.')
+    print('PASS: 24 production WifiStation method scenarios; no hardware claims.')
