@@ -1,11 +1,11 @@
-import copy
 import unittest
 
 from tools.v6.m1_round_evidence import FAULT_CHECKS, SCHEMA, summarize
 
 
 def valid_input():
-    identity = {'app_sha256': 'a' * 64, 'elf_sha256': 'b' * 64}
+    identity = {'reviewed_source_sha': 'e' * 40,
+                'app_sha256': 'a' * 64, 'elf_sha256': 'b' * 64}
     server = {'repo': 'org/server', 'commit': 'c' * 40,
               'image': 'registry/server@sha256:' + 'd' * 64}
     rounds = []
@@ -21,7 +21,8 @@ def valid_input():
                        'flags': {key: False for key in ('misrecapture', 'stuck', 'crash', 'wdt', 'reboot',
                                                                'looping_capture', 'lost_response')}})
     return {'schema': SCHEMA, 'session_id': 'session-001', 'candidate': identity, 'server': server,
-            'config_version': 'config-v1', 'provider_versions': {'llm': 'l1', 'asr': 'a1', 'tts': 't1'},
+            'config_sha256': 'f' * 64, 'config_version': 'config-v1',
+            'provider_versions': {'llm': 'l1', 'asr': 'a1', 'tts': 't1'},
             'rounds': rounds, 'fault_checks': {key: 'PASS' for key in FAULT_CHECKS}}
 
 
@@ -54,6 +55,62 @@ class M1RoundEvidenceTests(unittest.TestCase):
         for invalid in (True, 1.0):
             doc = valid_input(); doc['rounds'][0]['round'] = invalid
             with self.subTest(invalid=invalid), self.assertRaises(ValueError): summarize(doc)
+
+    def test_reviewed_source_sha_required_in_document_and_each_round(self):
+        for place in ('document', 'round'):
+            for invalid in (None, 'e' * 39, 'g' * 40):
+                doc = valid_input()
+                candidate = doc['candidate'] if place == 'document' else doc['rounds'][0]['candidate']
+                candidate['reviewed_source_sha'] = invalid
+                with self.subTest(place=place, invalid=invalid), self.assertRaises(ValueError):
+                    summarize(doc)
+        doc = valid_input()
+        doc['rounds'][0]['candidate']['reviewed_source_sha'] = 'd' * 40
+        with self.assertRaisesRegex(ValueError, 'mixed candidate identity'):
+            summarize(doc)
+
+    def test_candidate_hashes_are_normalized_before_comparison(self):
+        doc = valid_input()
+        doc['candidate']['reviewed_source_sha'] = 'E' * 40
+        doc['candidate']['app_sha256'] = 'A' * 64
+        doc['rounds'][0]['candidate']['elf_sha256'] = 'B' * 64
+        self.assertEqual(summarize(doc)['candidate'],
+                         {'reviewed_source_sha': 'e' * 40,
+                          'app_sha256': 'a' * 64, 'elf_sha256': 'b' * 64})
+
+    def test_config_digest_required_and_provider_versions_retained(self):
+        for invalid in (None, '', 'f' * 63, 'g' * 64):
+            doc = valid_input()
+            doc['config_sha256'] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                summarize(doc)
+        doc = valid_input()
+        doc['config_sha256'] = 'F' * 64
+        doc.pop('config_version')
+        result = summarize(doc)
+        self.assertEqual(result['config_sha256'], 'f' * 64)
+        self.assertNotIn('config_version', result)
+        self.assertEqual(result['provider_versions'], {'llm': 'l1', 'asr': 'a1', 'tts': 't1'})
+        doc['provider_versions'].pop('tts')
+        with self.assertRaises(ValueError):
+            summarize(doc)
+
+    def test_resource_bytes_require_exact_nonnegative_integers_or_null(self):
+        for key in ('heap_min_bytes', 'psram_min_bytes'):
+            for invalid in (True, False, 1.0, -1, float('nan'), float('inf'), float('-inf')):
+                doc = valid_input()
+                doc['rounds'][0]['resources'][key] = invalid
+                with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
+                    summarize(doc)
+            doc = valid_input()
+            doc['rounds'][0]['resources'].pop(key)
+            with self.subTest(key=key, invalid='missing'), self.assertRaises(ValueError):
+                summarize(doc)
+            doc = valid_input()
+            doc['rounds'][0]['resources'][key] = 0
+            summarize(doc)
+            doc['rounds'][0]['resources'][key] = None
+            self.assertEqual(summarize(doc)['metrics'][key]['status'], 'NOT_VERIFIED')
 
     def test_rejects_nonfinite_and_negative_metrics_and_mixed_session(self):
         for value in (-1, float('nan'), float('inf')):

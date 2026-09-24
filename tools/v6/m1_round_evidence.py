@@ -2,9 +2,11 @@
 
 Input JSON schema (unknown fields are ignored):
 {"schema":"claw4-v6-m1-rounds/1","session_id":"...",
- "candidate":{"app_sha256":"<64 hex>","elf_sha256":"<64 hex>"},
+ "candidate":{"reviewed_source_sha":"<40 hex>",
+              "app_sha256":"<64 hex>","elf_sha256":"<64 hex>"},
  "server":{"repo":"...","commit":"<40 hex>","image":"name@sha256:<64 hex>"},
- "config_version":"...","provider_versions":{"llm":"...","asr":"...","tts":"..."},
+ "config_sha256":"<64 hex>","config_version":"optional label",
+ "provider_versions":{"llm":"...","asr":"...","tts":"..."},
  "rounds":[{"round":1,"scenario":"short|long|silence|interruption",
  "session_id":"...","candidate":{...},"server":{...},
  "latencies_ms":{"asr_final":{"value":12,"clock":"service_monotonic"},
@@ -48,10 +50,14 @@ def _require(cond, msg):
 
 def _identity(obj):
     _require(isinstance(obj, dict), 'identity object missing')
+    source = obj.get('reviewed_source_sha')
     app = obj.get('app_sha256'); elf = obj.get('elf_sha256')
+    _require(isinstance(source, str) and re.fullmatch(r'[0-9a-fA-F]{40}', source),
+             'full reviewed source SHA required')
     _require(isinstance(app, str) and re.fullmatch(r'[0-9a-fA-F]{64}', app), 'full app SHA256 required')
     _require(isinstance(elf, str) and re.fullmatch(r'[0-9a-fA-F]{64}', elf), 'full ELF SHA256 required')
-    return {'app_sha256': app.lower(), 'elf_sha256': elf.lower()}
+    return {'reviewed_source_sha': source.lower(),
+            'app_sha256': app.lower(), 'elf_sha256': elf.lower()}
 
 
 def _server(obj):
@@ -64,11 +70,19 @@ def _server(obj):
 
 
 def _versions(doc):
-    cfg = doc.get('config_version'); providers = doc.get('provider_versions')
-    _require(isinstance(cfg, str) and cfg.strip(), 'config version required')
+    cfg_sha = doc.get('config_sha256'); cfg_version = doc.get('config_version')
+    providers = doc.get('provider_versions')
+    _require(isinstance(cfg_sha, str) and re.fullmatch(r'[0-9a-fA-F]{64}', cfg_sha),
+             'full config SHA256 required')
+    if cfg_version is not None:
+        _require(isinstance(cfg_version, str) and cfg_version.strip(), 'config version must be a nonempty label')
     _require(isinstance(providers, dict) and all(isinstance(providers.get(k), str) and providers[k].strip()
             for k in ('llm', 'asr', 'tts')), 'LLM/ASR/TTS provider versions required')
-    return {'config_version': cfg, 'provider_versions': {k: providers[k] for k in ('llm', 'asr', 'tts')}}
+    result = {'config_sha256': cfg_sha.lower(),
+              'provider_versions': {k: providers[k] for k in ('llm', 'asr', 'tts')}}
+    if cfg_version is not None:
+        result['config_version'] = cfg_version
+    return result
 
 
 def _pctl(values, p):
@@ -119,8 +133,8 @@ def summarize(doc):
             if value is None:
                 unavailable.add(key)
             else:
-                _require(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0,
-                         f'{key} must be nonnegative finite or explicit null')
+                _require(type(value) is int and value >= 0,
+                         f'{key} must be a nonnegative integer or explicit null')
         flags = row.get('flags')
         _require(isinstance(flags, dict) and all(type(flags.get(k)) is bool for k in FLAGS), 'all critical flags must be recorded as booleans')
         for key in FLAGS:
