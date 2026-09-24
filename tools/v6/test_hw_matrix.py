@@ -17,6 +17,7 @@ import hw_matrix
 
 SYNTHETIC_BOOT = """\
 rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+I (1) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa
 I (1490) esp_psram: Found 32MB PSRAM device
 I (1531) main_task: Calling app_main()
 I (91) boot:  5 assets           Unknown data     01 82 01000000 00f00000
@@ -76,6 +77,7 @@ I (3000) Claw4V6: POWER_KEY_LONG detected; diagnostic has no power side effects
 # scan matches and the station associates. Same firmware, same saved channel.
 SYNTHETIC_NETCONNECTED = """\
 rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+I (1) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa
 I (8677) WifiBoard: Starting WiFi connection attempt
 I (9602) WifiStation: Scanning saved channel 11
 I (9623) V6M0: NETWORK_EVENT=0
@@ -95,6 +97,7 @@ I (28586) V6M0: HEALTH free=27133675 psram=26841568 wake=1 taps=0
 # touch evidence carried by SYNTHETIC_BOOT, and it adds config-portal evidence.
 SYNTHETIC_NETPROBE = """\
 rst:0x17 (CHIP_USB_UART_RESET),boot:0x1f (SPI_FAST_FLASH_BOOT)
+I (1) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa
 I (8515) RPC_WRAP: Coprocessor Boot-up
 I (8677) WifiBoard: Starting WiFi connection attempt
 I (9601) WifiStation: Scanning saved channel 11
@@ -118,7 +121,10 @@ I (88584) V6M0: HEALTH free=27118527 psram=26837296 wake=1 taps=0
 
 CANDIDATE = {
     "candidate": "claw4-learning-v6-m0.1",
-    "files": {"build/xiaozhi.bin": {"sha256": "a" * 64, "bytes": 3042864}},
+    "files": {
+        "build/xiaozhi.bin": {"sha256": "a" * 64, "bytes": 3042864},
+        "build/xiaozhi.elf": {"sha256": "a" * 64, "bytes": 4096},
+    },
 }
 
 
@@ -127,6 +133,11 @@ def _write(tmp: str, name: str, body: str) -> str:
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(body)
     return path
+
+
+def _anchored(body: str) -> str:
+    return body if "CANDIDATE_ELF_SHA256=" in body or "ELF file SHA256:" in body else (
+        "I (1) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n" + body)
 
 
 class SignalTests(unittest.TestCase):
@@ -366,7 +377,7 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(self.status("回滚（恢复写回）"), "NOT_TESTED")
 
     def matrix_for_log(self, name: str, body: str):
-        path = _write(self._dir.name, name, body)
+        path = _write(self._dir.name, name, _anchored(body))
         return hw_matrix.build_matrix(
             [hw_matrix.parse_boot_log(path)], [], self.cand_path, CANDIDATE, {})
 
@@ -398,16 +409,16 @@ class MatrixTests(unittest.TestCase):
     def test_camera_unqualified_retry_keeps_mixed_history_visible(self):
         incomplete = _write(
             self._dir.name, "camera-incomplete.txt",
-            "I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480\n")
-        good = _write(self._dir.name, "camera-good.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
+            _anchored("I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480\n"))
+        good = _write(self._dir.name, "camera-good.txt", _anchored(SYNTHETIC_CAMERA_CLEAN_FRAME))
         matrix = hw_matrix.build_matrix(
             [hw_matrix.parse_boot_log(good), hw_matrix.parse_boot_log(incomplete)], [],
             self.cand_path, CANDIDATE, {})
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
 
     def test_camera_clean_and_failed_runs_are_reported_as_partial(self):
-        good = _write(self._dir.name, "camera-good.txt", SYNTHETIC_CAMERA_CLEAN_FRAME)
-        failed = _write(self._dir.name, "camera-failed.txt", SYNTHETIC_CAMERA_FAILURE)
+        good = _write(self._dir.name, "camera-good.txt", _anchored(SYNTHETIC_CAMERA_CLEAN_FRAME))
+        failed = _write(self._dir.name, "camera-failed.txt", _anchored(SYNTHETIC_CAMERA_FAILURE))
         matrix = hw_matrix.build_matrix(
             [hw_matrix.parse_boot_log(good), hw_matrix.parse_boot_log(failed)], [],
             self.cand_path, CANDIDATE, {})
@@ -427,8 +438,8 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(self.status("SD 卡单次挂载", matrix), "FAIL")
 
     def test_sd_success_and_failure_are_partial(self):
-        good = _write(self._dir.name, "sd-good.txt", SYNTHETIC_SD_AND_POWER_KEY.splitlines()[0] + "\n")
-        failed = _write(self._dir.name, "sd-failed.txt", "W (1000) Claw4V6: SD_DIAGNOSTIC not_mounted error=ESP_FAIL\n")
+        good = _write(self._dir.name, "sd-good.txt", _anchored(SYNTHETIC_SD_AND_POWER_KEY.splitlines()[0] + "\n"))
+        failed = _write(self._dir.name, "sd-failed.txt", _anchored("W (1000) Claw4V6: SD_DIAGNOSTIC not_mounted error=ESP_FAIL\n"))
         matrix = hw_matrix.build_matrix(
             [hw_matrix.parse_boot_log(good), hw_matrix.parse_boot_log(failed)], [],
             self.cand_path, CANDIDATE, {})
@@ -546,6 +557,95 @@ class ReviewRegressionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Candidate ELF mismatch'):
                 hw_matrix.build_matrix([hw_matrix.parse_boot_log(path)], [],
                                        'candidate.json', candidate, {})
+
+    def test_missing_boot_identity_is_rejected_even_with_boot_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = _write(directory, 'identity-missing.txt',
+                          'I (10) V6M0: BOOT_READY IDF=v6.1; no protocol started\n')
+            with self.assertRaisesRegex(ValueError, 'identity anchor'):
+                hw_matrix.build_matrix([hw_matrix.parse_boot_log(path)], [],
+                                       'candidate.json', CANDIDATE, {})
+
+    def test_wrong_or_mixed_candidate_anchors_are_rejected(self):
+        for name, body, error in (
+            ('wrong.txt', 'I (10) app_init: CANDIDATE_ELF_SHA256=bbbbbbbbb\n', 'Candidate ELF mismatch'),
+            ('mixed.txt', 'I (10) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n'
+                          'I (20) app_init: CANDIDATE_ELF_SHA256=bbbbbbbbb\n', 'identity anchor'),
+            ('short.txt', 'I (10) app_init: CANDIDATE_ELF_SHA256=aaaaaaaa\n', 'Invalid boot identity'),
+            ('duplicate.txt', 'I (10) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n'
+                              'I (20) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n', 'identity anchor'),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = _write(directory, name, body)
+                with self.assertRaisesRegex(ValueError, error):
+                    hw_matrix.build_matrix([hw_matrix.parse_boot_log(path)], [],
+                                           'candidate.json', CANDIDATE, {})
+
+    def _manifest_matrix(self, directory, bodies, sessions=None):
+        sessions = sessions or ['boot-01'] * len(bodies)
+        paths, entries = [], []
+        for index, (body, session) in enumerate(zip(bodies, sessions)):
+            path = _write(directory, f'capture-{index}.txt', body)
+            paths.append(hw_matrix.parse_boot_log(path))
+            entries.append({'path': path, 'sha256': hw_matrix.sha256_file(path), 'session': session})
+        manifest = {'elf_sha256': 'a' * 64, 'captures': entries}
+        return hw_matrix.build_matrix(paths, [], 'candidate.json', CANDIDATE, {}, manifest)
+
+    def test_manifest_allows_hash_bound_nonoverlapping_continuation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            matrix = self._manifest_matrix(directory, [
+                'I (2) boot: initial pre-anchor clock\n'
+                'I (100) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n'
+                'I (200) V6M0: BOOT_READY IDF=v6.1;\n'
+                'I (200) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\n',
+                'I (300) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\n',
+            ])
+            self.assertEqual(len(matrix['boot_captures']), 2)
+
+    def test_manifest_rejects_unanchored_capture_in_different_session(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, 'Session requires'):
+                self._manifest_matrix(directory, [
+                    'I (100) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n',
+                    'I (300) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\n',
+                ], ['boot-01', 'boot-02'])
+
+    def test_manifest_rejects_tampered_capture_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first = _write(directory, 'first.txt', 'I (100) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n')
+            second = _write(directory, 'second.txt', 'I (200) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\n')
+            parsed = [hw_matrix.parse_boot_log(first), hw_matrix.parse_boot_log(second)]
+            manifest = {'elf_sha256': 'a' * 64, 'captures': [
+                {'path': first, 'sha256': parsed[0]['sha256'], 'session': 'boot-01'},
+                {'path': second, 'sha256': '0' * 64, 'session': 'boot-01'},
+            ]}
+            with self.assertRaisesRegex(ValueError, 'Capture hash mismatch'):
+                hw_matrix.build_matrix(parsed, [], 'candidate.json', CANDIDATE, {}, manifest)
+
+    def test_manifest_rejects_duplicate_capture_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = _write(directory, 'duplicate.txt',
+                          'I (100) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n')
+            parsed = hw_matrix.parse_boot_log(path)
+            manifest = {'elf_sha256': 'a' * 64, 'captures': [
+                {'path': path, 'sha256': parsed['sha256'], 'session': 'boot-01'},
+                {'path': path, 'sha256': parsed['sha256'], 'session': 'boot-01'},
+            ]}
+            with self.assertRaisesRegex(ValueError, 'duplicate capture'):
+                hw_matrix.build_matrix([parsed, parsed], [], 'candidate.json', CANDIDATE, {}, manifest)
+
+    def test_manifest_rejects_reset_and_overlapping_continuations(self):
+        for name, continuation in (
+            ('reset', 'rst:0x17 (CHIP_USB_UART_RESET)\nI (300) main_task: Calling app_main()\n'),
+            ('overlap', 'I (200) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\n'),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(ValueError, 'Reset in continuation|Overlapping'):
+                    self._manifest_matrix(directory, [
+                        'I (100) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n'
+                        'I (200) V6M0: BOOT_READY IDF=v6.1;\n',
+                        continuation,
+                    ])
 
     def test_ansi_colored_log_is_parsed(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -174,14 +174,20 @@ def parse_boot_log(path: str) -> dict:
     }
     health: list[dict] = []
     elf_hashes = set()
+    candidate_elf_anchors: list[str] = []
+    elf_file_hashes: list[str] = []
     last_ts = 0
     lines = 0
 
     with open(path, "r", encoding="utf-8", errors="replace") as handle:
         for raw in handle:
             line = re.sub(r"\x1b\[[0-9;]*m", "", raw.rstrip("\n"))
-            elf = re.search(r"(?:ELF file SHA256:\s*|CANDIDATE_ELF_SHA256=)([0-9a-f]{8,64})", line)
-            if elf: elf_hashes.add(elf.group(1))
+            for candidate_elf in re.finditer(r"CANDIDATE_ELF_SHA256=([0-9a-zA-Z]+)", line):
+                candidate_elf_anchors.append(candidate_elf.group(1))
+                elf_hashes.add(candidate_elf.group(1))
+            for elf_file in re.finditer(r"ELF file SHA256:\s*([0-9a-zA-Z]+)", line):
+                elf_file_hashes.append(elf_file.group(1))
+                elf_hashes.add(elf_file.group(1))
             lines += 1
             match = LOG_LINE.match(line)
             if match:
@@ -220,11 +226,14 @@ def parse_boot_log(path: str) -> dict:
     values.update(counters)
     return {
         "log": os.path.basename(path),
+        "path": path,
         "sha256": sha256_file(path),
         "bytes": os.path.getsize(path),
         "lines": lines,
         "last_timestamp_ms": last_ts,
         "elf_hashes": sorted(elf_hashes),
+        "candidate_elf_anchors": candidate_elf_anchors,
+        "elf_file_hashes": elf_file_hashes,
         "preamble": preamble,
         "signals": values,
         "health": health,
@@ -487,12 +496,121 @@ DEFAULT_USER_CONFIRMATIONS = {
 }
 
 
-def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations) -> dict:
+def _verify_boot_identity(boots, expected_elf, evidence_manifest=None) -> None:
+    """Fail closed unless every capture has a verified candidate/session identity.
+
+    Without a manifest, each --boot file is an independent capture and must carry
+    its own boot anchor. With a manifest, continuations may inherit an anchor only
+    through the existing audio_evidence protocol's ordered path/hash/session rows.
+    """
+    if not isinstance(expected_elf, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected_elf):
+        raise ValueError("Candidate ELF requires full SHA256")
+    expected_elf = expected_elf.lower()
+    if not boots:
+        raise ValueError("At least one boot capture is required")
+
+    def identities(capture, allow_empty=False):
+        candidates = capture.get("candidate_elf_anchors", [])
+        elf_files = capture.get("elf_file_hashes", [])
+        if len(candidates) > 1 or len(elf_files) > 1 or (not allow_empty and not (candidates or elf_files)):
+            raise ValueError(f"Boot capture requires one unambiguous identity anchor: {capture['log']}")
+        markers = [*candidates, *elf_files]
+        if any(not re.fullmatch(r"[0-9a-fA-F]{9,64}", value) for value in markers):
+            raise ValueError(f"Invalid boot identity anchor: {capture['log']}")
+        if any(not expected_elf.startswith(value.lower()) for value in markers):
+            raise ValueError(f"Candidate ELF mismatch: {capture['log']}")
+        if len(markers) == 2:
+            a, b = (value.lower() for value in markers)
+            if not (a.startswith(b) or b.startswith(a)):
+                raise ValueError(f"Conflicting ELF identity markers: {capture['log']}")
+        return candidates
+
+    def startup_counts(capture):
+        with open(capture["path"], "r", encoding="utf-8", errors="replace") as handle:
+            content = re.sub(r"\x1b\[[0-9;]*m", "", handle.read())
+        starts = len(re.findall(r"Calling app_main\(\)", content))
+        resets = len(re.findall(r"(?m)^rst:0x[0-9a-fA-F]+", content))
+        if starts > 1 or resets > 1:
+            raise ValueError(f"Multiple boot starts in capture: {capture['log']}")
+        return starts, resets
+
+    if evidence_manifest is None:
+        seen_hashes: set[str] = set()
+        for capture in boots:
+            identities(capture)
+            digest = capture.get("sha256", "").lower()
+            if not re.fullmatch(r"[0-9a-f]{64}", digest) or digest in seen_hashes:
+                raise ValueError(f"Missing or duplicate capture SHA256: {capture['log']}")
+            seen_hashes.add(digest)
+            startup_counts(capture)
+        return
+
+    manifest_elf = evidence_manifest.get("elf_sha256")
+    if (not isinstance(manifest_elf, str)
+            or not re.fullmatch(r"[0-9a-fA-F]{64}", manifest_elf)
+            or manifest_elf.lower() != expected_elf):
+        raise ValueError("Evidence manifest ELF SHA256 mismatch")
+    entries = evidence_manifest.get("captures")
+    if not isinstance(entries, list) or len(entries) != len(boots):
+        raise ValueError("Evidence manifest captures must match --boot inputs")
+
+    seen_hashes: set[str] = set()
+    sessions: dict[str, dict] = {}
+    for capture, entry in zip(boots, entries):
+        if not isinstance(entry, dict):
+            raise ValueError("Invalid evidence manifest capture")
+        path, digest, session = entry.get("path"), entry.get("sha256"), entry.get("session")
+        if not isinstance(path, str) or not path or not isinstance(session, str) or not session.strip():
+            raise ValueError("Evidence manifest capture requires path and session")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+            raise ValueError("Full capture SHA256 required")
+        if os.path.normcase(os.path.realpath(path)) != os.path.normcase(os.path.realpath(capture["path"])):
+            raise ValueError("Evidence manifest capture order/path mismatch")
+        actual = capture.get("sha256", "")
+        if actual.lower() != digest.lower() or actual.lower() in seen_hashes:
+            raise ValueError("Capture hash mismatch or duplicate capture")
+        seen_hashes.add(actual.lower())
+
+        state = sessions.get(session)
+        candidates = identities(capture, allow_empty=True)
+        stamped = []
+        with open(capture["path"], "r", encoding="utf-8", errors="replace") as handle:
+            for raw in handle:
+                line = re.sub(r"\x1b\[[0-9;]*m", "", raw.rstrip("\n"))
+                match = LOG_LINE.match(line)
+                if match:
+                    stamped.append((int(match.group(2)), match.group(3)))
+        if not stamped:
+            raise ValueError(f"Capture has no timestamped lines: {capture['log']}")
+
+        if state is None:
+            if not (capture.get("candidate_elf_anchors") or capture.get("elf_file_hashes")):
+                raise ValueError(f"Session requires one matching boot anchor: {capture['log']}")
+            startup_counts(capture)
+            marker = "CANDIDATE_ELF_SHA256=" if candidates else "ELF file SHA256:"
+            anchor_indices = [i for i, (_, msg) in enumerate(stamped) if marker in msg]
+            if len(anchor_indices) != 1:
+                raise ValueError(f"Boot anchor must be timestamped exactly once: {capture['log']}")
+            stamped = stamped[anchor_indices[0]:]
+            state = {"last": -1}
+            sessions[session] = state
+        else:
+            starts, resets = startup_counts(capture)
+            if candidates or capture.get("elf_file_hashes") or starts or resets:
+                raise ValueError(f"Reset in continuation; declare a new session: {capture['log']}")
+            if stamped[0][0] <= state["last"]:
+                raise ValueError(f"Overlapping/out-of-order continuation: {capture['log']}")
+
+        for stamp, _ in stamped:
+            if stamp < state["last"]:
+                raise ValueError(f"Timestamp rollback in session: {capture['log']}")
+            state["last"] = stamp
+
+
+def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations,
+                 evidence_manifest=None) -> dict:
     expected_elf = candidate["files"].get("build/xiaozhi.elf", {}).get("sha256")
-    for capture in boots:
-        for observed in capture.get("elf_hashes", []):
-            if not expected_elf or not expected_elf.startswith(observed):
-                raise ValueError(f"Candidate ELF mismatch: {capture['log']}")
+    _verify_boot_identity(boots, expected_elf, evidence_manifest)
     primary = boots[-1]
     signals, source = aggregate_signals(boots)
     health_all = [dict(sample, log=capture["log"])
@@ -588,13 +706,15 @@ def main(argv=None) -> int:
     parser.add_argument("--boot", action="append", required=True, help="UART boot capture")
     parser.add_argument("--flash", action="append", default=[], help="esptool flash capture")
     parser.add_argument("--candidate", required=True, help="frozen m0-candidate JSON")
+    parser.add_argument("--evidence-manifest", default=None,
+                        help="existing audio_evidence manifest binding continuation captures")
     parser.add_argument("--json-out", default=None)
     parser.add_argument("--md-out", default=None)
     parser.add_argument("--assume-display-visible", action="store_true", default=False)
     parser.add_argument("--assume-audio-loopback", action="store_true", default=False)
     args = parser.parse_args(argv)
 
-    for path in [*args.boot, *args.flash, args.candidate]:
+    for path in [*args.boot, *args.flash, args.candidate, *([args.evidence_manifest] if args.evidence_manifest else [])]:
         if not os.path.exists(path):
             print(f"missing input: {path}", file=sys.stderr)
             return 2
@@ -608,7 +728,17 @@ def main(argv=None) -> int:
     confirmations["display_visible"] = bool(args.assume_display_visible)
     confirmations["audio_loopback"] = bool(args.assume_audio_loopback)
 
-    matrix = build_matrix(boots, flashes, args.candidate, candidate, confirmations)
+    evidence_manifest = None
+    if args.evidence_manifest:
+        with open(args.evidence_manifest, "r", encoding="utf-8-sig") as handle:
+            evidence_manifest = json.load(handle)
+        # audio_evidence paths are relative to the manifest directory.
+        for entry in evidence_manifest.get("captures", []):
+            if isinstance(entry, dict) and isinstance(entry.get("path"), str):
+                entry["path"] = os.path.join(os.path.dirname(os.path.abspath(args.evidence_manifest)), entry["path"])
+    for boot, path in zip(boots, args.boot):
+        boot["path"] = path
+    matrix = build_matrix(boots, flashes, args.candidate, candidate, confirmations, evidence_manifest)
 
     if args.json_out:
         os.makedirs(os.path.dirname(os.path.abspath(args.json_out)), exist_ok=True)
