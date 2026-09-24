@@ -6,7 +6,7 @@
 
 接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`，接管审查 `CHANGES_REQUIRED`，`M1=BACKLOG`。83 是接管基线 Host 工具测试数；Candidate19 构建时为 68 项，之后新增 15 项工具测试得到 83，二者对应不同时间点，均不是设备验收数。旧 `clipped` 计数无效，不作削波证据；CODE/HOST/BUILD/DEVICE 分开记账，Candidate17 DEVICE PASS 不得转给 Candidate19。
 
-当前工作流顺序：L-01、L-02、S-01、S-02 → 独立 R-01 → S-03 → A-02。L-01、L-02、S-01 为 `IN_PROGRESS`，S-02 独立工作树已预建、状态仍为 `QUEUED`（等待槽位）；各项以根 [AGENTS.md](../../AGENTS.md) 接管 Task Contract 和 [V6 架构证据契约](../v6/V6_ARCHITECTURE.md) 为准。R-01 在四项实施完成后执行；R-01 未 PASS 不启动 S-03。M0 未 PASS 前 M1 不启动。旧调度中的所有 READY/领取入口均为 `SUPERSEDED`，不构成授权。
+第一实施波 L-01、L-02、S-01、S-02 已分别提交并整合至 `7263f67`；L-02 定向复核修复已整合至 `a128341`。第一波状态为 `REVIEW_READY`，等待 R-01 定向复审。R-01 首轮结论为 `CHANGES_REQUIRED`，整改已提交，当前复审未完成，不能标为 PASS。S-03 为 `QUEUED` 且尚未启动；只有 R-01 PASS 后才能启动。A-02 随后执行。各项以根 [AGENTS.md](../../AGENTS.md) 接管 Task Contract 和 [V6 架构证据契约](../v6/V6_ARCHITECTURE.md) 为准。Candidate19 仍为 built, not flashed；`M0=IN_PROGRESS`、`M1=BACKLOG`。
 
 V6 详细阶段状态见唯一看板：[V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)。
 

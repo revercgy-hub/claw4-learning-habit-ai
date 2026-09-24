@@ -4,15 +4,16 @@
 
 ## 2026-09-24 接管实施状态（当前有效）
 
-接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`、接管审查 `CHANGES_REQUIRED`、`M1=BACKLOG`。CODE、HOST、BUILD、DEVICE 是独立证据类别；Candidate17 的设备 PASS 不得转移至 Candidate19；旧 `clipped` 计数不用于验收。
+接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`、接管审查首轮 `CHANGES_REQUIRED` 且定向复审待完成、`M1=BACKLOG`。CODE、HOST、BUILD、DEVICE 是独立证据类别；Candidate17 的设备 PASS 不得转移至 Candidate19；旧 `clipped` 计数不用于验收。
+
+第一实施波 L-01、L-02、S-01、S-02 均已提交并整合至 `7263f67`；L-02 定向复核修复整合至 `a128341`。第一波现为 `REVIEW_READY`，等待 R-01 定向复审。R-01 首轮为 `CHANGES_REQUIRED`，修复已进入复审；当前结论仍未 PASS。
 
 | 队列 | 状态 | 说明 |
 | --- | --- | --- |
-| L-01 / L-02 / S-01 | IN_PROGRESS | 第一实施波；分别遵守根 AGENTS.md 中的文件白名单与验证条件 |
-| S-02 | QUEUED | 独立工作树已预建；等待实施槽位，不得提前开始 |
-| R-01 | QUEUED | 四项实施完成后由未参与实施的独立 reviewer 对不可变集成 SHA 复核；未 PASS 不构建新候选 |
-| S-03 | QUEUED | 仅 R-01 PASS 后单一 owner 串行执行 Build、身份核验、刷写、读回/证据和设备矩阵 |
-| A-02 | QUEUED | 最终核验同一候选的 CODE/HOST/BUILD/DEVICE 与 recovery evidence；不满足则保留 CHANGES_REQUIRED |
+| L-01 / L-02 / S-01 / S-02 | REVIEW_READY | 四项均已提交并整合；L-02 定向复核修复已整合；待 R-01 定向复审 |
+| R-01 | REVIEW_READY | 首轮结论 CHANGES_REQUIRED；目标修复已整合，定向复审待完成；不得标 PASS |
+| S-03 | QUEUED / 未启动 | 仅 R-01 PASS 后由单一 owner 串行执行 Build、身份核验、刷写、读回/证据和设备矩阵 |
+| A-02 | QUEUED | S-03 后核验同一候选的 CODE/HOST/BUILD/DEVICE 与 recovery evidence；不满足则保留 CHANGES_REQUIRED |
 
 M0 必需项仍有未闭合项，故 `M0=IN_PROGRESS`；M1 保持 `BACKLOG`。M1 定义为 NAS 连续语音 20 轮。旧 relay 学习闭环属于旧阶段设计，不能视作 M1 已完成或 M1 验收范围。旧 Candidate05–08 与历史看板中的 READY 入口一律 `SUPERSEDED`，只保留为历史记录，不构成当前领取授权。
 

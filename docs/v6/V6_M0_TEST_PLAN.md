@@ -2,7 +2,7 @@
 
 > **SUPERSEDED 历史计划，不是当前执行指令。** 本文最初适用于 Candidate04（`m0-candidate-04.json`，app SHA256 前缀 `196d8718a211e660…`）；候选、工具、职责、M1 范围和设备授权均已变化。不得按本文旧串口/刷写步骤操作。当前队列、证据规则及授权以 [V6_TASK_BOARD](V6_TASK_BOARD.md)、[V6_ARCHITECTURE](V6_ARCHITECTURE.md) 和根 [AGENTS.md](../../AGENTS.md) 接管节为准。保留本文供历史取证。
 
-Candidate04 相关结果不得代表当前 Candidate19。M1 当前定义为 NAS 连续语音 20 轮；本文旧“设备→主机 relay→后端”的学习闭环属于旧阶段，不是 M1 的验收结果或范围。
+Candidate04 相关结果不得代表当前 Candidate19。当前实施状态见 [V6_TASK_BOARD](V6_TASK_BOARD.md)：第一实施波已整合至 `7263f67`，L-02 定向修复已整合至 `a128341`；R-01 首轮 CHANGES_REQUIRED，定向复审未完成，S-03 仍 QUEUED/未启动。M0 为 IN_PROGRESS，M1 为 BACKLOG，定义为 NAS 连续语音 20 轮；本文旧“设备→主机 relay→后端”的学习闭环属于旧阶段，不是 M1 的验收结果或范围。
 
 ---
 
