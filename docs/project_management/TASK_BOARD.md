@@ -6,7 +6,9 @@
 
 接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 独立复审 PASS，Host 96/0。Candidate19 built, not flashed；Candidate20 已 app-only 刷写到 live `ota_0` 且读回 hash 一致。Candidate 构建/设备分区布局仍不匹配，恢复写回未执行。A-02 判定 `M0=CHANGES_REQUIRED`。
 
-用户于 2026-09-24 明确要求跳过 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`。该用户指令只授权 M1 开发准备/主机工具任务，不等于 M0 PASS，也没有开始或通过 M1 设备 20 轮验收。当前 M1 仅 `HOST PREPARATION`；NAS 部署、密钥配置和新的设备写入均未开始。
+用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不再派发或重做。M0 仍为 `CHANGES_REQUIRED`；Candidate20 DEVICE 验证仅部分完成。M1-DEV-01 已 `ACCEPTED`（证据工具，不代表语音验收）；XiaoZhi NAS v0.9.6 已部署，7443 HTTP/OTA、7444 WebSocket、SenseVoiceSmall、Ollama `qwen3.5:2b` 与 EdgeTTS 合成连通性通过。M1 真机 Voice 和正式连续 20 轮均为 `NOT_VERIFIED`。
+
+当前 M1 Voice 前置工作为 S-04 固件/Voice Preflight 准备、L-04 Preflight 与正式 20 轮证据工具准备；S-04 完成并经 R-02 独立审查 PASS 后，才进入唯一硬件 owner S-05 的 2～3 轮 M1-PREFLIGHT。Preflight 稳定后，正式 20 轮从第 1 轮开始；期间任何固件修改均废弃当轮次并从第 1 轮重启。M1 Voice Core 保持单一 owner，不提前加入 Learning UI 或 M1.5 七命令 Router。详见 [V6_TASK_BOARD](../v6/V6_TASK_BOARD.md) 和 [NAS 部署报告](../v6/V6_M1_NAS_DEPLOYMENT_REPORT.md)。
 
 CODE/HOST/BUILD/DEVICE 分开记账；Candidate17/18/19 DEVICE 结果不得转给 Candidate20。Candidate20 现场情况与缺口见 [设备报告](../v6/V6_M0_CANDIDATE20_DEVICE_REPORT.md)及 [A-02 Gate](../v6/V6_M0_CANDIDATE20_GATE.md)。
 
