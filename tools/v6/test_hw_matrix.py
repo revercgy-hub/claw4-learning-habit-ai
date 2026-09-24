@@ -414,6 +414,29 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(matrix["signals"]["camera_xclk_free_failure"], 1)
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
 
+    def test_camera_named_xclk_errors_block_pass(self):
+        for operation, error in (("stop", "ESP_ERR_INVALID_STATE"),
+                                 ("free", "ESP_ERR_NO_MEM"),
+                                 ("free", "0x103")):
+            with self.subTest(operation=operation, error=error):
+                failure = f"W (1300) Claw4V6: CAMERA_DIAGNOSTIC xclk_{operation}={error}\n"
+                body = SYNTHETIC_CAMERA_CLEAN_FRAME + failure
+                matrix = self.matrix_for_log("camera-xclk-named-error.txt", body)
+                self.assertEqual(matrix["signals"][f"camera_xclk_{operation}_failure"], 1)
+                self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
+                failed_only = self.matrix_for_log("camera-xclk-only-error.txt", failure)
+                self.assertEqual(self.status("相机 RAW8 单帧取帧", failed_only), "FAIL")
+
+    def test_camera_ok_and_unrelated_logs_do_not_block_pass(self):
+        body = SYNTHETIC_CAMERA_CLEAN_FRAME + (
+            "I (1300) Claw4V6: CAMERA_DIAGNOSTIC xclk_stop=ESP_OK\n"
+            "I (1400) Claw4V6: CAMERA_DIAGNOSTIC xclk_free=ESP_OK\n"
+            "W (1500) Claw4V6: CAMERA_DIAGNOSTIC unknown=ESP_ERR_INVALID_STATE\n")
+        matrix = self.matrix_for_log("camera-xclk-ok.txt", body)
+        self.assertEqual(matrix["signals"]["camera_xclk_stop_failure"], 0)
+        self.assertEqual(matrix["signals"]["camera_xclk_free_failure"], 0)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PASS")
+
     def test_camera_missing_metadata_does_not_count_as_clean(self):
         incomplete = "I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480\n"
         matrix = self.matrix_for_log("camera-incomplete.txt", incomplete)
