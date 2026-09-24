@@ -11,6 +11,7 @@ def valid_input():
     rounds = []
     for n in range(1, 21):
         rounds.append({'round': n, 'scenario': ('short', 'long', 'silence', 'interruption')[(n - 1) % 4],
+                       'stimulus': {'source': 'synthetic', 'id': f'stim-{n:02d}'},
                        'session_id': 'session-001', 'candidate': dict(identity), 'server': dict(server),
                        'device_restarted': False, 'service_restarted': False, 'manual_recovery': False,
                        'latencies_ms': {'asr_final': {'value': n, 'clock': 'service_monotonic'},
@@ -55,6 +56,33 @@ class M1RoundEvidenceTests(unittest.TestCase):
         for invalid in (True, 1.0):
             doc = valid_input(); doc['rounds'][0]['round'] = invalid
             with self.subTest(invalid=invalid), self.assertRaises(ValueError): summarize(doc)
+
+    def test_every_round_requires_synthetic_stimulus_with_safe_id(self):
+        for invalid_stimulus in (None, {}, {'id': 'stim-01'},
+                                 {'source': 'user', 'id': 'stim-01'},
+                                 {'source': 'child', 'id': 'stim-01'},
+                                 {'source': 'synthetic', 'id': None},
+                                 {'source': 'synthetic', 'id': ''},
+                                 {'source': 'synthetic', 'id': 'spoken prompt'},
+                                 {'source': 'synthetic', 'id': '../escape'},
+                                 {'source': 'synthetic', 'id': 'a' * 65}):
+            doc = valid_input()
+            doc['rounds'][9]['stimulus'] = invalid_stimulus
+            with self.subTest(stimulus=invalid_stimulus), self.assertRaises(ValueError):
+                summarize(doc)
+        doc = valid_input()
+        doc['rounds'][9].pop('stimulus')
+        with self.assertRaises(ValueError):
+            summarize(doc)
+
+    def test_stimulus_id_and_raw_text_are_not_reported(self):
+        doc = valid_input()
+        doc['rounds'][0]['stimulus']['id'] = 'Safe.ID:01'
+        doc['rounds'][0]['stimulus']['text'] = 'private synthetic prompt'
+        result = summarize(doc)
+        self.assertNotIn('stimulus', result)
+        self.assertNotIn('Safe.ID:01', str(result))
+        self.assertNotIn('private synthetic prompt', str(result))
 
     def test_reviewed_source_sha_required_in_document_and_each_round(self):
         for place in ('document', 'round'):

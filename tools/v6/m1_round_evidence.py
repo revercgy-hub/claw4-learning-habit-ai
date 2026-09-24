@@ -8,6 +8,7 @@ Input JSON schema (unknown fields are ignored):
  "config_sha256":"<64 hex>","config_version":"optional label",
  "provider_versions":{"llm":"...","asr":"...","tts":"..."},
  "rounds":[{"round":1,"scenario":"short|long|silence|interruption",
+ "stimulus":{"source":"synthetic","id":"short-01"},
  "session_id":"...","candidate":{...},"server":{...},
  "latencies_ms":{"asr_final":{"value":12,"clock":"service_monotonic"},
  "llm_first_token":{...},"tts_first_audio":{...},
@@ -22,7 +23,12 @@ repeated_interruptions, self_capture_during_tts, self_capture_after_tts.
 Null metrics mean explicitly unavailable and yield NOT_VERIFIED. The plan does
 not define latency thresholds, resource thresholds, or scenario quotas; those
 are reported without inferring success. Clock domains are preserved per metric.
-No prompt, transcript, or secret is accepted into output.
+The input covers exactly one consecutive 20-round evidence window. For a longer
+real session, the operator must identify one contiguous 20-round window and
+number its turns 1..20 without dropping any turn within that window. The
+validator cannot independently prove physical continuity. Stimulus IDs are
+short safe tokens, not prompt text. No prompt, transcript, or secret is
+accepted into output.
 """
 import argparse
 import json
@@ -110,6 +116,13 @@ def summarize(doc):
         _require(row.get('session_id') == sid, 'mixed or missing session identity')
         _require(_identity(row.get('candidate')) == candidate, 'mixed candidate identity')
         _require(_server(row.get('server')) == server, 'mixed server identity')
+        stimulus = row.get('stimulus')
+        _require(isinstance(stimulus, dict) and stimulus.get('source') == 'synthetic',
+                 'synthetic stimulus source required for every round')
+        stimulus_id = stimulus.get('id')
+        _require(isinstance(stimulus_id, str) and
+                 re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,63}', stimulus_id),
+                 'short safe stimulus id required for every round')
         scenario = row.get('scenario')
         _require(scenario in SCENARIOS, 'invalid or missing scenario')
         coverage[scenario] += 1
