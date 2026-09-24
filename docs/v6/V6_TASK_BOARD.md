@@ -4,18 +4,18 @@
 
 ## 2026-09-24 接管实施状态（当前有效）
 
-接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`、接管审查首轮 `CHANGES_REQUIRED` 且定向复审待完成、`M1=BACKLOG`。CODE、HOST、BUILD、DEVICE 是独立证据类别；Candidate17 的设备 PASS 不得转移至 Candidate19；旧 `clipped` 计数不用于验收。
+接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`、独立 R-01 复审 PASS、`M1=BACKLOG`。CODE、HOST、BUILD、DEVICE 是独立证据类别；Candidate17 的设备 PASS 不得转移至 Candidate19；旧 `clipped` 计数不用于验收。
 
-第一实施波 L-01、L-02、S-01、S-02 均已提交并整合至 `7263f67`；L-02 定向复核修复整合至 `a128341`。第一波现为 `REVIEW_READY`，等待 R-01 定向复审。R-01 首轮为 `CHANGES_REQUIRED`，修复已进入复审；当前结论仍未 PASS。
+第一实施波 L-01、L-02、S-01、S-02 均已提交并整合至 `7263f67`；L-02 定向复核修复整合至 `a128341`。独立 R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 复审通过，Host 结果 96/0。
 
 | 队列 | 状态 | 说明 |
 | --- | --- | --- |
-| L-01 / L-02 / S-01 / S-02 | REVIEW_READY | 四项均已提交并整合；L-02 定向复核修复已整合；待 R-01 定向复审 |
-| R-01 | REVIEW_READY | 首轮结论 CHANGES_REQUIRED；目标修复已整合，定向复审待完成；不得标 PASS |
-| S-03 | QUEUED / 未启动 | 仅 R-01 PASS 后由单一 owner 串行执行 Build、身份核验、刷写、读回/证据和设备矩阵 |
+| L-01 / L-02 / S-01 / S-02 | REVIEW_READY | 四项已提交并整合；审查结果按 R-01 复审记录 |
+| R-01 | PASS | 独立复审提交 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe`；Host 96/0 |
+| S-03 | IN_PROGRESS | 唯一设备 owner 已从 R-01 SHA 启动；Candidate20 仅计划，尚未构建，待 Sol 核验 Candidate ID 唯一性 |
 | A-02 | QUEUED | S-03 后核验同一候选的 CODE/HOST/BUILD/DEVICE 与 recovery evidence；不满足则保留 CHANGES_REQUIRED |
 
-M0 必需项仍有未闭合项，故 `M0=IN_PROGRESS`；M1 保持 `BACKLOG`。M1 定义为 NAS 连续语音 20 轮。旧 relay 学习闭环属于旧阶段设计，不能视作 M1 已完成或 M1 验收范围。旧 Candidate05–08 与历史看板中的 READY 入口一律 `SUPERSEDED`，只保留为历史记录，不构成当前领取授权。
+Candidate19 仍为 built, not flashed，且其设备结果不得转移至 Candidate20。Candidate20 尚未构建。M0 必需项仍有未闭合项，故 `M0=IN_PROGRESS`；M1 保持 `BACKLOG`。M1 定义为 NAS 连续语音 20 轮。旧 relay 学习闭环属于旧阶段设计，不能视作 M1 已完成或 M1 验收范围。旧 Candidate05–08 与历史看板中的 READY 入口一律 `SUPERSEDED`，只保留为历史记录，不构成当前领取授权。
 
 以下未再次标注的旧看板内容均为历史快照（SUPERSEDED），其中遗留的“当前有效”、READY 或派发入口只保留历史证据，不构成现行队列。
 

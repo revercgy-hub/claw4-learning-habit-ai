@@ -4,9 +4,9 @@
 
 ## 2026-09-24 接管实施状态（当前有效）
 
-接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`，接管审查 `CHANGES_REQUIRED`，`M1=BACKLOG`。83 是接管基线 Host 工具测试数；Candidate19 构建时为 68 项，之后新增 15 项工具测试得到 83，二者对应不同时间点，均不是设备验收数。旧 `clipped` 计数无效，不作削波证据；CODE/HOST/BUILD/DEVICE 分开记账，Candidate17 DEVICE PASS 不得转给 Candidate19。
+接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`，R-01 独立复审 PASS，`M1=BACKLOG`。83 是接管基线 Host 工具测试数；Candidate19 构建时为 68 项，之后新增 15 项工具测试得到 83，二者对应不同时间点，均不是设备验收数。旧 `clipped` 计数无效，不作削波证据；CODE/HOST/BUILD/DEVICE 分开记账，Candidate17 DEVICE PASS 不得转给 Candidate19。
 
-第一实施波 L-01、L-02、S-01、S-02 已分别提交并整合至 `7263f67`；L-02 定向复核修复已整合至 `a128341`。第一波状态为 `REVIEW_READY`，等待 R-01 定向复审。R-01 首轮结论为 `CHANGES_REQUIRED`，整改已提交，当前复审未完成，不能标为 PASS。S-03 为 `QUEUED` 且尚未启动；只有 R-01 PASS 后才能启动。A-02 随后执行。各项以根 [AGENTS.md](../../AGENTS.md) 接管 Task Contract 和 [V6 架构证据契约](../v6/V6_ARCHITECTURE.md) 为准。Candidate19 仍为 built, not flashed；`M0=IN_PROGRESS`、`M1=BACKLOG`。
+第一实施波 L-01、L-02、S-01、S-02 已分别提交并整合至 `7263f67`；L-02 定向复核修复已整合至 `a128341`。独立 R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 复审通过，Host 结果 96/0。S-03 已由唯一设备 owner 从该 SHA 启动，当前 Candidate20 仅为计划项，尚未构建；须先由 Sol 核实 Candidate ID 唯一性。Candidate19 仍为 built, not flashed，其设备结果不得转移至 Candidate20。A-02 为 `QUEUED`。各项以根 [AGENTS.md](../../AGENTS.md) 接管 Task Contract 和 [V6 架构证据契约](../v6/V6_ARCHITECTURE.md) 为准；`M0=IN_PROGRESS`、`M1=BACKLOG`。
 
 V6 详细阶段状态见唯一看板：[V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)。
 
