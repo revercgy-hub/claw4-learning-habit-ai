@@ -2,6 +2,8 @@
 
 ## 2026-09-24 用户指令覆盖：开始 M1 开发准备
 
+最新 M1 Voice 调度：用户指定 L-03 根看板同步、L-04 证据模板/解析、S-04 固件与真实布局 Preflight 准备；独立 R-02 `PASS` 后才由唯一硬件 owner S-05 执行 2～3 轮真机 Voice Preflight。Preflight 不计 M1 PASS；稳定后才从第 1 轮开始正式连续 20 轮及故障矩阵，正式运行期间任何固件修改都使当次轮次作废并从第 1 轮重来。AP outage/recovery 已由用户跳过，保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不得重复派发。构建应适配真实 live 布局，禁止通过写入或改动设备 partition table 来迁就固件；bootloader、ota_1、eFuse、Secure Boot、Flash Encryption、数据丢失风险仍为停止条件。S-04/R-02 禁止硬件写入；S-05 的设备操作只在 R-02 PASS 和唯一 owner 条件下按已审查 Candidate 的精确范围执行。
+
 用户明确要求跳过 Candidate20 的 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，A-02 仍是 `M0=CHANGES_REQUIRED`。2026-09-24 用户又明确提供铭凡 N5 x86 NAS 和 SSH 访问，授权部署小智服务；该授权覆盖 NAS 上隔离的 Docker 服务与合成内容连通性验证，不涵盖儿童数据上传、设备重刷或扩大 Flash/recovery 范围。NAS 部署不构成 M0 PASS 或 M1 20 轮 PASS。当前活动项见 [V6_TASK_BOARD](docs/v6/V6_TASK_BOARD.md)、[M1 计划](docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md) 和 [NAS 部署报告](docs/v6/V6_M1_NAS_DEPLOYMENT_REPORT.md)。此条只覆盖下文 2026-09-23 调度中的 M1 阶段状态，不改变 M0 证据契约和剩余验收项。
 
 ## 2026-09-23 接管实施规则（当前唯一有效调度）

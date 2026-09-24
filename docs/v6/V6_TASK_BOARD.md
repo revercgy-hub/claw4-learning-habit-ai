@@ -20,6 +20,11 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | A-02 | CHANGES_REQUIRED | Camera 抓帧失败，AEC/唤醒、网络恢复、冷启动、稳定性、故障注入和 recovery evidence 未闭合；布局仍不匹配；见 [Gate 报告](V6_M0_CANDIDATE20_GATE.md) |
 | M1-DEV-01 | ACCEPTED | Sol 定向收口；base `db97ad5994f3ee0c5e1fb4deb2fa4fa2ec3ee1ee`；提交 `75d0059a1f0ac6380c1e1e3ee5f41125a44139f2`；定向 13/13、V6 tools 109/109；仅证据工具，不代表 M1 语音验收 |
 | M1-NAS-DEPLOY | SERVICE_DEPLOYED | 固定 v0.9.6 镜像、SenseVoiceSmall、本地 Ollama 和 EdgeTTS；OTA/WS/合成 LLM/TTS 连通性通过；[部署报告](V6_M1_NAS_DEPLOYMENT_REPORT.md)；DEVICE 20 轮 NOT_VERIFIED |
+| L-03 | IN_PROGRESS | Luna：只同步根 `docs/project_management/TASK_BOARD.md` 当前状态；不改变架构或历史证据 |
+| L-04 | IN_PROGRESS | Luna：M1 Preflight/20 轮模板、日志解析与运行清单；不改 Voice 架构或既有证据契约 |
+| S-04 | IN_PROGRESS | Sol：真实 live layout、XiaoZhi 7444 endpoint、Voice Core/Audio 生命周期与唯一 M1 Candidate 的 Host/BUILD 准备；不操作设备 |
+| R-02 | QUEUED | 独立 Sol reviewer；审 S-04 与 L-04 diff、tests、layout/identity/AEC claim；PASS 前 S-05 不启动 |
+| S-05 | QUEUED | R-02 PASS 后单一 Sol 硬件 owner；先 2～3 轮 Preflight，稳定后正式连续 20 轮及故障矩阵；AP outage/recovery 不重派 |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
@@ -33,7 +38,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | IN_PROGRESS (NAS DEPLOYED) | M0 仍 CHANGES_REQUIRED；M1-DEV-01 证据工具 ACCEPTED；NAS 服务/合成连通性通过，真机 20 轮尚未开始；旧 relay 学习闭环不计入 M1 |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | IN_PROGRESS (VOICE PREFLIGHT PREPARATION) | M0 仍 CHANGES_REQUIRED；M1-DEV-01 ACCEPTED；NAS 合成连通性通过；L-03/L-04/S-04 执行中，R-02 后才 S-05 真机 2～3 轮 Preflight；正式 20 轮未开始 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |

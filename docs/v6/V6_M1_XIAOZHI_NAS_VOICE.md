@@ -10,6 +10,8 @@
 
 ## 20 轮连续流程
 
+2026-09-24 最新执行门槛：先由 S-04 从实际 live partition layout 与官方 Voice Core 准备唯一 M1 Candidate，独立 R-02 审查 PASS 后，唯一硬件 owner S-05 才能进行 2～3 轮真机 Preflight。每轮都需 Wake → Speech → ASR → LLM → TTS → Device Playback → Next Wake；重点观察 TTS 回采/自问自答、AEC/reference 效果边界、播放期 near-end、播放后 Wake、crash/WDT/reboot/卡住及 heap/PSRAM 趋势。Preflight 只能决定是否具备正式测试条件，不计 M1 PASS。Preflight 稳定后，正式 20 轮从第 1 轮重新开始；正式运行期间任何固件修改都废弃本次轮次并从第 1 轮重来。用户已跳过的 Candidate20 AP outage/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不作为本轮重新派发项目。
+
 `M1-DEV-01` 已由 Astra 验收（Sol 最终修复提交 `75d0059a1f0ac6380c1e1e3ee5f41125a44139f2`；base `db97ad5994f3ee0c5e1fb4deb2fa4fa2ec3ee1ee`）。校验器绑定 reviewed source/app/ELF SHA、server commit/image digest、config SHA、ASR/LLM/TTS 版本、同一会话下恰好 20 个有序轮次，并要求每轮 synthetic stimulus ID、分域时延、资源数值和故障测试结果；PASS 只表示证据结构齐备且所有故障项显式 PASS，不代表语音质量或 M1 已验收。验证：定向 13/13、V6 tools 109/109。运行方式：`py -3.14 -B tools/v6/m1_round_evidence.py input.json output.json`。工具不连接设备、服务或 NAS，也不输出刺激 ID/原始文本。
 
 同一候选、同一服务版本，唤醒→学生说话→ASR→LLM→TTS→下一轮，至少连续 20 轮。不重启、不手工逐轮恢复服务。用合成问句覆盖短句、长句、静默、打断；验证 TTS 播放期间与结束后不会触发自我对话。
