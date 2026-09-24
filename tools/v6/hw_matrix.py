@@ -64,6 +64,8 @@ SIGNALS: tuple[tuple[str, str, str], ...] = (
     ("camera_frame_clean",       "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\bsaved=0\b.*\buploaded=0\b.*\bcleanup_error=0\b"),
     ("camera_frame_unqualified", "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b(?!.*\bsaved=0\b.*\buploaded=0\b.*\bcleanup_error=0\b).*"),
     ("camera_cleanup_failure",   "count", r"CAMERA_DIAGNOSTIC .*\bcleanup_error=[1-9]\d*\b"),
+    ("camera_xclk_stop_failure", "count", r"CAMERA_DIAGNOSTIC .*\bxclk_stop=ESP_FAIL\b"),
+    ("camera_xclk_free_failure", "count", r"CAMERA_DIAGNOSTIC .*\bxclk_free=ESP_FAIL\b"),
     ("camera_saved_frame",       "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\bsaved=[1-9]\d*\b"),
     ("camera_uploaded_frame",    "count", r"CAMERA_DIAGNOSTIC frame_capture=1\b.*\buploaded=[1-9]\d*\b"),
     ("camera_deinit_failure",    "count", r"CAMERA_DIAGNOSTIC deinit=\S+"),
@@ -162,8 +164,8 @@ def _classify(key: str, kind: str, match: re.Match[str]) -> object:
     return payload
 
 
-def parse_boot_log(path: str) -> dict:
-    """Extract every known signal from one UART capture."""
+def parse_boot_log(path: str, aggregate_after_anchor: bool = False) -> dict:
+    """Extract known signals, optionally excluding everything before identity."""
     preamble: list[str] = []
     counters = {key: 0 for key, kind, _ in SIGNALS if kind == "count"}
     # Pre-seed every scalar key so "absent" is explicit in the JSON and never
@@ -176,18 +178,23 @@ def parse_boot_log(path: str) -> dict:
     elf_hashes = set()
     candidate_elf_anchors: list[str] = []
     elf_file_hashes: list[str] = []
+    identity_seen = False
     last_ts = 0
     lines = 0
 
     with open(path, "r", encoding="utf-8", errors="replace") as handle:
         for raw in handle:
             line = re.sub(r"\x1b\[[0-9;]*m", "", raw.rstrip("\n"))
-            for candidate_elf in re.finditer(r"CANDIDATE_ELF_SHA256=([0-9a-zA-Z]+)", line):
+            candidate_markers = list(re.finditer(r"CANDIDATE_ELF_SHA256=([0-9a-zA-Z]+)", line))
+            elf_file_markers = list(re.finditer(r"ELF file SHA256:\s*([0-9a-zA-Z]+)", line))
+            for candidate_elf in candidate_markers:
                 candidate_elf_anchors.append(candidate_elf.group(1))
                 elf_hashes.add(candidate_elf.group(1))
-            for elf_file in re.finditer(r"ELF file SHA256:\s*([0-9a-zA-Z]+)", line):
+            for elf_file in elf_file_markers:
                 elf_file_hashes.append(elf_file.group(1))
                 elf_hashes.add(elf_file.group(1))
+            if candidate_markers or elf_file_markers:
+                identity_seen = True
             lines += 1
             match = LOG_LINE.match(line)
             if match:
@@ -199,6 +206,9 @@ def parse_boot_log(path: str) -> dict:
                 if len(preamble) < 8 and line.strip():
                     preamble.append(line.strip())
                 body = line
+
+            if aggregate_after_anchor and not identity_seen:
+                continue
 
             for key, kind, pattern in SIGNALS:
                 found = re.search(pattern, body)
@@ -414,7 +424,7 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
     camera_clean = s.get("camera_frame_clean", 0)
     camera_errors = sum(s.get(key, 0) for key in (
         "camera_sensor_init_failed", "camera_frame_failure", "camera_frame_unqualified",
-        "camera_cleanup_failure",
+        "camera_cleanup_failure", "camera_xclk_stop_failure", "camera_xclk_free_failure",
         "camera_saved_frame", "camera_uploaded_frame", "camera_deinit_failure",
         "camera_task_failure"))
     camera_has_result = bool(camera_errors)
@@ -426,7 +436,8 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
         camera_status = "NOT_VERIFIED"
     camera_source = next((key for key in (
         "camera_sensor_init_failed", "camera_frame_failure", "camera_frame_unqualified",
-        "camera_cleanup_failure", "camera_saved_frame", "camera_uploaded_frame",
+        "camera_cleanup_failure", "camera_xclk_stop_failure", "camera_xclk_free_failure",
+        "camera_saved_frame", "camera_uploaded_frame",
         "camera_deinit_failure", "camera_task_failure")
         if s.get(key, 0)), "camera_frame_clean" if camera_clean else "camera_sensor_init")
     row("相机 RAW8 单帧取帧", "CAMERA_DIAGNOSTIC frame_capture=1; saved=0; uploaded=0; cleanup_error=0",
@@ -435,6 +446,8 @@ def build_rows(s: dict, src: dict, flash: dict, boots: list[dict],
         f"capture failures={s.get('camera_frame_failure', 0)}, "
         f"unqualified frames={s.get('camera_frame_unqualified', 0)}, "
         f"cleanup failures={s.get('camera_cleanup_failure', 0)}, "
+        f"XCLK stop/free failures={s.get('camera_xclk_stop_failure', 0)}/"
+        f"{s.get('camera_xclk_free_failure', 0)}, "
         f"deinit/task failures={s.get('camera_deinit_failure', 0)}/"
         f"{s.get('camera_task_failure', 0)}, "
         f"saved/uploaded nonzero={s.get('camera_saved_frame', 0)}/"
@@ -611,6 +624,14 @@ def build_matrix(boots, flashes, candidate_path, candidate, user_confirmations,
                  evidence_manifest=None) -> dict:
     expected_elf = candidate["files"].get("build/xiaozhi.elf", {}).get("sha256")
     _verify_boot_identity(boots, expected_elf, evidence_manifest)
+    # Identity checks cover the complete raw captures above. Only after the
+    # candidate/session binding succeeds do we aggregate evidence, starting at
+    # each capture's own anchor or at the beginning of a verified continuation.
+    boots = [parse_boot_log(
+        capture["path"],
+        aggregate_after_anchor=bool(capture.get("candidate_elf_anchors")
+                                    or capture.get("elf_file_hashes")))
+        for capture in boots]
     primary = boots[-1]
     signals, source = aggregate_signals(boots)
     health_all = [dict(sample, log=capture["log"])

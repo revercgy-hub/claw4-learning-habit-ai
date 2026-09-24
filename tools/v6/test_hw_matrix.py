@@ -400,6 +400,20 @@ class MatrixTests(unittest.TestCase):
         matrix = self.matrix_for_log("camera-dirty.txt", dirty)
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "FAIL")
 
+    def test_camera_xclk_stop_failure_blocks_pass(self):
+        body = SYNTHETIC_CAMERA_CLEAN_FRAME + (
+            "E (1300) Claw4V6: CAMERA_DIAGNOSTIC xclk_stop=ESP_FAIL\n")
+        matrix = self.matrix_for_log("camera-xclk-stop-failure.txt", body)
+        self.assertEqual(matrix["signals"]["camera_xclk_stop_failure"], 1)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
+
+    def test_camera_xclk_free_failure_blocks_pass(self):
+        body = SYNTHETIC_CAMERA_CLEAN_FRAME + (
+            "E (1300) Claw4V6: CAMERA_DIAGNOSTIC xclk_free=ESP_FAIL\n")
+        matrix = self.matrix_for_log("camera-xclk-free-failure.txt", body)
+        self.assertEqual(matrix["signals"]["camera_xclk_free_failure"], 1)
+        self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
+
     def test_camera_missing_metadata_does_not_count_as_clean(self):
         incomplete = "I (1200) Claw4V6: CAMERA_DIAGNOSTIC frame_capture=1 width=640 height=480\n"
         matrix = self.matrix_for_log("camera-incomplete.txt", incomplete)
@@ -425,6 +439,18 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(self.status("相机 RAW8 单帧取帧", matrix), "PARTIAL")
         camera_row = next(r for r in matrix["rows"] if r["item"] == "相机 RAW8 单帧取帧")
         self.assertEqual(camera_row["source"], "camera-failed.txt")
+
+    def test_pre_anchor_boot_ready_cannot_contribute_candidate_evidence(self):
+        path = _write(self._dir.name, "pre-anchor-boot-ready.txt",
+                      "I (10) V6M0: BOOT_READY IDF=old; stale pre-anchor success\n"
+                      "I (100) app_init: CANDIDATE_ELF_SHA256=aaaaaaaaa\n"
+                      "I (110) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\n")
+        matrix = hw_matrix.build_matrix(
+            [hw_matrix.parse_boot_log(path)], [], self.cand_path, CANDIDATE, {})
+        self.assertEqual(matrix["signals"]["boot_ready"], None)
+        self.assertEqual(matrix["signals"]["boot_ready_count"], 0)
+        self.assertEqual(self.status("启动", matrix), "NOT_VERIFIED")
+        self.assertEqual(matrix["signals"]["health_samples"], 1)
 
     def test_sd_mount_is_one_boot_only_pass(self):
         matrix = self.matrix_for_log("sd-mounted.txt", SYNTHETIC_SD_AND_POWER_KEY.splitlines()[0] + "\n")
@@ -601,6 +627,7 @@ class ReviewRegressionTests(unittest.TestCase):
                 'I (300) V6M0: HEALTH free=100 psram=50 wake=1 taps=0\n',
             ])
             self.assertEqual(len(matrix['boot_captures']), 2)
+            self.assertEqual(matrix['signals']['health_samples'], 1)
 
     def test_manifest_rejects_unanchored_capture_in_different_session(self):
         with tempfile.TemporaryDirectory() as directory:
