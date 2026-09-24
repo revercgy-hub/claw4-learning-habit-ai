@@ -1,7 +1,8 @@
 # V6 后续测试计划
 
-状态：生效中。负责人：WorkBuddy 执行取证与判定；用户配合提供刺激与授权；Codex 负责改固件与验收。
-适用候选：`m0-candidate-04.json`（应用 SHA256 `196d8718a211e660…`）。
+> **SUPERSEDED 历史计划，不是当前执行指令。** 本文最初适用于 Candidate04（`m0-candidate-04.json`，app SHA256 前缀 `196d8718a211e660…`）；候选、工具、职责、M1 范围和设备授权均已变化。不得按本文旧串口/刷写步骤操作。当前队列、证据规则及授权以 [V6_TASK_BOARD](V6_TASK_BOARD.md)、[V6_ARCHITECTURE](V6_ARCHITECTURE.md) 和根 [AGENTS.md](../../AGENTS.md) 接管节为准。保留本文供历史取证。
+
+Candidate04 相关结果不得代表当前 Candidate19。M1 当前定义为 NAS 连续语音 20 轮；本文旧“设备→主机 relay→后端”的学习闭环属于旧阶段，不是 M1 的验收结果或范围。
 
 ---
 
@@ -49,7 +50,7 @@ $PY tools/v6/capture_device.py --port COM7 --seconds 60 --output "$B/wakeword-m0
 | 该次之后某条 HEALTH 出现 `wake=0` | 旁证：锁存位被清（`audio_service.cc:97`） |
 | 4 次全无 `WAKE_DETECTED` 且 `wake` 始终为 1 | 记 `FAIL` 或 `INCONCLUSIVE`（**视刺激方式**：(a) 记 FAIL，(b) 记 INCONCLUSIVE 并改日真人复测） |
 
-**⚠️ 每轮必须先复位（或按一次屏幕按钮）。** M0 诊断脚手架有个自恢复缺陷：
+**⚠️ 以下是 Candidate04 历史操作说明。USB reset 只触发 USB/串口复位，不等于断电 cold boot；不能据此填写冷启动证据。** M0 诊断脚手架有个自恢复缺陷：
 唤醒回调会清掉 `WAKE_WORD_RUNNING` 位（`audio_service.cc:97`），而音频输入任务
 **只在位被置位时才把音频喂给引擎**（`audio_service.cc` 的 `AudioInputTask`），
 空闲循环又不会重新置位 ⇒ **一次检测之后，唤醒检测永久失效**，直到按屏幕按钮或重启。
@@ -87,14 +88,14 @@ done
 
 **这一条我可以自己跑，不需要你配合**（30 分钟无人值守）。
 
-### 1.3 启动可靠性（N 次冷启动计数）—— **已从"顺带"升级为必测项**
+### 1.3 历史启动可靠性记录（非当前执行步骤）
 
 **为什么必须有这一条**：2026-09-22 查出一条真实缺陷 —— `claw4_board.cc:92` 的
 `ESP_ERROR_CHECK(i2c_master_probe(bus_, 0x20, 100))` 把**间歇性** I2C 探测超时升级成
 致命 abort，实测到 **3 次启动尝试 / 2 次 abort / 1 次成功**。
 而在此之前，连续 10 份捕获都是一次启动成功 —— **"几次没崩"完全不能证明启动可靠**。
 
-**执行**：连续 N 次冷启动（建议 **N ≥ 20**），每轮抓 ≥15 s 串口并单独落盘：
+**历史执行草案**：旧方案使用串口 `--reset`，这只是 USB reset，不能证明断电 cold boot。本文不提供当前 cold boot 操作授权。
 
 ```bash
 for i in $(seq -w 1 20); do
@@ -140,27 +141,27 @@ done
 | 项 | 依赖 | 说明 |
 | --- | --- | --- |
 | SD 卡 / Camera / 电源键 | M0-2 剩余固件 | 当前候选未集成，矩阵记 `NOT_TESTED` |
-| **M1 全链：设备 → 主机 relay → 后端** | **M1 固件**（M0 诊断固件没有 relay 客户端） | 见下 |
+| **旧阶段学习 relay 闭环** | 旧阶段固件 | 历史记录，不是当前 M1 验收项 |
 
-### 3.1 M1 的主机侧已经预验证过（2026-09-22）
+### 3.1 旧 relay 学习闭环记录（SUPERSEDED，不是 M1）
 
 ```bash
 /…/学习习惯培育AI/backend/.venv/Scripts/python.exe -m pytest -q      # 于 backend/
 # → 79 passed, 1 warning in 6.99s（含 tests/e2e/test_host_loop.py）
 ```
 
-该 e2e 覆盖的正是 M1 需要的链路：家长建今日任务 → 设备注册/签权/拉任务 → 提交离线事件序列 →
+该历史 e2e 覆盖的是旧阶段链路：家长建今日任务 → 设备注册/签权/拉任务 → 提交离线事件序列 →
 **一次丢响应后重发同一批 event_id → 去重 + ACK 收敛** → 家长看板恰好一条完成记录 → 家庭隔离。
 
-⇒ **主机侧现在是绿的。M1 落地后若失败，定位面只剩"设备侧"与"网络路径"，不用再怀疑后端。**
+该历史 e2e 结果仅说明当时主机学习 relay 闭环测试通过；它不能证明当前 NAS 连续语音 20 轮，也不能排除 M1 的 NAS、设备或网络问题。
 
-### 3.2 M1 真机测试的前置
+### 3.2 旧阶段 relay 真机前置（SUPERSEDED，不适用于当前 M1）
 
 | 前置 | 状态 |
 | --- | --- |
 | 设备开机自动联网 | ✅ `NETWORK_IP=PASS` |
 | 主机与设备同一 L2 | ✅ 同 SSID/同 AP BSSID/同 `/24`，ARP 双向解析，无 VPN 劫持 |
-| 设备能主动连到主机 relay | ❌ 待 M1 固件 |
+| 设备能主动连到主机 relay | ❌ 旧阶段待办；不定义当前 M1 |
 | 隐藏 SSID 重连缺口 | ❌ 仍在（`V6_M0_NETWORK_PROBE.md` §8.6）：换回不广播的 AP 会复现 |
 
 ---
@@ -202,7 +203,7 @@ $PY -m unittest discover -s tools/v6 -t tools/v6 -p "test_*.py"   # 应 38 passe
 | 回滚（恢复写回） | `NOT_TESTED` | 用户授权 + Codex 执行 | 明文授权 |
 | 长稳 soak | 未排期 | **我可以自己跑** | 只占 30 分钟 |
 | SD / Camera / 电源键 | `NOT_TESTED` | Codex | M0-2 固件 |
-| M1 全链 | 未开始 | Codex 出固件；我取证 | M1 固件 + relay 可达 |
+| M1：NAS 连续语音 20 轮 | BACKLOG | M0 PASS 后再规划 | 本页 Candidate04 旧 relay 流程不能代替 M1 |
 | 隐藏 SSID 重连缺口 | 未修 | Codex | 扫描 N 轮无匹配后回退直连（§12.5 方案 A） |
 | HEALTH 交互期丢采样 | 未修 | Codex | `ticks % 10` 改按时间判定 |
 | `mac type is incorrect` 时序 | 未修 | Codex | MAC 读取延后到 `Coprocessor Boot-up` 之后 |
@@ -214,5 +215,5 @@ $PY -m unittest discover -s tools/v6 -t tools/v6 -p "test_*.py"   # 应 38 passe
 1. §0 的 8 条规矩是否接受为**本阶段取证标准**（后续所有真机结论按此受检）；
 2. §1.1 唤醒词的判据与"不设命中率门槛"是否同意；
 3. §1.2 soak 的通过条件（抖动容差 ±64 KB、断连 ≤1 次）是否合理；
-4. §3.1 主机侧 79 passed 是否可作为 M1 的"后端已预验证"结论；
+4. （SUPERSEDED）旧 relay 测试数字和范围是否可作为历史参考；不得用于当前 M1 判定；
 5. §5 里排给 Codex 的三项修复（隐藏 SSID 回退、HEALTH 采样、MAC 时序）的优先级是否调整。

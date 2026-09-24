@@ -1,10 +1,16 @@
 # Claw4 当前任务看板
 
-> 当前有效（2026-09-23，Candidate19 已构建）：Candidate14/15 app-only 刷写确认软件参考进入 AFE ch1，但 AEC **NOT PASS**，两组 VAD 结果不一致且测试未配对。Candidate16 增加 probe/阶段/VAD 归属；Candidate17 只在本地回放测试阶段启用 WakeNet，并完成约 5 分钟无触摸稳定性观察。复核发现旧 `clipped=0` 计数在归一化后未被写入，不能作为削波证据；Candidate19 改用 PCM16 接近满量程计数。Candidate19 固件构建、68 项工具测试和 C++ 算法测试通过，尚未刷机。Candidate18 的 RAW8 单帧相机诊断已构建但未刷机，物理取帧仍待验证；AEC/播放期唤醒交互复测也待用户方便时操作。详见 `docs/v6/V6_M0_AEC_REFERENCE_EXPERIMENT_REPORT.md`、`docs/v6/V6_M0_CANDIDATE18_CAMERA_REPORT.md` 与 `docs/v6/V6_M0_CANDIDATE19_AUDIO_METRIC_REPORT.md`。M0 IN_PROGRESS，M1 BACKLOG；设备网络同步失败注入、完整长稳、相机实机取帧、受控 AEC/播放期唤醒及灵敏度余量仍未闭合。原始 UART 在忽略目录 `out/v6-device-private/`；无 WorkBuddy 活动流。
+> **SUPERSEDED 历史快照（2026-09-23）**：Candidate19 已构建但未刷机等历史技术事实保留；其中旧的“当前有效/无 WorkBuddy 活动流”调度文字已由 2026-09-24 接管状态覆盖。Candidate17 的设备证据不转移至 Candidate19。
 
-> 当前状态（2026-09-22阶段收口）：用户要求的 M0 网络恢复与统一候选阶段已完成源码/Host/BUILD，提交 f47afda。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE07-REVIEW / READY**，任务入口 docs/project_management/tasks/WB-V6-M0-CANDIDATE07-REVIEW.md；阶段报告 docs/v6/V6_M0_NETWORK_STAGE_REPORT.md。候选07仅构建冻结、未刷机，先独立代码复核再按包测试。06包HOLD，旧05/06 READY文字均为SUPERSEDED历史。M0整体与M1门禁不变；任务包仅本地发布，未外部发送。
+## 2026-09-24 接管实施状态（当前有效）
 
-> 2026-09-22 最新覆盖：candidate05 @ bf34b4e 已复核，CHANGES_REQUIRED，修订由 candidate06 承接。唯一 WorkBuddy 活动流 **WB-V6-M0-CANDIDATE06-TEST / READY**；任务包 `docs/project_management/tasks/WB-V6-M0-CANDIDATE06-TEST.md`，复核 `docs/v6/CODEX_V6_CANDIDATE05_REVIEW_AND_06.md`。候选06已构建、56工具测试及C++测试通过，尚未刷机；设备测试由WorkBuddy独占执行。本地任务包已发布，未通过外部消息工具送达。下文05调度状态 SUPERSEDED，M0/M1门禁不变。
+接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`，接管审查 `CHANGES_REQUIRED`，`M1=BACKLOG`。83 是接管基线 Host 工具测试数；Candidate19 构建时为 68 项，之后新增 15 项工具测试得到 83，二者对应不同时间点，均不是设备验收数。旧 `clipped` 计数无效，不作削波证据；CODE/HOST/BUILD/DEVICE 分开记账，Candidate17 DEVICE PASS 不得转给 Candidate19。
+
+当前工作流顺序：L-01、L-02、S-01、S-02 → 独立 R-01 → S-03 → A-02。L-01、L-02、S-01 为 `IN_PROGRESS`，S-02 独立工作树已预建、状态仍为 `QUEUED`（等待槽位）；各项以根 [AGENTS.md](../../AGENTS.md) 接管 Task Contract 和 [V6 架构证据契约](../v6/V6_ARCHITECTURE.md) 为准。R-01 在四项实施完成后执行；R-01 未 PASS 不启动 S-03。M0 未 PASS 前 M1 不启动。旧调度中的所有 READY/领取入口均为 `SUPERSEDED`，不构成授权。
+
+V6 详细阶段状态见唯一看板：[V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)。
+
+以下未再次标注的旧看板内容均为历史快照（SUPERSEDED），其中遗留的“当前有效”、READY 或派发入口只保留历史证据，不构成现行队列。
 
 ## 2026-09-21 V6 覆盖状态（当前有效）
 
