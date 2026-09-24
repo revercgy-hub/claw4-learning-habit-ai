@@ -1,8 +1,8 @@
 # Copy to data/.config.yaml on the NAS. The pinned upstream image merges this
 # override with its bundled config.yaml. No provider credentials are required.
 server:
-  websocket: ws://192.168.3.100:8000/xiaozhi/v1/
-  vision_explain: http://192.168.3.100:8003/mcp/vision/explain
+  websocket: ws://192.168.3.100:7444/xiaozhi/v1/
+  vision_explain: http://192.168.3.100:7443/mcp/vision/explain
   auth:
     enabled: false
 

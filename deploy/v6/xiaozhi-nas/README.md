@@ -1,6 +1,6 @@
 # Claw4 V6 XiaoZhi NAS service
 
-The deployment is isolated at `/vol2/1008/docker/xiaozhi-v6` on the Minisforum N5 (`192.168.3.100`, linux/amd64). The Compose file pins XiaoZhi server v0.9.6 by digest and binds ports 8000/8003 to the NAS LAN address. It uses the NAS's existing Ollama `qwen3.5:2b`, local SenseVoiceSmall ASR, and upstream EdgeTTS. EdgeTTS sends synthetic TTS text to an external provider; do not use personal or child content during this validation stage.
+The deployment is isolated at `/vol2/1008/docker/xiaozhi-v6` on the Minisforum N5 (`192.168.3.100`, linux/amd64). The Compose file pins XiaoZhi server v0.9.6 by digest and binds WebSocket port 7444 and HTTP/OTA port 7443 to the NAS LAN address (container ports remain 8000/8003). It uses the NAS's existing Ollama `qwen3.5:2b`, local SenseVoiceSmall ASR, and upstream EdgeTTS. EdgeTTS sends synthetic TTS text to an external provider; do not use personal or child content during this validation stage.
 
 The tagged [upstream Compose](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/main/xiaozhi-server/docker-compose.yml) and [configuration](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/main/xiaozhi-server/config.yaml) define the container paths and override schema. Copy `config.override.yaml` to `data/.config.yaml` on the NAS. Keep any future credentials only in the NAS-local override, never in Git.
 
@@ -14,7 +14,7 @@ sudo sha256sum models/SenseVoiceSmall/model.pt
 sudo docker compose config --quiet
 sudo docker compose up -d --no-build --pull never
 sudo docker compose ps
-curl -fsS http://192.168.3.100:8003/xiaozhi/ota/
+curl -fsS http://192.168.3.100:7443/xiaozhi/ota/
 ```
 
-The WebSocket endpoint is `ws://192.168.3.100:8000/xiaozhi/v1/`. A running container, OTA response, and WebSocket handshake prove service reachability only. M1 acceptance still requires the same Candidate and service configuration to pass the 20-round voice and fault matrix in `docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md`.
+The WebSocket endpoint is `ws://192.168.3.100:7444/xiaozhi/v1/`. Port 7443 remains plain HTTP; this port change does not add TLS. A running container, OTA response, and WebSocket handshake prove service reachability only. M1 acceptance still requires the same Candidate and service configuration to pass the 20-round voice and fault matrix in `docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md`.
