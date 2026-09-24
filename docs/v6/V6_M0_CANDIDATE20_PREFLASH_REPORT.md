@@ -1,6 +1,8 @@
 # Candidate20 S-03 pre-flash report
 
-`S-03=BLOCKED_PRE_FLASH_PARTITION_MISMATCH`. Candidate20 was built from the reviewed source `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` in isolated `E:/v6/s3`. The build manifest is [`m0-candidate-20.json`](../../integration/v6/m0-candidate-20.json), frozen in commit `481c43803a9388ab400ad5022bc7137b5f28ee3c`. The app is 3,249,664 bytes, SHA-256 `b44397058ae7d714cb2acb7adb9c63d5ca01e214327d957705c9ac1e6c4ff4e0`; the ELF SHA-256 is `92562dfedc9ad11be32c3be34c15c8666b403ed5694e8a2aa04335c9264e8f4a`. Final build succeeded with the reviewed local Wi-Fi override. No Candidate20 image was flashed.
+> **SUPERSEDED for post-flash status by [Candidate20 device report](V6_M0_CANDIDATE20_DEVICE_REPORT.md).** This report remains the immutable record of the pre-flash layout check; the statements below describe the state at that checkpoint only.
+
+At this checkpoint `S-03=BLOCKED_PRE_FLASH_PARTITION_MISMATCH`. Candidate20 was built from the reviewed source `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` in isolated `E:/v6/s3`. The build manifest is [`m0-candidate-20.json`](../../integration/v6/m0-candidate-20.json), frozen in commit `481c43803a9388ab400ad5022bc7137b5f28ee3c`. The app is 3,249,664 bytes, SHA-256 `b44397058ae7d714cb2acb7adb9c63d5ca01e214327d957705c9ac1e6c4ff4e0`; the ELF SHA-256 is `92562dfedc9ad11be32c3be34c15c8666b403ed5694e8a2aa04335c9264e8f4a`. Final build succeeded with the reviewed local Wi-Fi override. No Candidate20 image had been flashed at this checkpoint.
 
 The live COM7 device identifies as ESP32-P4 v1.3, MAC `80:f1:b2:d2:ed:14`, 32 MiB flash, with Secure Boot and Flash Encryption disabled. Its partition table was read without writing and parsed with MD5 validation. It conflicts with the Candidate20 build table:
 

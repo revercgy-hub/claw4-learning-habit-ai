@@ -2,7 +2,11 @@
 
 ## 2026-09-23 接管补充：证据与实施治理（不改变 ADR）
 
-接管基线为 `760b2aa66819f8d90186b43af4c02d9b33c8849e`，已保护到 `origin/takeover-v6-m0-c19-baseline` 且远端 SHA 复读一致。main 与远端 Candidate08 是历史，不是当前起点。Candidate19 已构建但未刷机；Candidate17 的设备证据只属于 Candidate17。M0 IN_PROGRESS、接管审查 CHANGES_REQUIRED、M1 BACKLOG。
+接管基线为 `760b2aa66819f8d90186b43af4c02d9b33c8849e`，已保护到 `origin/takeover-v6-m0-c19-baseline` 且远端 SHA 复读一致。main 与远端 Candidate08 是历史，不是当前起点。Candidate19 已构建但未刷机；Candidate20 已 app-only 刷写/读回且设备观察不完整；Candidate17 的设备证据只属于 Candidate17。M0 `CHANGES_REQUIRED`；M1 仅主机/工具准备已启动，设备 20 轮验证未开始。
+
+### 2026-09-24 用户指令：有限启动 M1 开发
+
+用户明确要求跳过 Candidate20 的 AP outage/recovery 刺激并直接开始下一阶段开发。AP recovery 仍是 `SKIPPED_BY_USER / NOT_VERIFIED`；A-02 仍为 `M0=CHANGES_REQUIRED`。此例外只授权 M1 开发准备和主机/工具任务，未放行 M0、未宣称 M1 20 轮验证通过，也未授权 NAS 上部署服务、提供/保存 provider 密钥、上传儿童数据、再次刷写设备或扩大 Flash/recovery 范围。M1 真机验证须在服务与设备配置就绪后按单独明确范围执行。
 
 Astra 负责架构/公共接口/Gate、A-01/A-02 和高风险恢复决策；Sol 负责复杂固件/跨模块及独立 R-01；Luna 负责明确的小任务、工具测试与文档，失败一次可修一次，第二次失败升级 Sol，架构/公共契约问题回 Astra。根 [AGENTS.md](../../AGENTS.md) 的当前 Task Contract 是实施白名单；下方历史“Codex亲自开发/WorkBuddy实施”角色描述被本节覆盖，ADR-001～005 的产品设计保持不变。
 
@@ -19,7 +23,7 @@ Astra 负责架构/公共接口/Gate、A-01/A-02 和高风险恢复决策；Sol 
 
 最多四个同时运行的 Agent（含 Astra），独立工作树与测试输出；COM7、真机、E:/v6/s1、Candidate 镜像和恢复操作是一个排他资源集合。第一波 L-01/L-02/S-01/S-02 只做 Host/代码，禁止访问该集合。独立 R-01 未 PASS 不构建新候选。R-01 PASS 后 S-03 单一 owner 串行 Build → identity verify → flash → readback/evidence → matrix；其他 Agent 不并发 build/flash/monitor。
 
-恢复写回的具体范围由 Astra 先审定；若涉及 partition/bootloader/ota_1/eFuse/Secure Boot/Flash Encryption、扩大不可逆范围或数据丢失风险，停止并向用户报告。新构建、成功刷写或局部测试均不自动开 M1。A-02 只有在同一有效候选的全部必需证据成立时才能 M0 PASS，否则 CHANGES_REQUIRED 并保留缺口。**M0 PASS 前禁止进入 M1。**
+恢复写回的具体范围由 Astra 先审定；若涉及 partition/bootloader/ota_1/eFuse/Secure Boot/Flash Encryption、扩大不可逆范围或数据丢失风险，停止并向用户报告。新构建、成功刷写或局部测试均不自动开 M1。A-02 只有在同一有效候选的全部必需证据成立时才能 M0 PASS，否则 CHANGES_REQUIRED 并保留缺口。常规 M1 设备验证须等 M0 PASS；2026-09-24 用户指令仅例外放行 M1 开发准备与主机/工具工作，M0 仍未通过。
 
 ---
 

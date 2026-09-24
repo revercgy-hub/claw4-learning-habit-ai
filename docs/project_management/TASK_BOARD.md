@@ -2,11 +2,13 @@
 
 > **SUPERSEDED 历史快照（2026-09-23）**：Candidate19 已构建但未刷机等历史技术事实保留；其中旧的“当前有效/无 WorkBuddy 活动流”调度文字已由 2026-09-24 接管状态覆盖。Candidate17 的设备证据不转移至 Candidate19。
 
-## 2026-09-24 接管实施状态（当前有效）
+## 2026-09-24 接管及后续开发状态（当前有效）
 
-接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 独立复审 PASS，Host 96/0。Candidate19 built, not flashed；Candidate20 built, not flashed。S-03 实机分区预检阻断刷写，A-02 判定 `M0=CHANGES_REQUIRED`，`M1=BACKLOG`。CODE/HOST/BUILD/DEVICE 分开记账，Candidate17/18/19 DEVICE 结果不得转给 Candidate20。
+接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 独立复审 PASS，Host 96/0。Candidate19 built, not flashed；Candidate20 已 app-only 刷写到 live `ota_0` 且读回 hash 一致。Candidate 构建/设备分区布局仍不匹配，恢复写回未执行。A-02 判定 `M0=CHANGES_REQUIRED`。
 
-S-03 从受审查源码构建并冻结 Candidate20；COM7 只读分区表显示当前 `ota_0` 9 MiB / `ota_1` 布局，与候选的 `factory` 14 MiB 布局冲突。历史全片备份的分区表也不匹配当前设备；没有 Flash 写入、设备矩阵或恢复写回。当前阻塞及 A-02 缺口见 [Candidate20 预检报告](../v6/V6_M0_CANDIDATE20_PREFLASH_REPORT.md)与 [A-02 Gate](../v6/V6_M0_CANDIDATE20_GATE.md)。布局/恢复范围须另行决策，本轮不进入 M1。
+用户于 2026-09-24 明确要求跳过 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`。该用户指令只授权 M1 开发准备/主机工具任务，不等于 M0 PASS，也没有开始或通过 M1 设备 20 轮验收。当前 M1 仅 `HOST PREPARATION`；NAS 部署、密钥配置和新的设备写入均未开始。
+
+CODE/HOST/BUILD/DEVICE 分开记账；Candidate17/18/19 DEVICE 结果不得转给 Candidate20。Candidate20 现场情况与缺口见 [设备报告](../v6/V6_M0_CANDIDATE20_DEVICE_REPORT.md)及 [A-02 Gate](../v6/V6_M0_CANDIDATE20_GATE.md)。
 
 V6 详细阶段状态见唯一看板：[V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)。
 

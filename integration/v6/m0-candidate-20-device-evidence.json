@@ -1,0 +1,122 @@
+{
+  "schema": "claw4-v6-candidate-device-evidence/1",
+  "candidate": "claw4-learning-v6-m0.20",
+  "reviewed_product_source_sha": "a164f11ab5f5843d6ace5c4b990d86a29195a2fe",
+  "build_manifest": "integration/v6/m0-candidate-20.json",
+  "build": {
+    "status": "PASS",
+    "app_path": "E:/v6/s3/build/xiaozhi.bin",
+    "app_bytes": 3249664,
+    "app_sha256": "b44397058ae7d714cb2acb7adb9c63d5ca01e214327d957705c9ac1e6c4ff4e0",
+    "elf_sha256": "92562dfedc9ad11be32c3be34c15c8666b403ed5694e8a2aa04335c9264e8f4a"
+  },
+  "actual_flash": {
+    "status": "PASS_APP_ONLY",
+    "device": "ESP32-P4 v1.3; MAC 80:f1:b2:d2:ed:14; 32 MiB flash",
+    "live_partition_table_sha256_before": "8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a",
+    "live_partition_table_sha256_recheck": "8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a",
+    "region": "live ota_0 only",
+    "offset": "0x200000",
+    "region_bytes": 9437184,
+    "old_region_backup": {
+      "path": "out/s03/ota0-before-c20.bin",
+      "bytes": 9437184,
+      "sha256": "922a1ffd2e7661a52529503d53538d0ce3f56185367dd2201e849308f3932ada"
+    },
+    "command": "python -m esptool --chip esp32p4 --port COM7 --baud 460800 --before default-reset --after hard-reset write-flash --flash-mode dio --flash-size 32MB --flash-freq 40m 0x200000 E:/v6/s3/build/xiaozhi.bin",
+    "readback": {
+      "offset": "0x200000",
+      "bytes": 3249664,
+      "sha256": "b44397058ae7d714cb2acb7adb9c63d5ca01e214327d957705c9ac1e6c4ff4e0",
+      "byte_equal_to_candidate_app": true
+    },
+    "other_regions_written": false,
+    "build_partition_table_matches_live": false,
+    "recovery_writeback": "NOT_VERIFIED"
+  },
+  "validated_session": {
+    "id": "c20-usbreset-01",
+    "reset_class": "USB_RESET_NOT_COLD_BOOT",
+    "elf_anchor_sha256": "92562dfedc9ad11be32c3be34c15c8666b403ed5694e8a2aa04335c9264e8f4a",
+    "manifest_path": "out/s03/c20-session1-manifest.json",
+    "manifest_sha256": "4ed11b00c7b3b816e6d335562c99368c73a83834cd4c5f8aa3f52549c79248df",
+    "matrix_json_path": "out/s03/c20-matrix-session1.json",
+    "matrix_json_sha256": "828c58243679bf16dcd8502cea9275d152fb1d794aba862d3efcd61dccd32253",
+    "audio_summary_sha256": "cee0fb334c52844eca5aa334e5be84944bc1864030294aaba41cd4d7f5ad3d37",
+    "captures": [
+      {"path": "out/s03/c20-boot-usbreset-01.txt", "sha256": "78c500311a741086e7a2ad5b91296527120fdfcefbcb179206983e8ddc1dbb59"},
+      {"path": "out/s03/c20-audio-interactive-01.txt", "sha256": "03ec0e658118223fb3e87117a7d7e1b7f841ac37ace7ecf14e20bded646053c5"},
+      {"path": "out/s03/c20-audio-interactive-02.txt", "sha256": "6e70db70f44a7b207ccad202610c26a468fefebf1c1f7b3c0eaea486c440e82b"},
+      {"path": "out/s03/c20-power-key-01.txt", "sha256": "94774321cd9418bbc30ed923cf112a8d9b80f7ba2c46a06f027c7fdc2ba736cb"}
+    ],
+    "observations": {
+      "boot_ready": "PASS_USB_RESET_ONLY",
+      "c5_link": "PASS",
+      "network_ip_saved_ssid_at_boot": "PASS_CONNECTIVITY_ONLY",
+      "sd_mount": "PASS",
+      "touch_local_playback": "PASS_PATH_OBSERVED",
+      "reference_queue": "OBSERVED_NOT_AEC_QUALITY",
+      "aec_effectiveness": "NOT_VERIFIED",
+      "wakeword": "NOT_VERIFIED",
+      "camera_frame": "FAIL_OPEN_ERROR_2_CLEANUP_ERROR_0",
+      "assets": "NOT_VERIFIED_APPLIED_0",
+      "power_key_short_long": "NOT_VERIFIED",
+      "network_failure_recovery": "NOT_VERIFIED",
+      "cold_boot": "NOT_VERIFIED",
+      "stability_fault_injection": "NOT_VERIFIED"
+    }
+  },
+  "excluded_unanchored_fragments": [
+    {"path": "out/s03/c20-power-key-02.txt", "sha256": "a86d341f6c931140abf47a153bbdd3dcbdabf58a80791bd32e7c758f6d790354", "reason": "uptime discontinuity from validated session; no new ELF boot anchor"},
+    {"path": "out/s03/c20-network-ap-cycle-01.txt", "sha256": "1d4696e33a481bf99846ac248cc474e822d0653e17929694bc74b64eed88f5a8", "reason": "no new ELF boot anchor and no confirmed target-AP stimulus"},
+    {"path": "out/s03/c20-network-ap-cycle-02.txt", "sha256": "fff38177be99ffc891910b1cb5d4664cb9bed0a7ed28228e0ec32a994acbe9b9", "reason": "no new ELF boot anchor; operator identified a different current AP"}
+  ],
+  "ssid_505_post_configuration_check": {
+    "operator_statement": "configured SSID 505 through device portal",
+    "passive_serial_tail": {
+      "path": "out/s03/c20-505-passive-tail-01.txt",
+      "bytes": 7642,
+      "sha256": "b0e8c2cfe57437d05c0a87fe6868aee93292a3a17c7ef95bce35235a7a5fea63",
+      "seconds": 15,
+      "reset_performed": false
+    },
+    "elf_anchor_in_capture": false,
+    "save_ssid_505_in_capture": false,
+    "connected_505_in_capture": false,
+    "ip_or_network_event_in_capture": false,
+    "candidate20_session_bound": false,
+    "device_connection_status": "NOT_VERIFIED"
+  },
+  "ssid_505_usb_reset_followup": {
+    "session": "c20-usbreset-505-02",
+    "reset_class": "USB_RESET_NOT_COLD_BOOT",
+    "boot_capture": {
+      "path": "out/s03/c20-505-usbreset-boot-01.txt",
+      "bytes": 39486,
+      "sha256": "69d4a70fd8a42cac4707ddedb75bd4da17eb1dd44a2cf01f17dd5230c6b245fd"
+    },
+    "session_manifest": {
+      "path": "out/s03/c20-505-session2-manifest.json",
+      "sha256": "3e58ebef239bf8e5793e15400898006038b405ce4908a8a945f10c07bd8684d3"
+    },
+    "elf_anchor_matches_candidate20": true,
+    "save_ssid_505_logged": false,
+    "wifi_connecting_505_ms": 9885,
+    "wifi_connected_505_ms": 12562,
+    "ip": "192.168.3.49",
+    "network_event_order": [0, 1, 2],
+    "network_connectivity_status": "OBSERVED_SAME_BOOT_CANDIDATE20",
+    "matrix_tool_status": "REJECTED_TIMESTAMP_ROLLBACK_6MS_AT_BOOT_LINE_147",
+    "ap_outage_capture": {
+      "path": "out/s03/c20-505-ap-outage-01.txt",
+      "bytes": 54236,
+      "sha256": "f5940e9aed4e9e0c4c408b0fedfc69f29111522c95ef0cb0f1bf794c51206749",
+      "reset_performed": false,
+      "duration_seconds": 110,
+      "network_transition_markers": 0
+    },
+    "ap_operator_stimulus_attribution": "SKIPPED_BY_USER",
+    "ap_failure_recovery_status": "NOT_VERIFIED"
+  },
+  "m0_gate": "CHANGES_REQUIRED"
+}
