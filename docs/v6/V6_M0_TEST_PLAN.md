@@ -2,7 +2,7 @@
 
 > **SUPERSEDED 历史计划，不是当前执行指令。** 本文最初适用于 Candidate04（`m0-candidate-04.json`，app SHA256 前缀 `196d8718a211e660…`）；候选、工具、职责、M1 范围和设备授权均已变化。不得按本文旧串口/刷写步骤操作。当前队列、证据规则及授权以 [V6_TASK_BOARD](V6_TASK_BOARD.md)、[V6_ARCHITECTURE](V6_ARCHITECTURE.md) 和根 [AGENTS.md](../../AGENTS.md) 接管节为准。保留本文供历史取证。
 
-Candidate04 相关结果不得代表当前 Candidate19。当前实施状态见 [V6_TASK_BOARD](V6_TASK_BOARD.md)：第一实施波已整合至 `7263f67`，L-02 定向修复已整合至 `a128341`；独立 R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 复审 PASS，Host 96/0；S-03 为 IN_PROGRESS 且从该 SHA 由唯一设备 owner 执行。Candidate20 尚未构建，待 Sol 核验 ID 唯一性；Candidate19 仍为 built, not flashed，设备结果不转移。A-02 为 QUEUED，M0 为 IN_PROGRESS，M1 为 BACKLOG（NAS 连续语音 20 轮）。本文旧“设备→主机 relay→后端”的学习闭环属于旧阶段，不是 M1 的验收结果或范围。
+Candidate04 相关结果不得代表当前 Candidate20。当前实施状态见 [V6_TASK_BOARD](V6_TASK_BOARD.md)与 [A-02 Gate](V6_M0_CANDIDATE20_GATE.md)：R-01 CODE/HOST 复审 PASS，Candidate20 BUILD PASS，但实机分区布局不匹配，S-03 未刷机；DEVICE 与恢复写回均未验证，`M0=CHANGES_REQUIRED`、`M1=BACKLOG`（NAS 连续语音 20 轮）。本文旧“设备→主机 relay→后端”的学习闭环属于旧阶段，不是 M1 的验收结果或范围。
 
 ---
 

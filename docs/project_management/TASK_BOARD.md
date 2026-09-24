@@ -4,9 +4,9 @@
 
 ## 2026-09-24 接管实施状态（当前有效）
 
-接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；A-01 已推送至 `origin/codex/takeover-v6-m0-integration` @ `7d55060`。Candidate19 built, not flashed。`M0=IN_PROGRESS`，R-01 独立复审 PASS，`M1=BACKLOG`。83 是接管基线 Host 工具测试数；Candidate19 构建时为 68 项，之后新增 15 项工具测试得到 83，二者对应不同时间点，均不是设备验收数。旧 `clipped` 计数无效，不作削波证据；CODE/HOST/BUILD/DEVICE 分开记账，Candidate17 DEVICE PASS 不得转给 Candidate19。
+接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 独立复审 PASS，Host 96/0。Candidate19 built, not flashed；Candidate20 built, not flashed。S-03 实机分区预检阻断刷写，A-02 判定 `M0=CHANGES_REQUIRED`，`M1=BACKLOG`。CODE/HOST/BUILD/DEVICE 分开记账，Candidate17/18/19 DEVICE 结果不得转给 Candidate20。
 
-第一实施波 L-01、L-02、S-01、S-02 已分别提交并整合至 `7263f67`；L-02 定向复核修复已整合至 `a128341`。独立 R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 复审通过，Host 结果 96/0。S-03 已由唯一设备 owner 从该 SHA 启动，当前 Candidate20 仅为计划项，尚未构建；须先由 Sol 核实 Candidate ID 唯一性。Candidate19 仍为 built, not flashed，其设备结果不得转移至 Candidate20。A-02 为 `QUEUED`。各项以根 [AGENTS.md](../../AGENTS.md) 接管 Task Contract 和 [V6 架构证据契约](../v6/V6_ARCHITECTURE.md) 为准；`M0=IN_PROGRESS`、`M1=BACKLOG`。
+S-03 从受审查源码构建并冻结 Candidate20；COM7 只读分区表显示当前 `ota_0` 9 MiB / `ota_1` 布局，与候选的 `factory` 14 MiB 布局冲突。历史全片备份的分区表也不匹配当前设备；没有 Flash 写入、设备矩阵或恢复写回。当前阻塞及 A-02 缺口见 [Candidate20 预检报告](../v6/V6_M0_CANDIDATE20_PREFLASH_REPORT.md)与 [A-02 Gate](../v6/V6_M0_CANDIDATE20_GATE.md)。布局/恢复范围须另行决策，本轮不进入 M1。
 
 V6 详细阶段状态见唯一看板：[V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)。
 
