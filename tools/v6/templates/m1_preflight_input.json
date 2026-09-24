@@ -1,0 +1,15 @@
+{
+  "schema": "claw4-v6-m1-preflight/1",
+  "status": "NOT_VERIFIED",
+  "preflight_id": "FILL_SAFE_TOKEN",
+  "round_count": 0,
+  "allowed_round_count": "2_or_3",
+  "endpoint": "ws://192.168.3.100:7444/xiaozhi/v1/",
+  "ota_endpoint": "http://192.168.3.100:7443/xiaozhi/ota/",
+  "candidate": {"reviewed_source_sha": "NOT_VERIFIED", "app_sha256": "NOT_VERIFIED", "elf_sha256": "NOT_VERIFIED", "live_partition_layout_sha256": "NOT_VERIFIED"},
+  "server": {"repo": "xinnan-tech/xiaozhi-esp32-server", "commit": "f5ed1aaec88471ba00ac778045331514066d63dc", "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc", "config_sha256": "NOT_VERIFIED", "provider_versions": {"asr": "NOT_VERIFIED", "llm": "NOT_VERIFIED", "tts": "NOT_VERIFIED"}},
+  "session_id": "NOT_VERIFIED",
+  "same_candidate_session_config_image_confirmed": "NOT_VERIFIED",
+  "rounds": [{"round": 1, "stimulus_id": "synthetic-safe-id", "wake": "NOT_VERIFIED", "speech": "NOT_VERIFIED", "asr": "NOT_VERIFIED", "llm": "NOT_VERIFIED", "tts": "NOT_VERIFIED", "device_playback": "NOT_VERIFIED", "tts_recaptured": "NOT_VERIFIED", "self_dialog": "NOT_VERIFIED", "aec_reference_effective": "NOT_VERIFIED", "near_end_during_playback": "NOT_VERIFIED", "next_wake_recovered": "NOT_VERIFIED", "crash_wdt_reboot_stuck": "NOT_VERIFIED", "heap_min_bytes": null, "psram_min_bytes": null}],
+  "limitations": ["Preflight is 2-3 rounds only and can never establish M1 PASS", "No measurements have been supplied"]
+}

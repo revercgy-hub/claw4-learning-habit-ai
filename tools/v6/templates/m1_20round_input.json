@@ -1,0 +1,1094 @@
+{
+  "schema": "claw4-v6-m1-rounds/1",
+  "session_id": "FILL_SAFE_SESSION_TOKEN",
+  "candidate": {
+    "reviewed_source_sha": "FILL_40_HEX",
+    "app_sha256": "FILL_64_HEX",
+    "elf_sha256": "FILL_64_HEX"
+  },
+  "server": {
+    "repo": "xinnan-tech/xiaozhi-esp32-server",
+    "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+    "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+  },
+  "config_sha256": "FILL_64_HEX",
+  "provider_versions": {
+    "llm": "qwen3.5:2b@324d162be6ca5629ae4517c8710434d0bd2d665bc94dbad46e9af8fbf8a2f0ddf",
+    "asr": "SenseVoiceSmall@833ca2dcfdf8ec91bd4f31cfac36d6124e0c459074d5e909aec9cabe6204a3ea",
+    "tts": "EdgeTTS@7.2.6"
+  },
+  "endpoint": "ws://192.168.3.100:7444/xiaozhi/v1/",
+  "rounds": [
+    {
+      "round": 1,
+      "scenario": "short",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_01"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 2,
+      "scenario": "long",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_02"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 3,
+      "scenario": "silence",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_03"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 4,
+      "scenario": "interruption",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_04"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 5,
+      "scenario": "short",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_05"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 6,
+      "scenario": "long",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_06"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 7,
+      "scenario": "silence",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_07"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 8,
+      "scenario": "interruption",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_08"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 9,
+      "scenario": "short",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_09"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 10,
+      "scenario": "long",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_10"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 11,
+      "scenario": "silence",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_11"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 12,
+      "scenario": "interruption",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_12"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 13,
+      "scenario": "short",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_13"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 14,
+      "scenario": "long",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_14"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 15,
+      "scenario": "silence",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_15"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 16,
+      "scenario": "interruption",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_16"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 17,
+      "scenario": "short",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_17"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 18,
+      "scenario": "long",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_18"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 19,
+      "scenario": "silence",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_19"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    },
+    {
+      "round": 20,
+      "scenario": "interruption",
+      "stimulus": {
+        "source": "synthetic",
+        "id": "FILL_SAFE_STIMULUS_20"
+      },
+      "session_id": "FILL_SAFE_SESSION_TOKEN",
+      "candidate": {
+        "reviewed_source_sha": "FILL_40_HEX",
+        "app_sha256": "FILL_64_HEX",
+        "elf_sha256": "FILL_64_HEX"
+      },
+      "server": {
+        "repo": "xinnan-tech/xiaozhi-esp32-server",
+        "commit": "f5ed1aaec88471ba00ac778045331514066d63dc",
+        "image": "ghcr.io/xinnan-tech/xiaozhi-esp32-server:server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc"
+      },
+      "device_restarted": "NOT_VERIFIED",
+      "service_restarted": "NOT_VERIFIED",
+      "manual_recovery": "NOT_VERIFIED",
+      "latencies_ms": {
+        "asr_final": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "llm_first_token": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "tts_first_audio": {
+          "value": null,
+          "clock": "service_monotonic"
+        },
+        "audible_first_response": {
+          "value": null,
+          "clock": "device_monotonic"
+        }
+      },
+      "resources": {
+        "heap_min_bytes": null,
+        "psram_min_bytes": null
+      },
+      "flags": {
+        "misrecapture": "NOT_VERIFIED",
+        "stuck": "NOT_VERIFIED",
+        "crash": "NOT_VERIFIED",
+        "wdt": "NOT_VERIFIED",
+        "reboot": "NOT_VERIFIED",
+        "looping_capture": "NOT_VERIFIED",
+        "lost_response": "NOT_VERIFIED"
+      }
+    }
+  ],
+  "fault_checks": {
+    "nas_disconnect_recovery": "NOT_VERIFIED",
+    "websocket_reconnect": "NOT_VERIFIED",
+    "tts_midstream_network_loss": "NOT_VERIFIED",
+    "silence_timeout": "NOT_VERIFIED",
+    "wake_without_asr": "NOT_VERIFIED",
+    "repeated_interruptions": "NOT_VERIFIED",
+    "self_capture_during_tts": "NOT_VERIFIED",
+    "self_capture_after_tts": "NOT_VERIFIED"
+  },
+  "operator_notes": "No raw speech/transcript/secrets. Bind all rows to one session and immutable Candidate/server/config/image identities. Populate exactly rounds 1..20; preserve missing values as null/NOT_VERIFIED."
+}
