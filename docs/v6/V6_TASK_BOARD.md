@@ -25,8 +25,9 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | S-04 | COMPLETE | Sol：两处 NVS 初始化已失效关闭；新 Candidate `claw4-learning-v6-m1-preflight-s04-r02-20260925-02` 的 BUILD/Host/身份已冻结至 `f5343c2`；旧 app/ELF `SUPERSEDED` |
 | R-02 | PASS | 独立 Sol reviewer：新 stage/镜像/锁哈希匹配，构建来源与集成代码 21/21 Git blob 相等；Host 120/120，设备仍 `NOT_VERIFIED`；仅放行 S-05 的 2～3 轮 Preflight |
 | S-05 | BLOCKED_ENDPOINT_MISMATCH | 设备身份/live 布局与 app-only 写入及独立读回通过；启动后实际访问外部 `api.tenclass.net` HTTPS/MQTT，而非 NAS 7443/7444，语音轮次 0；用户已断电、硬件 owner 已释放；见 [设备报告](V6_M1_VOICE_PREFLIGHT_DEVICE_REPORT.md)。修正端点后须新 Candidate/复审/重核身份；AP outage/recovery 不重派 |
-| S-04-ENDPOINT | IN_PROGRESS | 原 Sol owner：只在 M1 staged source 固定 NAS OTA/WS 端点，忽略旧 NVS OTA URL、拒绝外部 MQTT/WS 与自动升级；保留 NVS 数据，不操作硬件；旧 Candidate 作废 |
-| R-03 | QUEUED | 独立 Sol reviewer 复核端点 fail-closed、无隐性外连/升级、Host/BUILD/新 Candidate 身份；PASS 前不重启 S-05 |
+| S-04-ENDPOINT | COMPLETE | 原 Sol owner：M1 staged source 固定 NAS OTA/WS 端点，忽略旧 NVS OTA URL、拒绝外部 MQTT/WS 与自动升级；新 Candidate `claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03` 已冻结，旧 Candidate 作废 |
+| R-03 | PASS | 独立 Sol reviewer：Host 123/123、22/22 源码映射、13/13 staged 输入、7/7 产物及锁/缓存哈希匹配；仅放行新 Candidate app-only 启动/端点核验，现场只访问 NAS 7443/7444 后才可做 2～3 轮 Voice Preflight |
+| S-05-RETRY | READY | 唯一 Sol 硬件 owner 重新核对身份/live 布局后 app-only 写 `ota_0` 并独立读回；先观察端点，若仍外连或未到 NAS 就停在语音 0 轮；不执行通用 full flash，不做 AP outage/recovery |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
