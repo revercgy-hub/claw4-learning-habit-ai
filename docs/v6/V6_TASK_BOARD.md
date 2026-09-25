@@ -27,7 +27,8 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | S-05 | BLOCKED_ENDPOINT_MISMATCH | 设备身份/live 布局与 app-only 写入及独立读回通过；启动后实际访问外部 `api.tenclass.net` HTTPS/MQTT，而非 NAS 7443/7444，语音轮次 0；用户已断电、硬件 owner 已释放；见 [设备报告](V6_M1_VOICE_PREFLIGHT_DEVICE_REPORT.md)。修正端点后须新 Candidate/复审/重核身份；AP outage/recovery 不重派 |
 | S-04-ENDPOINT | COMPLETE | 原 Sol owner：M1 staged source 固定 NAS OTA/WS 端点，忽略旧 NVS OTA URL、拒绝外部 MQTT/WS 与自动升级；新 Candidate `claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03` 已冻结，旧 Candidate 作废 |
 | R-03 | PASS | 独立 Sol reviewer：Host 123/123、22/22 源码映射、13/13 staged 输入、7/7 产物及锁/缓存哈希匹配；仅放行新 Candidate app-only 启动/端点核验，现场只访问 NAS 7443/7444 后才可做 2～3 轮 Voice Preflight |
-| S-05-RETRY | READY | 唯一 Sol 硬件 owner 重新核对身份/live 布局后 app-only 写 `ota_0` 并独立读回；先观察端点，若仍外连或未到 NAS 就停在语音 0 轮；不执行通用 full flash，不做 AP outage/recovery |
+| S-05-RETRY | BLOCKED_WS_ENDPOINT_NOT_VERIFIED | 新 Candidate app-only/独立读回 PASS，NAS OTA 7443 现场连接；两段 Wake 探针捕获之间有 53 秒空档，用户语句无法绑定，WS 7444 和 Wake 均不得判 PASS/FAIL，完整 Voice 0 轮；用户已断电。见 [重试报告](V6_M1_VOICE_PREFLIGHT_RETRY_DEVICE_REPORT.md) |
+| S-05-WS-VERIFY | READY | 同一 Candidate 不重建、不重刷；唯一 Sol 硬件 owner 用连续不间断日志窗口与用户同步一次 Wake-only 探针，只验证实际 WS 7444 地址；若仍未验证即停，随后才考虑 2～3 轮 Preflight |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
