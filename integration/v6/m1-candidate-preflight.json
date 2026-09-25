@@ -98,8 +98,8 @@
   "git_blob_normalization_rule": "workspace CRLF pairs -> LF equals committed Git blob; raw workspace bytes separately hashed",
   "idf_commit": "fff9895c82d744c7237be8847347bdd1b07c6643",
   "integration_base_commit": "c4c68406bc58ea215dbb7f4ecf3097abf32c2117",
-  "integration_blob_mapping_status": "PENDING_INTEGRATION_COMMIT_AND_R03_REVIEW",
-  "integration_commit": null,
+  "integration_blob_mapping_status": "22/22 source Git blob OIDs match build origin; R03_REVIEW_REQUIRED",
+  "integration_commit": "6d4f6c5b42d462b3e89406faf23702775a47acd9",
   "minimum_app_partition_bytes": 4194304,
   "nvs_fail_closed_audit": "main/main.cc and local wifi_manager.cc retain R02 no-erase guards",
   "repository_git_blob_proof": {
