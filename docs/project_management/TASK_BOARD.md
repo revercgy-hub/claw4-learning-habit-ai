@@ -8,7 +8,7 @@
 
 用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不再派发或重做。M0 仍为 `CHANGES_REQUIRED`；Candidate20 DEVICE 验证仅部分完成。M1-DEV-01 已 `ACCEPTED`（证据工具，不代表语音验收）；XiaoZhi NAS v0.9.6 已部署，7443 HTTP/OTA、7444 WebSocket、SenseVoiceSmall、Ollama `qwen3.5:2b` 与 EdgeTTS 合成连通性通过。M1 真机 Voice 和正式连续 20 轮均为 `NOT_VERIFIED`。
 
-L-03 根看板同步和 L-04 Preflight/正式 20 轮证据工具已完成。S-04 首个 M1 Host/BUILD 候选已提交，但独立 R-02 判定 `CHANGES_REQUIRED`：可达 Wi-Fi 组件仍有 NVS 初始化错误自动擦除路径，构建来源与集成提交的身份映射也须补齐。原 Sol owner 正定向修复并重新构建唯一 Candidate；旧 app/ELF 不可刷入。R-02 复审 PASS 前 S-05 保持 `BLOCKED`，真机 Voice 和正式 20 轮均未执行。获放行后，唯一硬件 owner 才先做 2～3 轮 M1-PREFLIGHT；Preflight 稳定后，正式 20 轮从第 1 轮开始，期间任何固件修改均废弃当轮次。M1 Voice Core 保持单一 owner，不提前加入 Learning UI 或 M1.5 七命令 Router。详见 [V6_TASK_BOARD](../v6/V6_TASK_BOARD.md) 和 [NAS 部署报告](../v6/V6_M1_NAS_DEPLOYMENT_REPORT.md)。
+L-03 根看板同步和 L-04 Preflight/正式 20 轮证据工具已完成。S-04 已按首轮 R-02 意见失效关闭两处 NVS 初始化自动擦除路径，重新冻结唯一 M1 Candidate `claw4-learning-v6-m1-preflight-s04-r02-20260925-02`；旧 app/ELF 为 `SUPERSEDED`。独立 R-02 定向复审 `PASS`，仅放行唯一硬件 owner S-05 的 2～3 轮 M1-PREFLIGHT：现场须重新核对设备身份/live 布局，只允许 `ota_0` application-only 写入，不执行构建日志中的通用 `idf.py flash`。真机 Voice 和正式 20 轮均未执行。Preflight 稳定后，正式 20 轮从第 1 轮开始，期间任何固件修改均废弃当轮次。M1 Voice Core 保持单一 owner，不提前加入 Learning UI 或 M1.5 七命令 Router。详见 [V6_TASK_BOARD](../v6/V6_TASK_BOARD.md) 和 [NAS 部署报告](../v6/V6_M1_NAS_DEPLOYMENT_REPORT.md)。
 
 CODE/HOST/BUILD/DEVICE 分开记账；Candidate17/18/19 DEVICE 结果不得转给 Candidate20。Candidate20 现场情况与缺口见 [设备报告](../v6/V6_M0_CANDIDATE20_DEVICE_REPORT.md)及 [A-02 Gate](../v6/V6_M0_CANDIDATE20_GATE.md)。
 

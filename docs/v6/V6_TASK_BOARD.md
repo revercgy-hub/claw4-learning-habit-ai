@@ -22,9 +22,9 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | M1-NAS-DEPLOY | SERVICE_DEPLOYED | 固定 v0.9.6 镜像、SenseVoiceSmall、本地 Ollama 和 EdgeTTS；OTA/WS/合成 LLM/TTS 连通性通过；[部署报告](V6_M1_NAS_DEPLOYMENT_REPORT.md)；DEVICE 20 轮 NOT_VERIFIED |
 | L-03 | COMPLETE | Luna：根看板已同步；集成于 `bde85a5`，不改变架构或历史证据 |
 | L-04 | COMPLETE | Luna：M1 Preflight/20 轮模板、日志解析与运行清单已集成至 `ee1a83b`；不改 Voice 架构或既有证据契约 |
-| S-04 | CHANGES_REQUIRED | Sol：首个 M1 构建及 Host 证据已集成至 `9ef09a6`；R-02 发现可达 Wi-Fi 组件仍有 NVS 初始化错误自动擦除路径，原 owner 定向修复并重新构建唯一 Candidate；旧 app/ELF 不可刷入 |
-| R-02 | CHANGES_REQUIRED | 独立 Sol reviewer：冻结 stage/app/ELF 哈希匹配，集成 Host 118/118；要求封闭 Wi-Fi NVS 擦除路径并补构建来源/集成提交的身份映射后复审；DEVICE 未执行 |
-| S-05 | BLOCKED | 仅 R-02 PASS 后交唯一 Sol 硬件 owner；先 2～3 轮 Preflight，稳定后正式连续 20 轮及故障矩阵；AP outage/recovery 不重派 |
+| S-04 | COMPLETE | Sol：两处 NVS 初始化已失效关闭；新 Candidate `claw4-learning-v6-m1-preflight-s04-r02-20260925-02` 的 BUILD/Host/身份已冻结至 `f5343c2`；旧 app/ELF `SUPERSEDED` |
+| R-02 | PASS | 独立 Sol reviewer：新 stage/镜像/锁哈希匹配，构建来源与集成代码 21/21 Git blob 相等；Host 120/120，设备仍 `NOT_VERIFIED`；仅放行 S-05 的 2～3 轮 Preflight |
+| S-05 | READY | 唯一 Sol 硬件 owner：现场重核身份/live 布局，仅 `ota_0` application-only 刷写并做 2～3 轮 Preflight；禁用通用 `idf.py flash`，不写 bootloader/分区/ota data/model；正式 20 轮须另起，AP outage/recovery 不重派 |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
@@ -38,7 +38,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | IN_PROGRESS (VOICE PREFLIGHT PREPARATION) | M0 仍 CHANGES_REQUIRED；M1-DEV-01 ACCEPTED；NAS 合成连通性通过；L-03/L-04 完成，S-04 按 R-02 结论定向修复；S-05 尚未开始，正式 20 轮未开始 |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | IN_PROGRESS (VOICE PREFLIGHT) | M0 仍 CHANGES_REQUIRED；M1-DEV-01 ACCEPTED；NAS 合成连通性通过；S-04 完成、R-02 PASS；S-05 仅获 2～3 轮 Preflight 放行，正式 20 轮未开始 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |
