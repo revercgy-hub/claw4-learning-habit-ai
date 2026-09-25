@@ -1,0 +1,17 @@
+# Exact labels, types, offsets and sizes decoded from the live 4 KiB table.
+# Source SHA-256: 8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a
+# Build input only. Never write this CSV or generated partition table to the device.
+# Name, Type, SubType, Offset, Size, Flags
+nvsfactory,data,nvs,0xa000,200K,
+nvs,data,nvs,0x3c000,840K,
+otadata,data,ota,0x10e000,8K,
+phy_init,data,phy,0x110000,4K,
+model,data,spiffs,0x111000,956K,
+ota_0,app,ota_0,0x200000,9M,
+ota_1,app,ota_1,0xb00000,4M,
+resources,data,spiffs,0xf00000,4M,
+factory_test,data,spiffs,0x1300000,600K,
+emote,data,spiffs,0x1396000,4M,
+system,data,fat,0x1796000,1M,
+storage,data,fat,0x1896000,7M,
+coredump,data,coredump,0x1f96000,64K,

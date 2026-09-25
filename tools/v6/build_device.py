@@ -53,6 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--incremental', action='store_true',
                         help='Rebuild an already configured tree with idf.py build')
+    parser.add_argument('--variant', choices=('m0', 'm1'), default='m0')
     parser.add_argument('--idf', type=Path, default=ROOT / 'vendor/esp-idf')
     parser.add_argument('--tools', type=Path, default=ROOT / 'toolchains/idf61')
     args = parser.parse_args()
@@ -65,7 +66,8 @@ if __name__ == '__main__':
         command = [sys.executable, str(args.idf.resolve() / 'tools/idf.py'), 'reconfigure', 'build']
     else:
         command = [sys.executable, str(args.source.resolve() / 'scripts/build.py'),
-                   'metalio/claw4-learning-v6', '--name', 'claw4-learning-v6-m0']
+                   'metalio/claw4-learning-v6', '--name',
+                   f'claw4-learning-v6-{args.variant}']
     result = subprocess.run(command, cwd=args.source, env=env)
     if result.returncode == 0 and not args.incremental:
         # Initial upstream build resolves/downloads the pinned managed package.
