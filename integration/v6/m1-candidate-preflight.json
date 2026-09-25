@@ -1,13 +1,9 @@
 {
-  "app_partition": {
-    "app_bytes": 3206832,
-    "live_ota_0_size_bytes": 9437184,
-    "offset": "0x200000"
-  },
+  "app_partition": "ota_0",
   "artifacts": {
     "build/bootloader/bootloader.bin": {
       "bytes": 25536,
-      "sha256": "c9d4b846352dabaf78f55b8ac43c28b38244281a85a014b818afd1c7f515439c"
+      "sha256": "7f1fe761f3a780f4b965e1c32f32817d96581a496b65176b6275e1b75e2bcdb8"
     },
     "build/flasher_args.json": {
       "bytes": 1231,
@@ -18,30 +14,49 @@
       "sha256": "ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f"
     },
     "build/project_description.json": {
-      "bytes": 468990,
-      "sha256": "34efb433a68eac0c6226f45c3ab8e6875b873596d63754f23c928e69819d4658"
+      "bytes": 475378,
+      "sha256": "eeb09189eb50c6483804a4512c1a6f637eeb24990744019eb6d9495a0bc78208"
     },
     "build/srmodels/srmodels.bin": {
       "bytes": 291042,
       "sha256": "7c87dd7adb5a7623907b6354d49bea7f9289371262e6a57f15458fb8908c5814"
     },
     "build/xiaozhi.bin": {
-      "bytes": 3206832,
-      "sha256": "b0bc108b33691bba005a93d019943f9fb25e00baa2eb79216a30785cd716a7b2"
+      "bytes": 3135568,
+      "sha256": "1735fa6ca019f13e7cc1056477ade93c08390b438fd04f7b73ae5be984cf07d5"
     },
     "build/xiaozhi.elf": {
-      "bytes": 48403016,
-      "sha256": "0fcef56751a7692e2725c86d16e6c9f4e6fa7190b3f169ecc56216858b139e29"
+      "bytes": 48038452,
+      "sha256": "33955b7af0e8890fdae9a5fde33be82496722c85216301f58e80b7ae333e8391"
     }
   },
-  "build_log": {
-    "bytes": 452719,
-    "sha256": "c51b077d300b0c3aea59d9d01dd6c715ef8d444fe5d99f9dba425c72eb1145bd"
+  "base_integration_equal_source_blob_count": 19,
+  "build_logs": {
+    "cache_backed_build": {
+      "bytes": 454938,
+      "sha256": "d4ce78aa2caa7036e0dbb9c0a8e5cec6b694cee11199bf4cab9900bda3a5acce"
+    },
+    "final_committed_code_incremental": {
+      "bytes": 46081,
+      "sha256": "6af50a5767b56842f09c46c59457ac8c3275d8a74a8c2a0563db14dbe441aa72"
+    },
+    "registry_stall_initial": {
+      "bytes": 5566,
+      "sha256": "da5f577d32f51f370a7de31d61a184d15e8861f1e06552697b45887f73934aff"
+    }
   },
-  "build_origin_branch": "codex/v6-m1-s04",
-  "build_origin_commit": "b1252bdbd805e85ca060b45d500c12b962333c3f",
-  "build_root": "E:/v6/m1-s04-r02-safe",
-  "candidate": "claw4-learning-v6-m1-preflight-s04-r02-20260925-02",
+  "build_origin_branch": "codex/v6-m1-endpoint",
+  "build_origin_commit": "583752b0a2cbe031c7118d897924e79c8efafb89",
+  "build_root": "E:/v6/m1-endpoint-s04-r03",
+  "candidate": "claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03",
+  "compiled_sources": {
+    "components/78__esp-wifi-connect/wifi_manager.cc": true,
+    "main/application.cc": true,
+    "main/boards/metalio/claw4-learning-v6/claw4_audio.cc": true,
+    "main/main.cc": true,
+    "main/ota.cc": true,
+    "main/protocols/websocket_protocol.cc": true
+  },
   "dependency_lock": {
     "allowed_rewrite": [
       "78/esp-wifi-connect source service to components/78__esp-wifi-connect local; registry component_hash and transitive dependency metadata removed",
@@ -52,298 +67,287 @@
       "bytes": 39231,
       "sha256": "c811bfe049e3c99fa129fa3050d4807955db7d0aa90e6e97a42e84034f158a39"
     },
+    "cache_provenance": "9 missing managed-component directories copied from E:/v6/m1-s04-r02-safe after registry stalled at lvgl 9.5.0; all 81 directories, 12046 files then matched prior frozen stage per-file SHA256 with 0 missing/extra/changed; old app/ELF never copied",
     "comparison": "exact_allowlisted_local_wifi_override_only",
     "final": {
       "bytes": 38913,
       "sha256": "18efb5df229b4e429b9a2119a4b069346ef4a7d5ea180fdfcee97ac1c87661a2"
     },
-    "idf_entry": "6.1.0",
-    "local_wifi_registry_hash_removed": true,
     "managed_component_directories": 81,
-    "managed_component_name_list_sha256": "eae72c73c5fa99b5924beedc1b1b1eb01f9f62fc917213813d9d9e30aaab2248",
-    "nonlocal_component_hashes_unchanged": true,
-    "pinned_component_versions_unchanged": true
+    "managed_component_files": 12046,
+    "managed_component_inventory_sha256": "f390938deff3ad87360b2037c1d493bca9b6dd067c6dd1e4f9e7e5e22c54db37",
+    "managed_component_name_list_sha256": "dfb403e863d65e91e2c29b168a170c0e034806e0558c41adbb49ab16af52781a",
+    "pinned_component_versions_and_hashes": "unchanged_except_exact_local_wifi_override_verified_by_build_device.py",
+    "pinned_entries": 82
   },
-  "device_validation": "NOT_RUN",
+  "device_validation": "NOT_RUN_NEW_CANDIDATE",
+  "endpoint_policy": {
+    "asset_auto_download_and_apply": "startup_call_disabled",
+    "firmware_auto_upgrade_and_mcp_upgrade": "startup_call_and_upgrade_entry_disabled",
+    "invalid_or_missing_websocket_url": "fail_closed_no_voice",
+    "mcp_user_only_dynamic_url_tools": "registration_disabled_for_preflight",
+    "mqtt_response_and_persisted_config": "ignored_no_mqtt_protocol",
+    "normal_websocket_tts_audio_wake_paths": "retained_source_anchors_and_compiled",
+    "notify_dynamic_http_audio": "dispatch_disabled_for_preflight",
+    "ota_check_url": "http://192.168.3.100:7443/xiaozhi/ota/",
+    "websocket_url": "ws://192.168.3.100:7444/xiaozhi/v1/",
+    "wifi_ota_url_nvs": "preserved_but_ignored"
+  },
   "flash_performed": false,
   "generated_partition_matches_prior_live_layout_proof": true,
-  "git_blob_normalization_rule": "working bytes with CRLF pairs replaced by LF equal build-origin committed Git blob bytes",
+  "git_blob_normalization_rule": "workspace CRLF pairs -> LF equals committed Git blob; raw workspace bytes separately hashed",
   "idf_commit": "fff9895c82d744c7237be8847347bdd1b07c6643",
-  "local_network_component_sha256": {
-    ".gitignore": "e5d5b4064af798eec8dc62d604ab68755e8525144b1d0d282d51bcadff669bb3",
-    "CMakeLists.txt": "1268c857023968085649e7c8078407061d6ac0ab375a0f34283a2d1185dd1fba",
-    "LICENSE": "35a84cad890590c2aa8421fa48db5d2fb7e5fc938f8f31ca00dc349eb5a3d5b7",
-    "README.md": "6bee818ce2e65b98f0f1ea54bd12930b5b8ab71ea4156c96c8e7c635d5ff5f61",
-    "assets/ap.png": "defb386a203a1f29aab1ba06a97b087f74fbbeb20b8b2698d9d821efc7f95a36",
-    "assets/ap_v2.png": "a3d8fe8b7bfd944b83f0767485a8881eb20c24f3d65ba7763f1eb879e1e18d64",
-    "assets/ap_v3.png": "800fb2ef4f297fbfd7c46ce16792e63c583311c2569162d18f3d337c9a4a4eb5",
-    "assets/ap_v3_2.jpg": "76c27b31b433b993598a461d384e56bbdfd372698d7291a046b3e62b934b80f7",
-    "assets/ap_v3_advanced.png": "715f1041d341359ffdd4b8529782d313bb0be0a83366f0c3c55aca1e1dfb6d33",
-    "assets/wifi_configuration.html": "5052565dbcfe6ad200ec93b91a9c5e026b8e0f8eb5c6cd99f6a93e0cb07dfb31",
-    "assets/wifi_configuration_done.html": "f3e5d8a09d16157edc2da9df6d0f6693efb5ca9a89b2bfb7a55dfea2f0debe84",
-    "dns_server.cc": "8e6f03dc39f7386a149e227c756a53e3f715454b1d024c7ce38b75cdf00045d1",
-    "idf_component.yml": "e42e753272d9e7646f5220ac908e1c14395821b3a02451cefdf0a27b4ff232ae",
-    "include/dns_server.h": "68c8ad351a8d0f3993e4793dd28472e8ab0f8b74212450c03ec9190dbab821f9",
-    "include/saved_network_policy.h": "cd6328750d4f9dbbcf098cf2290d4ba3a06007c502367075bb45156ae0719521",
-    "include/ssid_manager.h": "342a7aec69d194e11a53653c0caafd558142bb3727c5966198ef97ffa7d67f72",
-    "include/wifi_configuration_ap.h": "60151eced0a44bd8ca51152d74269d78fa599f4c7da6dc2bc1fe018d95d0b869",
-    "include/wifi_manager.h": "32b1dd9129da4ae6f47328122e361d012cde4ea0f30255c7bc9911dde5353bb3",
-    "include/wifi_station.h": "745f4b0a57b918296330c5297742681837e69c00bd4d0cfbf6f6675041f310ca",
-    "ssid_manager.cc": "6fb63f421af53d846580ce232ca3feabd6c0aecfb84cbd35ff7b4844b1418253",
-    "wifi_configuration_ap.cc": "3060e367880513d27e538b400aa08b2f2c2c087926ab8f3c921571a2e75d1e34",
-    "wifi_manager.cc": "fef997e4a3da239d039add583e18d02d8fcce2dfc6e3a34258164f1e8bafed8d",
-    "wifi_station.cc": "d781d6dcbca3b8dfbfbd5ae0f23f1b338dd611792d68d7c7b96ab3eed50430b1"
-  },
+  "integration_base_commit": "c4c68406bc58ea215dbb7f4ecf3097abf32c2117",
+  "integration_blob_mapping_status": "PENDING_INTEGRATION_COMMIT_AND_R03_REVIEW",
+  "integration_commit": null,
   "minimum_app_partition_bytes": 4194304,
-  "new_integration_blob_equivalence": "21/21 repository input Git blob OIDs equal build origin; verified by git rev-parse at new_integration_commit",
-  "new_integration_commit": "978d3d1ea700f0328652e0244a3f9c97fa2b6652",
-  "nvs_fail_closed_audit": {
-    "both_no_init_error_auto_erase": true,
-    "main_staged_sha256": "e213aef3fa953eef3362bea2864948c76d9518c1a59e332e3246136132e0ce18",
-    "wifi_init_error_returns_false": true,
-    "wifi_manager_pinned_managed_sha256": "9910bc77682f4adf2c885a5a21ac6d75b8958fffac5ac4b72e058fa4393fe8f5",
-    "wifi_manager_staged_sha256": "fef997e4a3da239d039add583e18d02d8fcce2dfc6e3a34258164f1e8bafed8d",
-    "wifi_manager_unpatched_local_override_sha256": "9910bc77682f4adf2c885a5a21ac6d75b8958fffac5ac4b72e058fa4393fe8f5"
-  },
-  "prior_integration_blob_mismatches": [
-    "tools/v6/build_device.py"
-  ],
-  "prior_integration_reference_commit": "9ef09a604585f84cbbac3e4b12482953e51937f6",
+  "nvs_fail_closed_audit": "main/main.cc and local wifi_manager.cc retain R02 no-erase guards",
   "repository_git_blob_proof": {
     "integration/v6/baseline.lock.json": {
+      "base_integration_git_blob_oid": "5c750206249dbd723ee779ff76daa7dffec938f5",
       "build_origin_git_blob_oid": "5c750206249dbd723ee779ff76daa7dffec938f5",
       "build_origin_git_blob_sha256": "c3b40588b0d6b49a7cc500a7261169b210f3c995818aff9ddabd242a521e6550",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 1408,
         "sha256": "c3b40588b0d6b49a7cc500a7261169b210f3c995818aff9ddabd242a521e6550"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "5c750206249dbd723ee779ff76daa7dffec938f5"
+      }
     },
     "integration/v6/board/claw4-learning-v6/LICENSE": {
+      "base_integration_git_blob_oid": "e90b55454056bdf5b7c7a48565ef7bf2893bd1e1",
       "build_origin_git_blob_oid": "e90b55454056bdf5b7c7a48565ef7bf2893bd1e1",
       "build_origin_git_blob_sha256": "0a5a839033bfe18fe75d32b50d9d028912cf876f69ef59c2791aeb2971335d05",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 1162,
         "sha256": "8e43517088915f56edb2c93aa044d490ab28bff4e06a709408c41f705d32d378"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "e90b55454056bdf5b7c7a48565ef7bf2893bd1e1"
+      }
     },
     "integration/v6/board/claw4-learning-v6/README.md": {
+      "base_integration_git_blob_oid": "e548c196260f1085618de217ae64eb57b1a40382",
       "build_origin_git_blob_oid": "e548c196260f1085618de217ae64eb57b1a40382",
       "build_origin_git_blob_sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 2672,
         "sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "e548c196260f1085618de217ae64eb57b1a40382"
+      }
     },
     "integration/v6/board/claw4-learning-v6/board_algorithms.h": {
+      "base_integration_git_blob_oid": "8f7aeeefb10232d947a24c118f219fad46393621",
       "build_origin_git_blob_oid": "8f7aeeefb10232d947a24c118f219fad46393621",
       "build_origin_git_blob_sha256": "aa43b50efee7f7a153159d3100ba59121d4c838a605a38b01b4c5535b4daac74",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 7517,
         "sha256": "ce7070286d22f846fc3f5a0a87edabb63e95815d65403f4386e9fa8a4fc179c5"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "8f7aeeefb10232d947a24c118f219fad46393621"
+      }
     },
     "integration/v6/board/claw4-learning-v6/claw4_audio.cc": {
+      "base_integration_git_blob_oid": "3b373c3558cbb4bf971256299847c33fd8557b9e",
       "build_origin_git_blob_oid": "3b373c3558cbb4bf971256299847c33fd8557b9e",
       "build_origin_git_blob_sha256": "9d23cf6b2323a14ecbcd6542db9d84d2a592d6dddda59f5e04ed0458e0f5f31e",
-      "build_workspace_bytes": {
-        "bytes": 10801,
-        "sha256": "5deaa4fd8c97985b0d505926c03371210f782147c8c32863203778ab9c0cbe52"
-      },
       "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "3b373c3558cbb4bf971256299847c33fd8557b9e"
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
+        "bytes": 10895,
+        "sha256": "a68ee95d5e5f6c8232b7b9e2bc444745bd832cf57c0af778cc82bd000fae5678"
+      }
     },
     "integration/v6/board/claw4-learning-v6/claw4_audio.h": {
+      "base_integration_git_blob_oid": "18c0f9620570760d312dce151d736fcfedcedd46",
       "build_origin_git_blob_oid": "18c0f9620570760d312dce151d736fcfedcedd46",
       "build_origin_git_blob_sha256": "3a74579cbe00e38f701601adbd4e1b6eb1039fe932af02070a37d5a08156c498",
-      "build_workspace_bytes": {
-        "bytes": 2093,
-        "sha256": "486814ce6e2a5820f7c92f2ea75f3a4de430363225f448e428a8f127fd3cbc10"
-      },
       "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "18c0f9620570760d312dce151d736fcfedcedd46"
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
+        "bytes": 2109,
+        "sha256": "da1a7c73f481eb6eb2e1a1f380d685b570bea165dd2ce57c28b51f8441d017a5"
+      }
     },
     "integration/v6/board/claw4-learning-v6/claw4_board.cc": {
+      "base_integration_git_blob_oid": "b9eac48484899938339663e634664fce6b65bc19",
       "build_origin_git_blob_oid": "b9eac48484899938339663e634664fce6b65bc19",
       "build_origin_git_blob_sha256": "85a9a545e50df0bdd8b492d322c567162a31c5f02325984dccb4c5a6a0184aee",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 31904,
         "sha256": "abc7836202fdca013c914858aa0d23c8df1b7bdd7fde022fad08032083244a15"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "b9eac48484899938339663e634664fce6b65bc19"
+      }
     },
     "integration/v6/board/claw4-learning-v6/config.h": {
+      "base_integration_git_blob_oid": "f5b3a0b116869b95d8051472d2ef0b8e5886b84b",
       "build_origin_git_blob_oid": "f5b3a0b116869b95d8051472d2ef0b8e5886b84b",
       "build_origin_git_blob_sha256": "cd55d5b2f8509d517829d7f666d58583898e8e97f9de5dff93db97b4b6e455c7",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 1169,
         "sha256": "b572ad35917c63db1b67cacb5c4571d2fdd2b6ae4d63c53d55b46d33eb4c1685"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "f5b3a0b116869b95d8051472d2ef0b8e5886b84b"
+      }
     },
     "integration/v6/board/claw4-learning-v6/config.json": {
+      "base_integration_git_blob_oid": "fda559656de071eefa2195d0d5658a78fa6e680b",
       "build_origin_git_blob_oid": "fda559656de071eefa2195d0d5658a78fa6e680b",
       "build_origin_git_blob_sha256": "f64e819d43ee099e06659b3f0693e6e27e49260824e06f884455505e29b2717e",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 4006,
         "sha256": "f64e819d43ee099e06659b3f0693e6e27e49260824e06f884455505e29b2717e"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "fda559656de071eefa2195d0d5658a78fa6e680b"
+      }
     },
     "integration/v6/board/claw4-learning-v6/esp_lcd_nv3051f.c": {
+      "base_integration_git_blob_oid": "e8bbfd177ad1ea4d7dc6ff848c569fb7fc616d7c",
       "build_origin_git_blob_oid": "e8bbfd177ad1ea4d7dc6ff848c569fb7fc616d7c",
       "build_origin_git_blob_sha256": "e55dc982583ab9fa3bbfe2fa205b2932990af6564a06a027c46e99dd74268f02",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 16109,
         "sha256": "02db22cdf356e26a5ec46a5e9961c12474629dee6cdf3a131bbf38e6499a369d"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "e8bbfd177ad1ea4d7dc6ff848c569fb7fc616d7c"
+      }
     },
     "integration/v6/board/claw4-learning-v6/esp_lcd_nv3051f.h": {
+      "base_integration_git_blob_oid": "95f09775120e8819ee4e14ad491481f50e35df19",
       "build_origin_git_blob_oid": "95f09775120e8819ee4e14ad491481f50e35df19",
       "build_origin_git_blob_sha256": "2926d97d8d2bffded3557ca1feb3c83b462921169d90986771b8b3f69f63a7a2",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 6707,
         "sha256": "8d83425e1af7a7a133811ff3be80ce2182343cab667fecb89e07cd3d7d786eec"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "95f09775120e8819ee4e14ad491481f50e35df19"
+      }
     },
     "integration/v6/board/claw4-learning-v6/m0_diagnostics.cc": {
+      "base_integration_git_blob_oid": "bea4235a1f1c7fb672cfe7fa3bb504f7e4363767",
       "build_origin_git_blob_oid": "bea4235a1f1c7fb672cfe7fa3bb504f7e4363767",
       "build_origin_git_blob_sha256": "ebbc9a9eda4b93c10f2908f46391965b3ac946f4cfd70eb924d93e375b903343",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 8369,
         "sha256": "ab02e100fac2b8bf2e1aff07106c0f0dfe76024329b4125748ad2f5d133784d9"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "bea4235a1f1c7fb672cfe7fa3bb504f7e4363767"
+      }
     },
     "integration/v6/board/claw4-live-m1.csv": {
+      "base_integration_git_blob_oid": "409b15905d5737adf6a11f5d1de23a2d744dd163",
       "build_origin_git_blob_oid": "409b15905d5737adf6a11f5d1de23a2d744dd163",
       "build_origin_git_blob_sha256": "3e3f96c9599b788fe67de66fe33e499d05105111bb8eaaf12e1cc910fdb7917a",
-      "build_workspace_bytes": {
-        "bytes": 706,
-        "sha256": "3e3f96c9599b788fe67de66fe33e499d05105111bb8eaaf12e1cc910fdb7917a"
-      },
       "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "409b15905d5737adf6a11f5d1de23a2d744dd163"
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
+        "bytes": 723,
+        "sha256": "14c937dd21618f5878ad48633d52c3b8473170bb28b30b353d2d64cdb4640d49"
+      }
     },
     "integration/v6/idf61-components.lock": {
+      "base_integration_git_blob_oid": "816d9d8a5d79b2537a713b148b2a7613d56bc38a",
       "build_origin_git_blob_oid": "816d9d8a5d79b2537a713b148b2a7613d56bc38a",
       "build_origin_git_blob_sha256": "e28e6c5aaf2e951b2686fe5cdd3eb88e1733f6bf3576f6c1dc524768eba287f9",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 39231,
         "sha256": "c811bfe049e3c99fa129fa3050d4807955db7d0aa90e6e97a42e84034f158a39"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "816d9d8a5d79b2537a713b148b2a7613d56bc38a"
+      }
     },
     "integration/v6/idf61-environment.json": {
+      "base_integration_git_blob_oid": "cacc29fe2ff0e0904b37f619ff7999945be93b60",
       "build_origin_git_blob_oid": "cacc29fe2ff0e0904b37f619ff7999945be93b60",
       "build_origin_git_blob_sha256": "204f876b9a3513c2efce732d1bd42f85e85bfbfed6b72e1f0908e292bf4d0403",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 4780,
         "sha256": "204f876b9a3513c2efce732d1bd42f85e85bfbfed6b72e1f0908e292bf4d0403"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "cacc29fe2ff0e0904b37f619ff7999945be93b60"
+      }
     },
     "integration/v6/network/overlay.json": {
+      "base_integration_git_blob_oid": "80e8e62ddd78cf4a9b03d594ff1c451671ffe437",
       "build_origin_git_blob_oid": "80e8e62ddd78cf4a9b03d594ff1c451671ffe437",
       "build_origin_git_blob_sha256": "c46326d3b270d2f44248365094514a1320c89ff508af4b0c2f50ee750fea2728",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 14922,
         "sha256": "c46326d3b270d2f44248365094514a1320c89ff508af4b0c2f50ee750fea2728"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "80e8e62ddd78cf4a9b03d594ff1c451671ffe437"
+      }
     },
     "integration/v6/network/saved_network_policy.h": {
+      "base_integration_git_blob_oid": "f32ec94547867c1f48960e47138d84589d166d9e",
       "build_origin_git_blob_oid": "f32ec94547867c1f48960e47138d84589d166d9e",
       "build_origin_git_blob_sha256": "59b9bd9fb49850762c1b77b950c7217a1f468a2e39e21161d0ac8c0225e8f88b",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 990,
         "sha256": "cd6328750d4f9dbbcf098cf2290d4ba3a06007c502367075bb45156ae0719521"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "f32ec94547867c1f48960e47138d84589d166d9e"
+      }
     },
     "tools/v6/baseline.py": {
+      "base_integration_git_blob_oid": "a0f40fcfb326bd9a728152230651da94b2ba8889",
       "build_origin_git_blob_oid": "a0f40fcfb326bd9a728152230651da94b2ba8889",
       "build_origin_git_blob_sha256": "119b4fa0fca59ef40c9fd31bd5877750321e7e5ab9ca6fa01250867c98e26f2d",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 3198,
         "sha256": "009bd1f0fd08d75f5a62d196a9fc6993b49320d0292f485d0df8f91ed5b33973"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "a0f40fcfb326bd9a728152230651da94b2ba8889"
+      }
     },
     "tools/v6/build_device.py": {
-      "build_origin_git_blob_oid": "cc8373ec4e210552b552013790de7111f116f1a2",
-      "build_origin_git_blob_sha256": "ce2e86cb1e6d984ac7cd7f7cc5a81e0877f897650f48ea41d60d9457884b8bff",
-      "build_workspace_bytes": {
-        "bytes": 9623,
-        "sha256": "0ddaed11f8acaf8fe1ac0888793d9a48673e6ea3b60cbd495e7e9df5dfaab41f"
-      },
+      "base_integration_git_blob_oid": "cc8373ec4e210552b552013790de7111f116f1a2",
+      "build_origin_git_blob_oid": "04bd8f81363aa103fd02d544212b623c525031e6",
+      "build_origin_git_blob_sha256": "f22a766d0bcd578cc0bcca53782b00967029684acef57e47818f09365bf834a0",
       "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": false,
-      "prior_integration_git_blob_oid": "9d99020c20f3b9e4152237d920e1ffd00f62cf68"
+      "equal_to_base_integration_blob": false,
+      "workspace_bytes": {
+        "bytes": 11007,
+        "sha256": "198b082ce2863c26a9c7cac7bf9ef6c75b705e4aa671b4afbfb8b09763988cbd"
+      }
     },
     "tools/v6/network_overlay.py": {
+      "base_integration_git_blob_oid": "e32e5b6ffec9d5e2553ba9da257bf73897e06a9d",
       "build_origin_git_blob_oid": "e32e5b6ffec9d5e2553ba9da257bf73897e06a9d",
       "build_origin_git_blob_sha256": "d6556c35ea675449f0997ed5a2368618d71fb5d9aaa5cc0dab0419293e156b63",
-      "build_workspace_bytes": {
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": true,
+      "workspace_bytes": {
         "bytes": 2611,
         "sha256": "592df84ecea82fb2ac49d46808edf1d805f3323c86f7501a8af5972843651fe7"
-      },
-      "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "e32e5b6ffec9d5e2553ba9da257bf73897e06a9d"
+      }
     },
     "tools/v6/stage_device.py": {
-      "build_origin_git_blob_oid": "7838fb8b1efbdbe754401f1b5deb81b88dcd0bc6",
-      "build_origin_git_blob_sha256": "b03a539ff77b72d4e04ee139836d2f9f0f6aaf7858068fc26f645fc3066892a1",
-      "build_workspace_bytes": {
-        "bytes": 5527,
-        "sha256": "d775f37a80b8b351ac012baa04b71d6a842ed2edea8ab20204ec5947dbebbd8d"
-      },
+      "base_integration_git_blob_oid": "7838fb8b1efbdbe754401f1b5deb81b88dcd0bc6",
+      "build_origin_git_blob_oid": "94fdf0661ce315e17e7bd61ec11c38fd9504f0d7",
+      "build_origin_git_blob_sha256": "24be7c77e2e1eac65b56849c7afd0e53564f761ee701540676385e7018df2e99",
       "crlf_to_lf_equals_build_origin_git_blob": true,
-      "equal_to_prior_integration_blob": true,
-      "prior_integration_git_blob_oid": "7838fb8b1efbdbe754401f1b5deb81b88dcd0bc6"
+      "equal_to_base_integration_blob": false,
+      "workspace_bytes": {
+        "bytes": 11277,
+        "sha256": "f5dbfb4f827e844ef4f0639164a6bd1747a3c94c19e5fa5679eb52db4f1dd5d1"
+      }
+    },
+    "tools/v6/test_stage_device.py": {
+      "base_integration_git_blob_oid": "cb6a51f4183a0fb2293ade3090fe9b8ac841e4cd",
+      "build_origin_git_blob_oid": "4e38c6ef35d9623ddb24550f4532a40f95435f32",
+      "build_origin_git_blob_sha256": "b7daa06663d7b0c7b792fda777c66ad80abe3fea8550fcda6a96204de110d33d",
+      "crlf_to_lf_equals_build_origin_git_blob": true,
+      "equal_to_base_integration_blob": false,
+      "workspace_bytes": {
+        "bytes": 5706,
+        "sha256": "a3ec0570a28cb5f4feece22b4395bda3d80fbbba42474173a975d74947607cb9"
+      }
     }
   },
-  "review_gate": "R-02_RE_REVIEW_REQUIRED_BEFORE_S-05",
-  "schema_version": 2,
+  "review_gate": "R-03_INDEPENDENT_REVIEW_REQUIRED_BEFORE_DEVICE",
+  "schema_version": 3,
   "staged_source_inputs": {
     "CMakeLists.txt": {
       "bytes": 499,
@@ -365,6 +369,10 @@
       "bytes": 44042,
       "sha256": "63ad566daed0d29d1e3081a34a0894f7ab4288d99f6243797db801a793814afc"
     },
+    "main/application.cc": {
+      "bytes": 52314,
+      "sha256": "0c54cdc4878ac7bf6635727097540af1ed4032f385451923fd97acb340ca7e8e"
+    },
     "main/boards/metalio/claw4-learning-v6/config.json": {
       "bytes": 4006,
       "sha256": "f64e819d43ee099e06659b3f0693e6e27e49260824e06f884455505e29b2717e"
@@ -373,23 +381,30 @@
       "bytes": 602,
       "sha256": "e213aef3fa953eef3362bea2864948c76d9518c1a59e332e3246136132e0ce18"
     },
+    "main/ota.cc": {
+      "bytes": 17391,
+      "sha256": "2d991d920ec90766788aca71f50cbb8d9b3caa15ba8b60bef4914d48893faf67"
+    },
+    "main/protocols/websocket_protocol.cc": {
+      "bytes": 9930,
+      "sha256": "261a5edce2741e14726dc9ac8c7e0cbab079ace2d33c6daf72a39bed3f637d0b"
+    },
     "partitions/claw4-live-m1.csv": {
-      "bytes": 706,
-      "sha256": "3e3f96c9599b788fe67de66fe33e499d05105111bb8eaaf12e1cc910fdb7917a"
+      "bytes": 723,
+      "sha256": "14c937dd21618f5878ad48633d52c3b8473170bb28b30b353d2d64cdb4640d49"
     },
     "sdkconfig": {
       "bytes": 153062,
       "sha256": "becb0f1741f011165cd625c589b536a5bd3d528086060f1982e66e90e4976de0"
     },
     "v6-stage-manifest.json": {
-      "bytes": 1783,
-      "sha256": "70b63312407d97fddb854aafd7629f90a64fddd187a42293832ceb0c12778a67"
+      "bytes": 1839,
+      "sha256": "4d4ea59f4253a5ede63ab04e71b83fc4253aa3ad70b9d636ceca87eb2870faad"
     }
   },
-  "status": "BUILD_FROZEN_R02_REVIEW_REQUIRED",
-  "supersedes_app_sha256": "da3495314b6c01b138b2433bbc94489a2212bee70afa02d4244933fa8f7a3509",
-  "supersedes_candidate": "claw4-learning-v6-m1-preflight-s04-20260925-01",
-  "upstream_main_git_blob_sha256": "0494a55f2ce0d77cba635989a52bc68d7b0676340b7f9ae919693d6626e6f1e4",
+  "status": "BUILD_FROZEN_R03_REVIEW_REQUIRED",
+  "supersedes_app_sha256": "b0bc108b33691bba005a93d019943f9fb25e00baa2eb79216a30785cd716a7b2",
+  "supersedes_candidate": "claw4-learning-v6-m1-preflight-s04-r02-20260925-02",
   "upstream_xiaozhi_commit": "ac6deed3d8e75348475364bf40ad953c6cd48054",
   "variant": "m1"
 }
