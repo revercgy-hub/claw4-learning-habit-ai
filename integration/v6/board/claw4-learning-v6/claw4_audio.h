@@ -23,12 +23,17 @@ protected:
 private:
     // Zero is an uncalibrated software ordering baseline, not acoustic alignment.
     static constexpr std::size_t kPlaybackReferenceDelayFrames = 0;
+    // Duplex TX can stay enabled across utterances. Drop queued samples after
+    // an idle gap so an old reference cannot survive indefinitely.
+    static constexpr int64_t kReferenceIdleResetUs = 250000;
     std::function<void(bool)> amplifier_;
     std::mutex input_mutex_;
     std::mutex output_mutex_;
     std::mutex reference_mutex_;
     claw4::PlaybackReferenceDelay playback_reference_{
         kPlaybackReferenceDelayFrames};
+    int64_t last_reference_write_us_ = 0; // Protected by reference_mutex_.
+    bool reference_write_in_flight_ = false; // Protected by reference_mutex_.
     int64_t last_reference_stats_us_ = 0;
     void ReportReferenceStats();
 #if CONFIG_CLAW4_M0_DIAGNOSTICS

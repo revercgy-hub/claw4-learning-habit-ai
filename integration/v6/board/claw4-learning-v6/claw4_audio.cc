@@ -38,11 +38,13 @@ Claw4Audio::Claw4Audio(std::function<void(bool)> amplifier)
 void Claw4Audio::BeginReferenceSession() {
     std::lock_guard<std::mutex> lock(reference_mutex_);
     playback_reference_.Begin();
+    last_reference_write_us_ = 0;
 }
 
 void Claw4Audio::EndReferenceSession() {
     std::lock_guard<std::mutex> lock(reference_mutex_);
     playback_reference_.End();
+    last_reference_write_us_ = 0;
 }
 
 void Claw4Audio::EnableInput(bool enable) {
@@ -90,6 +92,12 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
             return 0;
         }
         std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+        const int64_t now = esp_timer_get_time();
+        if (!reference_write_in_flight_ && last_reference_write_us_ != 0 &&
+            now - last_reference_write_us_ >= kReferenceIdleResetUs) {
+            playback_reference_.End();
+            last_reference_write_us_ = 0;
+        }
         for (int i = 0; i < count; ++i) {
             // Candidate 05 measured full-width slots; >>12 added 24 dB before
             // saturation. Normalize first; any later gain must be explicit.
@@ -166,10 +174,19 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
     uint64_t reference_token = 0;
     {
         std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+        // A new burst can arrive before RX has had a chance to flush idle TX.
+        // Clear the old queue before accepting its first new sample.
+        const int64_t now = esp_timer_get_time();
+        if (last_reference_write_us_ != 0 &&
+            now - last_reference_write_us_ >= kReferenceIdleResetUs) {
+            playback_reference_.End();
+            last_reference_write_us_ = 0;
+        }
         // Duplex output may remain enabled between utterances. Recover after
         // a bounded queue overflow without taking over upstream playback.
         if (!playback_reference_.active()) playback_reference_.Begin();
         reference_token = playback_reference_.token();
+        reference_write_in_flight_ = true;
     }
     std::array<int32_t, 512> buffer{};
     const int volume = std::clamp(output_volume_, 0, 100);
@@ -196,15 +213,24 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
         const int written_frames = static_cast<int>(bytes / (2 * sizeof(int32_t)));
         {
             std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+            if (written_frames > 0) last_reference_write_us_ = esp_timer_get_time();
             for (int i = 0; i < written_frames; ++i) {
                 playback_reference_.Push(reference_token, claw4::DecodePcm16(buffer[i * 2]));
             }
         }
         total += static_cast<int>(bytes / (2 * sizeof(int32_t)));
         if (err != ESP_OK || bytes != count * 2 * sizeof(int32_t)) {
+            {
+                std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+                reference_write_in_flight_ = false;
+            }
             ESP_LOGW("Claw4Audio", "I2S output incomplete: %s", esp_err_to_name(err));
             return total;
         }
+    }
+    {
+        std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+        reference_write_in_flight_ = false;
     }
     return total;
 }
