@@ -119,6 +119,34 @@ int main() {
         assert(reference.Next() == 0);
     }
 
+    // Model the adapter's 250 ms idle boundary while duplex TX stays enabled.
+    // A short packet gap keeps the session; a later burst discards old samples.
+    claw4::PlaybackReferenceDelay duplex_reference(0);
+    constexpr int64_t kIdleResetUs = 250000;
+    int64_t last_write_us = 0;
+    auto begin_burst = [&](int64_t now) {
+        if (last_write_us != 0 && now - last_write_us >= kIdleResetUs)
+            duplex_reference.End();
+        if (!duplex_reference.active()) duplex_reference.Begin();
+        last_write_us = now;
+        return duplex_reference.token();
+    };
+    const auto burst_one = begin_burst(1000000);
+    assert(duplex_reference.Push(burst_one, 101));
+    const auto short_gap = begin_burst(1100000);
+    assert(short_gap == burst_one);
+    assert(duplex_reference.Next() == 101);
+    assert(duplex_reference.Push(short_gap, 102));
+    const auto burst_two = begin_burst(1400000);
+    assert(burst_two != burst_one);
+    assert(duplex_reference.Next() == 0); // old 102 was discarded
+    assert(duplex_reference.Push(burst_two, 201));
+    assert(duplex_reference.Next() == 201);
+    assert(!duplex_reference.Push(burst_one, 103));
+    stats = duplex_reference.TakeStats();
+    assert(stats.discarded == 1 && stats.stale_writes == 1);
+    duplex_reference.End();
+
     for (unsigned success = 1; success <= 4; ++success) {
         std::vector<unsigned> attempts, waits;
         unsigned resets = 0;
