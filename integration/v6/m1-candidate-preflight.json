@@ -95,8 +95,8 @@
     "wifi_station.cc": "d781d6dcbca3b8dfbfbd5ae0f23f1b338dd611792d68d7c7b96ab3eed50430b1"
   },
   "minimum_app_partition_bytes": 4194304,
-  "new_integration_blob_equivalence": "PENDING_MAIN_THREAD_VERIFICATION",
-  "new_integration_commit": "PENDING_MAIN_THREAD_INTEGRATION",
+  "new_integration_blob_equivalence": "21/21 repository input Git blob OIDs equal build origin; verified by git rev-parse at new_integration_commit",
+  "new_integration_commit": "978d3d1ea700f0328652e0244a3f9c97fa2b6652",
   "nvs_fail_closed_audit": {
     "both_no_init_error_auto_erase": true,
     "main_staged_sha256": "e213aef3fa953eef3362bea2864948c76d9518c1a59e332e3246136132e0ce18",
@@ -386,7 +386,7 @@
       "sha256": "70b63312407d97fddb854aafd7629f90a64fddd187a42293832ceb0c12778a67"
     }
   },
-  "status": "BUILD_FROZEN_INTEGRATION_MAPPING_PENDING_R02_REVIEW",
+  "status": "BUILD_FROZEN_R02_REVIEW_REQUIRED",
   "supersedes_app_sha256": "da3495314b6c01b138b2433bbc94489a2212bee70afa02d4244933fa8f7a3509",
   "supersedes_candidate": "claw4-learning-v6-m1-preflight-s04-20260925-01",
   "upstream_main_git_blob_sha256": "0494a55f2ce0d77cba635989a52bc68d7b0676340b7f9ae919693d6626e6f1e4",
