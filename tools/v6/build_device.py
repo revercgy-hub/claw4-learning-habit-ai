@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from baseline import ROOT
 from network_overlay import PACKAGE, expected_files, inventory, prepare
-from stage_device import NVS_FAIL_CLOSED
+from stage_device import M1_ENDPOINT_PATCHES, NVS_FAIL_CLOSED, PREFLIGHT_OTA_URL
 
 BOARD_OVERLAY = ROOT / 'integration/v6/board/claw4-learning-v6'
 BOARD_RELATIVE = Path('main/boards/metalio/claw4-learning-v6')
@@ -46,6 +46,25 @@ def verify_m1_nvs_sources(source):
         raise ValueError('M1 main NVS policy is not fail-closed')
     if (wifi.count(WIFI_NVS_FAIL_CLOSED) != 1 or 'nvs_flash_erase(' in wifi):
         raise ValueError('M1 Wi-Fi NVS policy is not fail-closed')
+
+
+def verify_m1_endpoint_sources(source):
+    """Refuse a build if any staged endpoint or upgrade guard has drifted."""
+    for relative, edits in M1_ENDPOINT_PATCHES.items():
+        body = (source / relative).read_text(encoding='utf-8')
+        for old, new in edits:
+            if body.count(new) != 1 or body.count(old) != new.count(old):
+                raise ValueError(f'M1 endpoint guard drift: {relative}')
+    app = (source / 'main/application.cc').read_text(encoding='utf-8')
+    voice_anchors = ('protocol_->OnIncomingAudio(',
+                     'audio_service_.PushPacketToDecodeQueue(',
+                     'strcmp(type->valuestring, "tts")',
+                     'BeginWakeWordInvoke(wake_word)')
+    if any(anchor not in app for anchor in voice_anchors):
+        raise ValueError('M1 WebSocket voice path drift')
+    config = source / 'sdkconfig'
+    if config.is_file() and f'CONFIG_OTA_URL="{PREFLIGHT_OTA_URL}"' not in config.read_text(encoding='utf-8'):
+        raise ValueError('M1 compiled OTA URL drift')
 
 
 def ensure_m1_wifi_nvs_guard(source, apply=False):
@@ -165,6 +184,7 @@ if __name__ == '__main__':
     lock = json.loads((ROOT / 'integration/v6/baseline.lock.json').read_text())
     expected_lock = ROOT / lock['device_component_lock']
     if args.variant == 'm1':
+        verify_m1_endpoint_sources(args.source.resolve())
         verify_component_lock(args.source.resolve(), expected_lock,
                               local_override=args.incremental)
         if args.incremental:
@@ -183,6 +203,7 @@ if __name__ == '__main__':
                    f'claw4-learning-v6-{args.variant}']
     result = subprocess.run(command, cwd=args.source, env=env)
     if args.variant == 'm1':
+        verify_m1_endpoint_sources(args.source.resolve())
         verify_component_lock(args.source.resolve(), expected_lock,
                               local_override=args.incremental)
     if result.returncode == 0 and not args.incremental:
@@ -194,6 +215,7 @@ if __name__ == '__main__':
         result = subprocess.run([sys.executable, str(args.idf.resolve() / 'tools/idf.py'),
                                  'reconfigure', 'build'], cwd=args.source, env=env)
         if args.variant == 'm1':
+            verify_m1_endpoint_sources(args.source.resolve())
             verify_component_lock(args.source.resolve(), expected_lock, local_override=True)
             ensure_m1_wifi_nvs_guard(args.source.resolve())
     elif args.variant == 'm1' and args.incremental:
