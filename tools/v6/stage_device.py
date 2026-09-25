@@ -17,7 +17,9 @@ def replace_once(path, old, new):
     path.write_text(source.replace(old, new), encoding='utf-8', newline='\n')
 
 
-def stage(upstream, destination):
+def stage(upstream, destination, variant='m0'):
+    if variant not in ('m0', 'm1'):
+        raise ValueError(f'Unknown build variant: {variant}')
     lock = json.loads((ROOT / 'integration/v6/baseline.lock.json').read_text())
     pin = lock['sources']['xiaozhi']['sha']
     verify_checkout(upstream, pin)
@@ -32,7 +34,9 @@ def stage(upstream, destination):
             source.extractall(destination)
     board = ROOT / 'integration/v6/board/claw4-learning-v6'
     shutil.copytree(board, destination / 'main/boards/metalio/claw4-learning-v6')
-    shutil.copy2(ROOT / 'integration/v6/board/claw4-v6.csv', destination / 'partitions/claw4-v6.csv')
+    partition_name = 'claw4-live-m1.csv' if variant == 'm1' else 'claw4-v6.csv'
+    shutil.copy2(ROOT / 'integration/v6/board' / partition_name,
+                 destination / 'partitions' / partition_name)
     replace_once(destination / 'main/Kconfig.projbuild',
                  '    config BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD',
                  '    config BOARD_TYPE_CLAW4_LEARNING_V6\n'
@@ -59,13 +63,15 @@ def stage(upstream, destination):
                  'endif()')
     # CMake identity is recorded separately; do not masquerade as upstream releases.
     replace_once(destination / 'CMakeLists.txt', 'set(PROJECT_VER "2.5.0")',
-                 'set(PROJECT_VER "6.0.0-m0.1")')
+                 f'set(PROJECT_VER "6.0.0-{variant}.1")')
     entries = {}
     for path in sorted(board.rglob('*')):
         if path.is_file():
             entries[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {'upstream_sha': pin, 'overlay_sha256': entries,
-                'learning_linked': False, 'diagnostics': True}
+                'partition_csv': f'partitions/{partition_name}',
+                'learning_linked': False, 'diagnostics': variant == 'm0',
+                'variant': variant}
     (destination / 'v6-stage-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
 
 
@@ -73,5 +79,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--upstream', type=Path, required=True)
     parser.add_argument('--destination', type=Path, required=True)
+    parser.add_argument('--variant', choices=('m0', 'm1'), default='m0')
     args = parser.parse_args()
-    stage(args.upstream.resolve(), args.destination.resolve())
+    stage(args.upstream.resolve(), args.destination.resolve(), args.variant)
