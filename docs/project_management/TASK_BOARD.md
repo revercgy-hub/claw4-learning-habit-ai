@@ -10,6 +10,8 @@
 
 L-03 根看板同步和 L-04 Preflight/正式 20 轮证据工具已完成。首个 S-05 对 R-02 Candidate 的 app-only 写入和读回通过，启动却实际连接外部 `api.tenclass.net` HTTPS/MQTT，语音刺激前停止、0 轮。S-04-ENDPOINT 随后固定 M1 预飞行 NAS OTA/WS 端点、拒绝外部 MQTT/WS 和自动升级，冻结新 Candidate `claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03`；独立 R-03 复审 `PASS`。S-05-RETRY 对新 Candidate app-only 写入/独立读回通过，设备实际连接 NAS OTA `192.168.3.100:7443` 且未观察到外部连接；WebSocket 懒连接需 Wake 才会建立。用户一次唤醒词报告落在两段日志捕获的时间空档附近，不能绑定刺激，WS 7444 与 Wake 均 `NOT_VERIFIED`，完整 Voice 仍 **0 轮**，设备已断电。下一步只用同一镜像做连续捕获的同步 Wake-only 端点探针，不重新构建或刷机；确认现场 WS 7444 后才可做 2～3 轮 Voice Preflight。正式 20 轮未开始，M0 继续 `CHANGES_REQUIRED`。M1 Voice Core 保持单一 owner，不提前加入 Learning UI 或 M1.5 七命令 Router。详见 [V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)、[S-05 重试报告](../v6/V6_M1_VOICE_PREFLIGHT_RETRY_DEVICE_REPORT.md)和 [NAS 部署报告](../v6/V6_M1_NAS_DEPLOYMENT_REPORT.md)。
 
+2026-09-26 恢复状态覆盖上段 S-05 预飞行描述：同一 R-03 Candidate 未重建/重刷；连续 326 秒捕获覆盖用户一次唤醒词尝试和回复，串口未见 Wake、WS、外连或崩溃标记。语句声学时间/电平未测，不能据此判一般性 Wake FAIL；WS 7444 仍 `NOT_VERIFIED`，完整 Voice **0 轮**。COM7 已释放，断电确认待回。详见 [连续捕获报告](../v6/V6_M1_VOICE_PREFLIGHT_WS_VERIFY_REPORT.md)。正式 20 轮未开始，M0 仍 `CHANGES_REQUIRED`。
+
 CODE/HOST/BUILD/DEVICE 分开记账；Candidate17/18/19 DEVICE 结果不得转给 Candidate20。Candidate20 现场情况与缺口见 [设备报告](../v6/V6_M0_CANDIDATE20_DEVICE_REPORT.md)及 [A-02 Gate](../v6/V6_M0_CANDIDATE20_GATE.md)。
 
 V6 详细阶段状态见唯一看板：[V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)。
