@@ -181,7 +181,8 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
         board_rel = 'main/boards/metalio/claw4-learning-v6/config.json'
         self.assertEqual((ordinary / board_rel).read_bytes(),
                          (diagnostic / board_rel).read_bytes())
-        for destination, enabled in ((ordinary, False), (diagnostic, True)):
+        for destination, enabled, default in ((ordinary, False, 'n'),
+                                               (diagnostic, True, 'y')):
             kconfig_path = destination / 'main/Kconfig.projbuild'
             kconfig = kconfig_path.read_text(encoding='utf-8')
             config = json.loads((destination / board_rel).read_text(encoding='utf-8'))
@@ -191,13 +192,10 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
                           profiles['claw4-learning-v6-m1'])
             self.assertIn('CONFIG_CLAW4_M0_DIAGNOSTICS=y',
                           profiles['claw4-learning-v6-m0'])
-            if enabled:
-                self.assertIn('depends on BOARD_TYPE_CLAW4_LEARNING_V6 && !CLAW4_M0_DIAGNOSTICS',
-                              kconfig)
-                self.assertIn('    default y\n',
-                              kconfig.split('config CLAW4_M1_INPUT_DIAGNOSTICS', 1)[1])
-            else:
-                self.assertNotIn('CLAW4_M1_INPUT_DIAGNOSTICS', kconfig)
+            self.assertIn('depends on BOARD_TYPE_CLAW4_LEARNING_V6 && !CLAW4_M0_DIAGNOSTICS',
+                          kconfig)
+            self.assertIn(f'    default {default}\n',
+                          kconfig.split('config CLAW4_M1_INPUT_DIAGNOSTICS', 1)[1])
             self.assertFalse(manifest['diagnostics'])
             self.assertEqual(manifest['m1_input_diagnostics'], enabled)
             self.assertEqual(manifest['staged_kconfig_sha256'],

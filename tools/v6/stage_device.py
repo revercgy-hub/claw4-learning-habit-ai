@@ -152,12 +152,11 @@ def replace_once(path, old, new):
 
 def m1_input_diagnostics_kconfig(enabled):
     """Keep the M1 opt-in independent of the M0 local diagnostic app."""
-    if not enabled:
-        return ''
+    default = 'y' if enabled else 'n'
     return ('\nconfig CLAW4_M1_INPUT_DIAGNOSTICS\n'
             '    bool "Claw4 M1 input-only diagnostic counters"\n'
             '    depends on BOARD_TYPE_CLAW4_LEARNING_V6 && !CLAW4_M0_DIAGNOSTICS\n'
-            '    default y\n')
+            f'    default {default}\n')
 
 
 def stage(upstream, destination, variant='m0', m1_input_diagnostics=False):
