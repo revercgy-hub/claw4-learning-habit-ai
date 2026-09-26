@@ -13,4 +13,6 @@ Status: **BLOCKED_WS_ENDPOINT_NOT_VERIFIED** (2026-09-25). The R-03 candidate wa
 
 The prior boot proved NAS OTA HTTP connectivity, but a wake-word event is the only available path on this Claw4 board to open the WebSocket. The current observation produced no Wake marker and no WebSocket connection, so `ws://192.168.3.100:7444/xiaozhi/v1/` remains `NOT_VERIFIED`. The capture showed no external connection, MQTT, crash or reboot. No speech flow, ASR, LLM, TTS or playback round occurred; AEC effectiveness, playback-time near-end speech, next Wake, heap/PSRAM trend and stability remain `NOT_VERIFIED`.
 
-No Flash operation or source change occurred during this task. The previous `ota_0` identity/readback evidence is unchanged. The capture process closed COM7 at completion. The user was asked to power off the device after testing; confirmation was still pending when this report was written. Candidate20 AP outage/recovery remains `SKIPPED_BY_USER / NOT_VERIFIED`; M0 remains `CHANGES_REQUIRED`.
+No Flash operation or source change occurred during this task. The previous `ota_0` identity/readback evidence is unchanged. The capture process closed COM7 at completion. The user was asked to power off the device after testing; confirmation was still pending when this report was written.
+
+Follow-up (2026-09-26): the user confirmed Claw4 is powered off. COM7 remains released. Candidate20 AP outage/recovery remains `SKIPPED_BY_USER / NOT_VERIFIED`; M0 remains `CHANGES_REQUIRED`.
