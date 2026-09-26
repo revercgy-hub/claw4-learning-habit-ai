@@ -29,6 +29,7 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | R-03 | PASS | 独立 Sol reviewer：Host 123/123、22/22 源码映射、13/13 staged 输入、7/7 产物及锁/缓存哈希匹配；仅放行新 Candidate app-only 启动/端点核验，现场只访问 NAS 7443/7444 后才可做 2～3 轮 Voice Preflight |
 | S-05-RETRY | BLOCKED_WS_ENDPOINT_NOT_VERIFIED | 新 Candidate app-only/独立读回 PASS，NAS OTA 7443 现场连接；两段 Wake 探针捕获之间有 53 秒空档，用户语句无法绑定，WS 7444 和 Wake 均不得判 PASS/FAIL，完整 Voice 0 轮；用户已断电。见 [重试报告](V6_M1_VOICE_PREFLIGHT_RETRY_DEVICE_REPORT.md) |
 | S-05-WS-VERIFY | BLOCKED_WS_ENDPOINT_NOT_VERIFIED | 同一 Candidate 未重建/重刷；连续 326 秒捕获覆盖用户一次唤醒词尝试及回复，但未见 Wake/WS/外连/崩溃标记；不能判一般性 Wake FAIL，WS 7444 仍 NOT_VERIFIED，完整 Voice 0 轮；见 [连续捕获报告](V6_M1_VOICE_PREFLIGHT_WS_VERIFY_REPORT.md)。用户已确认设备断电，COM7 已释放 |
+| S-06-WAKE-DIAG | DIAG_COMPLETE / ROOT_CAUSE_UNRESOLVED | 只读检查 324 条参考队列状态均为 idle/零计数，M1 未编译输入 RMS/读取失败诊断；未读出语音内容。不能定位该次未唤醒原因；详见 [诊断报告](V6_M1_WAKE_DIAGNOSTIC_REPORT.md)。设备保持断电，未操作硬件 |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
