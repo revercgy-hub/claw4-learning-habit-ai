@@ -150,9 +150,21 @@ def replace_once(path, old, new):
     path.write_text(source.replace(old, new), encoding='utf-8', newline='\n')
 
 
-def stage(upstream, destination, variant='m0'):
+def m1_input_diagnostics_kconfig(enabled):
+    """Keep the M1 opt-in independent of the M0 local diagnostic app."""
+    if not enabled:
+        return ''
+    return ('\nconfig CLAW4_M1_INPUT_DIAGNOSTICS\n'
+            '    bool "Claw4 M1 input-only diagnostic counters"\n'
+            '    depends on BOARD_TYPE_CLAW4_LEARNING_V6 && !CLAW4_M0_DIAGNOSTICS\n'
+            '    default y\n')
+
+
+def stage(upstream, destination, variant='m0', m1_input_diagnostics=False):
     if variant not in ('m0', 'm1'):
         raise ValueError(f'Unknown build variant: {variant}')
+    if m1_input_diagnostics and variant != 'm1':
+        raise ValueError('M1 input diagnostics require the M1 variant')
     lock = json.loads((ROOT / 'integration/v6/baseline.lock.json').read_text())
     pin = lock['sources']['xiaozhi']['sha']
     verify_checkout(upstream, pin)
@@ -186,6 +198,8 @@ def stage(upstream, destination, variant='m0'):
                      '    bool "Claw4 local hardware harness (no cloud)"\n'
                      '    depends on BOARD_TYPE_CLAW4_LEARNING_V6\n'
                      '    default y\n')
+        if variant == 'm1':
+            output.write(m1_input_diagnostics_kconfig(m1_input_diagnostics))
     replace_once(destination / 'main/Kconfig.projbuild',
                  'depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP32_S3_BOX_3',
                  'depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_CLAW4_LEARNING_V6 || BOARD_TYPE_ESP32_S3_BOX_3')
@@ -214,6 +228,10 @@ def stage(upstream, destination, variant='m0'):
                 'endpoint_policy': 'm1_fixed_nas_ota_ws_no_upgrade' if variant == 'm1' else 'upstream',
                 'component_lock_sha256': hashlib.sha256((destination / 'dependencies.lock').read_bytes()).hexdigest()
                     if variant == 'm1' else None}
+    if variant == 'm1':
+        manifest['m1_input_diagnostics'] = m1_input_diagnostics
+        manifest['staged_kconfig_sha256'] = hashlib.sha256(
+            (destination / 'main/Kconfig.projbuild').read_bytes()).hexdigest()
     (destination / 'v6-stage-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
 
 
@@ -222,5 +240,8 @@ if __name__ == '__main__':
     parser.add_argument('--upstream', type=Path, required=True)
     parser.add_argument('--destination', type=Path, required=True)
     parser.add_argument('--variant', choices=('m0', 'm1'), default='m0')
+    parser.add_argument('--m1-input-diagnostics', action='store_true',
+                        help='Enable M1 mic level/read-failure counters in this staged candidate')
     args = parser.parse_args()
-    stage(args.upstream.resolve(), args.destination.resolve(), args.variant)
+    stage(args.upstream.resolve(), args.destination.resolve(), args.variant,
+          args.m1_input_diagnostics)

@@ -1,10 +1,19 @@
 import tempfile
 import unittest
+import hashlib
+import json
+import shutil
+import sys
+import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import stage_device
 from stage_device import (M1_ENDPOINT_PATCHES, NVS_ERASE_ANCHOR,
                           NVS_FAIL_CLOSED, PREFLIGHT_OTA_URL,
-                          PREFLIGHT_WS_URL, patch_m1_endpoints, replace_once)
+                          PREFLIGHT_WS_URL, patch_m1_endpoints, replace_once,
+                          stage)
 from build_device import verify_m1_endpoint_sources
 
 
@@ -102,6 +111,99 @@ class EndpointPatchTests(unittest.TestCase):
         (self.stage / 'sdkconfig').write_text('CONFIG_OTA_URL="https://api.tenclass.net/xiaozhi/ota/"\n', encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'compiled OTA URL drift'):
             verify_m1_endpoint_sources(self.stage)
+
+
+class M1InputDiagnosticsStageTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / 'root'
+        self.root.mkdir()
+        board = Path(__file__).resolve().parents[2] / 'integration/v6/board'
+        shutil.copytree(board / 'claw4-learning-v6',
+                        self.root / 'integration/v6/board/claw4-learning-v6')
+        for name in ('claw4-v6.csv', 'claw4-live-m1.csv'):
+            shutil.copy2(board / name, self.root / 'integration/v6/board' / name)
+        lock = self.root / 'integration/v6/idf61-components.lock'
+        lock.write_text('reviewed component lock\n', encoding='utf-8')
+        (self.root / 'integration/v6/baseline.lock.json').write_text(json.dumps({
+            'sources': {'xiaozhi': {'sha': 'reviewed-test-sha'}},
+            'device_component_lock': 'integration/v6/idf61-components.lock',
+        }), encoding='utf-8')
+
+        app = '\n'.join(old for old, _ in M1_ENDPOINT_PATCHES['main/application.cc'])
+        self.source = {
+            'main/main.cc': NVS_ERASE_ANCHOR,
+            'main/Kconfig.projbuild': (
+                '    config BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD\n'
+                'depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP32_S3_BOX_3'),
+            'main/CMakeLists.txt': (
+                'elseif(CONFIG_BOARD_TYPE_ESP32_P4_FUNCTION_EV_BOARD)\n'
+                'list(APPEND SOURCES ${BOARD_SOURCES})'),
+            'CMakeLists.txt': 'set(PROJECT_VER "2.5.0")',
+            'main/application.cc': app,
+            'main/ota.cc': '\n'.join(old for old, _ in M1_ENDPOINT_PATCHES['main/ota.cc']),
+            'main/protocols/websocket_protocol.cc': '\n'.join(
+                old for old, _ in M1_ENDPOINT_PATCHES['main/protocols/websocket_protocol.cc']),
+            'partitions/.keep': '',
+        }
+
+    def stage_variant(self, variant, enabled=False):
+        destination = Path(self.temp.name) / f'{variant}-{enabled}'
+
+        def make_archive(command, check):
+            archive = Path(next(arg.split('=', 1)[1] for arg in command
+                                if arg.startswith('--output=')))
+            with zipfile.ZipFile(archive, 'w') as output:
+                for relative, contents in self.source.items():
+                    output.writestr(relative, contents)
+
+        with patch.object(stage_device, 'ROOT', self.root), \
+                patch.object(stage_device, 'verify_checkout'), \
+                patch.object(stage_device.subprocess, 'run', side_effect=make_archive):
+            stage(Path(self.temp.name), destination, variant, enabled)
+        return destination
+
+    def test_m0_stage_remains_independent_and_rejects_m1_opt_in(self):
+        destination = self.stage_variant('m0')
+        kconfig = (destination / 'main/Kconfig.projbuild').read_text(encoding='utf-8')
+        manifest = json.loads((destination / 'v6-stage-manifest.json').read_text())
+        self.assertNotIn('CLAW4_M1_INPUT_DIAGNOSTICS', kconfig)
+        self.assertTrue(manifest['diagnostics'])
+        self.assertNotIn('m1_input_diagnostics', manifest)
+        with self.assertRaisesRegex(ValueError, 'require the M1 variant'):
+            stage(Path(self.temp.name), Path(self.temp.name) / 'rejected', 'm0', True)
+        self.assertFalse((Path(self.temp.name) / 'rejected').exists())
+
+    def test_default_m1_is_off_and_opt_in_binds_manifest_without_m0_harness(self):
+        ordinary = self.stage_variant('m1')
+        diagnostic = self.stage_variant('m1', True)
+        board_rel = 'main/boards/metalio/claw4-learning-v6/config.json'
+        self.assertEqual((ordinary / board_rel).read_bytes(),
+                         (diagnostic / board_rel).read_bytes())
+        for destination, enabled in ((ordinary, False), (diagnostic, True)):
+            kconfig_path = destination / 'main/Kconfig.projbuild'
+            kconfig = kconfig_path.read_text(encoding='utf-8')
+            config = json.loads((destination / board_rel).read_text(encoding='utf-8'))
+            profiles = {item['name']: item['sdkconfig_append'] for item in config['builds']}
+            manifest = json.loads((destination / 'v6-stage-manifest.json').read_text())
+            self.assertIn('CONFIG_CLAW4_M0_DIAGNOSTICS=n',
+                          profiles['claw4-learning-v6-m1'])
+            self.assertIn('CONFIG_CLAW4_M0_DIAGNOSTICS=y',
+                          profiles['claw4-learning-v6-m0'])
+            if enabled:
+                self.assertIn('depends on BOARD_TYPE_CLAW4_LEARNING_V6 && !CLAW4_M0_DIAGNOSTICS',
+                              kconfig)
+                self.assertIn('    default y\n',
+                              kconfig.split('config CLAW4_M1_INPUT_DIAGNOSTICS', 1)[1])
+            else:
+                self.assertNotIn('CLAW4_M1_INPUT_DIAGNOSTICS', kconfig)
+            self.assertFalse(manifest['diagnostics'])
+            self.assertEqual(manifest['m1_input_diagnostics'], enabled)
+            self.assertEqual(manifest['staged_kconfig_sha256'],
+                             hashlib.sha256(kconfig_path.read_bytes()).hexdigest())
+            self.assertIn('list(REMOVE_ITEM SOURCES "main.cc")',
+                          (destination / 'main/CMakeLists.txt').read_text(encoding='utf-8'))
 
 if __name__ == '__main__':
     unittest.main()

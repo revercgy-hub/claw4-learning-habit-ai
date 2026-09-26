@@ -36,6 +36,14 @@ private:
     bool reference_write_in_flight_ = false; // Protected by reference_mutex_.
     int64_t last_reference_stats_us_ = 0;
     void ReportReferenceStats();
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    uint64_t m1_mic_energy_ = 0;
+    uint32_t m1_mic_peak_ = 0;
+    uint32_t m1_mic_samples_ = 0;
+    uint32_t m1_i2s_read_failures_ = 0;
+    int64_t last_m1_stats_us_ = 0;
+    void ReportM1InputStats();
+#endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
     uint64_t energy_[2]{};
     uint32_t peak_[2]{};

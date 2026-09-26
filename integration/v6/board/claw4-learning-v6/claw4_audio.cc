@@ -79,12 +79,21 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
     if (!input_enabled_ || samples <= 0) return 0;
     std::array<int32_t, 256> buffer{};
     int total = 0;
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    uint64_t frame_mic_energy = 0;
+    uint32_t frame_mic_peak = 0;
+    uint32_t frame_mic_samples = 0;
+#endif
     while (total < samples) {
         const int count = std::min(samples - total, static_cast<int>(buffer.size()));
         size_t bytes = 0;
         const auto err = i2s_channel_read(rx_handle_, buffer.data(), count * sizeof(int32_t),
                                           &bytes, 200);
         if (err != ESP_OK || bytes != count * sizeof(int32_t)) {
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            ++m1_i2s_read_failures_;
+            ReportM1InputStats();
+#endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
             ++read_failures_;
             ReportInputStats();
@@ -102,6 +111,15 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
             // Candidate 05 measured full-width slots; >>12 added 24 dB before
             // saturation. Normalize first; any later gain must be explicit.
             dest[total + i] = claw4::DecodePcm16(buffer[i]);
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            if ((total + i) % 2 == 0) {
+                const int64_t value = dest[total + i];
+                const uint32_t magnitude = static_cast<uint32_t>(value < 0 ? -value : value);
+                frame_mic_energy += static_cast<uint64_t>(value * value);
+                frame_mic_peak = std::max(frame_mic_peak, magnitude);
+                ++frame_mic_samples;
+            }
+#endif
             if ((total + i) % 2 == 1) {
                 // Hardware R slot was silent on Candidate20. Feed the accepted
                 // post-volume TX stream as an uncalibrated AFE reference.
@@ -130,12 +148,41 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
         }
         total += count;
     }
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    m1_mic_energy_ += frame_mic_energy;
+    m1_mic_peak_ = std::max(m1_mic_peak_, frame_mic_peak);
+    m1_mic_samples_ += frame_mic_samples;
+#endif
     ReportReferenceStats();
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    ReportM1InputStats();
+#endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
     ReportInputStats();
 #endif
     return total;
 }
+
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+void Claw4Audio::ReportM1InputStats() {
+    const int64_t now = esp_timer_get_time();
+    if (last_m1_stats_us_ == 0) {
+        last_m1_stats_us_ = now;
+        return;
+    }
+    if (now - last_m1_stats_us_ < 1000000) return;
+    const unsigned rms = m1_mic_samples_
+        ? static_cast<unsigned>(std::sqrt(double(m1_mic_energy_) / m1_mic_samples_)) : 0;
+    ESP_LOGI("Claw4Audio", "M1_INPUT_DIAG mic_n=%u rms=%u peak=%u i2s_read_failures=%u",
+             unsigned(m1_mic_samples_), rms, unsigned(m1_mic_peak_),
+             unsigned(m1_i2s_read_failures_));
+    m1_mic_energy_ = 0;
+    m1_mic_peak_ = 0;
+    m1_mic_samples_ = 0;
+    m1_i2s_read_failures_ = 0;
+    last_m1_stats_us_ = now;
+}
+#endif
 
 void Claw4Audio::ReportReferenceStats() {
     const int64_t now = esp_timer_get_time();
