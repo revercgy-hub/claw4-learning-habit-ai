@@ -140,40 +140,60 @@ M1_ENDPOINT_PATCHES = {
 M1_AFE_DIAG_PATCHES = {
     'main/audio/engines/afe_audio_engine.h': (
         ('#include <esp_afe_sr_models.h>\n',
-         '#include <esp_afe_sr_models.h>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <freertos/semphr.h>\n#endif\n'),
+         '#include <esp_afe_sr_models.h>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\nstruct M1AfeDiagState;\n#endif\n'),
         ('    std::atomic<uint32_t> control_generation_{0};\n',
          '''    std::atomic<uint32_t> control_generation_{0};
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-    // M1_AFE_RUNTIME_DIAG: one-second aggregates; no PCM or speech is retained.
-    TaskHandle_t m1_diag_task_ = nullptr;
-    SemaphoreHandle_t m1_diag_done_ = nullptr;
-    std::atomic<bool> m1_diag_stop_{false};
-    std::atomic<uint32_t> m1_feed_calls_{0};
-    std::atomic<uint32_t> m1_feed_samples_{0};
-    std::atomic<uint32_t> m1_feed_chunks_{0};
-    std::atomic<uint32_t> m1_fetch_ok_{0};
-    std::atomic<uint32_t> m1_fetch_fail_{0};
-    std::atomic<uint32_t> m1_fetch_other_{0};
-    std::atomic<uint32_t> m1_wake_detected_{0};
-    std::atomic<uint32_t> m1_wake_other_{0};
-    std::atomic<uint32_t> m1_wakenet_enable_apply_{0};
-    std::atomic<uint32_t> m1_wakenet_disable_apply_{0};
-    void ReportM1AfeStats();
+    // The reporter owns a separate reference and never accesses this engine.
+    M1AfeDiagState* m1_diag_ = nullptr;
+    static void ReportM1AfeStats(M1AfeDiagState* state);
 #endif
 '''),
     ),
     'main/audio/engines/afe_audio_engine.cc': (
+        ('#include <sstream>\n',
+         '#include <sstream>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <new>\n#endif\n'),
+        ('''#define TAG "AfeAudioEngine"
+
+#if CONFIG_USE_AUDIO_PROCESSOR''',
+         '''#define TAG "AfeAudioEngine"
+
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+// M1_AFE_RUNTIME_DIAG: aggregate counters only. The reporter owns an independent
+// reference, so engine destruction never waits for a lower-priority task.
+struct M1AfeDiagState {
+    std::atomic<uint32_t> references{1};
+    std::atomic<bool> stop{false};
+    std::atomic<bool> wake_enabled{false};
+    std::atomic<bool> afe_active{false};
+    std::atomic<uint32_t> feed_calls{0};
+    std::atomic<uint32_t> feed_samples{0};
+    std::atomic<uint32_t> feed_chunks{0};
+    std::atomic<uint32_t> fetch_ok{0};
+    std::atomic<uint32_t> fetch_fail{0};
+    std::atomic<uint32_t> fetch_other{0};
+    std::atomic<uint32_t> wake_detected{0};
+    std::atomic<uint32_t> wake_other{0};
+    std::atomic<uint32_t> wakenet_enable_apply{0};
+    std::atomic<uint32_t> wakenet_disable_apply{0};
+};
+
+static void ReleaseM1AfeDiagState(M1AfeDiagState* state) {
+    if (state->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        delete state;
+    }
+}
+#endif
+
+#if CONFIG_USE_AUDIO_PROCESSOR'''),
         ('''AfeAudioEngine::~AfeAudioEngine() {
     custom_wake_word_.reset();''',
          '''AfeAudioEngine::~AfeAudioEngine() {
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-    if (m1_diag_task_ != nullptr) {
-        m1_diag_stop_.store(true, std::memory_order_release);
-        xTaskNotifyGive(m1_diag_task_);
-        xSemaphoreTake(m1_diag_done_, portMAX_DELAY);
-    }
-    if (m1_diag_done_ != nullptr) {
-        vSemaphoreDelete(m1_diag_done_);
+    if (m1_diag_ != nullptr) {
+        m1_diag_->stop.store(true, std::memory_order_release);
+        ReleaseM1AfeDiagState(m1_diag_);
+        m1_diag_ = nullptr;
     }
 #endif
     custom_wake_word_.reset();'''),
@@ -187,26 +207,28 @@ M1_AFE_DIAG_PATCHES = {
              heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
              heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-    m1_diag_done_ = xSemaphoreCreateBinary();
-    if (m1_diag_done_ != nullptr) {
+    m1_diag_ = new (std::nothrow) M1AfeDiagState();
+    if (m1_diag_ != nullptr) {
+        // One reference belongs to this engine; the second belongs to the task.
+        m1_diag_->references.fetch_add(1, std::memory_order_relaxed);
         const BaseType_t created = xTaskCreate(
             [](void* arg) {
-                auto* engine = static_cast<AfeAudioEngine*>(arg);
-                while (!engine->m1_diag_stop_.load(std::memory_order_acquire)) {
-                    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
-                    if (engine->m1_diag_stop_.load(std::memory_order_acquire)) break;
-                    engine->ReportM1AfeStats();
+                auto* state = static_cast<M1AfeDiagState*>(arg);
+                while (!state->stop.load(std::memory_order_acquire)) {
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    if (state->stop.load(std::memory_order_acquire)) break;
+                    AfeAudioEngine::ReportM1AfeStats(state);
                 }
-                xSemaphoreGive(engine->m1_diag_done_);
+                ReleaseM1AfeDiagState(state);
                 vTaskDelete(nullptr);
-            }, "m1_afe_diag", 4096, this, 1, &m1_diag_task_);
+            }, "m1_afe_diag", 4096, m1_diag_, 1, nullptr);
         if (created != pdPASS) {
-            vSemaphoreDelete(m1_diag_done_);
-            m1_diag_done_ = nullptr;
-            m1_diag_task_ = nullptr;
+            ReleaseM1AfeDiagState(m1_diag_);  // Task was not created.
+            ReleaseM1AfeDiagState(m1_diag_);  // Engine reference.
+            m1_diag_ = nullptr;
         }
     }
-    if (m1_diag_task_ == nullptr) {
+    if (m1_diag_ == nullptr) {
         ESP_LOGW(TAG, "M1 AFE diagnostic reporter unavailable");
     }
 #endif
@@ -215,9 +237,31 @@ M1_AFE_DIAG_PATCHES = {
     EventBits_t bits = xEventGroupGetBits(event_group_);''',
          '''void AfeAudioEngine::Feed(std::vector<int16_t>&& data) {
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-    m1_feed_calls_.fetch_add(1, std::memory_order_relaxed);
+    if (m1_diag_ != nullptr) m1_diag_->feed_calls.fetch_add(1, std::memory_order_relaxed);
 #endif
     EventBits_t bits = xEventGroupGetBits(event_group_);'''),
+        ('''void AfeAudioEngine::EnableWakeWordDetection(bool enable) {
+    if (!HasWakeWord()) {
+        return;
+    }''',
+         '''void AfeAudioEngine::EnableWakeWordDetection(bool enable) {
+    if (!HasWakeWord()) {
+        return;
+    }
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_ != nullptr) m1_diag_->wake_enabled.store(enable, std::memory_order_relaxed);
+#endif'''),
+        ('''    const bool afe_active =
+        afe_data_ != nullptr && ((bits & kWakeWordEnabled) ||
+                                 (kUseAfeForVoiceProcessing && (bits & kVoiceProcessingEnabled)));
+    if (afe_active) {''',
+         '''    const bool afe_active =
+        afe_data_ != nullptr && ((bits & kWakeWordEnabled) ||
+                                 (kUseAfeForVoiceProcessing && (bits & kVoiceProcessingEnabled)));
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_ != nullptr) m1_diag_->afe_active.store(afe_active, std::memory_order_relaxed);
+#endif
+    if (afe_active) {'''),
         ('''    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
     size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
     while (input_buffer_.size() >= chunk_size) {
@@ -225,14 +269,17 @@ M1_AFE_DIAG_PATCHES = {
         input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
     }''',
          '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-    m1_feed_samples_.fetch_add(data.size() / codec_->input_channels(), std::memory_order_relaxed);
+    if (m1_diag_ != nullptr) {
+        m1_diag_->feed_samples.fetch_add(data.size() / codec_->input_channels(),
+                                         std::memory_order_relaxed);
+    }
 #endif
     input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
     size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
     while (input_buffer_.size() >= chunk_size) {
         afe_iface_->feed(afe_data_, input_buffer_.data());
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-        m1_feed_chunks_.fetch_add(1, std::memory_order_relaxed);
+        if (m1_diag_ != nullptr) m1_diag_->feed_chunks.fetch_add(1, std::memory_order_relaxed);
 #endif
         input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
     }'''),
@@ -244,12 +291,16 @@ M1_AFE_DIAG_PATCHES = {
          '''        if (bits & kWakeWordEnabled) {
             afe_iface_->enable_wakenet(afe_data_);
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-            m1_wakenet_enable_apply_.fetch_add(1, std::memory_order_relaxed);
+            if (m1_diag_ != nullptr) {
+                m1_diag_->wakenet_enable_apply.fetch_add(1, std::memory_order_relaxed);
+            }
 #endif
         } else {
             afe_iface_->disable_wakenet(afe_data_);
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-            m1_wakenet_disable_apply_.fetch_add(1, std::memory_order_relaxed);
+            if (m1_diag_ != nullptr) {
+                m1_diag_->wakenet_disable_apply.fetch_add(1, std::memory_order_relaxed);
+            }
 #endif
         }'''),
         ('''        if (result == nullptr || result->ret_value == ESP_FAIL) {
@@ -265,12 +316,12 @@ M1_AFE_DIAG_PATCHES = {
         }''',
          '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
         if (result == nullptr || result->ret_value == ESP_FAIL) {
-            m1_fetch_fail_.fetch_add(1, std::memory_order_relaxed);
+            if (m1_diag_ != nullptr) m1_diag_->fetch_fail.fetch_add(1, std::memory_order_relaxed);
         } else if (result->ret_value == ESP_OK) {
-            m1_fetch_ok_.fetch_add(1, std::memory_order_relaxed);
+            if (m1_diag_ != nullptr) m1_diag_->fetch_ok.fetch_add(1, std::memory_order_relaxed);
         } else {
             // Upstream still processes this result; keep its status separate.
-            m1_fetch_other_.fetch_add(1, std::memory_order_relaxed);
+            if (m1_diag_ != nullptr) m1_diag_->fetch_other.fetch_add(1, std::memory_order_relaxed);
         }
 #endif
         if (result == nullptr || result->ret_value == ESP_FAIL) {
@@ -284,9 +335,11 @@ M1_AFE_DIAG_PATCHES = {
         if (bits & kWakeWordEnabled) {
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
             if (result->wakeup_state == WAKENET_DETECTED) {
-                m1_wake_detected_.fetch_add(1, std::memory_order_relaxed);
+                if (m1_diag_ != nullptr) {
+                    m1_diag_->wake_detected.fetch_add(1, std::memory_order_relaxed);
+                }
             } else {
-                m1_wake_other_.fetch_add(1, std::memory_order_relaxed);
+                if (m1_diag_ != nullptr) m1_diag_->wake_other.fetch_add(1, std::memory_order_relaxed);
             }
 #endif
             HandleWakeWordResult(result);
@@ -294,21 +347,21 @@ M1_AFE_DIAG_PATCHES = {
         ('''void AfeAudioEngine::ProcessingTask() {
     while (true) {''',
          '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-void AfeAudioEngine::ReportM1AfeStats() {
-    const EventBits_t bits = xEventGroupGetBits(event_group_);
+void AfeAudioEngine::ReportM1AfeStats(M1AfeDiagState* state) {
     ESP_LOGI(TAG, "M1_AFE_STATE wake=%u active=%u wn_on=%u wn_off=%u detected=%u other=%u",
-             unsigned((bits & kWakeWordEnabled) != 0), unsigned((bits & kAfeActive) != 0),
-             unsigned(m1_wakenet_enable_apply_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_wakenet_disable_apply_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_wake_detected_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_wake_other_.exchange(0, std::memory_order_relaxed)));
+             unsigned(state->wake_enabled.load(std::memory_order_relaxed)),
+             unsigned(state->afe_active.load(std::memory_order_relaxed)),
+             unsigned(state->wakenet_enable_apply.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->wakenet_disable_apply.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->wake_detected.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->wake_other.exchange(0, std::memory_order_relaxed)));
     ESP_LOGI(TAG, "M1_AFE_FLOW feed_calls=%u feed_samples=%u feed_chunks=%u fetch_ok=%u fetch_fail=%u fetch_other=%u",
-             unsigned(m1_feed_calls_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_feed_samples_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_feed_chunks_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_fetch_ok_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_fetch_fail_.exchange(0, std::memory_order_relaxed)),
-             unsigned(m1_fetch_other_.exchange(0, std::memory_order_relaxed)));
+             unsigned(state->feed_calls.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->feed_samples.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->feed_chunks.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->fetch_ok.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->fetch_fail.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->fetch_other.exchange(0, std::memory_order_relaxed)));
 }
 #endif
 

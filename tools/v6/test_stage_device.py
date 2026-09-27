@@ -198,15 +198,18 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
             # 256-character line cap, even if every counter is UINT32_MAX.
             self.assertLessEqual(len(match.group(1).replace('%u', '4294967295')) + 60,
                                  256)
-        self.assertIn('"m1_afe_diag", 4096, this, 1, &m1_diag_task_', afe)
-        self.assertIn('xSemaphoreTake(m1_diag_done_, portMAX_DELAY)', afe)
+        self.assertIn('"m1_afe_diag", 4096, m1_diag_, 1, nullptr)', afe)
+        self.assertIn('ReleaseM1AfeDiagState(state);\n                vTaskDelete(nullptr);', afe)
+        self.assertNotIn('xSemaphoreTake', afe)
+        self.assertNotIn('portMAX_DELAY', afe)
         self.assertNotIn('esp_timer_', afe)
         self.assertIn('std::memory_order_relaxed', afe)
-        self.assertIn('m1_feed_chunks_', header)
-        self.assertIn('m1_fetch_other_', header)
+        self.assertIn('M1AfeDiagState* m1_diag_', header)
+        self.assertIn('std::atomic<uint32_t> feed_chunks{0}', afe)
+        self.assertIn('std::atomic<uint32_t> fetch_other{0}', afe)
         self.assertIn('if (result == nullptr || result->ret_value == ESP_FAIL)', afe)
         self.assertIn('} else if (result->ret_value == ESP_OK) {', afe)
-        self.assertIn('m1_fetch_other_.fetch_add(1, std::memory_order_relaxed)', afe)
+        self.assertIn('m1_diag_->fetch_other.fetch_add(1, std::memory_order_relaxed)', afe)
         self.assertNotIn('M1_AFE_STATE', (ordinary / 'main/audio/engines/afe_audio_engine.cc').read_text(
             encoding='utf-8'))
         staged_afe = {relative: (diagnostic / relative).read_bytes()
@@ -281,6 +284,28 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
         header_path.write_bytes(once['main/audio/engines/afe_audio_engine.h'])
         with self.assertRaisesRegex(ValueError, 'Partial AFE diagnostic patch'):
             patch_m1_afe_runtime_diagnostics(destination)
+
+    def test_afe_reporter_owns_state_without_destructor_wait(self):
+        diagnostic = self.stage_variant('m1', True)
+        afe = (diagnostic / 'main/audio/engines/afe_audio_engine.cc').read_text(
+            encoding='utf-8')
+        self.assertIn('std::atomic<uint32_t> references{1};', afe)
+        self.assertIn('m1_diag_->references.fetch_add(1, std::memory_order_relaxed);', afe)
+        self.assertIn('if (created != pdPASS) {\n'
+                      '            ReleaseM1AfeDiagState(m1_diag_);  // Task was not created.\n'
+                      '            ReleaseM1AfeDiagState(m1_diag_);  // Engine reference.\n'
+                      '            m1_diag_ = nullptr;', afe)
+        self.assertIn('m1_diag_->stop.store(true, std::memory_order_release);\n'
+                      '        ReleaseM1AfeDiagState(m1_diag_);\n'
+                      '        m1_diag_ = nullptr;', afe)
+        reporter = afe.split('const BaseType_t created = xTaskCreate(', 1)[1].split(
+            '"m1_afe_diag"', 1)[0]
+        self.assertIn('AfeAudioEngine::ReportM1AfeStats(state);', reporter)
+        self.assertIn('ReleaseM1AfeDiagState(state);\n                vTaskDelete(nullptr);',
+                      reporter)
+        self.assertNotIn('engine->', reporter)
+        self.assertNotIn('event_group_', reporter)
+        self.assertNotIn('portMAX_DELAY', afe)
 
 if __name__ == '__main__':
     unittest.main()
