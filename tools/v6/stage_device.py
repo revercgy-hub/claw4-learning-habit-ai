@@ -177,8 +177,6 @@ struct M1AfeDiagState {
     std::atomic<uint32_t> wakenet_enable_apply{0};
     std::atomic<uint32_t> wakenet_disable_apply{0};
     // Cumulative control evidence survives gaps between serial captures.
-    std::atomic<uint32_t> wake_desired_seq{0};
-    std::atomic<uint32_t> wake_applied_seq{0};
     std::atomic<uint32_t> wakenet_enable_total{0};
     std::atomic<uint32_t> wakenet_disable_total{0};
     std::atomic<int32_t> wakenet_enable_rc{0};
@@ -258,7 +256,6 @@ static void ReleaseM1AfeDiagState(M1AfeDiagState* state) {
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
     if (m1_diag_ != nullptr) {
         m1_diag_->wake_enabled.store(enable, std::memory_order_relaxed);
-        m1_diag_->wake_desired_seq.fetch_add(1, std::memory_order_relaxed);
     }
 #endif'''),
         ('''    const bool afe_active =
@@ -298,19 +295,12 @@ static void ReleaseM1AfeDiagState(M1AfeDiagState* state) {
         } else {
             afe_iface_->disable_wakenet(afe_data_);
         }''',
-         '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
-        // Snapshot the request before invoking the AFE. A concurrent change
-        // remains dirty and is applied in the next processing iteration.
-        const uint32_t desired_seq = m1_diag_ == nullptr ? 0 :
-            m1_diag_->wake_desired_seq.load(std::memory_order_relaxed);
-#endif
-        if (bits & kWakeWordEnabled) {
+         '''        if (bits & kWakeWordEnabled) {
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
             const int rc = afe_iface_->enable_wakenet(afe_data_);
             if (m1_diag_ != nullptr) {
                 m1_diag_->wakenet_enable_rc.store(rc, std::memory_order_relaxed);
                 m1_diag_->wakenet_enable_total.fetch_add(1, std::memory_order_relaxed);
-                m1_diag_->wake_applied_seq.store(desired_seq, std::memory_order_relaxed);
                 m1_diag_->wakenet_enable_apply.fetch_add(1, std::memory_order_relaxed);
             }
 #else
@@ -322,7 +312,6 @@ static void ReleaseM1AfeDiagState(M1AfeDiagState* state) {
             if (m1_diag_ != nullptr) {
                 m1_diag_->wakenet_disable_rc.store(rc, std::memory_order_relaxed);
                 m1_diag_->wakenet_disable_total.fetch_add(1, std::memory_order_relaxed);
-                m1_diag_->wake_applied_seq.store(desired_seq, std::memory_order_relaxed);
                 m1_diag_->wakenet_disable_apply.fetch_add(1, std::memory_order_relaxed);
             }
 #else
@@ -388,9 +377,7 @@ void AfeAudioEngine::ReportM1AfeStats(M1AfeDiagState* state) {
              unsigned(state->fetch_ok.exchange(0, std::memory_order_relaxed)),
              unsigned(state->fetch_fail.exchange(0, std::memory_order_relaxed)),
              unsigned(state->fetch_other.exchange(0, std::memory_order_relaxed)));
-    ESP_LOGI(TAG, "M1_AFE_CTL desired=%u applied=%u on_total=%u on_rc=%d off_total=%u off_rc=%d",
-             unsigned(state->wake_desired_seq.load(std::memory_order_relaxed)),
-             unsigned(state->wake_applied_seq.load(std::memory_order_relaxed)),
+    ESP_LOGI(TAG, "M1_AFE_CTL on_total=%u on_rc=%d off_total=%u off_rc=%d",
              unsigned(state->wakenet_enable_total.load(std::memory_order_relaxed)),
              int(state->wakenet_enable_rc.load(std::memory_order_relaxed)),
              unsigned(state->wakenet_disable_total.load(std::memory_order_relaxed)),
