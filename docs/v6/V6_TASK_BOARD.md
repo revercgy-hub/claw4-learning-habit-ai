@@ -6,6 +6,10 @@
 
 > M1 的最新设备状态由下方 2026-09-27 S-08 记录覆盖；Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
 
+> 2026-09-27 更新：S-08 同一 Candidate 的用户辅助 Wake 尝试已连续采集并记录于 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md)。结论 `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED`；不能概括为通用 WakeNet FAIL。Preflight 0/2–3，正式 20 轮未开始。
+
+> 此前被动检查摘要仍由 [S-08 device report](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 保留；本次用户辅助尝试的状态与计数以 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) 为准。
+
 接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`。Candidate20（`claw4-learning-v6-m0.20`）已构建并仅对 live `ota_0` 做 app-only 刷写；读回与 app hash 一致。候选构建布局仍与 live 分区布局不同，未执行恢复写回。A-02 结论为 `M0=CHANGES_REQUIRED`。
 
 用户于 2026-09-24 明确要求跳过 AP outage/recovery 刺激并直接开始下一阶段开发，随后授权在铭凡 N5 x86 NAS 部署小智服务。该指令不改变 M0 结论、不把 AP failure/recovery 标成通过，也不代表 M1 20 轮验收已完成。NAS 服务已部署并通过合成连通性验证；M1 真机语音轮次尚未开始，不进行新的设备写入或 Flash/recovery 范围扩展。
@@ -33,7 +37,9 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | S-05-WS-VERIFY | BLOCKED_WS_ENDPOINT_NOT_VERIFIED | 同一 Candidate 未重建/重刷；连续 326 秒捕获覆盖用户一次唤醒词尝试及回复，但未见 Wake/WS/外连/崩溃标记；不能判一般性 Wake FAIL，WS 7444 仍 NOT_VERIFIED，完整 Voice 0 轮；见 [连续捕获报告](V6_M1_VOICE_PREFLIGHT_WS_VERIFY_REPORT.md)。用户已确认设备断电，COM7 已释放 |
 | S-06-WAKE-DIAG | DIAG_COMPLETE / ROOT_CAUSE_UNRESOLVED | 只读检查 324 条参考队列状态均为 idle/零计数，M1 未编译输入 RMS/读取失败诊断；未读出语音内容。不能定位该次未唤醒原因；详见 [诊断报告](V6_M1_WAKE_DIAGNOSTIC_REPORT.md)。设备保持断电，未操作硬件 |
 | S-08-WAKE-DIAG-CANDIDATE-EVIDENCE | DEVICE_DIAGNOSTIC_COMPLETE / WAKE_AND_WS_NOT_VERIFIED | R-05 `PASS` 于 manifest revision `36d6443`；merged source `70d463938526ba768f889ebd548f8afd8a03f3af`。同一 S-08 Candidate app-only write/readback PASS，启动于 `ota_0`，观察到 NAS OTA HTTP `192.168.3.100:7443`，未观察外部 Tenclass；WS 7444 与 M1 Wake marker 未观察。48 个输入诊断窗口、771840 mic samples、RMS max 536、peak max 6080、读失败 0、crash markers 0；heap/PSRAM unknown。无 speech，Preflight 0 轮，正式 20 轮未开始。详见[设备报告](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md)；不得继承旧 Candidate Voice 结果 |
+| S-08-PREFLIGHT-ATTEMPT | PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED | Same S-08 Candidate; read-only app identity verify succeeded before one 201.328 s continuous UART capture. 188 input windows / 3,023,200 mic samples, RMS max 2,507, peak max 21,979, I2S read failures 0; NAS OTA 7443 observed once, no observed Wake, WS 7444, external endpoint, or crash marker. Two user-reported attempts cannot be bound to exact acoustic frames; first question utterance is NOT_VERIFIED. Preflight 0/2–3, formal 20 rounds not started. See [attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md); root cause unresolved |
 | L-08-M1-CONTINUOUS-CAPTURE | HOST_COMPLETE / DEVICE_SMOKE_NOT_RUN | Luna high；`c4600aa` + 定向修复 `d5326fa`。有界连续 UART 采集、时间/字节索引和无载荷状态文件；定向 9/9、V6 Host 138/138。2026-09-27 COM7 冒烟检查因串口未枚举而未启动，未生成采集证据；不构成 Wake/Voice 验证 |
+| L-09-S08-PREFLIGHT-EVIDENCE | DOCS_COMPLETE | 同一 S-08 Candidate 的用户辅助尝试报告与两级看板更新；捕获/用户报告的证据边界、私有哈希均已记录。仅文档整理，不作根因判定或 WakeNet FAIL 推断 |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
@@ -47,7 +53,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | DEVICE_DIAGNOSTIC_COMPLETE / WAKE_AND_WS_NOT_VERIFIED | S-08 被动检查观察到 NAS OTA HTTP 7443；Wake 与 WS 7444 未验证，Voice Preflight 0 轮，正式 20 轮未开始。M0 仍 `CHANGES_REQUIRED`；见 [S-08 设备报告](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED | S-08 continuous user-assisted capture observed NAS OTA 7443 once; Wake and WS 7444 were not observed. Preflight 0/2–3, formal 20 rounds not started. Do not claim generic WakeNet FAIL or M1 PASS. M0 remains `CHANGES_REQUIRED`; see [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |

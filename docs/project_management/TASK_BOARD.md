@@ -8,11 +8,13 @@
 
 用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不再派发或重做。M0 仍为 `CHANGES_REQUIRED`；Candidate20 DEVICE 验证仅部分完成。M1-DEV-01 已 `ACCEPTED`（证据工具，不代表语音验收）；XiaoZhi NAS v0.9.6 已部署，7443 HTTP/OTA、7444 WebSocket、SenseVoiceSmall、Ollama `qwen3.5:2b` 与 EdgeTTS 合成连通性通过。M1 真机 Voice 和正式连续 20 轮均为 `NOT_VERIFIED`。
 
-### 2026-09-27 S-08 M1 input diagnostic device status
+### 2026-09-27 S-08 M1 user-assisted Wake preflight attempt
 
-L-08 连续采集 Host 工具已完成（`c4600aa`、`d5326fa`；定向 9/9，V6 Host 138/138）。它用于下一次同会话的 2～3 轮 Preflight，不能代替语音证据。2026-09-27 的真实串口冒烟检查因 COM7 未枚举而 `NOT_RUN / COM7_UNAVAILABLE`，没有重启、刷写或生成采集文件；仅凭串口缺席不能判断设备是否断电。
+L-08 连续采集 Host 工具已完成（`c4600aa`、`d5326fa`；定向 9/9，V6 Host 138/138）。2026-09-27 首次真实串口冒烟检查因 COM7 未枚举而 `NOT_RUN / COM7_UNAVAILABLE`；之后 S-08 同一 Candidate 的连续捕获与用户辅助尝试见本节报告。L-08 工具和被动输入基线均不能代替语音证据。
 
-R-05 独立审查 `PASS` 后，单一硬件 owner 对 Candidate `claw4-learning-v6-m1-wake-diag-s08-20260926-01` 完成 app-only 写入、独立读回和 60 秒 USB-reset 被动启动/输入诊断。读回与 app SHA 一致，post-write partition table/otadata 与写前 byte-equal；启动于 `ota_0`，观察到 NAS OTA HTTP `192.168.3.100:7443`，未观察外部 Tenclass。被动摘要为 48 个诊断窗口、771840 mic samples、RMS max 536、peak max 6080、I2S read failures 0、Wake marker 0、crash markers 0；heap/PSRAM unknown。没有受控语音，Voice Preflight 为 `0/2–3`，正式 20 轮未开始；Wake、WS 7444、AEC 与完整 Voice 均 `NOT_VERIFIED`。该次捕获结束时设备通电、COM7 已释放；这不是 cold-boot、Wake FAIL 或 M1 PASS。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。见 [S-08 设备报告](../v6/V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 和 [V6 唯一看板](../v6/V6_TASK_BOARD.md)。
+S-08 的前一份 [被动设备报告](../v6/V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 仅包含输入基线，不等于语音 Preflight。之后在同一 Candidate 上，采集前只读 `esptool verify-flash` 对 `0x200000` 处 3,136,144 字节核验 reviewed app SHA 成功；设备为 ESP32-P4 rev1.3，MAC `80:f1:b2:d2:ed:14`。一次显式 USB reset 后连续 UART 捕获 201.328 秒、63,958 bytes、1,141 个连续 index chunk；启动 `ota_0`，ELF prefix `fc07bcb12` 观察一次，NAS OTA HTTP 7443 观察一次，未观察外部端点、WS 7444、Wake 或 crash。解析到 188 个 M1 输入窗口、3,023,200 mic samples、RMS max 2507、peak max 21979、I2S read failures 0；heap/PSRAM unavailable。
+
+用户报告第一轮“说了你好小智没有反映”；拟进行 Wake→question，但仅有 Wake 词尝试的用户报告，问题语句 `NOT_VERIFIED`。第二轮约 20–30cm，用户原话“已说，都没有灯光屏幕的反应”：未见灯光/屏幕反应；声音反馈未单独确认。两次话语起始时间未知，不能绑定到具体声学帧；第二次前 30 秒摘要 RMS max 381、peak 4870 仅作上下文，不能证明语音识别。状态 `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED`，不推断通用 WakeNet FAIL。完整 Wake→Speech→ASR→LLM→TTS→Playback→Next Wake 未完成，Preflight `0/2–3`，正式 20 轮从未开始。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。私有证据哈希、完整边界及报告见 [S-08 Preflight attempt report](../v6/V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) 与 [V6 唯一看板](../v6/V6_TASK_BOARD.md)。
 
 > **SUPERSEDED for current M1 device status by 2026-09-27 S-08:** The following S-05 paragraph keeps its endpoint-mismatch and retry findings as history; its stated next step is no longer current.
 
