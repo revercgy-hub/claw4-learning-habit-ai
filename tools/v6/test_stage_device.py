@@ -2,6 +2,7 @@ import tempfile
 import unittest
 import hashlib
 import json
+import re
 import shutil
 import sys
 import zipfile
@@ -10,10 +11,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stage_device
-from stage_device import (M1_ENDPOINT_PATCHES, NVS_ERASE_ANCHOR,
+from stage_device import (M1_AFE_DIAG_PATCHES, M1_ENDPOINT_PATCHES, NVS_ERASE_ANCHOR,
                           NVS_FAIL_CLOSED, PREFLIGHT_OTA_URL,
-                          PREFLIGHT_WS_URL, patch_m1_endpoints, replace_once,
-                          stage)
+                          PREFLIGHT_WS_URL, patch_m1_afe_runtime_diagnostics,
+                          patch_m1_endpoints, replace_once, stage)
 from build_device import verify_m1_endpoint_sources
 
 
@@ -147,6 +148,8 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
                 old for old, _ in M1_ENDPOINT_PATCHES['main/protocols/websocket_protocol.cc']),
             'partitions/.keep': '',
         }
+        for relative, edits in M1_AFE_DIAG_PATCHES.items():
+            self.source[relative] = '\n'.join(old for old, _ in edits)
 
     def stage_variant(self, variant, enabled=False):
         destination = Path(self.temp.name) / f'{variant}-{enabled}'
@@ -171,6 +174,9 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
         self.assertNotIn('CLAW4_M1_INPUT_DIAGNOSTICS', kconfig)
         self.assertTrue(manifest['diagnostics'])
         self.assertNotIn('m1_input_diagnostics', manifest)
+        for relative in M1_AFE_DIAG_PATCHES:
+            self.assertEqual((destination / relative).read_text(encoding='utf-8'),
+                             self.source[relative])
         with self.assertRaisesRegex(ValueError, 'require the M1 variant'):
             stage(Path(self.temp.name), Path(self.temp.name) / 'rejected', 'm0', True)
         self.assertFalse((Path(self.temp.name) / 'rejected').exists())
@@ -178,6 +184,36 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
     def test_default_m1_is_off_and_opt_in_binds_manifest_without_m0_harness(self):
         ordinary = self.stage_variant('m1')
         diagnostic = self.stage_variant('m1', True)
+        for relative in M1_AFE_DIAG_PATCHES:
+            self.assertEqual((ordinary / relative).read_text(encoding='utf-8'),
+                             self.source[relative])
+        afe = (diagnostic / 'main/audio/engines/afe_audio_engine.cc').read_text(
+            encoding='utf-8')
+        header = (diagnostic / 'main/audio/engines/afe_audio_engine.h').read_text(
+            encoding='utf-8')
+        for marker in ('M1_AFE_STATE', 'M1_AFE_FLOW'):
+            match = re.search(r'"(' + marker + r' [^"\n]+)"', afe)
+            self.assertIsNotNone(match)
+            # Reserve 60 bytes for the ESP log prefix within the parser's
+            # 256-character line cap, even if every counter is UINT32_MAX.
+            self.assertLessEqual(len(match.group(1).replace('%u', '4294967295')) + 60,
+                                 256)
+        self.assertIn('"m1_afe_diag", 4096, this, 1, &m1_diag_task_', afe)
+        self.assertIn('xSemaphoreTake(m1_diag_done_, portMAX_DELAY)', afe)
+        self.assertNotIn('esp_timer_', afe)
+        self.assertIn('std::memory_order_relaxed', afe)
+        self.assertIn('m1_feed_chunks_', header)
+        self.assertIn('m1_fetch_other_', header)
+        self.assertIn('if (result == nullptr || result->ret_value == ESP_FAIL)', afe)
+        self.assertIn('} else if (result->ret_value == ESP_OK) {', afe)
+        self.assertIn('m1_fetch_other_.fetch_add(1, std::memory_order_relaxed)', afe)
+        self.assertNotIn('M1_AFE_STATE', (ordinary / 'main/audio/engines/afe_audio_engine.cc').read_text(
+            encoding='utf-8'))
+        staged_afe = {relative: (diagnostic / relative).read_bytes()
+                      for relative in M1_AFE_DIAG_PATCHES}
+        patch_m1_afe_runtime_diagnostics(diagnostic)
+        self.assertEqual(staged_afe, {relative: (diagnostic / relative).read_bytes()
+                                      for relative in M1_AFE_DIAG_PATCHES})
         board_rel = 'main/boards/metalio/claw4-learning-v6/config.json'
         self.assertEqual((ordinary / board_rel).read_bytes(),
                          (diagnostic / board_rel).read_bytes())
@@ -202,6 +238,49 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
                              hashlib.sha256(kconfig_path.read_bytes()).hexdigest())
             self.assertIn('list(REMOVE_ITEM SOURCES "main.cc")',
                           (destination / 'main/CMakeLists.txt').read_text(encoding='utf-8'))
+
+    def test_afe_patch_idempotent_and_drift_refuses_all_writes(self):
+        destination = Path(self.temp.name) / 'afe-only'
+        for relative in M1_AFE_DIAG_PATCHES:
+            path = destination / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(self.source[relative], encoding='utf-8')
+        patch_m1_afe_runtime_diagnostics(destination)
+        once = {relative: (destination / relative).read_bytes()
+                for relative in M1_AFE_DIAG_PATCHES}
+        patch_m1_afe_runtime_diagnostics(destination)
+        self.assertEqual(once, {relative: (destination / relative).read_bytes()
+                                for relative in M1_AFE_DIAG_PATCHES})
+
+        source_path = destination / 'main/audio/engines/afe_audio_engine.cc'
+        source_path.write_text(self.source['main/audio/engines/afe_audio_engine.cc'].replace(
+            'AFE fetch failed:', 'AFE fetch changed:'), encoding='utf-8')
+        header_path = destination / 'main/audio/engines/afe_audio_engine.h'
+        header_path.write_text(self.source['main/audio/engines/afe_audio_engine.h'],
+                               encoding='utf-8')
+        before = {relative: (destination / relative).read_bytes()
+                  for relative in M1_AFE_DIAG_PATCHES}
+        with self.assertRaisesRegex(ValueError, 'anchor drift'):
+            patch_m1_afe_runtime_diagnostics(destination)
+        self.assertEqual(before, {relative: (destination / relative).read_bytes()
+                                  for relative in M1_AFE_DIAG_PATCHES})
+
+        source_path.write_text(self.source['main/audio/engines/afe_audio_engine.cc'] +
+                               '\n' + M1_AFE_DIAG_PATCHES[
+                                   'main/audio/engines/afe_audio_engine.cc'][0][0],
+                               encoding='utf-8')
+        before = {relative: (destination / relative).read_bytes()
+                  for relative in M1_AFE_DIAG_PATCHES}
+        with self.assertRaisesRegex(ValueError, 'anchor drift'):
+            patch_m1_afe_runtime_diagnostics(destination)
+        self.assertEqual(before, {relative: (destination / relative).read_bytes()
+                                  for relative in M1_AFE_DIAG_PATCHES})
+
+        source_path.write_text(self.source['main/audio/engines/afe_audio_engine.cc'],
+                               encoding='utf-8')
+        header_path.write_bytes(once['main/audio/engines/afe_audio_engine.h'])
+        with self.assertRaisesRegex(ValueError, 'Partial AFE diagnostic patch'):
+            patch_m1_afe_runtime_diagnostics(destination)
 
 if __name__ == '__main__':
     unittest.main()

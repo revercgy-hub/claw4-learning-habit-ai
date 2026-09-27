@@ -135,6 +135,212 @@ M1_ENDPOINT_PATCHES = {
     ),
 }
 
+# These anchors are from the pinned XiaoZhi AfeAudioEngine. A separate low-priority
+# reporter logs; Feed and ProcessingTask only touch atomics.
+M1_AFE_DIAG_PATCHES = {
+    'main/audio/engines/afe_audio_engine.h': (
+        ('#include <esp_afe_sr_models.h>\n',
+         '#include <esp_afe_sr_models.h>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <freertos/semphr.h>\n#endif\n'),
+        ('    std::atomic<uint32_t> control_generation_{0};\n',
+         '''    std::atomic<uint32_t> control_generation_{0};
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    // M1_AFE_RUNTIME_DIAG: one-second aggregates; no PCM or speech is retained.
+    TaskHandle_t m1_diag_task_ = nullptr;
+    SemaphoreHandle_t m1_diag_done_ = nullptr;
+    std::atomic<bool> m1_diag_stop_{false};
+    std::atomic<uint32_t> m1_feed_calls_{0};
+    std::atomic<uint32_t> m1_feed_samples_{0};
+    std::atomic<uint32_t> m1_feed_chunks_{0};
+    std::atomic<uint32_t> m1_fetch_ok_{0};
+    std::atomic<uint32_t> m1_fetch_fail_{0};
+    std::atomic<uint32_t> m1_fetch_other_{0};
+    std::atomic<uint32_t> m1_wake_detected_{0};
+    std::atomic<uint32_t> m1_wake_other_{0};
+    std::atomic<uint32_t> m1_wakenet_enable_apply_{0};
+    std::atomic<uint32_t> m1_wakenet_disable_apply_{0};
+    void ReportM1AfeStats();
+#endif
+'''),
+    ),
+    'main/audio/engines/afe_audio_engine.cc': (
+        ('''AfeAudioEngine::~AfeAudioEngine() {
+    custom_wake_word_.reset();''',
+         '''AfeAudioEngine::~AfeAudioEngine() {
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_task_ != nullptr) {
+        m1_diag_stop_.store(true, std::memory_order_release);
+        xTaskNotifyGive(m1_diag_task_);
+        xSemaphoreTake(m1_diag_done_, portMAX_DELAY);
+    }
+    if (m1_diag_done_ != nullptr) {
+        vSemaphoreDelete(m1_diag_done_);
+    }
+#endif
+    custom_wake_word_.reset();'''),
+        ('''    ESP_LOGI(TAG, "After AFE create: free=%u min=%u largest=%u",
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    return true;''',
+         '''    ESP_LOGI(TAG, "After AFE create: free=%u min=%u largest=%u",
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    m1_diag_done_ = xSemaphoreCreateBinary();
+    if (m1_diag_done_ != nullptr) {
+        const BaseType_t created = xTaskCreate(
+            [](void* arg) {
+                auto* engine = static_cast<AfeAudioEngine*>(arg);
+                while (!engine->m1_diag_stop_.load(std::memory_order_acquire)) {
+                    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+                    if (engine->m1_diag_stop_.load(std::memory_order_acquire)) break;
+                    engine->ReportM1AfeStats();
+                }
+                xSemaphoreGive(engine->m1_diag_done_);
+                vTaskDelete(nullptr);
+            }, "m1_afe_diag", 4096, this, 1, &m1_diag_task_);
+        if (created != pdPASS) {
+            vSemaphoreDelete(m1_diag_done_);
+            m1_diag_done_ = nullptr;
+            m1_diag_task_ = nullptr;
+        }
+    }
+    if (m1_diag_task_ == nullptr) {
+        ESP_LOGW(TAG, "M1 AFE diagnostic reporter unavailable");
+    }
+#endif
+    return true;'''),
+        ('''void AfeAudioEngine::Feed(std::vector<int16_t>&& data) {
+    EventBits_t bits = xEventGroupGetBits(event_group_);''',
+         '''void AfeAudioEngine::Feed(std::vector<int16_t>&& data) {
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    m1_feed_calls_.fetch_add(1, std::memory_order_relaxed);
+#endif
+    EventBits_t bits = xEventGroupGetBits(event_group_);'''),
+        ('''    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    while (input_buffer_.size() >= chunk_size) {
+        afe_iface_->feed(afe_data_, input_buffer_.data());
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
+    }''',
+         '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    m1_feed_samples_.fetch_add(data.size() / codec_->input_channels(), std::memory_order_relaxed);
+#endif
+    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    while (input_buffer_.size() >= chunk_size) {
+        afe_iface_->feed(afe_data_, input_buffer_.data());
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        m1_feed_chunks_.fetch_add(1, std::memory_order_relaxed);
+#endif
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
+    }'''),
+        ('''        if (bits & kWakeWordEnabled) {
+            afe_iface_->enable_wakenet(afe_data_);
+        } else {
+            afe_iface_->disable_wakenet(afe_data_);
+        }''',
+         '''        if (bits & kWakeWordEnabled) {
+            afe_iface_->enable_wakenet(afe_data_);
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            m1_wakenet_enable_apply_.fetch_add(1, std::memory_order_relaxed);
+#endif
+        } else {
+            afe_iface_->disable_wakenet(afe_data_);
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            m1_wakenet_disable_apply_.fetch_add(1, std::memory_order_relaxed);
+#endif
+        }'''),
+        ('''        if (result == nullptr || result->ret_value == ESP_FAIL) {
+            if (result != nullptr) {
+                ESP_LOGW(TAG, "AFE fetch failed: %d", result->ret_value);
+            }
+            continue;
+        }
+
+        EventBits_t bits = xEventGroupGetBits(event_group_);
+        if (bits & kWakeWordEnabled) {
+            HandleWakeWordResult(result);
+        }''',
+         '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        if (result == nullptr || result->ret_value == ESP_FAIL) {
+            m1_fetch_fail_.fetch_add(1, std::memory_order_relaxed);
+        } else if (result->ret_value == ESP_OK) {
+            m1_fetch_ok_.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            // Upstream still processes this result; keep its status separate.
+            m1_fetch_other_.fetch_add(1, std::memory_order_relaxed);
+        }
+#endif
+        if (result == nullptr || result->ret_value == ESP_FAIL) {
+            if (result != nullptr) {
+                ESP_LOGW(TAG, "AFE fetch failed: %d", result->ret_value);
+            }
+            continue;
+        }
+
+        EventBits_t bits = xEventGroupGetBits(event_group_);
+        if (bits & kWakeWordEnabled) {
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            if (result->wakeup_state == WAKENET_DETECTED) {
+                m1_wake_detected_.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                m1_wake_other_.fetch_add(1, std::memory_order_relaxed);
+            }
+#endif
+            HandleWakeWordResult(result);
+        }'''),
+        ('''void AfeAudioEngine::ProcessingTask() {
+    while (true) {''',
+         '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+void AfeAudioEngine::ReportM1AfeStats() {
+    const EventBits_t bits = xEventGroupGetBits(event_group_);
+    ESP_LOGI(TAG, "M1_AFE_STATE wake=%u active=%u wn_on=%u wn_off=%u detected=%u other=%u",
+             unsigned((bits & kWakeWordEnabled) != 0), unsigned((bits & kAfeActive) != 0),
+             unsigned(m1_wakenet_enable_apply_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_wakenet_disable_apply_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_wake_detected_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_wake_other_.exchange(0, std::memory_order_relaxed)));
+    ESP_LOGI(TAG, "M1_AFE_FLOW feed_calls=%u feed_samples=%u feed_chunks=%u fetch_ok=%u fetch_fail=%u fetch_other=%u",
+             unsigned(m1_feed_calls_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_feed_samples_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_feed_chunks_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_fetch_ok_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_fetch_fail_.exchange(0, std::memory_order_relaxed)),
+             unsigned(m1_fetch_other_.exchange(0, std::memory_order_relaxed)));
+}
+#endif
+
+void AfeAudioEngine::ProcessingTask() {
+    while (true) {'''),
+    ),
+}
+
+
+def patch_m1_afe_runtime_diagnostics(destination):
+    """Apply the whole pinned-upstream patch, or reject drift without writing."""
+    pending = {}
+    states = []
+    for relative, edits in M1_AFE_DIAG_PATCHES.items():
+        path = destination / relative
+        source = path.read_text(encoding='utf-8')
+        updated = source
+        for old, new in edits:
+            if updated.count(new) == 1 and old not in updated.replace(new, '', 1):
+                states.append('existing')
+            elif updated.count(new) == 0 and updated.count(old) == 1:
+                states.append('new')
+                updated = updated.replace(old, new)
+            else:
+                raise ValueError(f'Upstream AFE diagnostic anchor drift: {path}: {old[:60]}')
+        pending[path] = updated
+    if len(set(states)) != 1:
+        raise ValueError('Partial AFE diagnostic patch refused')
+    if states[0] == 'new':
+        for path, updated in pending.items():
+            path.write_text(updated, encoding='utf-8', newline='\n')
+
 
 def patch_m1_endpoints(destination):
     for relative, edits in M1_ENDPOINT_PATCHES.items():
@@ -179,6 +385,8 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False):
     if variant == 'm1':
         replace_once(destination / 'main/main.cc', NVS_ERASE_ANCHOR, NVS_FAIL_CLOSED)
         patch_m1_endpoints(destination)
+        if m1_input_diagnostics:
+            patch_m1_afe_runtime_diagnostics(destination)
         # Seed the reviewed component versions before IDF can resolve ranges.
         shutil.copy2(ROOT / lock['device_component_lock'], destination / 'dependencies.lock')
     board = ROOT / 'integration/v6/board/claw4-learning-v6'
