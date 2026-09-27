@@ -4,6 +4,7 @@
 **Branch:** `codex/v6-m1-wake-diag-candidate`
 **Source checkpoint:** `85b2265b65a09b67d9eabe9da5373bf18468161b`
 **Candidate:** `claw4-learning-v6-m1-wake-diag-s08-20260926-01`
+**Evidence commit:** `bbb2b852ab308745af7127317161f6021447429d`
 **Status:** `BUILD_COMPLETE_REVIEW_REQUIRED / DEVICE_NOT_TESTED`
 
 ## Result
