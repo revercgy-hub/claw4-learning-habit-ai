@@ -1,9 +1,12 @@
 # S-08 user-assisted M1 Wake preflight attempt
 
-**Status:** `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED` (2026-09-27)  
-**Candidate:** `claw4-learning-v6-m1-wake-diag-s08-20260926-01`  
-**Candidate app SHA-256:** `5619f2f2cd19cc42746fe1025a7c6390e037313573e1203093dfbf057889b27c`  
-**Firmware source:** `85b2265b65a09b67d9eabe9da5373bf18468161b`  
+**Status:** `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED` (2026-09-27)
+
+**Candidate:** `claw4-learning-v6-m1-wake-diag-s08-20260926-01`
+
+**Candidate app SHA-256:** `5619f2f2cd19cc42746fe1025a7c6390e037313573e1203093dfbf057889b27c`
+
+**Firmware source:** `85b2265b65a09b67d9eabe9da5373bf18468161b`
 **Capture source root HEAD:** `c2f5c5f`
 
 This report records one user-assisted attempt using the same reviewed S-08 Candidate. It supplements the earlier passive S-08 device check with a continuous capture and two operator-reported attempts. It does not identify a root cause, establish a general WakeNet failure, or inherit evidence from another Candidate.
