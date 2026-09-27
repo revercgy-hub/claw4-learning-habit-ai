@@ -10,7 +10,7 @@ Before preparing any M1 Candidate, read the live device partition table and reco
 
 ## Opt-in M1 input diagnostics
 
-The S-08 diagnostic Candidate is a build artifact only; its report says `DEVICE_NOT_TESTED`. It does not inherit any boot, endpoint, Wake, or Voice result from an older Candidate. Use the M1 input counters only on a separately reviewed M1 Candidate whose manifest and `sdkconfig` explicitly bind `m1_input_diagnostics=true` / `CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS=y`. This option is M1-only and depends on `!CLAW4_M0_DIAGNOSTICS`; it does not enable the M0 local diagnostic application. Do not change WakeNet, AEC, recording, or audio routing to collect these counters.
+S-08 Candidate `claw4-learning-v6-m1-wake-diag-s08-20260926-01` passed R-05 review and has a separate app-only device diagnostic record in [the S-08 device report](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md); that passive check is not a Voice round or M1 acceptance. It does not inherit any boot, endpoint, Wake, or Voice result from an older Candidate. Use the M1 input counters only on a separately reviewed M1 Candidate whose manifest and `sdkconfig` explicitly bind `m1_input_diagnostics=true` / `CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS=y`. This option is M1-only and depends on `!CLAW4_M0_DIAGNOSTICS`; it does not enable the M0 local diagnostic application. Do not change WakeNet, AEC, recording, or audio routing to collect these counters.
 
 The exact `Claw4Audio: M1_INPUT_DIAG` record is emitted about once per second while input reads are running:
 

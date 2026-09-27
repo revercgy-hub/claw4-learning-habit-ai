@@ -8,7 +8,15 @@
 
 用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不再派发或重做。M0 仍为 `CHANGES_REQUIRED`；Candidate20 DEVICE 验证仅部分完成。M1-DEV-01 已 `ACCEPTED`（证据工具，不代表语音验收）；XiaoZhi NAS v0.9.6 已部署，7443 HTTP/OTA、7444 WebSocket、SenseVoiceSmall、Ollama `qwen3.5:2b` 与 EdgeTTS 合成连通性通过。M1 真机 Voice 和正式连续 20 轮均为 `NOT_VERIFIED`。
 
+### 2026-09-27 S-08 M1 input diagnostic device status
+
+R-05 独立审查 `PASS` 后，单一硬件 owner 对 Candidate `claw4-learning-v6-m1-wake-diag-s08-20260926-01` 完成 app-only 写入、独立读回和 60 秒 USB-reset 被动启动/输入诊断。读回与 app SHA 一致，post-write partition table/otadata 与写前 byte-equal；启动于 `ota_0`，观察到 NAS OTA HTTP `192.168.3.100:7443`，未观察外部 Tenclass。被动摘要为 48 个诊断窗口、771840 mic samples、RMS max 536、peak max 6080、I2S read failures 0、Wake marker 0、crash markers 0；heap/PSRAM unknown。没有受控语音，Voice Preflight 为 `0/2–3`，正式 20 轮未开始；Wake、WS 7444、AEC 与完整 Voice 均 `NOT_VERIFIED`。设备当前通电，COM7 已释放；这不是 cold-boot、Wake FAIL 或 M1 PASS。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。见 [S-08 设备报告](../v6/V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 和 [V6 唯一看板](../v6/V6_TASK_BOARD.md)。
+
+> **SUPERSEDED for current M1 device status by 2026-09-27 S-08:** The following S-05 paragraph keeps its endpoint-mismatch and retry findings as history; its stated next step is no longer current.
+
 L-03 根看板同步和 L-04 Preflight/正式 20 轮证据工具已完成。首个 S-05 对 R-02 Candidate 的 app-only 写入和读回通过，启动却实际连接外部 `api.tenclass.net` HTTPS/MQTT，语音刺激前停止、0 轮。S-04-ENDPOINT 随后固定 M1 预飞行 NAS OTA/WS 端点、拒绝外部 MQTT/WS 和自动升级，冻结新 Candidate `claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03`；独立 R-03 复审 `PASS`。S-05-RETRY 对新 Candidate app-only 写入/独立读回通过，设备实际连接 NAS OTA `192.168.3.100:7443` 且未观察到外部连接；WebSocket 懒连接需 Wake 才会建立。用户一次唤醒词报告落在两段日志捕获的时间空档附近，不能绑定刺激，WS 7444 与 Wake 均 `NOT_VERIFIED`，完整 Voice 仍 **0 轮**，设备已断电。下一步只用同一镜像做连续捕获的同步 Wake-only 端点探针，不重新构建或刷机；确认现场 WS 7444 后才可做 2～3 轮 Voice Preflight。正式 20 轮未开始，M0 继续 `CHANGES_REQUIRED`。M1 Voice Core 保持单一 owner，不提前加入 Learning UI 或 M1.5 七命令 Router。详见 [V6_TASK_BOARD](../v6/V6_TASK_BOARD.md)、[S-05 重试报告](../v6/V6_M1_VOICE_PREFLIGHT_RETRY_DEVICE_REPORT.md)和 [NAS 部署报告](../v6/V6_M1_NAS_DEPLOYMENT_REPORT.md)。
+
+> **SUPERSEDED for current M1 device status by 2026-09-27 S-08:** The following 2026-09-26 paragraph preserves the R-03 historical evidence only.
 
 2026-09-26 恢复状态覆盖上段 S-05 预飞行描述：同一 R-03 Candidate 未重建/重刷；连续 326 秒捕获覆盖用户一次唤醒词尝试和回复，串口未见 Wake、WS、外连或崩溃标记。语句声学时间/电平未测，不能据此判一般性 Wake FAIL；WS 7444 仍 `NOT_VERIFIED`，完整 Voice **0 轮**。COM7 已释放，断电确认待回。详见 [连续捕获报告](../v6/V6_M1_VOICE_PREFLIGHT_WS_VERIFY_REPORT.md)。正式 20 轮未开始，M0 仍 `CHANGES_REQUIRED`。
 
