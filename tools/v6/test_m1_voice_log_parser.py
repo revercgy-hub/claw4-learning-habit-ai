@@ -132,6 +132,18 @@ I (6) Application: speech says AfeAudioEngine: M1_AFE_STATE wake=1 active=1 wn_o
         self.assertEqual(result["m1_afe_flow_sample_count"], 0)
         self.assertEqual(result["m1_afe_feed_calls_total"], 0)
 
+    def test_m1_afe_state_rejects_non_boolean_gauges_atomically(self):
+        result = summarize("""I (1) AfeAudioEngine: M1_AFE_STATE wake=1 active=0 wn_on=2 wn_off=1 detected=3 other=4
+I (2) AfeAudioEngine: M1_AFE_STATE wake=2 active=1 wn_on=9 wn_off=8 detected=7 other=6
+""")
+        self.assertEqual(result["m1_afe_state_sample_count"], 1)
+        self.assertEqual(result["m1_afe_wake_enabled_last"], 1)
+        self.assertEqual(result["m1_afe_active_last"], 0)
+        self.assertEqual(result["m1_afe_wn_on_total"], 2)
+        self.assertEqual(result["m1_afe_wn_off_total"], 1)
+        self.assertEqual(result["m1_afe_detected_total"], 3)
+        self.assertEqual(result["m1_afe_other_total"], 4)
+
     def test_m1_afe_totals_overflow_fail_closed_without_partial_record(self):
         logs = """I (1) AfeAudioEngine: M1_AFE_STATE wake=1 active=1 wn_on=9 wn_off=0 detected=0 other=0
 I (1) AfeAudioEngine: M1_AFE_STATE wake=0 active=0 wn_on=2 wn_off=0 detected=0 other=0

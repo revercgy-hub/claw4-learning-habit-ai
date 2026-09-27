@@ -82,7 +82,8 @@ def summarize(text):
                 timestamp, *values = map(int, state.groups())
                 del timestamp  # The timestamp is syntax only; it is not a session key.
                 wake, active, wn_on, wn_off, detected, other = values
-                if all(value <= MAX_U32 for value in values):
+                if (wake in (0, 1) and active in (0, 1)
+                        and all(value <= MAX_U32 for value in values)):
                     totals = ("m1_afe_wn_on_total", "m1_afe_wn_off_total",
                               "m1_afe_detected_total", "m1_afe_other_total")
                     increments = (wn_on, wn_off, detected, other)
