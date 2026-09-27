@@ -1,4 +1,12 @@
-# S-04 M1 Voice Preflight preparation
+# S-08 M1 Wake diagnostic build candidate
+
+Status (2026-09-26): **BUILD_COMPLETE_REVIEW_REQUIRED / DEVICE_NOT_TESTED**. Candidate `claw4-learning-v6-m1-wake-diag-s08-20260926-01` is frozen by [`integration/v6/m1-candidate-preflight.json`](../../integration/v6/m1-candidate-preflight.json). Its source is `85b2265b65a09b67d9eabe9da5373bf18468161b`; the fresh build is `E:/v6/m1-wake-diag-s08`, and the final build log ends in the ESP-IDF success marker. The M1 input diagnostic option is enabled while the M0 diagnostic application remains unset; device AEC and the fixed NAS OTA/WS policy remain enabled. The manifest binds normalized source/staged-input proofs, final lock, sdkconfig, live-layout partition CSV and generated table, and artifact identities. This record establishes build identity only: no device was tested or flashed, and no S-05 Preflight round or M1 acceptance is claimed.
+
+The prior endpoint Candidate `claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03` and its device evidence remain historical. Its DEVICE results do not transfer to S-08's new app/ELF. No hardware action follows from this build freeze; an independent source/build review is required first.
+
+## Historical S-04 endpoint Candidate (superseded by S-08)
+
+The original S-04/S-05 endpoint report below is retained as historical context. Its prior status and evidence describe only its own Candidate.
 
 Status after S-05 endpoint stop (2026-09-25): **BUILD_FROZEN / R-03_INDEPENDENT_REVIEW_REQUIRED / NEW_CANDIDATE_DEVICE_NOT_TESTED**. S-05's app-only flash and readback passed, but its 45-second boot capture reached `api.tenclass.net:443` HTTPS and `api.tenclass.net:8883` MQTT, with zero voice rounds; the user powered the device off. The value of persisted `wifi/ota_url` was **not measured**. Its precedence over the compiled URL is a source-based explanation, not a readout of NVS. The former R-02 candidate and app/ELF are **SUPERSEDED** by the endpoint candidate below. No new hardware action is authorized by this build result.
 
