@@ -4,15 +4,17 @@
 
 ## 2026-09-24 接管与用户指令状态（当前有效）
 
-> M1 的最新设备状态由下方 2026-09-27 S-08 记录覆盖；Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
+> M1 的最新设备状态现由 2026-09-27 S11 AFE 诊断报告覆盖；下方 S-08 及更早记录保留为历史证据。Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
 
 > 2026-09-27 更新：S-08 同一 Candidate 的用户辅助 Wake 尝试已连续采集并记录于 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md)。结论 `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED`；不能概括为通用 WakeNet FAIL。Preflight 0/2–3，正式 20 轮未开始。
 
 > 此前被动检查摘要仍由 [S-08 device report](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 保留；本次用户辅助尝试的状态与计数以 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) 为准。
 
+> **2026-09-27 S11 最新设备状态：** Candidate `claw4-learning-v6-m1-afe-diag-s11-20260927-01`（source `cc1af698ed0d13066c71ae56d9365acb220683b7`，R-07 PASS）完成 app-only 写入和独立逐字节读回。一次显式 USB reset 后采集 180.031 秒连续 UART，167 个输入窗口、2,685,920 mic samples，I2S read failures 0；WakeNet enabled，检测计数 0，未见 crash。采集期间用户是否讲话未确认，故归类为被动/含义不确定数据；不判 WakeNet FAIL/PASS，不计 Preflight round。S11 观察到 NAS OTA 7443 一次、WS 7444 零次；Preflight 0/2–3，正式 20 轮未开始。详见 [S11 AFE diagnostic device report](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。
+
 接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`。Candidate20（`claw4-learning-v6-m0.20`）已构建并仅对 live `ota_0` 做 app-only 刷写；读回与 app hash 一致。候选构建布局仍与 live 分区布局不同，未执行恢复写回。A-02 结论为 `M0=CHANGES_REQUIRED`。
 
-用户于 2026-09-24 明确要求跳过 AP outage/recovery 刺激并直接开始下一阶段开发，随后授权在铭凡 N5 x86 NAS 部署小智服务。该指令不改变 M0 结论、不把 AP failure/recovery 标成通过，也不代表 M1 20 轮验收已完成。NAS 服务已部署并通过合成连通性验证；M1 真机语音轮次尚未开始，不进行新的设备写入或 Flash/recovery 范围扩展。
+2026-09-24 时用户要求跳过 AP outage/recovery 刺激并直接开始下一阶段开发，随后授权在铭凡 N5 x86 NAS 部署小智服务；当时 M1 真机语音轮次尚未开始。该历史指令不改变 M0 结论、不把 AP failure/recovery 标成通过，也不代表 M1 20 轮验收已完成。后续 S11 app-only 写入及其范围见 [S11 设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。NAS 服务已部署并通过合成连通性验证。
 
 Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DEVICE 结果不得转移；旧 `clipped` 计数不用于验收。
 
@@ -40,6 +42,7 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | S-08-PREFLIGHT-ATTEMPT | PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED | 同一 S-08 Candidate；只读 app 身份核验成功后，进行一次 201.328 秒连续 UART 捕获。188 个输入窗口 / 3,023,200 mic samples，RMS max 2,507、peak max 21,979、I2S read failures 0；观察到 NAS OTA 7443 一次，未观察到 Wake、WS 7444、外部端点或 crash marker。两次用户报告均无法绑定到准确声学帧；第一轮问题语句 `NOT_VERIFIED`。Preflight 0/2–3，正式 20 轮未开始。见 [尝试报告](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md)；根因未确定 |
 | L-08-M1-CONTINUOUS-CAPTURE | HOST_COMPLETE / DEVICE_CAPTURE_USED | Luna high；`c4600aa` + 定向修复 `d5326fa`。有界连续 UART 采集、时间/字节索引和无载荷状态文件；定向 9/9、V6 Host 138/138。首次 COM7 冒烟检查因串口未枚举而未启动；之后同一工具成功完成 201 秒连续采集并用于 S-08 Preflight 取证。此采集仍不代表 Voice PASS |
 | L-09-S08-PREFLIGHT-EVIDENCE | DOCS_COMPLETE | 同一 S-08 Candidate 的用户辅助尝试报告与两级看板更新；捕获/用户报告的证据边界、私有哈希均已记录。仅文档整理，不作根因判定或 WakeNet FAIL 推断 |
+| L-11-M1-AFE-DEVICE-EVIDENCE | DOCS_COMPLETE | S11 Candidate 的 app-only/readback、分区不变和被动 AFE 输入诊断摘要已记录；用户讲话未确认，数据含义不确定，不判 WakeNet FAIL/PASS、不计 Preflight。见 [设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
@@ -53,7 +56,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED | S-08 连续用户辅助捕获观察到 NAS OTA 7443 一次，未观察到 Wake 或 WS 7444。Preflight 0/2–3，正式 20 轮未开始；不推断通用 WakeNet FAIL，也不标记 M1 PASS。M0 仍为 `CHANGES_REQUIRED`；见 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | PREFLIGHT_ROUNDS=0/2–3 / S11_CAPTURE_AMBIGUOUS | S11 被动输入捕获期间用户讲话未确认；WakeNet 无检测不能推断 FAIL/PASS，不计 Preflight round。S-08 用户辅助尝试保留为历史尝试且不转移结果；正式 20 轮未开始。M0 仍为 `CHANGES_REQUIRED`。见 [S11 报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)；[S-08 Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |

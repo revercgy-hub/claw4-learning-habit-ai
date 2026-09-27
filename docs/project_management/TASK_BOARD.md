@@ -8,7 +8,13 @@
 
 用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不再派发或重做。M0 仍为 `CHANGES_REQUIRED`；Candidate20 DEVICE 验证仅部分完成。M1-DEV-01 已 `ACCEPTED`（证据工具，不代表语音验收）；XiaoZhi NAS v0.9.6 已部署，7443 HTTP/OTA、7444 WebSocket、SenseVoiceSmall、Ollama `qwen3.5:2b` 与 EdgeTTS 合成连通性通过。M1 真机 Voice 和正式连续 20 轮均为 `NOT_VERIFIED`。
 
-### 2026-09-27 S-08 M1 user-assisted Wake preflight attempt
+### 2026-09-27 S11 M1 AFE 输入诊断（最新设备记录）
+
+Candidate `claw4-learning-v6-m1-afe-diag-s11-20260927-01`（source `cc1af698ed0d13066c71ae56d9365acb220683b7`，R-07 `PASS`）对 ESP32-P4 rev1.3 / MAC `80:f1:b2:d2:ed:14` 完成 app-only 写入及独立逐字节读回。显式 USB reset 后的 180.031 秒 UART 捕获解析出 167 个输入窗口、2,685,920 mic samples、I2S read failures 0；WakeNet enabled，检测数 0，crash marker 0。用户是否在采集期间讲话尚未确认，因此记录为被动/含义不确定的 AFE 输入诊断，不判 WakeNet FAIL/PASS，也不计 Preflight round。观察到 NAS OTA 7443 一次，WS 7444 零次。Preflight 仍为 `0/2–3`，正式 20 轮未开始；M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。S08 用户辅助尝试保持历史，不转移结果。详见 [S11 AFE diagnostic device report](../v6/V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。
+
+L-11 仅完成设备证据文档和看板同步；不构成语音轮次、WakeNet 结论或 M1 验收。
+
+### 2026-09-27 S-08 M1 user-assisted Wake preflight attempt（历史状态；现由 S11 更新）
 
 L-08 连续采集 Host 工具已完成（`c4600aa`、`d5326fa`；定向 9/9，V6 Host 138/138）。2026-09-27 首次真实串口冒烟检查因 COM7 未枚举而 `NOT_RUN / COM7_UNAVAILABLE`；之后 S-08 同一 Candidate 的连续捕获与用户辅助尝试见本节报告。L-08 工具和被动输入基线均不能代替语音证据。
 
