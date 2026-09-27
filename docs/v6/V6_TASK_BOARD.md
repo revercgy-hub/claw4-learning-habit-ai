@@ -33,6 +33,7 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | S-05-WS-VERIFY | BLOCKED_WS_ENDPOINT_NOT_VERIFIED | 同一 Candidate 未重建/重刷；连续 326 秒捕获覆盖用户一次唤醒词尝试及回复，但未见 Wake/WS/外连/崩溃标记；不能判一般性 Wake FAIL，WS 7444 仍 NOT_VERIFIED，完整 Voice 0 轮；见 [连续捕获报告](V6_M1_VOICE_PREFLIGHT_WS_VERIFY_REPORT.md)。用户已确认设备断电，COM7 已释放 |
 | S-06-WAKE-DIAG | DIAG_COMPLETE / ROOT_CAUSE_UNRESOLVED | 只读检查 324 条参考队列状态均为 idle/零计数，M1 未编译输入 RMS/读取失败诊断；未读出语音内容。不能定位该次未唤醒原因；详见 [诊断报告](V6_M1_WAKE_DIAGNOSTIC_REPORT.md)。设备保持断电，未操作硬件 |
 | S-08-WAKE-DIAG-CANDIDATE-EVIDENCE | DEVICE_DIAGNOSTIC_COMPLETE / WAKE_AND_WS_NOT_VERIFIED | R-05 `PASS` 于 manifest revision `36d6443`；merged source `70d463938526ba768f889ebd548f8afd8a03f3af`。同一 S-08 Candidate app-only write/readback PASS，启动于 `ota_0`，观察到 NAS OTA HTTP `192.168.3.100:7443`，未观察外部 Tenclass；WS 7444 与 M1 Wake marker 未观察。48 个输入诊断窗口、771840 mic samples、RMS max 536、peak max 6080、读失败 0、crash markers 0；heap/PSRAM unknown。无 speech，Preflight 0 轮，正式 20 轮未开始。详见[设备报告](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md)；不得继承旧 Candidate Voice 结果 |
+| L-08-M1-CONTINUOUS-CAPTURE | HOST_COMPLETE / DEVICE_SMOKE_NOT_RUN | Luna high；`c4600aa` + 定向修复 `d5326fa`。有界连续 UART 采集、时间/字节索引和无载荷状态文件；定向 9/9、V6 Host 138/138。2026-09-27 COM7 冒烟检查因串口未枚举而未启动，未生成采集证据；不构成 Wake/Voice 验证 |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 

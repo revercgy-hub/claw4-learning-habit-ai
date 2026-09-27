@@ -10,7 +10,9 @@
 
 ### 2026-09-27 S-08 M1 input diagnostic device status
 
-R-05 独立审查 `PASS` 后，单一硬件 owner 对 Candidate `claw4-learning-v6-m1-wake-diag-s08-20260926-01` 完成 app-only 写入、独立读回和 60 秒 USB-reset 被动启动/输入诊断。读回与 app SHA 一致，post-write partition table/otadata 与写前 byte-equal；启动于 `ota_0`，观察到 NAS OTA HTTP `192.168.3.100:7443`，未观察外部 Tenclass。被动摘要为 48 个诊断窗口、771840 mic samples、RMS max 536、peak max 6080、I2S read failures 0、Wake marker 0、crash markers 0；heap/PSRAM unknown。没有受控语音，Voice Preflight 为 `0/2–3`，正式 20 轮未开始；Wake、WS 7444、AEC 与完整 Voice 均 `NOT_VERIFIED`。设备当前通电，COM7 已释放；这不是 cold-boot、Wake FAIL 或 M1 PASS。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。见 [S-08 设备报告](../v6/V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 和 [V6 唯一看板](../v6/V6_TASK_BOARD.md)。
+L-08 连续采集 Host 工具已完成（`c4600aa`、`d5326fa`；定向 9/9，V6 Host 138/138）。它用于下一次同会话的 2～3 轮 Preflight，不能代替语音证据。2026-09-27 的真实串口冒烟检查因 COM7 未枚举而 `NOT_RUN / COM7_UNAVAILABLE`，没有重启、刷写或生成采集文件；仅凭串口缺席不能判断设备是否断电。
+
+R-05 独立审查 `PASS` 后，单一硬件 owner 对 Candidate `claw4-learning-v6-m1-wake-diag-s08-20260926-01` 完成 app-only 写入、独立读回和 60 秒 USB-reset 被动启动/输入诊断。读回与 app SHA 一致，post-write partition table/otadata 与写前 byte-equal；启动于 `ota_0`，观察到 NAS OTA HTTP `192.168.3.100:7443`，未观察外部 Tenclass。被动摘要为 48 个诊断窗口、771840 mic samples、RMS max 536、peak max 6080、I2S read failures 0、Wake marker 0、crash markers 0；heap/PSRAM unknown。没有受控语音，Voice Preflight 为 `0/2–3`，正式 20 轮未开始；Wake、WS 7444、AEC 与完整 Voice 均 `NOT_VERIFIED`。该次捕获结束时设备通电、COM7 已释放；这不是 cold-boot、Wake FAIL 或 M1 PASS。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。见 [S-08 设备报告](../v6/V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 和 [V6 唯一看板](../v6/V6_TASK_BOARD.md)。
 
 > **SUPERSEDED for current M1 device status by 2026-09-27 S-08:** The following S-05 paragraph keeps its endpoint-mismatch and retry findings as history; its stated next step is no longer current.
 
