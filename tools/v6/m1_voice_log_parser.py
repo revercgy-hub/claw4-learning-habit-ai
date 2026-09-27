@@ -29,7 +29,14 @@ M1_AFE_FLOW = re.compile(
     r"feed_calls=(\d{1,10}) feed_samples=(\d{1,10}) feed_chunks=(\d{1,10}) "
     r"fetch_ok=(\d{1,10}) fetch_fail=(\d{1,10}) fetch_other=(\d{1,10})$"
 )
+M1_AFE_CTL = re.compile(
+    r"^[IWEVD] \((\d{1,10})\) AfeAudioEngine: M1_AFE_CTL "
+    r"on_total=(\d{1,10}) on_rc=(-?\d{1,10}) "
+    r"off_total=(\d{1,10}) off_rc=(-?\d{1,10})$"
+)
 MAX_U32 = (1 << 32) - 1
+MIN_I32 = -(1 << 31)
+MAX_I32 = (1 << 31) - 1
 MAX_U64 = (1 << 64) - 1
 MAX_UART_LINE_CHARS = 256
 
@@ -50,6 +57,7 @@ def summarize(text):
                   m1_afe_feed_calls_total=0, m1_afe_feed_samples_total=0,
                   m1_afe_feed_chunks_total=0, m1_afe_fetch_ok_total=0,
                   m1_afe_fetch_fail_total=0, m1_afe_fetch_other_total=0,
+                  m1_afe_control_sample_count=0, m1_afe_control_last=None,
                   heap_min_bytes=None, psram_min_bytes=None,
                   crash_markers=0,
                   voice_flow={k: "NOT_VERIFIED" for k in
@@ -109,6 +117,22 @@ def summarize(text):
                     result["m1_afe_flow_sample_count"] += 1
                     for key, value in zip(totals, values):
                         result[key] += value
+            control = M1_AFE_CTL.fullmatch(line)
+            if control:
+                timestamp, on_total, on_rc, off_total, off_rc = map(int, control.groups())
+                del timestamp  # Do not infer session identity from log uptime.
+                snapshot = {
+                    "on_total": on_total,
+                    "on_rc": on_rc,
+                    "off_total": off_total,
+                    "off_rc": off_rc,
+                }
+                if (all(snapshot[key] <= MAX_U32 for key in ("on_total", "off_total"))
+                        and all(MIN_I32 <= snapshot[key] <= MAX_I32 for key in
+                                ("on_rc", "off_rc"))
+                        and result["m1_afe_control_sample_count"] < MAX_U64):
+                    result["m1_afe_control_sample_count"] += 1
+                    result["m1_afe_control_last"] = snapshot
         match = LINE.match(line)
         msg = match.group(2) if match else line
         anchors = ANCHOR.findall(msg)

@@ -160,6 +160,52 @@ I (1) AfeAudioEngine: M1_AFE_FLOW feed_calls=3 feed_samples=2 feed_chunks=0 fetc
         self.assertEqual(result["m1_afe_feed_samples_total"], 1)
         self.assertTrue(all(value == "NOT_VERIFIED" for value in result["voice_flow"].values()))
 
+    def test_m1_afe_control_keeps_last_valid_snapshot_without_interpreting_rc(self):
+        result = summarize("""I (123) AfeAudioEngine: M1_AFE_CTL on_total=3 on_rc=-1 off_total=2 off_rc=0
+W (124) AfeAudioEngine: M1_AFE_CTL on_total=4 on_rc=0 off_total=3 off_rc=-2147483648
+""")
+        self.assertEqual(result["m1_afe_control_sample_count"], 2)
+        self.assertEqual(result["m1_afe_control_last"], {
+            "on_total": 4,
+            "on_rc": 0,
+            "off_total": 3,
+            "off_rc": -2147483648,
+        })
+        self.assertTrue(all(value == "NOT_VERIFIED" for value in result["voice_flow"].values()))
+
+    def test_m1_afe_control_rejects_wrong_tag_malformed_embedded_and_out_of_range(self):
+        valid = "I (1) AfeAudioEngine: M1_AFE_CTL on_total=1 on_rc=0 off_total=0 off_rc=0"
+        result = summarize(valid + "\n" + """I (1) OtherTag: M1_AFE_CTL desired=1 applied=1 on_total=1 on_rc=0 off_total=0 off_rc=0
+I (2) AfeAudioEngine: M1_AFE_CTL on_total=1 on_rc=0 off_total=0 off_rc=0 trailing
+I (3) AfeAudioEngine: M1_AFE_CTL off_total=0 off_rc=0 on_total=1 on_rc=0
+I (4) AfeAudioEngine: M1_AFE_CTL on_total=4294967296 on_rc=0 off_total=0 off_rc=0
+I (5) AfeAudioEngine: M1_AFE_CTL on_total=1 on_rc=2147483648 off_total=0 off_rc=0
+I (6) AfeAudioEngine: M1_AFE_CTL on_total=1 on_rc=0 off_total=0 off_rc=-2147483649
+I (7) Application: speech says AfeAudioEngine: M1_AFE_CTL on_total=1 on_rc=0 off_total=0 off_rc=0
+I (8) AfeAudioEngine: M1_AFE_CTL desired=1 applied=1 on_total=1 on_rc=0 off_total=0 off_rc=0
+""" + valid + "x" * 300)
+        self.assertEqual(result["m1_afe_control_sample_count"], 1)
+        self.assertEqual(result["m1_afe_control_last"], {
+            "on_total": 1,
+            "on_rc": 0,
+            "off_total": 0,
+            "off_rc": 0,
+        })
+
+    def test_m1_afe_control_preserves_snapshot_on_sample_count_overflow(self):
+        logs = """I (1) AfeAudioEngine: M1_AFE_CTL on_total=1 on_rc=0 off_total=0 off_rc=0
+I (2) AfeAudioEngine: M1_AFE_CTL on_total=2 on_rc=-1 off_total=1 off_rc=0
+"""
+        with patch("tools.v6.m1_voice_log_parser.MAX_U64", 1):
+            result = summarize(logs)
+        self.assertEqual(result["m1_afe_control_sample_count"], 1)
+        self.assertEqual(result["m1_afe_control_last"], {
+            "on_total": 1,
+            "on_rc": 0,
+            "off_total": 0,
+            "off_rc": 0,
+        })
+
 
 if __name__ == "__main__":
     unittest.main()
