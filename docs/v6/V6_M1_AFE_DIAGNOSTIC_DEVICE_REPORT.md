@@ -49,7 +49,7 @@ Candidate：`claw4-learning-v6-m1-afe-diag-s11-20260927-01`
 - M1 Preflight：`0/2–3`；正式 20 轮：未开始。
 - WS 7444：`NOT_VERIFIED`；端到端语音链：`NOT_VERIFIED`。
 - M0：`CHANGES_REQUIRED`；AP outage/recovery：`SKIPPED_BY_USER / NOT_VERIFIED`。
-- 本报告没有新的 `HARDWARE_VERIFY_REQUIRED` 项；若要把采集与用户语音尝试关联，需要用户确认采集期间是否讲话，之后由主控另行指示如何记录。此报告本身不作该假设。
+- `HARDWARE_VERIFY_REQUIRED`：仍需一项可与用户确认的 Wake/Voice Preflight 尝试，才能计入 2–3 轮 Preflight；本次讲话与否未确认的被动捕获不满足该项。后续执行范围由主控指示。本报告不假设用户在本次捕获中讲话。
 
 ## 证据自检
 

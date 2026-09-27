@@ -14,7 +14,7 @@
 
 接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`。Candidate20（`claw4-learning-v6-m0.20`）已构建并仅对 live `ota_0` 做 app-only 刷写；读回与 app hash 一致。候选构建布局仍与 live 分区布局不同，未执行恢复写回。A-02 结论为 `M0=CHANGES_REQUIRED`。
 
-用户于 2026-09-24 明确要求跳过 AP outage/recovery 刺激并直接开始下一阶段开发，随后授权在铭凡 N5 x86 NAS 部署小智服务。该指令不改变 M0 结论、不把 AP failure/recovery 标成通过，也不代表 M1 20 轮验收已完成。NAS 服务已部署并通过合成连通性验证；M1 真机语音轮次尚未开始，不进行新的设备写入或 Flash/recovery 范围扩展。
+2026-09-24 时用户要求跳过 AP outage/recovery 刺激并直接开始下一阶段开发，随后授权在铭凡 N5 x86 NAS 部署小智服务；当时 M1 真机语音轮次尚未开始。该历史指令不改变 M0 结论、不把 AP failure/recovery 标成通过，也不代表 M1 20 轮验收已完成。后续 S11 app-only 写入及其范围见 [S11 设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。NAS 服务已部署并通过合成连通性验证。
 
 Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DEVICE 结果不得转移；旧 `clipped` 计数不用于验收。
 
@@ -56,7 +56,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | PREFLIGHT_NOT_STARTED / PASSIVE_AFE_CAPTURE_AMBIGUOUS | 最新 S11 被动输入捕获期间用户讲话未确认；WakeNet 无检测不能推断 FAIL/PASS，不计 Preflight。Preflight 0/2–3，正式 20 轮未开始。S-08 用户辅助尝试为历史且不转移结果；M0 仍为 `CHANGES_REQUIRED`。见 [S11 报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)；[S-08 Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | PREFLIGHT_ROUNDS=0/2–3 / S11_CAPTURE_AMBIGUOUS | S11 被动输入捕获期间用户讲话未确认；WakeNet 无检测不能推断 FAIL/PASS，不计 Preflight round。S-08 用户辅助尝试保留为历史尝试且不转移结果；正式 20 轮未开始。M0 仍为 `CHANGES_REQUIRED`。见 [S11 报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)；[S-08 Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |
