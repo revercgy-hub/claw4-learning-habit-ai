@@ -191,13 +191,13 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
             encoding='utf-8')
         header = (diagnostic / 'main/audio/engines/afe_audio_engine.h').read_text(
             encoding='utf-8')
-        for marker in ('M1_AFE_STATE', 'M1_AFE_FLOW'):
+        for marker in ('M1_AFE_STATE', 'M1_AFE_FLOW', 'M1_AFE_CTL'):
             match = re.search(r'"(' + marker + r' [^"\n]+)"', afe)
             self.assertIsNotNone(match)
             # Reserve 60 bytes for the ESP log prefix within the parser's
-            # 256-character line cap, even if every counter is UINT32_MAX.
-            self.assertLessEqual(len(match.group(1).replace('%u', '4294967295')) + 60,
-                                 256)
+            # 256-character line cap, including INT32_MIN return codes.
+            worst = match.group(1).replace('%u', '4294967295').replace('%d', '-2147483648')
+            self.assertLessEqual(len(worst) + 60, 256)
         self.assertIn('"m1_afe_diag", 4096, m1_diag_, 1, nullptr)', afe)
         self.assertIn('ReleaseM1AfeDiagState(state);\n                vTaskDelete(nullptr);', afe)
         self.assertNotIn('xSemaphoreTake', afe)
@@ -210,7 +210,25 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
         self.assertIn('if (result == nullptr || result->ret_value == ESP_FAIL)', afe)
         self.assertIn('} else if (result->ret_value == ESP_OK) {', afe)
         self.assertIn('m1_diag_->fetch_other.fetch_add(1, std::memory_order_relaxed)', afe)
+        control = afe.split('const uint32_t desired_seq', 1)[1].split(
+            'void AfeAudioEngine::ReportM1AfeStats', 1)[0]
+        self.assertIn('const int rc = afe_iface_->enable_wakenet(afe_data_);', control)
+        self.assertIn('const int rc = afe_iface_->disable_wakenet(afe_data_);', control)
+        self.assertIn('m1_diag_->wakenet_enable_rc.store(rc, std::memory_order_relaxed);', control)
+        self.assertIn('m1_diag_->wakenet_disable_rc.store(rc, std::memory_order_relaxed);', control)
+        self.assertIn('m1_diag_->wake_applied_seq.store(desired_seq, std::memory_order_relaxed);', control)
+        self.assertIn('m1_diag_->wake_desired_seq.fetch_add(1, std::memory_order_relaxed);', afe)
+        report = afe.split('void AfeAudioEngine::ReportM1AfeStats', 1)[1].split(
+            'void AfeAudioEngine::ProcessingTask()', 1)[0]
+        for name in ('wake_desired_seq', 'wake_applied_seq', 'wakenet_enable_total',
+                     'wakenet_disable_total', 'wakenet_enable_rc', 'wakenet_disable_rc'):
+            self.assertIn(f'state->{name}.load(std::memory_order_relaxed)', report)
+            self.assertNotIn(f'state->{name}.exchange(', report)
+        self.assertIn('M1_AFE_CTL desired=%u applied=%u on_total=%u on_rc=%d '
+                      'off_total=%u off_rc=%d', report)
         self.assertNotIn('M1_AFE_STATE', (ordinary / 'main/audio/engines/afe_audio_engine.cc').read_text(
+            encoding='utf-8'))
+        self.assertNotIn('M1_AFE_CTL', (ordinary / 'main/audio/engines/afe_audio_engine.cc').read_text(
             encoding='utf-8'))
         staged_afe = {relative: (diagnostic / relative).read_bytes()
                       for relative in M1_AFE_DIAG_PATCHES}
