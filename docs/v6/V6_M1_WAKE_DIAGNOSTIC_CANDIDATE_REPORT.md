@@ -11,7 +11,7 @@
 
 The interrupted S-08 candidate is now recorded as an offline build candidate. The existing fresh build tree `E:/v6/m1-wake-diag-s08` was inspected without restaging, reconfiguring, or rebuilding. Its final log segment contains `Project build complete. To flash, run:` followed by the generated flash-command help. The manifest binds source commit `85b2265b65a09b67d9eabe9da5373bf18468161b`, the pinned XiaoZhi and ESP-IDF commits, staged input hashes and source Git blob proofs, final dependency lock, sdkconfig, partition inputs, build log, and actual artifacts.
 
-The new app is 3,136,144 bytes with SHA-256 `5619f2f2cd19cc42746fe1025a7c6390e037313573e1203093dfbf057889b27c`. The ELF is 48,036,908 bytes with SHA-256 `fc07bcb12a04b5738c1557bf1014fe39ad0659da8955c7ac5578826eb277bbb5`. The partition table binary is 3,072 bytes with SHA-256 `ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f`; it matches the previously documented live-layout comparison. The Candidate manifest SHA-256 is `0b99633818a2449dc754abd7b21d354d210877a784604ecc7aacc73cb1783a7f`. Nothing was written to the device.
+The new app is 3,136,144 bytes with SHA-256 `5619f2f2cd19cc42746fe1025a7c6390e037313573e1203093dfbf057889b27c`. The ELF is 48,036,908 bytes with SHA-256 `fc07bcb12a04b5738c1557bf1014fe39ad0659da8955c7ac5578826eb277bbb5`. The partition table binary is 3,072 bytes with SHA-256 `ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f`; it matches the previously documented live-layout comparison. The Candidate manifest SHA-256 is `b2cccebf7162335b5dd8b511e5377253e1562d5a2139f6429ffb5e2d04155e60`. Nothing was written to the device.
 
 ## Scope and evidence checks
 
@@ -21,9 +21,13 @@ The new app is 3,136,144 bytes with SHA-256 `5619f2f2cd19cc42746fe1025a7c6390e03
 - **Build evidence:** `E:/v6/m1-wake-diag-s08-build.log` is 453,275 bytes, SHA-256 `3abeb553490d05ead890a8072e5c58f9190a9c2cb9b3d7da6136218981b806fc`. The final build segment ends in the success marker. Build artifacts and byte counts are recorded in the Candidate manifest.
 - **Previous Candidate:** The endpoint Candidate `claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03` remains historical. No prior device result is inherited by S-08.
 
+## Manifest schema migration
+
+The manifest uses monotonic `schema_version: 4`. It records a schema-only migration from the prior mutable-path R03 record's version 3: the flat evidence fields are grouped into source, stage, build, configuration, dependency, partition, and artifact sections. The migration note is part of the manifest and names the previous immutable revision. It retains all 22 source Git blob proof paths from that v3 record, adds explicit staged overlay copies and LF-normalized hashes for all 13 staged inputs, and preserves the source SHA, build-log/artifact identities, lock, configuration, partition identity, and `DEVICE_NOT_TESTED` status. A repository search found no V6 tool consumer of this candidate manifest schema requiring a version-3 shape.
+
 ## Validation
 
-`py -3.14 -B -m unittest discover -s tools/v6 -p "test_*.py"`: **125 tests, 0 failures/errors**. JSON parsing and Candidate/source/config/artifact assertions passed. Relative links in the three changed V6 documents resolve. `git diff --check`: PASS.
+The evidence commit ran `py -3.14 -B -m unittest discover -s tools/v6 -p "test_*.py"`: **125 tests, 0 failures/errors**. For this documentation-only directed repair, the Host suite was not rerun. JSON parsing/schema assertions, historical manifest hash checks, and changed-document link targets passed; `git diff --check`: PASS.
 
 ## Limits and risks
 

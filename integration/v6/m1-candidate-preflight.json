@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 4,
   "task_id": "S-08-WAKE-DIAG-CANDIDATE-EVIDENCE",
   "candidate": "claw4-learning-v6-m1-wake-diag-s08-20260926-01",
   "status": "BUILD_COMPLETE_REVIEW_REQUIRED",
@@ -55,6 +55,26 @@
     "normalized_repository_source_proof": "repository_git_blob_proof; CRLF pairs normalized to LF and compared byte-for-byte to source Git blobs"
   },
   "repository_git_blob_proof": {
+    "integration/v6/baseline.lock.json": {
+      "git_blob_oid": "5c750206249dbd723ee779ff76daa7dffec938f5",
+      "git_blob_sha256": "c3b40588b0d6b49a7cc500a7261169b210f3c995818aff9ddabd242a521e6550",
+      "source_worktree_sha256": "c3b40588b0d6b49a7cc500a7261169b210f3c995818aff9ddabd242a521e6550",
+      "lf_normalized_equals_git_blob": true
+    },
+    "integration/v6/board/claw4-learning-v6/LICENSE": {
+      "git_blob_oid": "e90b55454056bdf5b7c7a48565ef7bf2893bd1e1",
+      "git_blob_sha256": "0a5a839033bfe18fe75d32b50d9d028912cf876f69ef59c2791aeb2971335d05",
+      "source_worktree_sha256": "8e43517088915f56edb2c93aa044d490ab28bff4e06a709408c41f705d32d378",
+      "lf_normalized_equals_git_blob": true,
+      "staged_copy_sha256": "8e43517088915f56edb2c93aa044d490ab28bff4e06a709408c41f705d32d378"
+    },
+    "integration/v6/board/claw4-learning-v6/README.md": {
+      "git_blob_oid": "e548c196260f1085618de217ae64eb57b1a40382",
+      "git_blob_sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a",
+      "source_worktree_sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a",
+      "lf_normalized_equals_git_blob": true,
+      "staged_copy_sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a"
+    },
     "integration/v6/board/claw4-learning-v6/board_algorithms.h": {
       "git_blob_oid": "8f7aeeefb10232d947a24c118f219fad46393621",
       "git_blob_sha256": "aa43b50efee7f7a153159d3100ba59121d4c838a605a38b01b4c5535b4daac74",
@@ -111,26 +131,12 @@
       "lf_normalized_equals_git_blob": true,
       "staged_copy_sha256": "8d83425e1af7a7a133811ff3be80ce2182343cab667fecb89e07cd3d7d786eec"
     },
-    "integration/v6/board/claw4-learning-v6/LICENSE": {
-      "git_blob_oid": "e90b55454056bdf5b7c7a48565ef7bf2893bd1e1",
-      "git_blob_sha256": "0a5a839033bfe18fe75d32b50d9d028912cf876f69ef59c2791aeb2971335d05",
-      "source_worktree_sha256": "8e43517088915f56edb2c93aa044d490ab28bff4e06a709408c41f705d32d378",
-      "lf_normalized_equals_git_blob": true,
-      "staged_copy_sha256": "8e43517088915f56edb2c93aa044d490ab28bff4e06a709408c41f705d32d378"
-    },
     "integration/v6/board/claw4-learning-v6/m0_diagnostics.cc": {
       "git_blob_oid": "bea4235a1f1c7fb672cfe7fa3bb504f7e4363767",
       "git_blob_sha256": "ebbc9a9eda4b93c10f2908f46391965b3ac946f4cfd70eb924d93e375b903343",
       "source_worktree_sha256": "ab02e100fac2b8bf2e1aff07106c0f0dfe76024329b4125748ad2f5d133784d9",
       "lf_normalized_equals_git_blob": true,
       "staged_copy_sha256": "ab02e100fac2b8bf2e1aff07106c0f0dfe76024329b4125748ad2f5d133784d9"
-    },
-    "integration/v6/board/claw4-learning-v6/README.md": {
-      "git_blob_oid": "e548c196260f1085618de217ae64eb57b1a40382",
-      "git_blob_sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a",
-      "source_worktree_sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a",
-      "lf_normalized_equals_git_blob": true,
-      "staged_copy_sha256": "4eb019c8f26018c72ade246400f7bafa8210d65130e6bf27716817346f70789a"
     },
     "integration/v6/board/claw4-live-m1.csv": {
       "git_blob_oid": "409b15905d5737adf6a11f5d1de23a2d744dd163",
@@ -151,16 +157,22 @@
       "source_worktree_sha256": "204f876b9a3513c2efce732d1bd42f85e85bfbfed6b72e1f0908e292bf4d0403",
       "lf_normalized_equals_git_blob": true
     },
-    "integration/v6/baseline.lock.json": {
-      "git_blob_oid": "5c750206249dbd723ee779ff76daa7dffec938f5",
-      "git_blob_sha256": "c3b40588b0d6b49a7cc500a7261169b210f3c995818aff9ddabd242a521e6550",
-      "source_worktree_sha256": "c3b40588b0d6b49a7cc500a7261169b210f3c995818aff9ddabd242a521e6550",
+    "integration/v6/network/overlay.json": {
+      "git_blob_oid": "80e8e62ddd78cf4a9b03d594ff1c451671ffe437",
+      "git_blob_sha256": "c46326d3b270d2f44248365094514a1320c89ff508af4b0c2f50ee750fea2728",
+      "source_worktree_sha256": "c46326d3b270d2f44248365094514a1320c89ff508af4b0c2f50ee750fea2728",
       "lf_normalized_equals_git_blob": true
     },
-    "tools/v6/stage_device.py": {
-      "git_blob_oid": "c9555a7d99e86a263e631dcc13c85b9840ceebac",
-      "git_blob_sha256": "41d75289c212c505ddc18e9eff40bc56fff6e504e8c4d3fc3d141b7ada9f7295",
-      "source_worktree_sha256": "8a43ed12eb95788e95964365ac12a584e400cc5bb287ac8526780901c2bf501f",
+    "integration/v6/network/saved_network_policy.h": {
+      "git_blob_oid": "f32ec94547867c1f48960e47138d84589d166d9e",
+      "git_blob_sha256": "59b9bd9fb49850762c1b77b950c7217a1f468a2e39e21161d0ac8c0225e8f88b",
+      "source_worktree_sha256": "cd6328750d4f9dbbcf098cf2290d4ba3a06007c502367075bb45156ae0719521",
+      "lf_normalized_equals_git_blob": true
+    },
+    "tools/v6/baseline.py": {
+      "git_blob_oid": "a0f40fcfb326bd9a728152230651da94b2ba8889",
+      "git_blob_sha256": "119b4fa0fca59ef40c9fd31bd5877750321e7e5ab9ca6fa01250867c98e26f2d",
+      "source_worktree_sha256": "009bd1f0fd08d75f5a62d196a9fc6993b49320d0292f485d0df8f91ed5b33973",
       "lf_normalized_equals_git_blob": true
     },
     "tools/v6/build_device.py": {
@@ -169,10 +181,22 @@
       "source_worktree_sha256": "afdac81d49418b375c77ca71d1955f9ca20c1352846886b2ac4d2ae8e15243c4",
       "lf_normalized_equals_git_blob": true
     },
-    "tools/v6/baseline.py": {
-      "git_blob_oid": "a0f40fcfb326bd9a728152230651da94b2ba8889",
-      "git_blob_sha256": "119b4fa0fca59ef40c9fd31bd5877750321e7e5ab9ca6fa01250867c98e26f2d",
-      "source_worktree_sha256": "009bd1f0fd08d75f5a62d196a9fc6993b49320d0292f485d0df8f91ed5b33973",
+    "tools/v6/network_overlay.py": {
+      "git_blob_oid": "e32e5b6ffec9d5e2553ba9da257bf73897e06a9d",
+      "git_blob_sha256": "d6556c35ea675449f0997ed5a2368618d71fb5d9aaa5cc0dab0419293e156b63",
+      "source_worktree_sha256": "592df84ecea82fb2ac49d46808edf1d805f3323c86f7501a8af5972843651fe7",
+      "lf_normalized_equals_git_blob": true
+    },
+    "tools/v6/stage_device.py": {
+      "git_blob_oid": "c9555a7d99e86a263e631dcc13c85b9840ceebac",
+      "git_blob_sha256": "41d75289c212c505ddc18e9eff40bc56fff6e504e8c4d3fc3d141b7ada9f7295",
+      "source_worktree_sha256": "8a43ed12eb95788e95964365ac12a584e400cc5bb287ac8526780901c2bf501f",
+      "lf_normalized_equals_git_blob": true
+    },
+    "tools/v6/test_stage_device.py": {
+      "git_blob_oid": "63c214c35b7fa6bf667a3e11b258052ae9065d16",
+      "git_blob_sha256": "b4d08d71a1d03c946e0915c6c47c14a0a5083a7393841410db11dcff0d0bb9b2",
+      "source_worktree_sha256": "b9b1fdaaa8407219a95e6a27ba9c85c4cc18566087e042e47fbb6e41490fef5d",
       "lf_normalized_equals_git_blob": true
     }
   },
@@ -328,5 +352,23 @@
     "CODE/HOST/BUILD evidence only",
     "DEVICE_NOT_TESTED; no Wake, Voice Preflight round, or M1 PASS claimed",
     "No inheritance of prior endpoint Candidate device evidence"
-  ]
+  ],
+  "schema_migration": {
+    "from_schema_version": 3,
+    "to_schema_version": 4,
+    "migration_type": "evidence-record-structure",
+    "previous_candidate": "claw4-learning-v6-m1-preflight-endpoint-s04-r03-20260925-03",
+    "previous_manifest_git_revision": "c8e0ecede7c318e50461b6865cfa870b814e5e91",
+    "description": "The v3 flat endpoint-candidate record was reorganized into source_identity, build, stage, normalized repository_git_blob_proof, staged_source_inputs, sdkconfig, dependency_lock, partition_layout and artifacts. This is a schema-only structure migration for the new S-08 candidate; it does not alter source SHA, stage/input hashes, artifact hashes or DEVICE_NOT_TESTED status. All 22 source proof paths from the prior v3 record are retained, with the staged overlay and live partition copies bound explicitly.",
+    "preserved_bindings": [
+      "source Git SHA",
+      "source Git blob OIDs and SHA-256 values",
+      "normalized source/stage input hashes",
+      "build log and exact artifacts",
+      "dependency lock",
+      "sdkconfig",
+      "partition table identity",
+      "DEVICE_NOT_TESTED"
+    ]
+  }
 }
