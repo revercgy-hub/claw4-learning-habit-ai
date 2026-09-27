@@ -21,10 +21,10 @@ One continuous UART capture ran for 201.328 seconds after an explicit USB reset.
 
 The parser found 188 `M1_INPUT_DIAG` windows covering 3,023,200 microphone samples. Maximum interval RMS was 2,507 and maximum interval peak was 21,979; I2S read failures were zero. Heap and PSRAM values were unavailable. These are input aggregates only; they do not establish the quality of the speech signal or any downstream Voice stage.
 
-The user reported two attempts:
+The user reported two attempts, summarized without reproducing spoken content:
 
-1. The user said: “说了你好小智没有反映” (“I said ‘Hello XiaoZhi’; there was no response”). The attempt was intended as Wake followed by a question, but the user confirmed only the Wake phrase attempt; the question utterance is `NOT_VERIFIED`.
-2. At roughly 20–30 cm, the user reported: “已说，都没有灯光屏幕的反应” (“I said it; there was no light or screen response”). No light or screen response was seen; audio feedback was not separately confirmed.
+1. The user reported attempting Wake without a device response. The attempt was intended as Wake followed by a question, but only the Wake attempt was reported; the first-round question utterance is `NOT_VERIFIED`.
+2. At roughly 20–30 cm, the user confirmed no light or screen response. Audio feedback was not separately confirmed.
 
 The onset time of either utterance is unknown, so neither report can be bound to a precise acoustic frame or parser window. For the second report, the preceding 30-second aggregate had maximum RMS 381 and peak 4,870. This interval is context only and does not prove that the utterance was captured or recognized.
 
