@@ -8,11 +8,15 @@
 
 用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不再派发或重做。M0 仍为 `CHANGES_REQUIRED`；Candidate20 DEVICE 验证仅部分完成。M1-DEV-01 已 `ACCEPTED`（证据工具，不代表语音验收）；XiaoZhi NAS v0.9.6 已部署，7443 HTTP/OTA、7444 WebSocket、SenseVoiceSmall、Ollama `qwen3.5:2b` 与 EdgeTTS 合成连通性通过。M1 真机 Voice 和正式连续 20 轮均为 `NOT_VERIFIED`。
 
-### 2026-09-27 S11 M1 AFE 输入诊断（最新设备记录）
+### 2026-09-27 S11 M1 AFE 输入诊断与后续用户辅助观察（最新设备记录）
 
-Candidate `claw4-learning-v6-m1-afe-diag-s11-20260927-01`（source `cc1af698ed0d13066c71ae56d9365acb220683b7`，R-07 `PASS`）对 ESP32-P4 rev1.3 / MAC `80:f1:b2:d2:ed:14` 完成 app-only 写入及独立逐字节读回。显式 USB reset 后的 180.031 秒 UART 捕获解析出 167 个输入窗口、2,685,920 mic samples、I2S read failures 0；WakeNet enabled，检测数 0，crash marker 0。用户是否在采集期间讲话尚未确认，因此记录为被动/含义不确定的 AFE 输入诊断，不判 WakeNet FAIL/PASS，也不计 Preflight round。观察到 NAS OTA 7443 一次，WS 7444 零次。Preflight 仍为 `0/2–3`，正式 20 轮未开始；M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。S08 用户辅助尝试保持历史，不转移结果。详见 [S11 AFE diagnostic device report](../v6/V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。
+Candidate `claw4-learning-v6-m1-afe-diag-s11-20260927-01`（source `cc1af698ed0d13066c71ae56d9365acb220683b7`，R-07 `PASS`）对 ESP32-P4 rev1.3 / MAC `80:f1:b2:d2:ed:14` 完成 app-only 写入及独立逐字节读回。显式 USB reset 后的 180.031 秒 UART 捕获解析出 167 个输入窗口、2,685,920 mic samples、I2S read failures 0；WakeNet enabled，检测数 0，crash marker 0。用户是否在该次采集期间讲话尚未确认，因此初始样本仍为被动/含义不确定的 AFE 输入诊断；初次观察到 NAS OTA 7443 一次、WS 7444 零次。
 
-L-11 仅完成设备证据文档和看板同步；不构成语音轮次、WakeNet 结论或 M1 验收。
+后续连续捕获补充了用户辅助观察：`voice-probe-02`（73.078 秒）记录 AFE detected=1、NAS WS 7444 和 `idle→connecting→listening→speaking` 及后续 speaking/listening 活动；用户先报无反应，之后报告有 Wake 响应，但数学问题无回答，等待超过 10 秒后出现新闻回退。后续 `post-restart-01`（112.860 秒）是另一段独立捕获，同样有 detected=1、WS 7444 及 `idle→connecting→listening→speaking`；重启方法未确认，不能称为 cold boot。两段捕获分别观察到 Wake/WS 活动，但这不证明两次完整响应或语音轮次。`voice-followup-03` 中有一次较晚的 listening→speaking，但用户确认数学问题发生在捕获结束后。`voice-question-04` 与 `rearm-05` 分别覆盖一次与两次用户确认的 Wake 尝试，用户均报告无响应；两个摘要均为 detected=0、无状态迁移/crash。用户报告与日志没有精确同步，故不能把话语、应答或回退绑定到特定日志行/帧，也不能声称完整语音轮次。Realtime Listening 会有意禁用 WakeNet；S12/S13 未证明确定性 lost-rearm 缺陷。S14 opt-in 诊断补丁的 R-08 review 为 `PASS`（Host diagnostics only）；补丁未构建、未设备验证，不构成 S14 Wake PASS。
+
+综合记录不判一般性 WakeNet FAIL/PASS、AEC PASS 或 M1 PASS，也不计完整 Preflight round。Preflight 仍为 `0/2–3`，正式 20 轮未开始；M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。S08 用户辅助尝试保持历史，不转移 Candidate 或结果。原始 UART/语音和凭据留在私有目录，报告仅列摘要和哈希。详见 [S11 AFE diagnostic device report](../v6/V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。
+
+L-11/L-12 仅完成设备证据文档和看板同步；不构成完整语音轮次、通用 WakeNet 结论或 M1 验收。
 
 ### 2026-09-27 S-08 M1 user-assisted Wake preflight attempt（历史状态；现由 S11 更新）
 
