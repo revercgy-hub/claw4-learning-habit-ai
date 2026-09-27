@@ -1,5 +1,11 @@
 # Claw4 项目协作总则
 
+## 2026-09-27 子 Agent 模型调度（最新用户指令）
+
+后续新派发或中断后重新派发的子 Agent **仅使用** `gpt-6-luna` 高推理或 `gpt-6-sol` 中等推理。按任务难度分配，长期调用目标为 Luna 约 90%、Sol 约 10%；不得为凑比例把复杂固件、跨模块、硬件生命周期或关键独立复审交给不合适的任务 owner。Luna 优先领取边界清楚的证据 JSON、Host 测试、工具、日志整理与文档；Sol 保留复杂实现及关键独立复审。Astra 在主线程负责架构、公共接口、Gate 和高风险决策。
+
+旧 `sol_lead` / `sol_reviewer` 预设角色固定的高推理模型不再用于新派工；创建子 Agent 时显式指定上述模型和推理等级。额度中断时先核对 Git、构建产物、日志与进程，从已完成的 checkpoint 继续，不重跑已成功的构建或设备测试。此段覆盖下方历史模型调度文字，不改变 Candidate 证据契约、COM7 排他所有权或阶段验收标准。
+
 ## 2026-09-24 用户指令覆盖：开始 M1 开发准备
 
 最新 M1 Voice 调度：用户指定 L-03 根看板同步、L-04 证据模板/解析、S-04 固件与真实布局 Preflight 准备；独立 R-02 `PASS` 后才由唯一硬件 owner S-05 执行 2～3 轮真机 Voice Preflight。Preflight 不计 M1 PASS；稳定后才从第 1 轮开始正式连续 20 轮及故障矩阵，正式运行期间任何固件修改都使当次轮次作废并从第 1 轮重来。AP outage/recovery 已由用户跳过，保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不得重复派发。构建应适配真实 live 布局，禁止通过写入或改动设备 partition table 来迁就固件；bootloader、ota_1、eFuse、Secure Boot、Flash Encryption、数据丢失风险仍为停止条件。S-04/R-02 禁止硬件写入；S-05 的设备操作只在 R-02 PASS 和唯一 owner 条件下按已审查 Candidate 的精确范围执行。
