@@ -55,7 +55,7 @@ Candidate：`claw4-learning-v6-m1-afe-diag-s11-20260927-01`
 | `voice-question-04` | no-reset 连续捕获 120.030 秒；119 个 mic/AFE 窗口；RMS max 1,093、peak max 10,186；43/119 窗口 RMS ≥ 200 | feed/fetch 3,749/3,749；wake_last=1、active=1、detected=0；未见状态迁移或 crash | 一次用户确认的 Wake 尝试没有响应。此捕获未显示 Wake 检测；仅凭窗口幅度和摘要不能判定根因或一般性 WakeNet 结果。 | `b5ac5fce955023ddb5f8641674f9d8a0e1b2d479b6c50b320b34544d2bf84fa1` / `6388568ff26b665a0ba1354f5638e43144b078ffe753d7452c4b63387f4854df` / `d9cbe9f47eeaf340d925fce77c1d00b9463a04c5a946982b7c3c43d61e88d8f2` / `0e47c25a5b70fc4c0f62fad28dce161e6dc49010e1675e1bb236bc29a4502c04` |
 | `rearm-05` | no-reset 连续捕获 163.061 秒；162 个 mic/AFE 窗口、2,604,960 mic samples；RMS max 493、peak max 13,235 | feed/fetch 5,103/5,103；wake_last=1、active=1、detected=0；未见状态迁移、crash 或 read failure | 两次用户确认的 Wake 尝试均无响应。摘要显示采集期间仍有 AFE/输入处理活动；不能由 `wake_last` 推断此前是否成功启用，也不能证明确定性的 re-arm 缺陷。 | `d3164d2e1ccd8e47a6891464a1aa5eeab1a064ca65188753b05293d4d17b25d5` / `1918e6f7341eda4f9273216097747fccdf53ea4759a013ee01fffa502bcae016` / `9e72b06e8eb9a1fe206bb871a2d41c675b71be9379d7e23d8957eedf186082ba` / `74017cf053ba4207338a85288819ac5afc3a6ea27abc5e930f0725f1d6de8832` |
 
-这些片段显示两段独立捕获（`voice-probe-02`、`post-restart-01`）各自观察到 Wake/WS 与状态活动，也有用户报告无响应且捕获未见 Wake 检测的片段。它们没有覆盖完整 Wake→Speech→ASR→LLM→TTS→Playback→Next Wake 流程；两次捕获中的 Wake/WS 观察不能扩展为稳定通过。Realtime Listening 会有意关闭 WakeNet；现有 `wn_on` 间隔为零不能说明先前 enable 的返回结果。S12/S13 审计未证明确定性的 lost-rearm 缺陷。S14 opt-in 诊断补丁的 R-08 review 为 `CHANGES_REQUIRED`，定向修复进行中；补丁待复审、未构建、未设备验证。
+这些片段显示两段独立捕获（`voice-probe-02`、`post-restart-01`）各自观察到 Wake/WS 与状态活动，也有用户报告无响应且捕获未见 Wake 检测的片段。它们没有覆盖完整 Wake→Speech→ASR→LLM→TTS→Playback→Next Wake 流程；两次捕获中的 Wake/WS 观察不能扩展为稳定通过。Realtime Listening 会有意关闭 WakeNet；现有 `wn_on` 间隔为零不能说明先前 enable 的返回结果。S12/S13 审计未证明确定性的 lost-rearm 缺陷。S14 opt-in 诊断补丁 `c2bfd684e57e7fd356043f487cfc275a96b6757f` 的 R-08 review 为 `PASS`，范围仅为 Host diagnostics；补丁未构建、未设备验证，不构成 S14 Wake PASS。
 
 ## 结论与边界
 
@@ -64,7 +64,7 @@ Candidate：`claw4-learning-v6-m1-afe-diag-s11-20260927-01`
 - M1 Preflight：`0/2–3`；正式 20 轮：未开始。用户辅助捕获期间曾观察到 NAS WS 7444，但端到端语音链仍为 `NOT_VERIFIED`，稳定性也未验证。
 - WakeNet 通用结论：`NOT_VERIFIED`；Realtime Listening 期间 WakeNet 有意关闭。无确定的 lost-rearm 缺陷结论。
 - M0：`CHANGES_REQUIRED`；AP outage/recovery：`SKIPPED_BY_USER / NOT_VERIFIED`。
-- `HARDWARE_VERIFY_REQUIRED`：仍需完成并可核验 2–3 轮 Wake/Voice Preflight；现有用户辅助尝试没有证明完整轮次。S14 诊断补丁待复审、未构建、未设备验证，且仅用于补充 WakeNet attempt/return 观察，不替代 Preflight。不得把语句或响应与捕获精确关联。本报告不包含原始语音、转写或凭据。
+- `HARDWARE_VERIFY_REQUIRED`：仍需完成并可核验 2–3 轮 Wake/Voice Preflight；现有用户辅助尝试没有证明完整轮次。S14 诊断补丁的 R-08 Host review 为 `PASS`，但补丁未构建、未设备验证，不构成 S14 Wake PASS；诊断仅用于补充 WakeNet attempt/return 观察，不替代 Preflight。不得把语句或响应与捕获精确关联。本报告不包含原始语音、转写或凭据。
 
 ## 证据自检
 

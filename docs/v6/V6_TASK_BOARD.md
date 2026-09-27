@@ -10,7 +10,7 @@
 
 > 此前被动检查摘要仍由 [S-08 device report](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) 保留；本次用户辅助尝试的状态与计数以 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) 为准。
 
-> **2026-09-27 S11 初始设备状态：** Candidate `claw4-learning-v6-m1-afe-diag-s11-20260927-01`（source `cc1af698ed0d13066c71ae56d9365acb220683b7`，R-07 PASS）完成 app-only 写入和独立逐字节读回。一次显式 USB reset 后采集 180.031 秒连续 UART，167 个输入窗口、2,685,920 mic samples，I2S read failures 0；WakeNet enabled，检测计数 0，未见 crash。采集期间用户是否讲话未确认，故该样本仍是被动/含义不确定数据；不判 WakeNet FAIL/PASS、不计 Preflight round。初始采集观察到 NAS OTA 7443 一次、WS 7444 零次。之后 `voice-probe-02` 与 `post-restart-01` 两段独立用户辅助捕获各观察到 Wake/状态活动和 NAS WS 7444，也有数次用户报告无响应且未观察到 Wake 检测的片段；用户描述与日志未精确同步，不能证明完整 Voice 轮次或稳定性，也不形成一般 WakeNet 结论。S14 opt-in 诊断补丁 R-08 review 为 `CHANGES_REQUIRED`、定向修复进行中；补丁待复审、未构建、未设备验证。Preflight 仍为 0/2–3，正式 20 轮未开始。详见 [S11 AFE diagnostic device report](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。
+> **2026-09-27 S11 初始设备状态：** Candidate `claw4-learning-v6-m1-afe-diag-s11-20260927-01`（source `cc1af698ed0d13066c71ae56d9365acb220683b7`，R-07 PASS）完成 app-only 写入和独立逐字节读回。一次显式 USB reset 后采集 180.031 秒连续 UART，167 个输入窗口、2,685,920 mic samples，I2S read failures 0；WakeNet enabled，检测计数 0，未见 crash。采集期间用户是否讲话未确认，故该样本仍是被动/含义不确定数据；不判 WakeNet FAIL/PASS、不计 Preflight round。初始采集观察到 NAS OTA 7443 一次、WS 7444 零次。之后 `voice-probe-02` 与 `post-restart-01` 两段独立用户辅助捕获各观察到 Wake/状态活动和 NAS WS 7444，也有数次用户报告无响应且未观察到 Wake 检测的片段；用户描述与日志未精确同步，不能证明完整 Voice 轮次或稳定性，也不形成一般 WakeNet 结论。S14 opt-in 诊断补丁的 R-08 review 为 `PASS`（Host diagnostics only）；补丁未构建、未设备验证，不构成 S14 Wake PASS。Preflight 仍为 0/2–3，正式 20 轮未开始。详见 [S11 AFE diagnostic device report](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md)。
 
 接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`。Candidate20（`claw4-learning-v6-m0.20`）已构建并仅对 live `ota_0` 做 app-only 刷写；读回与 app hash 一致。候选构建布局仍与 live 分区布局不同，未执行恢复写回。A-02 结论为 `M0=CHANGES_REQUIRED`。
 
@@ -43,7 +43,7 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | L-08-M1-CONTINUOUS-CAPTURE | HOST_COMPLETE / DEVICE_CAPTURE_USED | Luna high；`c4600aa` + 定向修复 `d5326fa`。有界连续 UART 采集、时间/字节索引和无载荷状态文件；定向 9/9、V6 Host 138/138。首次 COM7 冒烟检查因串口未枚举而未启动；之后同一工具成功完成 201 秒连续采集并用于 S-08 Preflight 取证。此采集仍不代表 Voice PASS |
 | L-09-S08-PREFLIGHT-EVIDENCE | DOCS_COMPLETE | 同一 S-08 Candidate 的用户辅助尝试报告与两级看板更新；捕获/用户报告的证据边界、私有哈希均已记录。仅文档整理，不作根因判定或 WakeNet FAIL 推断 |
 | L-11-M1-AFE-DEVICE-EVIDENCE | DOCS_COMPLETE | S11 Candidate 的 app-only/readback、分区不变和初始被动 AFE 输入诊断已记录；用户讲话未确认，不判 WakeNet FAIL/PASS、不计 Preflight。后续捕获由 L-12 同步。见 [设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) |
-| L-12-M1-VOICE-OBSERVATION-SYNC | DOCS_COMPLETE | 同步 S11 后续用户辅助捕获：`voice-probe-02` 与 `post-restart-01` 各观察到 Wake/WS 与状态活动，其他捕获有用户报告无响应；不精确绑定话语与日志、不判一般性 WakeNet PASS/FAIL、不计完整 Preflight。S14 opt-in 诊断补丁 R-08 review `CHANGES_REQUIRED`、定向修复进行中，待复审/未构建/未设备验证；见 [设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) |
+| L-12-M1-VOICE-OBSERVATION-SYNC | DOCS_COMPLETE | 同步 S11 后续用户辅助捕获：`voice-probe-02` 与 `post-restart-01` 各观察到 Wake/WS 与状态活动，其他捕获有用户报告无响应；不精确绑定话语与日志、不判一般性 WakeNet PASS/FAIL、不计完整 Preflight。S14 opt-in 诊断补丁 R-08 `PASS`（Host diagnostics only），未构建、未设备验证，不构成 S14 Wake PASS；见 [设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
