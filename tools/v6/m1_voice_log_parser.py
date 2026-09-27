@@ -31,8 +31,8 @@ M1_AFE_FLOW = re.compile(
 )
 M1_AFE_CTL = re.compile(
     r"^[IWEVD] \((\d{1,10})\) AfeAudioEngine: M1_AFE_CTL "
-    r"desired=(\d{1,10}) applied=(\d{1,10}) on_total=(\d{1,10}) "
-    r"on_rc=(-?\d{1,10}) off_total=(\d{1,10}) off_rc=(-?\d{1,10})$"
+    r"on_total=(\d{1,10}) on_rc=(-?\d{1,10}) "
+    r"off_total=(\d{1,10}) off_rc=(-?\d{1,10})$"
 )
 MAX_U32 = (1 << 32) - 1
 MIN_I32 = -(1 << 31)
@@ -119,19 +119,15 @@ def summarize(text):
                         result[key] += value
             control = M1_AFE_CTL.fullmatch(line)
             if control:
-                timestamp, desired, applied, on_total, on_rc, off_total, off_rc = map(
-                    int, control.groups())
+                timestamp, on_total, on_rc, off_total, off_rc = map(int, control.groups())
                 del timestamp  # Do not infer session identity from log uptime.
                 snapshot = {
-                    "desired": desired,
-                    "applied": applied,
                     "on_total": on_total,
                     "on_rc": on_rc,
                     "off_total": off_total,
                     "off_rc": off_rc,
                 }
-                if (all(snapshot[key] <= MAX_U32 for key in
-                        ("desired", "applied", "on_total", "off_total"))
+                if (all(snapshot[key] <= MAX_U32 for key in ("on_total", "off_total"))
                         and all(MIN_I32 <= snapshot[key] <= MAX_I32 for key in
                                 ("on_rc", "off_rc"))
                         and result["m1_afe_control_sample_count"] < MAX_U64):
