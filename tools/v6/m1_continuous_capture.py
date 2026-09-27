@@ -160,8 +160,12 @@ def main(argv: list[str] | None = None) -> int:
     destinations = (args.output, args.index, args.state)
     if len({p.resolve() for p in destinations}) != len(destinations):
         parser.error('--output, --index, and --state must be different paths')
+    if args.stop_file is not None and args.stop_file.resolve() in {p.resolve() for p in destinations}:
+        parser.error('--stop-file must differ from output, index, and state paths')
     if any(p.exists() for p in destinations):
         parser.error('Refusing to overwrite existing output, index, or state')
+    if args.stop_file is not None and args.stop_file.exists():
+        parser.error('--stop-file already exists; use a fresh marker path')
 
     try:
         import serial

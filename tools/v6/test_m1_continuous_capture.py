@@ -1,9 +1,14 @@
 import json
+import io
 from pathlib import Path
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
+from contextlib import redirect_stderr
+from unittest.mock import Mock, patch
 
-from m1_continuous_capture import capture_loop
+from m1_continuous_capture import capture_loop, main
 
 
 class FakeClock:
@@ -132,6 +137,36 @@ class ContinuousCaptureTests(unittest.TestCase):
                          port='COM7', max_seconds=2, stop_file=self.output,
                          monotonic=clock.monotonic, utc_now=lambda: '2026-09-27T00:00:00Z')
         self.assertTrue(connection.closed)
+
+    def test_cli_rejects_old_marker_before_serial_construction_or_reset(self):
+        marker = self.root / 'old.stop'
+        marker.write_text('contents are never read', encoding='utf-8')
+        serial_factory = Mock()
+        fake_serial_module = SimpleNamespace(Serial=serial_factory)
+        argv = [
+            '--port', 'COM7', '--output', str(self.output),
+            '--index', str(self.index), '--state', str(self.state),
+            '--max-seconds', '10', '--stop-file', str(marker), '--reset',
+        ]
+        with patch.dict(sys.modules, {'serial': fake_serial_module}):
+            with redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    main(argv)
+        serial_factory.assert_not_called()
+
+    def test_cli_rejects_stop_path_collision_before_serial_construction_or_reset(self):
+        serial_factory = Mock()
+        fake_serial_module = SimpleNamespace(Serial=serial_factory)
+        argv = [
+            '--port', 'COM7', '--output', str(self.output),
+            '--index', str(self.index), '--state', str(self.state),
+            '--max-seconds', '10', '--stop-file', str(self.output), '--reset',
+        ]
+        with patch.dict(sys.modules, {'serial': fake_serial_module}):
+            with redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    main(argv)
+        serial_factory.assert_not_called()
 
     def test_closes_connection_and_leaves_payload_free_error_state_on_exception(self):
         clock = FakeClock()
