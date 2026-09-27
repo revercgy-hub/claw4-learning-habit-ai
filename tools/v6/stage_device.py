@@ -135,6 +135,265 @@ M1_ENDPOINT_PATCHES = {
     ),
 }
 
+# These anchors are from the pinned XiaoZhi AfeAudioEngine. A separate low-priority
+# reporter logs; Feed and ProcessingTask only touch atomics.
+M1_AFE_DIAG_PATCHES = {
+    'main/audio/engines/afe_audio_engine.h': (
+        ('#include <esp_afe_sr_models.h>\n',
+         '#include <esp_afe_sr_models.h>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\nstruct M1AfeDiagState;\n#endif\n'),
+        ('    std::atomic<uint32_t> control_generation_{0};\n',
+         '''    std::atomic<uint32_t> control_generation_{0};
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    // The reporter owns a separate reference and never accesses this engine.
+    M1AfeDiagState* m1_diag_ = nullptr;
+    static void ReportM1AfeStats(M1AfeDiagState* state);
+#endif
+'''),
+    ),
+    'main/audio/engines/afe_audio_engine.cc': (
+        ('#include <sstream>\n',
+         '#include <sstream>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <new>\n#endif\n'),
+        ('''#define TAG "AfeAudioEngine"
+
+#if CONFIG_USE_AUDIO_PROCESSOR''',
+         '''#define TAG "AfeAudioEngine"
+
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+// M1_AFE_RUNTIME_DIAG: aggregate counters only. The reporter owns an independent
+// reference, so engine destruction never waits for a lower-priority task.
+struct M1AfeDiagState {
+    std::atomic<uint32_t> references{1};
+    std::atomic<bool> stop{false};
+    std::atomic<bool> wake_enabled{false};
+    std::atomic<bool> afe_active{false};
+    std::atomic<uint32_t> feed_calls{0};
+    std::atomic<uint32_t> feed_samples{0};
+    std::atomic<uint32_t> feed_chunks{0};
+    std::atomic<uint32_t> fetch_ok{0};
+    std::atomic<uint32_t> fetch_fail{0};
+    std::atomic<uint32_t> fetch_other{0};
+    std::atomic<uint32_t> wake_detected{0};
+    std::atomic<uint32_t> wake_other{0};
+    std::atomic<uint32_t> wakenet_enable_apply{0};
+    std::atomic<uint32_t> wakenet_disable_apply{0};
+};
+
+static void ReleaseM1AfeDiagState(M1AfeDiagState* state) {
+    if (state->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        delete state;
+    }
+}
+#endif
+
+#if CONFIG_USE_AUDIO_PROCESSOR'''),
+        ('''AfeAudioEngine::~AfeAudioEngine() {
+    custom_wake_word_.reset();''',
+         '''AfeAudioEngine::~AfeAudioEngine() {
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_ != nullptr) {
+        m1_diag_->stop.store(true, std::memory_order_release);
+        ReleaseM1AfeDiagState(m1_diag_);
+        m1_diag_ = nullptr;
+    }
+#endif
+    custom_wake_word_.reset();'''),
+        ('''    ESP_LOGI(TAG, "After AFE create: free=%u min=%u largest=%u",
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    return true;''',
+         '''    ESP_LOGI(TAG, "After AFE create: free=%u min=%u largest=%u",
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+             heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    m1_diag_ = new (std::nothrow) M1AfeDiagState();
+    if (m1_diag_ != nullptr) {
+        // One reference belongs to this engine; the second belongs to the task.
+        m1_diag_->references.fetch_add(1, std::memory_order_relaxed);
+        const BaseType_t created = xTaskCreate(
+            [](void* arg) {
+                auto* state = static_cast<M1AfeDiagState*>(arg);
+                while (!state->stop.load(std::memory_order_acquire)) {
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    if (state->stop.load(std::memory_order_acquire)) break;
+                    AfeAudioEngine::ReportM1AfeStats(state);
+                }
+                ReleaseM1AfeDiagState(state);
+                vTaskDelete(nullptr);
+            }, "m1_afe_diag", 4096, m1_diag_, 1, nullptr);
+        if (created != pdPASS) {
+            ReleaseM1AfeDiagState(m1_diag_);  // Task was not created.
+            ReleaseM1AfeDiagState(m1_diag_);  // Engine reference.
+            m1_diag_ = nullptr;
+        }
+    }
+    if (m1_diag_ == nullptr) {
+        ESP_LOGW(TAG, "M1 AFE diagnostic reporter unavailable");
+    }
+#endif
+    return true;'''),
+        ('''void AfeAudioEngine::Feed(std::vector<int16_t>&& data) {
+    EventBits_t bits = xEventGroupGetBits(event_group_);''',
+         '''void AfeAudioEngine::Feed(std::vector<int16_t>&& data) {
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_ != nullptr) m1_diag_->feed_calls.fetch_add(1, std::memory_order_relaxed);
+#endif
+    EventBits_t bits = xEventGroupGetBits(event_group_);'''),
+        ('''void AfeAudioEngine::EnableWakeWordDetection(bool enable) {
+    if (!HasWakeWord()) {
+        return;
+    }''',
+         '''void AfeAudioEngine::EnableWakeWordDetection(bool enable) {
+    if (!HasWakeWord()) {
+        return;
+    }
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_ != nullptr) m1_diag_->wake_enabled.store(enable, std::memory_order_relaxed);
+#endif'''),
+        ('''    const bool afe_active =
+        afe_data_ != nullptr && ((bits & kWakeWordEnabled) ||
+                                 (kUseAfeForVoiceProcessing && (bits & kVoiceProcessingEnabled)));
+    if (afe_active) {''',
+         '''    const bool afe_active =
+        afe_data_ != nullptr && ((bits & kWakeWordEnabled) ||
+                                 (kUseAfeForVoiceProcessing && (bits & kVoiceProcessingEnabled)));
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_ != nullptr) m1_diag_->afe_active.store(afe_active, std::memory_order_relaxed);
+#endif
+    if (afe_active) {'''),
+        ('''    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    while (input_buffer_.size() >= chunk_size) {
+        afe_iface_->feed(afe_data_, input_buffer_.data());
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
+    }''',
+         '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    if (m1_diag_ != nullptr) {
+        m1_diag_->feed_samples.fetch_add(data.size() / codec_->input_channels(),
+                                         std::memory_order_relaxed);
+    }
+#endif
+    input_buffer_.insert(input_buffer_.end(), data.begin(), data.end());
+    size_t chunk_size = afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
+    while (input_buffer_.size() >= chunk_size) {
+        afe_iface_->feed(afe_data_, input_buffer_.data());
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        if (m1_diag_ != nullptr) m1_diag_->feed_chunks.fetch_add(1, std::memory_order_relaxed);
+#endif
+        input_buffer_.erase(input_buffer_.begin(), input_buffer_.begin() + chunk_size);
+    }'''),
+        ('''        if (bits & kWakeWordEnabled) {
+            afe_iface_->enable_wakenet(afe_data_);
+        } else {
+            afe_iface_->disable_wakenet(afe_data_);
+        }''',
+         '''        if (bits & kWakeWordEnabled) {
+            afe_iface_->enable_wakenet(afe_data_);
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            if (m1_diag_ != nullptr) {
+                m1_diag_->wakenet_enable_apply.fetch_add(1, std::memory_order_relaxed);
+            }
+#endif
+        } else {
+            afe_iface_->disable_wakenet(afe_data_);
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            if (m1_diag_ != nullptr) {
+                m1_diag_->wakenet_disable_apply.fetch_add(1, std::memory_order_relaxed);
+            }
+#endif
+        }'''),
+        ('''        if (result == nullptr || result->ret_value == ESP_FAIL) {
+            if (result != nullptr) {
+                ESP_LOGW(TAG, "AFE fetch failed: %d", result->ret_value);
+            }
+            continue;
+        }
+
+        EventBits_t bits = xEventGroupGetBits(event_group_);
+        if (bits & kWakeWordEnabled) {
+            HandleWakeWordResult(result);
+        }''',
+         '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        if (result == nullptr || result->ret_value == ESP_FAIL) {
+            if (m1_diag_ != nullptr) m1_diag_->fetch_fail.fetch_add(1, std::memory_order_relaxed);
+        } else if (result->ret_value == ESP_OK) {
+            if (m1_diag_ != nullptr) m1_diag_->fetch_ok.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            // Upstream still processes this result; keep its status separate.
+            if (m1_diag_ != nullptr) m1_diag_->fetch_other.fetch_add(1, std::memory_order_relaxed);
+        }
+#endif
+        if (result == nullptr || result->ret_value == ESP_FAIL) {
+            if (result != nullptr) {
+                ESP_LOGW(TAG, "AFE fetch failed: %d", result->ret_value);
+            }
+            continue;
+        }
+
+        EventBits_t bits = xEventGroupGetBits(event_group_);
+        if (bits & kWakeWordEnabled) {
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            if (result->wakeup_state == WAKENET_DETECTED) {
+                if (m1_diag_ != nullptr) {
+                    m1_diag_->wake_detected.fetch_add(1, std::memory_order_relaxed);
+                }
+            } else {
+                if (m1_diag_ != nullptr) m1_diag_->wake_other.fetch_add(1, std::memory_order_relaxed);
+            }
+#endif
+            HandleWakeWordResult(result);
+        }'''),
+        ('''void AfeAudioEngine::ProcessingTask() {
+    while (true) {''',
+         '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+void AfeAudioEngine::ReportM1AfeStats(M1AfeDiagState* state) {
+    ESP_LOGI(TAG, "M1_AFE_STATE wake=%u active=%u wn_on=%u wn_off=%u detected=%u other=%u",
+             unsigned(state->wake_enabled.load(std::memory_order_relaxed)),
+             unsigned(state->afe_active.load(std::memory_order_relaxed)),
+             unsigned(state->wakenet_enable_apply.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->wakenet_disable_apply.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->wake_detected.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->wake_other.exchange(0, std::memory_order_relaxed)));
+    ESP_LOGI(TAG, "M1_AFE_FLOW feed_calls=%u feed_samples=%u feed_chunks=%u fetch_ok=%u fetch_fail=%u fetch_other=%u",
+             unsigned(state->feed_calls.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->feed_samples.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->feed_chunks.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->fetch_ok.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->fetch_fail.exchange(0, std::memory_order_relaxed)),
+             unsigned(state->fetch_other.exchange(0, std::memory_order_relaxed)));
+}
+#endif
+
+void AfeAudioEngine::ProcessingTask() {
+    while (true) {'''),
+    ),
+}
+
+
+def patch_m1_afe_runtime_diagnostics(destination):
+    """Apply the whole pinned-upstream patch, or reject drift without writing."""
+    pending = {}
+    states = []
+    for relative, edits in M1_AFE_DIAG_PATCHES.items():
+        path = destination / relative
+        source = path.read_text(encoding='utf-8')
+        updated = source
+        for old, new in edits:
+            if updated.count(new) == 1 and old not in updated.replace(new, '', 1):
+                states.append('existing')
+            elif updated.count(new) == 0 and updated.count(old) == 1:
+                states.append('new')
+                updated = updated.replace(old, new)
+            else:
+                raise ValueError(f'Upstream AFE diagnostic anchor drift: {path}: {old[:60]}')
+        pending[path] = updated
+    if len(set(states)) != 1:
+        raise ValueError('Partial AFE diagnostic patch refused')
+    if states[0] == 'new':
+        for path, updated in pending.items():
+            path.write_text(updated, encoding='utf-8', newline='\n')
+
 
 def patch_m1_endpoints(destination):
     for relative, edits in M1_ENDPOINT_PATCHES.items():
@@ -179,6 +438,8 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False):
     if variant == 'm1':
         replace_once(destination / 'main/main.cc', NVS_ERASE_ANCHOR, NVS_FAIL_CLOSED)
         patch_m1_endpoints(destination)
+        if m1_input_diagnostics:
+            patch_m1_afe_runtime_diagnostics(destination)
         # Seed the reviewed component versions before IDF can resolve ranges.
         shutil.copy2(ROOT / lock['device_component_lock'], destination / 'dependencies.lock')
     board = ROOT / 'integration/v6/board/claw4-learning-v6'
