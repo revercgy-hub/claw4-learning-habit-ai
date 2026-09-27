@@ -1,6 +1,7 @@
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.v6.m1_voice_log_parser import summarize
 
@@ -93,6 +94,59 @@ Application: Wake word detected
         self.assertNotIn("transcript=secret", serialized)
         self.assertNotIn("https://private", serialized)
         self.assertNotIn("Wake word detected", serialized)
+
+    def test_m1_afe_diagnostics_aggregate_counters_and_keep_latest_state(self):
+        result = summarize("""I (123) AfeAudioEngine: M1_AFE_STATE wake=1 active=1 wn_on=1 wn_off=0 detected=2 other=3
+I (123) AfeAudioEngine: M1_AFE_FLOW feed_calls=10 feed_samples=1600 feed_chunks=4 fetch_ok=9 fetch_fail=1 fetch_other=0
+W (124) AfeAudioEngine: M1_AFE_STATE wake=0 active=1 wn_on=0 wn_off=0 detected=0 other=1
+W (124) AfeAudioEngine: M1_AFE_FLOW feed_calls=11 feed_samples=1700 feed_chunks=5 fetch_ok=10 fetch_fail=0 fetch_other=1
+""")
+        self.assertEqual(result["m1_afe_state_sample_count"], 2)
+        self.assertEqual(result["m1_afe_wake_enabled_last"], 0)
+        self.assertEqual(result["m1_afe_active_last"], 1)
+        self.assertEqual(result["m1_afe_wn_on_total"], 1)
+        self.assertEqual(result["m1_afe_wn_off_total"], 0)
+        self.assertEqual(result["m1_afe_detected_total"], 2)
+        self.assertEqual(result["m1_afe_other_total"], 4)
+        self.assertEqual(result["m1_afe_flow_sample_count"], 2)
+        self.assertEqual(result["m1_afe_feed_calls_total"], 21)
+        self.assertEqual(result["m1_afe_feed_samples_total"], 3300)
+        self.assertEqual(result["m1_afe_feed_chunks_total"], 9)
+        self.assertEqual(result["m1_afe_fetch_ok_total"], 19)
+        self.assertEqual(result["m1_afe_fetch_fail_total"], 1)
+        self.assertEqual(result["m1_afe_fetch_other_total"], 1)
+        self.assertTrue(all(value == "NOT_VERIFIED" for value in result["voice_flow"].values()))
+
+    def test_m1_afe_parser_rejects_wrong_tag_malformed_embedded_and_out_of_range(self):
+        result = summarize("""I (1) OtherTag: M1_AFE_STATE wake=1 active=1 wn_on=1 wn_off=0 detected=2 other=3
+I (2) AfeAudioEngine: M1_AFE_STATE wake=1 active=1 wn_on=1 wn_off=0 detected=2 other=3 trailing
+I (3) AfeAudioEngine: M1_AFE_STATE wake=1 active=1 wn_on=1 wn_off=0 detected=4294967296 other=3
+I (4) AfeAudioEngine: M1_AFE_FLOW feed_calls=1 feed_samples=2 feed_chunks=3 fetch_ok=4 fetch_fail=5
+I (5) AfeAudioEngine: M1_AFE_FLOW feed_calls=4294967296 feed_samples=2 feed_chunks=3 fetch_ok=4 fetch_fail=5 fetch_other=6
+I (6) Application: speech says AfeAudioEngine: M1_AFE_STATE wake=1 active=1 wn_on=1 wn_off=0 detected=2 other=3
+""" + "I (7) AfeAudioEngine: M1_AFE_FLOW feed_calls=1 feed_samples=2 feed_chunks=3 fetch_ok=4 fetch_fail=5 fetch_other=6" + "x" * 300)
+        self.assertEqual(result["m1_afe_state_sample_count"], 0)
+        self.assertIsNone(result["m1_afe_wake_enabled_last"])
+        self.assertIsNone(result["m1_afe_active_last"])
+        self.assertEqual(result["m1_afe_wn_on_total"], 0)
+        self.assertEqual(result["m1_afe_flow_sample_count"], 0)
+        self.assertEqual(result["m1_afe_feed_calls_total"], 0)
+
+    def test_m1_afe_totals_overflow_fail_closed_without_partial_record(self):
+        logs = """I (1) AfeAudioEngine: M1_AFE_STATE wake=1 active=1 wn_on=9 wn_off=0 detected=0 other=0
+I (1) AfeAudioEngine: M1_AFE_STATE wake=0 active=0 wn_on=2 wn_off=0 detected=0 other=0
+I (1) AfeAudioEngine: M1_AFE_FLOW feed_calls=8 feed_samples=1 feed_chunks=0 fetch_ok=0 fetch_fail=0 fetch_other=0
+I (1) AfeAudioEngine: M1_AFE_FLOW feed_calls=3 feed_samples=2 feed_chunks=0 fetch_ok=0 fetch_fail=0 fetch_other=0
+"""
+        with patch("tools.v6.m1_voice_log_parser.MAX_U64", 10):
+            result = summarize(logs)
+        self.assertEqual(result["m1_afe_state_sample_count"], 1)
+        self.assertEqual(result["m1_afe_wake_enabled_last"], 1)
+        self.assertEqual(result["m1_afe_wn_on_total"], 9)
+        self.assertEqual(result["m1_afe_flow_sample_count"], 1)
+        self.assertEqual(result["m1_afe_feed_calls_total"], 8)
+        self.assertEqual(result["m1_afe_feed_samples_total"], 1)
+        self.assertTrue(all(value == "NOT_VERIFIED" for value in result["voice_flow"].values()))
 
 
 if __name__ == "__main__":

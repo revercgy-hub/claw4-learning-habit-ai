@@ -17,6 +17,18 @@ M1_DIAG = re.compile(
     r"i2s_read_failures=(\d{1,10})$"
 )
 M1_WAKE = re.compile(r"^[IWEVD] \((\d{1,10})\) Application: Wake word detected$")
+# Reviewed opt-in 1 Hz AfeAudioEngine diagnostics. Keep each record exact,
+# bounded, and tied to the firmware's emitting ESP-IDF tag.
+M1_AFE_STATE = re.compile(
+    r"^[IWEVD] \((\d{1,10})\) AfeAudioEngine: M1_AFE_STATE "
+    r"wake=(\d{1,10}) active=(\d{1,10}) wn_on=(\d{1,10}) "
+    r"wn_off=(\d{1,10}) detected=(\d{1,10}) other=(\d{1,10})$"
+)
+M1_AFE_FLOW = re.compile(
+    r"^[IWEVD] \((\d{1,10})\) AfeAudioEngine: M1_AFE_FLOW "
+    r"feed_calls=(\d{1,10}) feed_samples=(\d{1,10}) feed_chunks=(\d{1,10}) "
+    r"fetch_ok=(\d{1,10}) fetch_fail=(\d{1,10}) fetch_other=(\d{1,10})$"
+)
 MAX_U32 = (1 << 32) - 1
 MAX_U64 = (1 << 64) - 1
 MAX_UART_LINE_CHARS = 256
@@ -30,6 +42,14 @@ def summarize(text):
                   m1_input_diag_window_count=0, m1_mic_samples_total=0,
                   m1_rms_max=None, m1_peak_max=None,
                   m1_i2s_read_failures_total=0, m1_wake_log_count=0,
+                  m1_afe_state_sample_count=0,
+                  m1_afe_wake_enabled_last=None, m1_afe_active_last=None,
+                  m1_afe_wn_on_total=0, m1_afe_wn_off_total=0,
+                  m1_afe_detected_total=0, m1_afe_other_total=0,
+                  m1_afe_flow_sample_count=0,
+                  m1_afe_feed_calls_total=0, m1_afe_feed_samples_total=0,
+                  m1_afe_feed_chunks_total=0, m1_afe_fetch_ok_total=0,
+                  m1_afe_fetch_fail_total=0, m1_afe_fetch_other_total=0,
                   heap_min_bytes=None, psram_min_bytes=None,
                   crash_markers=0,
                   voice_flow={k: "NOT_VERIFIED" for k in
@@ -56,6 +76,38 @@ def summarize(text):
         if len(line) <= MAX_UART_LINE_CHARS and M1_WAKE.fullmatch(line):
             if result["m1_wake_log_count"] < MAX_U64:
                 result["m1_wake_log_count"] += 1
+        if len(line) <= MAX_UART_LINE_CHARS:
+            state = M1_AFE_STATE.fullmatch(line)
+            if state:
+                timestamp, *values = map(int, state.groups())
+                del timestamp  # The timestamp is syntax only; it is not a session key.
+                wake, active, wn_on, wn_off, detected, other = values
+                if all(value <= MAX_U32 for value in values):
+                    totals = ("m1_afe_wn_on_total", "m1_afe_wn_off_total",
+                              "m1_afe_detected_total", "m1_afe_other_total")
+                    increments = (wn_on, wn_off, detected, other)
+                    if (result["m1_afe_state_sample_count"] < MAX_U64
+                            and all(result[key] + value <= MAX_U64
+                                    for key, value in zip(totals, increments))):
+                        result["m1_afe_state_sample_count"] += 1
+                        result["m1_afe_wake_enabled_last"] = wake
+                        result["m1_afe_active_last"] = active
+                        for key, value in zip(totals, increments):
+                            result[key] += value
+            flow = M1_AFE_FLOW.fullmatch(line)
+            if flow:
+                timestamp, *values = map(int, flow.groups())
+                del timestamp  # Do not infer session identity from log uptime.
+                totals = ("m1_afe_feed_calls_total", "m1_afe_feed_samples_total",
+                          "m1_afe_feed_chunks_total", "m1_afe_fetch_ok_total",
+                          "m1_afe_fetch_fail_total", "m1_afe_fetch_other_total")
+                if (all(value <= MAX_U32 for value in values)
+                        and result["m1_afe_flow_sample_count"] < MAX_U64
+                        and all(result[key] + value <= MAX_U64
+                                for key, value in zip(totals, values))):
+                    result["m1_afe_flow_sample_count"] += 1
+                    for key, value in zip(totals, values):
+                        result[key] += value
         match = LINE.match(line)
         msg = match.group(2) if match else line
         anchors = ANCHOR.findall(msg)
