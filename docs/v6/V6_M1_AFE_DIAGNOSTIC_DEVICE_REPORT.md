@@ -1,9 +1,9 @@
 # S11 M1 AFE 输入诊断设备报告
 
-日期：2026-09-27  
-任务：`L-11-M1-AFE-DEVICE-EVIDENCE`  
-分支：`codex/l11-m1-afe-device-evidence`；base：`948ce41e7d1ae6148b6ad8cf472bca96746b72b5`  
-Candidate：`claw4-learning-v6-m1-afe-diag-s11-20260927-01`  
+日期：2026-09-27
+任务：`L-11-M1-AFE-DEVICE-EVIDENCE`
+分支：`codex/l11-m1-afe-device-evidence`；base：`948ce41e7d1ae6148b6ad8cf472bca96746b72b5`
+Candidate：`claw4-learning-v6-m1-afe-diag-s11-20260927-01`
 报告范围：本报告仅记录 Candidate S11 的 app-only 写入、只读身份/分区核对及一次被动、含义不确定的 AFE 输入诊断采集。它不构成唤醒、语音轮次或 M1 验收。
 
 ## Candidate 与设备身份
