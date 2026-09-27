@@ -46,7 +46,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | CHANGES_REQUIRED (ENDPOINT) | M0 仍 CHANGES_REQUIRED；NAS 合成连通性通过；首个 S-05 设备启动连接外部 HTTPS/MQTT，语音 0 轮，固件端点需修正并重新审查；正式 20 轮未开始 |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | DEVICE_DIAGNOSTIC_COMPLETE / WAKE_AND_WS_NOT_VERIFIED | S-08 被动检查观察到 NAS OTA HTTP 7443；Wake 与 WS 7444 未验证，Voice Preflight 0 轮，正式 20 轮未开始。M0 仍 `CHANGES_REQUIRED`；见 [S-08 设备报告](V6_M1_WAKE_DIAGNOSTIC_DEVICE_REPORT.md) |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |

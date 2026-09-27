@@ -31,8 +31,8 @@ This is an ambient/passive input baseline, not a speech stimulus. The zero Wake-
 
 No controlled speech was used. Voice Preflight remains `0/2–3` rounds, formal continuous 20 rounds have not started, and Wake recognition, WebSocket establishment, AEC effectiveness, TTS recapture/self-dialogue, and the remaining Voice flow are `NOT_VERIFIED`. This device check is not M1 PASS. M0 remains `CHANGES_REQUIRED`; AP outage/recovery remains `SKIPPED_BY_USER / NOT_VERIFIED`.
 
-The device is currently powered on. COM7 was released after the capture. No cold boot is claimed. Any next user-assisted Wake/Voice test must bind to this exact Candidate and session as required by the runbook; do not treat this passive baseline as a Preflight round.
+The device is currently powered on. COM7 was released after the capture. No cold boot is claimed. Post-capture esptool reads caused a later reset, so the passive capture session is no longer current. Any next user-assisted Wake/Voice test must use this same Candidate and image, establish and bind a fresh boot/session with contemporaneous logs as required by the runbook, and must not inherit the passive capture session or treat its baseline as a Preflight round.
 
 ## Evidence boundaries
 
-Raw serial captures and detailed readback artifacts remain in approved private storage. This report contains only the Candidate, partition, backup, readback, and capture hashes needed for evidence binding, plus redacted aggregate counters. No speech, transcript, credential, or raw log line is included.
+Raw serial captures and detailed readback artifacts remain in approved private storage. The private parser summary `E:/v6/s08-device/s08-boot-summary.json` has SHA-256 `fd2b2141142bbbb2f647d3d619e97734c487eee79db37f1e89c166cab59d7cca`; the flash command output has SHA-256 `c6d5c9402a78df6d18bffe8def05b5bf96d0b650803c8e31d46f3749f63d9c69`. This report contains only the Candidate, partition, backup, readback, and evidence hashes needed for binding, plus redacted aggregate counters. No speech, transcript, credential, or raw log line is included.
