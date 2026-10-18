@@ -1,6 +1,6 @@
 # S-17 intended Wake model repair plan
 
-**Status:** `AWAITING_INDEPENDENT_REVIEW_AND_USER_MODEL_WRITE_AUTHORIZATION`. This is a read-only plan, not a device result or authorization to write Flash. Proposed bundle ID: `claw4-learning-v6-m1-model-repair-s17-20261018-01`. The private companion manifest is `E:/v6/s15-resume-20261018-01/model-repair-plan.json`.
+**Status:** `R-10=PASS / AWAITING_USER_MODEL_WRITE_AUTHORIZATION`. This is a read-only plan, not a device result or authorization to write Flash. Proposed bundle ID: `claw4-learning-v6-m1-model-repair-s17-20261018-01`. The private companion manifest is `E:/v6/s15-resume-20261018-01/model-repair-plan.json`.
 
 ## Why this bundle is needed
 
@@ -24,3 +24,15 @@ The private full-partition backup `E:/v6/s15-resume-20261018-01/model-current-fu
 If the authorized write fails or boot cannot load the intended model, stop testing and preserve logs. Recovery is limited to writing back the **same private full 978,944-byte model backup** at `0x111000`, and only if the user authorization expressly covers that bounded rollback and the reviewer reconfirms the target/table/backup hash. Its range is exactly `[0x111000, 0x200000)`. Read back the full partition and require SHA-256 `69949f497970885c03782948bafec0ab8bad1e9d53f37e20ff1ee6f8df715565`; verify `ota_0` unchanged and record fresh boot behavior. Otherwise stop without further Flash operations. Recovery success restores the old model bytes, not S17 Wake acceptance.
 
 The current state remains `M1=NOT_VERIFIED`, `M0=CHANGES_REQUIRED`; no S17 DEVICE PASS is claimed.
+
+## Independent review receipt — 2026-10-18
+
+R-10, an independent Sol reviewer who did not prepare the audit or repair plan, returned `PASS` for readiness only. Review basis: plan commit `9ec7ca1e63a28845182196e0ed9bb2619172e51f`, original plan document SHA-256 `47225152ad8ea8a05f2758c6e075ad142ce6c71658947ab7743565ffc14fb78c`, and unchanged private companion JSON SHA-256 `9c93718ec60d724f9f82f99d084bfbb121ad1938644a0e8faa1d9f8eb52d7cc4`. The reviewer independently checked pack catalogs and payload hashes, live partition boundaries, backup, application/ELF/build identity, runtime model markers and the single-address write/rollback plan. This receipt does not authorize execution or modify the reviewed write boundary.
+
+The executor is pinned to `E:/workbuddy/claw4-v6/toolchains/idf61/python_env/idf6.1_py3.12_env/Scripts/python.exe`, SHA-256 `368c324bdcf4da09b54f55896486a3f846db33217469059d1f60cf4d71a6353d`, with esptool `5.4.0`. Its `esptool/cmds.py` SHA-256 is `3901464695397caea28168e8bfb21b05b07b68fcdbae297736cf00c3c0d048f7`; local source rounds the affected write range to 4 KiB sectors and defaults `erase_all` to false. Recheck these identities before execution. The exact proposed PowerShell command, **only after the explicit authorization described above**, is:
+
+```powershell
+& 'E:\workbuddy\claw4-v6\toolchains\idf61\python_env\idf6.1_py3.12_env\Scripts\python.exe' -m esptool --chip esp32p4 --port COM7 --baud 460800 --before default-reset --after hard-reset write-flash 0x111000 E:\v6\m1-wakenet-ctl-s15\build\srmodels\srmodels.bin
+```
+
+The read-only Host tool `tools/v6/srmodel_image.py` supplements application identity checks with model catalog/payload hashes and an exact expected-image prefix comparison. The live full-partition dump returns `MISMATCH / required_model_missing_actual`; its 686,338 trailing partition bytes are reported separately from model payloads. The integrated V6 Host suite passed 158 tests, zero failures/errors. This Host result does not establish a model write, Wake success, AEC effectiveness or a completed Voice round.

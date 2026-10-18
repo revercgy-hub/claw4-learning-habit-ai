@@ -46,6 +46,8 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | L-12-M1-VOICE-OBSERVATION-SYNC | DOCS_COMPLETE | 同步 S11 后续用户辅助捕获：`voice-probe-02` 与 `post-restart-01` 各观察到 Wake/WS 与状态活动，其他捕获有用户报告无响应；不精确绑定话语与日志、不判一般性 WakeNet PASS/FAIL、不计完整 Preflight。S14 opt-in 诊断补丁 R-08 `PASS`（Host diagnostics only），未构建、未设备验证，不构成 S14 Wake PASS；见 [设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) |
 | L-14-S15-EVIDENCE-RESUME | DOCS_COMPLETE | 补录 S15 Candidate 历史 app-only 写入/readback 与分区不变摘要、R-09 构建复核状态、9/27 诊断及 10/18 app 身份核验/被动启动摘要；另记录运行加载模型与候选目标模型不一致。`voice-rearm-02` 串口异常中断，用户确认一次 Wake 尝试但未观察到即时响应；捕获不构成完整 Preflight 或 WakeNet 通用 FAIL/PASS。模型修复授权待定。见 [S15 设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
 | S-15-M1-WAKENET-CONTROL-CANDIDATE | R-09 BUILD_REVIEW_PASS / MODEL_MISMATCH_CONFIRMED | S15 app-only 写入/readback 与分区不变；当前 app 身份核验匹配，但 live model catalog/runtime load 为 `wn9l_hai1tai4ling2`，S15 构建目标为 `wn9_nihaoxiaozhi_tts`。模型修复授权待定；不做目标词验收，不将被动/中断捕获记为 Voice round。Preflight 仍 0/2–3。见 [Candidate 报告](V6_M1_WAKENET_CONTROL_CANDIDATE_REPORT.md) 与 [设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
+| L-15-SRMODEL-READONLY-VERIFIER | HOST_ACCEPTED | `c4bb339`；只读模型目录、权重哈希与前缀校验；定向 10/10、集成 V6 Host 158/158。真实 live dump 正确返回目标模型缺失；不构成 DEVICE PASS |
+| S-17 / R-10 | REVIEW_PASS / USER_MODEL_WRITE_AUTHORIZATION_PENDING | `9ec7ca1` 修复包复用 S15 app 与已绑定的正确模型，不重建。独立 R-10 确认模型、备份、单地址写入/扇区及同分区回退范围；只放行请求用户批准，尚未写入。详见 [精确修复方案](V6_M1_WAKE_MODEL_REPAIR_PLAN.md) |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 

@@ -6,6 +6,8 @@
 
 ### 2026-10-18 S15 WakeNet Control 设备证据恢复（当前 M1 候选观察）
 
+S-17 模型修复包已完成，独立 R-10 `PASS` 仅覆盖执行准备；仍待用户批准从 app-only 扩展到精确 `model` 分区写入及同分区回退。模型尚未写入，不重建固件、不重复口令测试。只读模型校验工具已纳入 Host 验证（158/158）。[修复范围与备份方案](../v6/V6_M1_WAKE_MODEL_REPAIR_PLAN.md)。
+
 Candidate `claw4-learning-v6-m1-wnctl-s15-20260927-01`（source `7f7357da2e1299b150a17b979fb1a307d027441e`，R-09 构建复核 `PASS`）于 2026-09-27 app-only 写入 `ota_0`，独立 app readback SHA 与候选 app 一致，写入前后 live 分区表和 otadata 哈希不变。9/27 的 `boot-diag-01` 是显式 USB reset 后的 72.125 秒被动诊断；`voice-rearm-02` 捕获 88.328 秒后因 `SerialException` 中断。用户确认后者期间一次 Wake 尝试、没有观察到即时响应，问题未提问；不能精确关联任何语音帧。
 
 2026-10-18 只读 `esptool verify-flash` 在 `0x200000` 核验 3,137,392 bytes，成功匹配 S15 app SHA，没有执行写入。随后的 60.015 秒被动启动捕获（显式 USB reset，不是冷启动）观察到 S15 ELF prefix、Wake enabled/active，未观察到 Wake event、crash 或外部端点；未请求语音刺激。后续只读核对确认 live 模型分区为 978,944 bytes，catalog 仅有 `wn9l_hai1tai4ling2`，而 S15 构建包含 `wn9_nihaoxiaozhi_tts`；两次启动解析均记录加载前者。状态 `MODEL_MISMATCH_CONFIRMED / REPAIR_AUTHORIZATION_PENDING`，S15 设备观察不能代表目标模型表现，且不定位其他 Voice/AEC 根因。模型分区尚未写入；用户授权和独立修复审查前，不进行目标词验收。Preflight `0/2–3`、正式 20 轮未开始，AEC 和 M1 均未验证。细节及私有证据哈希见 [S15 设备报告](../v6/V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)。S11 历史保留，候选结果不转移。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。
