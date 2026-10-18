@@ -4,9 +4,11 @@
 
 ## 2026-09-24 接管及后续开发状态（当前有效）
 
-### 2026-10-18 S15 WakeNet Control 设备证据恢复（当前 M1 候选观察）
+### 2026-10-18 S-17 Wake model repair and Preflight (current M1 device state)
 
-S-17 模型修复包已完成，独立 R-10 `PASS` 仅覆盖执行准备；仍待用户批准从 app-only 扩展到精确 `model` 分区写入及同分区回退。模型尚未写入，不重建固件、不重复口令测试。只读模型校验工具已纳入 Host 验证（158/158）。[修复范围与备份方案](../v6/V6_M1_WAKE_MODEL_REPAIR_PLAN.md)。
+S-17 bundle `claw4-learning-v6-m1-model-repair-s17-20261018-01` 复用 S15 app，未重建。R-10 `PASS` 后，用户明确授权精确 model 分区写入及同分区 full-backup 回退；唯一硬件 owner 执行了该范围内的单次模型写入。独立 291,042-byte prefix 与 S17 镜像匹配，完整 978,944-byte model readback、边界、partition table/otadata 和 app 核验均通过。首次写后显式 USB reset 启动加载目标模型并匹配 S15 ELF。395.281 秒同步捕获中，用户确认 Wake 成功并提问，但没有听到答案；观测到 WS 7444、STT/TTS 标记和回到 idle 的状态迁移。NAS 只读诊断观察到 EdgeTTS 7.2.6 的 25 个 HTTP 403 warning，直接 Ollama 合成请求成功不构成端到端 TTS 验证。当前 `WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403`，Preflight `0/2–3`；Root 通过独立 L-17 处理 NAS 依赖，修复未验证前仍视为阻断，不代表 M1 PASS。详见 [S-17 设备报告](../v6/V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) 和[审查修复计划及执行回执](../v6/V6_M1_WAKE_MODEL_REPAIR_PLAN.md)。
+
+下面段落保留 S15 设备观察历史；S15 加载了与目标不同的模型，该 Candidate 结果不转移到 S17。
 
 Candidate `claw4-learning-v6-m1-wnctl-s15-20260927-01`（source `7f7357da2e1299b150a17b979fb1a307d027441e`，R-09 构建复核 `PASS`）于 2026-09-27 app-only 写入 `ota_0`，独立 app readback SHA 与候选 app 一致，写入前后 live 分区表和 otadata 哈希不变。9/27 的 `boot-diag-01` 是显式 USB reset 后的 72.125 秒被动诊断；`voice-rearm-02` 捕获 88.328 秒后因 `SerialException` 中断。用户确认后者期间一次 Wake 尝试、没有观察到即时响应，问题未提问；不能精确关联任何语音帧。
 
