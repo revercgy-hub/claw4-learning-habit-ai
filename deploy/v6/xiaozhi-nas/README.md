@@ -17,4 +17,50 @@ sudo docker compose ps
 curl -fsS http://192.168.3.100:7443/xiaozhi/ota/
 ```
 
+## Edge TTS 7.3.1 repair
+
+The pinned upstream image contains Edge TTS 7.2.6, which currently receives
+HTTP 403 responses. The optional `compose.edge-tts-fix.yaml` builds a local
+image from the same digest-pinned upstream base and installs only
+`edge-tts==7.3.1`. The wheel is hash-pinned, binary-only, and installed with
+dependency resolution disabled so the base image's existing dependencies
+(`aiohttp`, `certifi`, `tabulate`, and `typingextensions`) are not upgraded.
+The Docker build asserts the installed Edge TTS version. `.dockerignore`
+limits its build context to the Dockerfile and hashed requirements, excluding
+deployment data, model weights, and credentials. The original `compose.yaml`
+remains the rollback configuration.
+
+From the deployment directory, validate and build the candidate image, then
+run a synthetic provider probe before changing the service:
+
+```sh
+cd /vol2/1008/docker/xiaozhi-v6
+sudo docker compose -f compose.yaml -f compose.edge-tts-fix.yaml config --quiet
+sudo docker compose -f compose.yaml -f compose.edge-tts-fix.yaml build xiaozhi
+sudo docker compose -f compose.yaml -f compose.edge-tts-fix.yaml run --rm --no-deps --entrypoint sh xiaozhi -ec \
+  'edge-tts --text "Synthetic Claw4 TTS connectivity probe." --voice zh-CN-XiaoxiaoNeural --write-media /tmp/edge-tts-probe.mp3 && test -s /tmp/edge-tts-probe.mp3'
+```
+
+The probe uses synthetic text only. Before rollout, record the candidate
+image ID, merged Compose configuration, and NAS-local TTS provider/voice
+configuration as the image/config/provider identity for this deployment.
+Keep credentials out of Git and logs. This probe demonstrates that the
+provider returned audio in the build environment; it does not prove device
+playback or M1 acceptance.
+
+After reviewing that identity and the probe result, apply the candidate image
+to only the `xiaozhi` service:
+
+```sh
+sudo docker compose -f compose.yaml -f compose.edge-tts-fix.yaml up -d --no-build --pull never --force-recreate xiaozhi
+sudo docker compose -f compose.yaml -f compose.edge-tts-fix.yaml ps xiaozhi
+```
+
+Rollback to the original digest-pinned upstream image and Compose configuration
+with:
+
+```sh
+sudo docker compose -f compose.yaml up -d --no-build --pull never --force-recreate xiaozhi
+```
+
 The WebSocket endpoint is `ws://192.168.3.100:7444/xiaozhi/v1/`. Port 7443 remains plain HTTP; this port change does not add TLS. A running container, OTA response, and WebSocket handshake prove service reachability only. M1 acceptance still requires the same Candidate and service configuration to pass the 20-round voice and fault matrix in `docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md`.
