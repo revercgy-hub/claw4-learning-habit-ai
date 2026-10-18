@@ -1,0 +1,6 @@
+services:
+  xiaozhi:
+    image: claw4-xiaozhi-v6:tts-731-20261018-01
+    build:
+      context: .
+      dockerfile: Dockerfile.edge-tts
