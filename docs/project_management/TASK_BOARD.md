@@ -4,9 +4,13 @@
 
 ## 2026-09-24 接管及后续开发状态（当前有效）
 
-### 2026-10-18 S-17 Wake model repair and Preflight (current M1 device state)
+### 2026-10-18 L-17 NAS TTS repair and L-18 evidence sync (current service/device state)
 
-S-17 bundle `claw4-learning-v6-m1-model-repair-s17-20261018-01` 复用 S15 app，未重建。R-10 `PASS` 后，用户明确授权精确 model 分区写入及同分区 full-backup 回退；唯一硬件 owner 执行了该范围内的单次模型写入。独立 291,042-byte prefix 与 S17 镜像匹配，完整 978,944-byte model readback、边界、partition table/otadata 和 app 核验均通过。首次写后显式 USB reset 启动加载目标模型并匹配 S15 ELF。395.281 秒同步捕获中，用户确认 Wake 成功并提问，但没有听到答案；观测到 WS 7444、STT/TTS 标记和回到 idle 的状态迁移。NAS 只读诊断观察到 EdgeTTS 7.2.6 的 25 个 HTTP 403 warning，直接 Ollama 合成请求成功不构成端到端 TTS 验证。当前 `WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403`，Preflight `0/2–3`；Root 通过独立 L-17 处理 NAS 依赖，修复未验证前仍视为阻断，不代表 M1 PASS。详见 [S-17 设备报告](../v6/V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) 和[审查修复计划及执行回执](../v6/V6_M1_WAKE_MODEL_REPAIR_PLAN.md)。
+L-17 source `812b12905cda01843f5aeb2d80835abb9bc2b084` 已经 R-11 `PASS` 并部署到 NAS。Root 从原 XiaoZhi v0.9.6 digest-pinned base 构建并运行本地 image `claw4-xiaozhi-v6:tts-731-20261018-01`（image ID `sha256:acf7314b488ad7e49232797fb42711faad637c00d29142ec782124a92b1d9291`），唯一依赖变化为 EdgeTTS 7.2.6→7.3.1。NAS-local config SHA 未变化，service/Compose identity 除 image/build 外保持一致；旧 image 保留但未执行 rollback。隔离候选及部署后 production-provider probes 均生成 11,664-byte 可解码音频（1,944 ms、RMS 4,305、24 kHz mono）。据此仅记 `NAS_TTS_SERVICE_REPAIR=PASS`，不记 DEVICE playback。S-17 原始 TTS 403 失败窗口保留历史；Root 未重刷 S-17 firmware，已开始新的 `preflight-02` 捕获，结果待定，completed rounds 仍为 0。正式 20 轮未开始，M1 未验收；M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。详情与证据 JSON 实际 SHA-256 见 [L-18 NAS TTS repair report](../v6/V6_M1_NAS_TTS_REPAIR_REPORT.md)。
+
+### 2026-10-18 S-17 Wake model repair and first NAS TTS failure window (historical)
+
+S-17 bundle `claw4-learning-v6-m1-model-repair-s17-20261018-01` 复用 S15 app，未重建。R-10 `PASS` 后，用户明确授权精确 model 分区写入及同分区 full-backup 回退；唯一硬件 owner 执行了该范围内的单次模型写入。独立 291,042-byte prefix 与 S17 镜像匹配，完整 978,944-byte model readback、边界、partition table/otadata 和 app 核验均通过。首次写后显式 USB reset 启动加载目标模型并匹配 S15 ELF。395.281 秒同步捕获中，用户确认 Wake 成功并提问，但没有听到答案；观测到 WS 7444、STT/TTS 标记和回到 idle 的状态迁移。NAS 只读诊断观察到 EdgeTTS 7.2.6 的 25 个 HTTP 403 warning，直接 Ollama 合成请求成功不构成端到端 TTS 验证。该时点状态为 `WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403`，Preflight `0/2–3`；首次失败窗口保留为历史，并由上方 L-18 报告更新当前 NAS 服务与 Preflight 状态。详见 [S-17 设备报告](../v6/V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) 和[审查修复计划及执行回执](../v6/V6_M1_WAKE_MODEL_REPAIR_PLAN.md)。
 
 下面段落保留 S15 设备观察历史；S15 加载了与目标不同的模型，该 Candidate 结果不转移到 S17。
 
