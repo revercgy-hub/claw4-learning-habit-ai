@@ -4,7 +4,7 @@
 
 ## 2026-09-24 接管与用户指令状态（当前有效）
 
-> M1 最新候选设备证据见 [S15 WakeNet Control 设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)：app-only 写入/readback 与分区不变；2026-10-18 只读 app verify-flash 匹配 S15 app，启动观察到 S15 ELF，但实际加载模型与 S15 构建目标模型不匹配，状态 `MODEL_MISMATCH_CONFIRMED / REPAIR_AUTHORIZATION_PENDING`。Preflight 仍未完成。旧 S11/S08 保留为历史，不转移 Candidate 结果。Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
+> M1 最新设备状态见 [S-17 Wake model repair 报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md)：在用户明确授权及 R-10 审查范围内，单次 model 分区写入和独立读回通过，分区表/otadata/app 保持不变；首次写后启动加载目标 `wn9_nihaoxiaozhi_tts`。首次同步 Wake/math 观察仍待用户反馈，Preflight `0/2–3`、正在进行，M1 未验收。S15 的模型不匹配仅保留为历史；S08/S11 结果不转移。Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
 
 > 2026-09-27 更新：S-08 同一 Candidate 的用户辅助 Wake 尝试已连续采集并记录于 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md)。结论 `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED`；不能概括为通用 WakeNet FAIL。Preflight 0/2–3，正式 20 轮未开始。
 
@@ -47,7 +47,8 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | L-14-S15-EVIDENCE-RESUME | DOCS_COMPLETE | 补录 S15 Candidate 历史 app-only 写入/readback 与分区不变摘要、R-09 构建复核状态、9/27 诊断及 10/18 app 身份核验/被动启动摘要；另记录运行加载模型与候选目标模型不一致。`voice-rearm-02` 串口异常中断，用户确认一次 Wake 尝试但未观察到即时响应；捕获不构成完整 Preflight 或 WakeNet 通用 FAIL/PASS。模型修复授权待定。见 [S15 设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
 | S-15-M1-WAKENET-CONTROL-CANDIDATE | R-09 BUILD_REVIEW_PASS / MODEL_MISMATCH_CONFIRMED | S15 app-only 写入/readback 与分区不变；当前 app 身份核验匹配，但 live model catalog/runtime load 为 `wn9l_hai1tai4ling2`，S15 构建目标为 `wn9_nihaoxiaozhi_tts`。模型修复授权待定；不做目标词验收，不将被动/中断捕获记为 Voice round。Preflight 仍 0/2–3。见 [Candidate 报告](V6_M1_WAKENET_CONTROL_CANDIDATE_REPORT.md) 与 [设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
 | L-15-SRMODEL-READONLY-VERIFIER | HOST_ACCEPTED | `c4bb339`；只读模型目录、权重哈希与前缀校验；定向 10/10、集成 V6 Host 158/158。真实 live dump 正确返回目标模型缺失；不构成 DEVICE PASS |
-| S-17 / R-10 | REVIEW_PASS / USER_MODEL_WRITE_AUTHORIZATION_PENDING | `9ec7ca1` 修复包复用 S15 app 与已绑定的正确模型，不重建。独立 R-10 确认模型、备份、单地址写入/扇区及同分区回退范围；只放行请求用户批准，尚未写入。详见 [精确修复方案](V6_M1_WAKE_MODEL_REPAIR_PLAN.md) |
+| S-17 / R-10 | MODEL_WRITE_READBACK_PASS / RUNTIME_MODEL_VERIFIED / PREFLIGHT_IN_PROGRESS | Bundle `claw4-learning-v6-m1-model-repair-s17-20261018-01` 复用 S15 app、不重建；R-10 `PASS`，用户已明确授权审查过的单地址模型写入与同分区回退。prefix/full readback、写后边界和正确模型启动均核验通过。首次同步 Wake/math 结果待用户反馈，Preflight 已完成 0 轮。见 [修复方案与回执](V6_M1_WAKE_MODEL_REPAIR_PLAN.md) 及 [设备报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) |
+| L-16-S17-DEVICE-EVIDENCE | DEVICE_CHECKPOINT_RECORDED / CAPTURE_FOLLOWUP_PENDING | 记录授权写入、独立读回、边界核验与首次目标模型启动；已启动有限 Preflight 捕获，用户同步 Wake/math 观察及最终捕获摘要待后续更新。当前 0/2–3 轮，不构成 Wake PASS 或 M1 PASS。见 [S-17 设备报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
@@ -61,7 +62,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | MODEL_MISMATCH_CONFIRMED / REPAIR_AUTHORIZATION_PENDING; PREFLIGHT_ROUNDS=0/2–3 | 运行加载模型为 `wn9l_hai1tai4ling2`，而 S15 构建目标为 `wn9_nihaoxiaozhi_tts`；模型分区写入需用户明确授权并完成独立修复审查。在此之前不做目标唤醒词验收。9/27 捕获、88.328 秒中断的用户辅助捕获和 10/18 被动启动捕获均非完整 Preflight round；正式 20 轮未开始，M0 仍 `CHANGES_REQUIRED`。见 [S15 报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)；历史见 [S11 报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) 与 [S-08 Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | PREFLIGHT_IN_PROGRESS / COMPLETED_ROUNDS=0/2–3 | S-17 目标模型写入/readback/启动加载身份已核验。显式 USB reset 启动不是冷启动；首次捕获为被动启动观察，不计 Preflight round。用户已收到首次同步 Wake/math 观察提示，结果及最终捕获摘要待更新。正式 20 轮未开始，M1 未验收，M0 仍 `CHANGES_REQUIRED`。见 [S-17 报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md)；S15、S11 与 S-08 均为历史证据 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |

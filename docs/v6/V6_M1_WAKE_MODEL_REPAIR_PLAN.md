@@ -1,6 +1,6 @@
 # S-17 intended Wake model repair plan
 
-**Status:** `R-10=PASS / AWAITING_USER_MODEL_WRITE_AUTHORIZATION`. This is a read-only plan, not a device result or authorization to write Flash. Proposed bundle ID: `claw4-learning-v6-m1-model-repair-s17-20261018-01`. The private companion manifest is `E:/v6/s15-resume-20261018-01/model-repair-plan.json`.
+**Status:** `R-10=PASS / USER_AUTHORIZED / MODEL_WRITE_AND_READBACK_PASS / RUNTIME_MODEL_VERIFIED / PREFLIGHT_IN_PROGRESS (0 rounds completed)`. The reviewed model write has executed under the user's explicit authorization; the conditional same-partition full-backup rollback was not needed or performed. This status does not expand that authorization. Bundle ID: `claw4-learning-v6-m1-model-repair-s17-20261018-01`. The private companion manifest is `E:/v6/s15-resume-20261018-01/model-repair-plan.json`.
 
 ## Why this bundle is needed
 
@@ -36,3 +36,11 @@ The executor is pinned to `E:/workbuddy/claw4-v6/toolchains/idf61/python_env/idf
 ```
 
 The read-only Host tool `tools/v6/srmodel_image.py` supplements application identity checks with model catalog/payload hashes and an exact expected-image prefix comparison. The live full-partition dump returns `MISMATCH / required_model_missing_actual`; its 686,338 trailing partition bytes are reported separately from model payloads. The integrated V6 Host suite passed 158 tests, zero failures/errors. This Host result does not establish a model write, Wake success, AEC effectiveness or a completed Voice round.
+
+## Execution receipt — 2026-10-18
+
+The user explicitly authorized the reviewed one-address model write and same-partition full-backup rollback scope. The root hardware owner revalidated device identity, partition table, live application, old full model backup and target image before writing. The only write was the S-17 model image at `0x111000`; esptool reported 291,044 bytes including 2 bytes of alignment beyond the 291,042-byte source image. The write/sector envelope remained within the reviewed model partition and the reviewed erase bounds. No application rebuild/write or rollback occurred.
+
+The 291,042-byte independent prefix readback matches the target image SHA. A complete 978,944-byte model partition readback has SHA-256 `09f698b9acb864b7670198baa3ffddc29d96d491002527ed25e2c56827a54f7a`; bytes outside the erase envelope match the retained pre-write backup. The partition table, otadata and app were independently verified unchanged after the write. The first post-write explicit-USB-reset boot reports `wn9_nihaoxiaozhi_tts` for both runtime Model 0 and `AFE_CONFIG`, with the exact S15 ELF prefix. Its diagnostic is passive: `on_total=1/on_rc=1/off_total=0/off_rc=0`; zero `off_total` means `off_rc` is only the initial value, not an OFF call result.
+
+The user has been prompted for the first synchronized Wake/math observation. At this receipt's update, that result is pending; Preflight remains in progress with zero completed rounds. Full device details and private audit JSON hashes are recorded in [the S-17 device report](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md). M1 and M0 acceptance remain unclaimed.
