@@ -4,7 +4,7 @@
 
 ## 2026-09-24 接管与用户指令状态（当前有效）
 
-> M1 最新候选设备证据见 [S15 WakeNet Control 设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)：S15 app-only 写入/readback 与分区不变；2026-10-18 只读 app verify-flash 再次匹配该镜像，随后被动启动捕获观察到 S15 ELF。旧 S11/S08 记录保留为历史，不转移 Candidate 结果。S15 捕获未完成完整 Voice Preflight。Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
+> M1 最新候选设备证据见 [S15 WakeNet Control 设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)：app-only 写入/readback 与分区不变；2026-10-18 只读 app verify-flash 匹配 S15 app，启动观察到 S15 ELF，但实际加载模型与 S15 构建目标模型不匹配，状态 `MODEL_MISMATCH_CONFIRMED / REPAIR_AUTHORIZATION_PENDING`。Preflight 仍未完成。旧 S11/S08 保留为历史，不转移 Candidate 结果。Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
 
 > 2026-09-27 更新：S-08 同一 Candidate 的用户辅助 Wake 尝试已连续采集并记录于 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md)。结论 `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED`；不能概括为通用 WakeNet FAIL。Preflight 0/2–3，正式 20 轮未开始。
 
@@ -44,8 +44,8 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | L-09-S08-PREFLIGHT-EVIDENCE | DOCS_COMPLETE | 同一 S-08 Candidate 的用户辅助尝试报告与两级看板更新；捕获/用户报告的证据边界、私有哈希均已记录。仅文档整理，不作根因判定或 WakeNet FAIL 推断 |
 | L-11-M1-AFE-DEVICE-EVIDENCE | DOCS_COMPLETE | S11 Candidate 的 app-only/readback、分区不变和初始被动 AFE 输入诊断已记录；用户讲话未确认，不判 WakeNet FAIL/PASS、不计 Preflight。后续捕获由 L-12 同步。见 [设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) |
 | L-12-M1-VOICE-OBSERVATION-SYNC | DOCS_COMPLETE | 同步 S11 后续用户辅助捕获：`voice-probe-02` 与 `post-restart-01` 各观察到 Wake/WS 与状态活动，其他捕获有用户报告无响应；不精确绑定话语与日志、不判一般性 WakeNet PASS/FAIL、不计完整 Preflight。S14 opt-in 诊断补丁 R-08 `PASS`（Host diagnostics only），未构建、未设备验证，不构成 S14 Wake PASS；见 [设备报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) |
-| L-14-S15-EVIDENCE-RESUME | DOCS_COMPLETE | 补录 S15 Candidate 历史 app-only 写入/readback 与分区不变摘要、S15 R-09 构建复核状态、9/27 两段诊断及 10/18 只读镜像身份核验和被动启动摘要。`voice-rearm-02` 串口异常中断，用户确认一次 Wake 尝试但未观察到即时响应；不构成完整 Preflight 或 WakeNet 通用 FAIL/PASS。见 [S15 设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
-| S-15-M1-WAKENET-CONTROL-CANDIDATE | R-09 BUILD_REVIEW_PASS / DEVICE_EVIDENCE_RECORDED | Candidate app-only 写入/readback 与分区不变已记录；10/18 只读身份核验和被动启动确认 app 身份。两次被动/中断捕获均不构成 WakeNet 通用结论或 Voice round；Preflight 仍 0/2–3。候选构建详情见 [Candidate 报告](V6_M1_WAKENET_CONTROL_CANDIDATE_REPORT.md)，设备证据见 [设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
+| L-14-S15-EVIDENCE-RESUME | DOCS_COMPLETE | 补录 S15 Candidate 历史 app-only 写入/readback 与分区不变摘要、R-09 构建复核状态、9/27 诊断及 10/18 app 身份核验/被动启动摘要；另记录运行加载模型与候选目标模型不一致。`voice-rearm-02` 串口异常中断，用户确认一次 Wake 尝试但未观察到即时响应；捕获不构成完整 Preflight 或 WakeNet 通用 FAIL/PASS。模型修复授权待定。见 [S15 设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
+| S-15-M1-WAKENET-CONTROL-CANDIDATE | R-09 BUILD_REVIEW_PASS / MODEL_MISMATCH_CONFIRMED | S15 app-only 写入/readback 与分区不变；当前 app 身份核验匹配，但 live model catalog/runtime load 为 `wn9l_hai1tai4ling2`，S15 构建目标为 `wn9_nihaoxiaozhi_tts`。模型修复授权待定；不做目标词验收，不将被动/中断捕获记为 Voice round。Preflight 仍 0/2–3。见 [Candidate 报告](V6_M1_WAKENET_CONTROL_CANDIDATE_REPORT.md) 与 [设备报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md) |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
@@ -59,7 +59,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | PREFLIGHT_ROUNDS=0/2–3 / S15_VOICE_INCOMPLETE | S15 的 9/27 Wake 诊断、88.328 秒中断的用户辅助捕获和 10/18 被动启动捕获均未完成可核验的完整 Preflight round；用户辅助段仅确认一次 Wake 尝试且未观察即时响应，问题 `NOT_RUN`。被动段不含语音请求。不能据此判一般性 WakeNet PASS/FAIL；正式 20 轮未开始。M0 仍为 `CHANGES_REQUIRED`。见 [S15 报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)；历史见 [S11 报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) 与 [S-08 Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | MODEL_MISMATCH_CONFIRMED / REPAIR_AUTHORIZATION_PENDING; PREFLIGHT_ROUNDS=0/2–3 | 运行加载模型为 `wn9l_hai1tai4ling2`，而 S15 构建目标为 `wn9_nihaoxiaozhi_tts`；模型分区写入需用户明确授权并完成独立修复审查。在此之前不做目标唤醒词验收。9/27 捕获、88.328 秒中断的用户辅助捕获和 10/18 被动启动捕获均非完整 Preflight round；正式 20 轮未开始，M0 仍 `CHANGES_REQUIRED`。见 [S15 报告](V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)；历史见 [S11 报告](V6_M1_AFE_DIAGNOSTIC_DEVICE_REPORT.md) 与 [S-08 Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md) |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |

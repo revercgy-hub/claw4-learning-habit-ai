@@ -14,7 +14,7 @@
 
 设备为 ESP32-P4 rev1.3，MAC `80:f1:b2:d2:ed:14`。写入前读取的 live 分区表为 4096 bytes，SHA-256 `8e5a526458f90a2b32a28ca0162611ca680e7ac8ca49f8336999ad85b529521a`；其前 3072 bytes 与候选构建分区表一致（SHA-256 `ef0039b6366c57de098972c0f6e9fd991013b41968da9b866c4704cb68ef7e5f`）。live otadata 为 8192 bytes，SHA-256 `8ba3b110139f45443d4f268d1a3373ef99a1718b71d51664531b83ee2d4b91a3`。写入前 9 MiB `ota_0` 备份 SHA-256 为 `79322d42ec103602f531d2cac19cd39c4fc1f0f121707dd820e4667a2ac620ad`。
 
-仅向 `0x200000` 写入 app 镜像（3,137,392 bytes）；esptool 写入校验成功。独立 app readback（SHA-256 `64deab2b695fd0858586e93b0cc23ef8e566df3a38d461826d77ab22d05c738a`）与候选 app SHA 一致；写入前后 live 分区表和 otadata SHA 均一致。没有写入 bootloader、分区表、ota_1 或安全熔丝，也没有执行恢复写回。
+仅向 `0x200000` 写入 app 镜像（3,137,392 bytes）；esptool 写入校验成功。独立 app readback（SHA-256 `64deab2b695fd0858586e93b0cc23ef8e566df3a38d461826d77ab22d05c738a`）与候选 app SHA 一致；写入前后 live 分区表和 otadata SHA 均一致。该时点尚未核对模型分区内容。没有写入 bootloader、分区表、ota_1、模型分区或安全熔丝，也没有执行恢复写回。
 
 ## 2026-09-27 诊断观察
 
@@ -28,12 +28,17 @@
 
 COM7 当前镜像身份在任何新写入前以只读 `esptool verify-flash` 对 `0x200000`、3,137,392 bytes 核验，返回成功且摘要匹配上述 S15 app SHA。验证操作触发显式 USB reset；没有写 Flash。紧接着的被动启动捕获再次触发一次显式 USB reset（不是冷启动），持续 60.015 秒：解析 48 个输入窗口、772,320 mic samples、RMS max 692、peak max 6,462、read failures 0；47 个 AFE 状态/控制窗口，最后 Wake enabled/active 为 1，`on_rc=1/off_rc=0`，feed/fetch 1,489、fetch failures 0、Wake detected 0、crash markers 0。观察到精确 S15 ELF prefix 1 次、NAS OTA 7443 marker 1 次、WS 7444 marker 0 次、外部端点 marker 0 次。
 
-此次为无语音请求的被动采集。只读镜像身份与 ELF prefix 支持“当前运行 S15 app”的有限结论；无 Wake marker 既不构成用户刺激结果，也不构成 WakeNet FAIL。捕获时长、输入统计和服务端点 marker 不证明 AFE 信号质量、AEC 效果、WebSocket 语音链路或稳定性。
+后续只读模型分区核对确认，live model 分区标签为 `0x111000`、分区大小 `0xEF000`（978,944 bytes），完整读回 SHA-256 `69949f497970885c03782948bafec0ab8bad1e9d53f37e20ff1ee6f8df715565`。分区 catalog 只有一个模型 `wn9l_hai1tai4ling2`，metadata 为 `wakenet9l_tts3h12_Hai1Tai4Ling2_3_0.625_0.629`；live `wn9_data` SHA-256 为 `bf7e1fd2321cd73382f6e1b947f5a4cc727d493b5c2e300ae193347037414c2e`。S15 构建则仅包含模型 `wn9_nihaoxiaozhi_tts`，其 291,042-byte `srmodels.bin` SHA-256 为 `7c87dd7adb5a7623907b6354d49bea7f9289371262e6a57f15458fb8908c5814`。两者不匹配。历史 `boot-diag-01` 与今日 `boot-current` 的只读启动解析都记录实际加载 `wn9l_hai1tai4ling2`，而不是 S15 目标模型。此项确认 `MODEL_MISMATCH_CONFIRMED`；它限制了 S15 设备观察对目标 WakeNet 模型的代表性，不定位其他 Voice/AEC 问题的根因。
+
+此次为无语音请求的被动采集。只读 app 镜像身份与 ELF prefix 支持“app 镜像与 S15 固件一致”的有限结论；模型内容及运行加载模型与 S15 build 不一致。无 Wake marker 既不构成用户刺激结果，也不构成 WakeNet FAIL。捕获时长、输入统计和服务端点 marker 不证明 AFE 信号质量、AEC 效果、WebSocket 语音链路或稳定性。
 
 当前恢复证据文件保存在私有目录 `E:/v6/s15-resume-20261018-01/`。报告只保留允许披露的摘要和 SHA-256，不包含原始 UART、语音、转写、端点凭据或原始日志内容：
 
 | 证据 | 字节 | SHA-256 |
 | --- | ---: | --- |
+| Live model partition readback（2026-10-18） | 978,944 | `69949f497970885c03782948bafec0ab8bad1e9d53f37e20ff1ee6f8df715565` |
+| Live `wn9_data` | 291,042 | `bf7e1fd2321cd73382f6e1b947f5a4cc727d493b5c2e300ae193347037414c2e` |
+| S15 `srmodels.bin` | 291,042 | `7c87dd7adb5a7623907b6354d49bea7f9289371262e6a57f15458fb8908c5814` |
 | `app-readback.bin`（2026-09-27） | 3,137,392 | `64deab2b695fd0858586e93b0cc23ef8e566df3a38d461826d77ab22d05c738a` |
 | `boot-diag-01-summary.json` | 1,462 | `37d857fec197bdb21cf42611ca72980b242aa2d735d6f59709ba57a9838f6cf6` |
 | `boot-diag-01-state.json` | 291 | `db0e1d66cfe82b4e78ed1eb7795e399471ce6f223b5d1945c1232ad64e42e79e` |
@@ -49,8 +54,7 @@ COM7 当前镜像身份在任何新写入前以只读 `esptool verify-flash` 对
 
 ## 结论与门禁
 
-- S15 app 的 app-only 写入/readback、分区与 otadata 不变性有摘要和哈希证据；2026-10-18 只读身份核验再次确认该 app 位于设备上。
+- S15 app 的 app-only 写入/readback、分区与 otadata 不变性有摘要和哈希证据；2026-10-18 只读身份核验再次确认该 app 位于设备上。模型目录及实际加载模型与候选构建模型不一致，状态 `MODEL_MISMATCH_CONFIRMED`。
 - `boot-diag-01`、`voice-rearm-02` 和今日被动启动捕获均不构成完整 Wake→Speech→ASR→LLM→TTS→Playback→Next Wake 轮次。Preflight 仍为 `0/2–3`，正式连续 20 轮未开始。
-- WakeNet 通用 PASS/FAIL、AEC 效果、Voice 服务链路、稳定性和 M1 PASS 均为 `NOT_VERIFIED`。M0 仍 `CHANGES_REQUIRED`；AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。
-- `HARDWARE_VERIFY_REQUIRED`：之后若要做有同步语音刺激的 Wake/Voice Preflight，须按既有设备门禁安排单一 owner；本报告不构成额外刷写或故障注入授权。
-
+- WakeNet 目标词验收、AEC 效果、Voice 服务链路、稳定性和 M1 PASS 均为 `NOT_VERIFIED`。模型修复授权待定；在授权和独立审查前不得写模型分区或做目标词验收。M0 仍 `CHANGES_REQUIRED`；AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。
+- `HARDWARE_VERIFY_REQUIRED`：后续模型分区写入需要用户明确授权其范围并先完成独立修复审查；本报告不构成额外写入或故障注入授权。
