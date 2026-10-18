@@ -4,7 +4,7 @@
 
 ## 2026-10-18 L-17 NAS TTS repair follow-up（当前状态）
 
-L-17 source `812b12905cda01843f5aeb2d80835abb9bc2b084` 已由独立 R-11 复核 `PASS` 并在 NAS 部署。Root 基于同一 digest-pinned XiaoZhi v0.9.6 base 构建本地 EdgeTTS 7.3.1 image；依赖差异仅为 `edge-tts` 从 7.2.6 到 7.3.1。image ID `sha256:acf7314b488ad7e49232797fb42711faad637c00d29142ec782124a92b1d9291` 运行正常；合成 production-provider probes 返回 11,664 bytes、可解码 1,944 ms 音频。Compose/service config 与 NAS-local provider config 身份保持不变。S-17 原始 403 失败窗口保留历史，当前只判 `NAS_TTS_SERVICE_REPAIR=PASS`，不推断设备已播放。Root 未重刷 S-17 固件并已开始新的 `preflight-02` 捕获，结果待判；completed rounds 仍 `0/2–3`，正式 20 轮未开始，M1 未验收。M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。详见 [L-18 NAS TTS repair evidence report](V6_M1_NAS_TTS_REPAIR_REPORT.md)。
+L-17 source `812b12905cda01843f5aeb2d80835abb9bc2b084` 已由独立 R-11 复核 `PASS` 并在 NAS 部署。Root 基于同一 digest-pinned XiaoZhi v0.9.6 base 构建本地 EdgeTTS 7.3.1 image；依赖差异仅为 `edge-tts` 从 7.2.6 到 7.3.1。image ID `sha256:acf7314b488ad7e49232797fb42711faad637c00d29142ec782124a92b1d9291` 运行正常；部署后 production-provider service probe 返回 11,664 bytes、可解码 1,944 ms 音频。除 image/build 外，Compose/service config 与 NAS-local provider config 身份保持不变。原失败窗口保留历史；当前只判 `NAS_TTS_SERVICE_REPAIR=PASS`，不推断设备已播放。隔离 probe JSON 的音频 SHA 字段长度异常，未作为有效音频 hash；详见 L-18 报告。Root 未重刷 S-17 固件并已开始新的 `preflight-02` 捕获，结果待判；completed rounds 仍 `0/2–3`，正式 20 轮未开始，M1 未验收。M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。详见 [L-18 NAS TTS repair evidence report](V6_M1_NAS_TTS_REPAIR_REPORT.md)。
 
 ## 2026-09-24 接管与用户指令状态（当前有效）
 
