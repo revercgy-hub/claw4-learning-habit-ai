@@ -4,6 +4,12 @@
 
 ## 2026-09-24 接管及后续开发状态（当前有效）
 
+### 2026-10-18 S15 WakeNet Control 设备证据恢复（当前 M1 候选观察）
+
+Candidate `claw4-learning-v6-m1-wnctl-s15-20260927-01`（source `7f7357da2e1299b150a17b979fb1a307d027441e`，R-09 构建复核 `PASS`）于 2026-09-27 app-only 写入 `ota_0`，独立 app readback SHA 与候选 app 一致，写入前后 live 分区表和 otadata 哈希不变。9/27 的 `boot-diag-01` 是显式 USB reset 后的 72.125 秒被动诊断；`voice-rearm-02` 捕获 88.328 秒后因 `SerialException` 中断。用户确认后者期间一次 Wake 尝试、没有观察到即时响应，问题未提问；不能精确关联任何语音帧。
+
+2026-10-18 只读 `esptool verify-flash` 在 `0x200000` 核验 3,137,392 bytes，成功匹配 S15 app SHA，没有执行写入。随后的 60.015 秒被动启动捕获（显式 USB reset，不是冷启动）观察到 S15 ELF prefix、Wake enabled/active，未观察到 Wake event、crash 或外部端点；未请求语音刺激。后续只读核对确认 live 模型分区为 978,944 bytes，catalog 仅有 `wn9l_hai1tai4ling2`，而 S15 构建包含 `wn9_nihaoxiaozhi_tts`；两次启动解析均记录加载前者。状态 `MODEL_MISMATCH_CONFIRMED / REPAIR_AUTHORIZATION_PENDING`，S15 设备观察不能代表目标模型表现，且不定位其他 Voice/AEC 根因。模型分区尚未写入；用户授权和独立修复审查前，不进行目标词验收。Preflight `0/2–3`、正式 20 轮未开始，AEC 和 M1 均未验证。细节及私有证据哈希见 [S15 设备报告](../v6/V6_M1_WAKENET_CONTROL_DEVICE_REPORT.md)。S11 历史保留，候选结果不转移。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。
+
 接管基线 `760b2aa66819f8d90186b43af4c02d9b33c8849e` 已保护至 `origin/takeover-v6-m0-c19-baseline`；R-01 在 `a164f11ab5f5843d6ace5c4b990d86a29195a2fe` 独立复审 PASS，Host 96/0。Candidate19 built, not flashed；Candidate20 已 app-only 刷写到 live `ota_0` 且读回 hash 一致。Candidate 构建/设备分区布局仍不匹配，恢复写回未执行。A-02 判定 `M0=CHANGES_REQUIRED`。
 
 用户于 2026-09-24 明确要求跳过 Candidate20 AP outage/recovery 刺激并直接开始下一阶段开发。AP failure/recovery 保持 `SKIPPED_BY_USER / NOT_VERIFIED`，不再派发或重做。M0 仍为 `CHANGES_REQUIRED`；Candidate20 DEVICE 验证仅部分完成。M1-DEV-01 已 `ACCEPTED`（证据工具，不代表语音验收）；XiaoZhi NAS v0.9.6 已部署，7443 HTTP/OTA、7444 WebSocket、SenseVoiceSmall、Ollama `qwen3.5:2b` 与 EdgeTTS 合成连通性通过。M1 真机 Voice 和正式连续 20 轮均为 `NOT_VERIFIED`。
