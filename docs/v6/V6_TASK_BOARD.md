@@ -2,9 +2,13 @@
 
 > **SUPERSEDED 历史快照（2026-09-23）**：Candidate19 已构建但未刷机；Candidate17 DEVICE 观察仅属于 Candidate17。Candidate19 没有 DEVICE PASS。旧工具测试统计按发生时间分别为 C19 构建时 68 项、接管基线 83 项（增加 15 项）；均为 Host 工具测试，不是设备验收。AEC NOT PASS；旧 `clipped=0` 计数无效。
 
+## 2026-10-18 L-17 NAS TTS repair follow-up（当前状态）
+
+L-17 source `812b12905cda01843f5aeb2d80835abb9bc2b084` 已由独立 R-11 复核 `PASS` 并在 NAS 部署。Root 基于同一 digest-pinned XiaoZhi v0.9.6 base 构建本地 EdgeTTS 7.3.1 image；依赖差异仅为 `edge-tts` 从 7.2.6 到 7.3.1。image ID `sha256:acf7314b488ad7e49232797fb42711faad637c00d29142ec782124a92b1d9291` 运行正常；部署后 production-provider service probe 返回 11,664 bytes、可解码 1,944 ms 音频。除 image/build 外，Compose/service config 与 NAS-local provider config 身份保持不变。原失败窗口保留历史；当前只判 `NAS_TTS_SERVICE_REPAIR=PASS`，不推断设备已播放。隔离 probe JSON 的音频 SHA 字段长度异常，未作为有效音频 hash；详见 L-18 报告。Root 未重刷 S-17 固件并已开始新的 `preflight-02` 捕获，结果待判；completed rounds 仍 `0/2–3`，正式 20 轮未开始，M1 未验收。M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。详见 [L-18 NAS TTS repair evidence report](V6_M1_NAS_TTS_REPAIR_REPORT.md)。
+
 ## 2026-09-24 接管与用户指令状态（当前有效）
 
-> M1 最新设备状态见 [S-17 Wake model repair 报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md)：在用户明确授权及 R-10 审查范围内，单次 model 分区写入/readback 通过，分区表/otadata/app 保持不变；写后启动加载目标 `wn9_nihaoxiaozhi_tts`。首次同步尝试中用户确认 Wake 与提问，但未听到答案；NAS 检查发现 EdgeTTS HTTP 403 warning，当前 `WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403`。Root 的 L-17 修复与验证仍在进行，Preflight `0/2–3`、20 轮未开始，M1 未验收。S15 的模型不匹配仅保留为历史；S08/S11 结果不转移。Candidate20 的 M0 Gate 和 AP recovery 状态仍按本节及 A-02 报告记账。
+> **SUPERSEDED as current NAS TTS status by the 2026-10-18 L-18 report:** The S-17 first-attempt Wake observation and NAS 403 warning below remain historical evidence. Current NAS service repair and pending Preflight status are recorded above; S15 results do not transfer to S17, and Candidate20 M0/AP recovery state is unchanged.
 
 > 2026-09-27 更新：S-08 同一 Candidate 的用户辅助 Wake 尝试已连续采集并记录于 [Preflight attempt report](V6_M1_WAKE_PREFLIGHT_ATTEMPT_REPORT.md)。结论 `PREFLIGHT_BLOCKED_WAKE_NOT_OBSERVED / ROOT_CAUSE_UNRESOLVED`；不能概括为通用 WakeNet FAIL。Preflight 0/2–3，正式 20 轮未开始。
 
@@ -49,6 +53,8 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | L-15-SRMODEL-READONLY-VERIFIER | HOST_ACCEPTED | `c4bb339`；只读模型目录、权重哈希与前缀校验；定向 10/10、集成 V6 Host 158/158。真实 live dump 正确返回目标模型缺失；不构成 DEVICE PASS |
 | S-17 / R-10 | MODEL_REPAIR_VERIFIED / WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403 | Bundle `claw4-learning-v6-m1-model-repair-s17-20261018-01` 复用 S15 app、不重建；R-10 `PASS`，用户授权的单地址模型写入、prefix/full readback、边界与正确模型启动均核验通过。首个同步尝试用户确认 Wake 并提问但未听到答案；NAS EdgeTTS 403 warning 后续由 L-17 处理。Preflight 已完成 0 轮。见 [修复方案与回执](V6_M1_WAKE_MODEL_REPAIR_PLAN.md) 及 [设备报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) |
 | L-16-S17-DEVICE-EVIDENCE | DEVICE_EVIDENCE_RECORDED / WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403 | 记录授权写入/读回/边界核验、目标模型启动及 395.281 秒捕获。用户报告 Wake 成功并提问，但无可听答案；NAS 检查见 EdgeTTS 403 warnings，后续修复归 L-17。不是完整 Preflight round；完成轮数仍 0。见 [S-17 设备报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) |
+| L-17-NAS-EDGE-TTS-FIX / R-11 | NAS_IMAGE_DEPLOYED / REVIEW_PASS | L-17 source `812b12905cda01843f5aeb2d80835abb9bc2b084`；R-11 `PASS`；同一 pinned base，仅 EdgeTTS 7.2.6→7.3.1；NAS image 与 provider probes 详见 [L-18 report](V6_M1_NAS_TTS_REPAIR_REPORT.md)。不判 DEVICE playback |
+| L-18-NAS-TTS-EVIDENCE | DOCS_COMPLETE / NAS_TTS_SERVICE_REPAIR_PASS / DEVICE_PLAYBACK_NOT_VERIFIED | 汇总 NAS build/rollout 与 synthetic/provider probe，记录 image/config identity；同一 S-17 firmware、未重刷，`preflight-02` 进行中且结果待定，completed rounds 0。M0/AP recovery 与 M1/20-round 门禁保持原状态。见 [报告](V6_M1_NAS_TTS_REPAIR_REPORT.md) |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
@@ -62,7 +68,7 @@ Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满�
 | M0-NET | 隐藏网络回退与可复现依赖补丁 | Codex | REVIEW_READY | f47afda；62工具测试、7生产方法Host场景、IDF构建通过；真机未验证 |
 | M0-NET-ERR | 网络失败恢复增量 | Codex | REVIEW_READY | 候选10编译链接通过，正常隐藏网络回退及取IP实测；同步调用失败分支未故障注入 |
 | M0-3 | Candidate13 回归与音频闭环 | Codex | IN_PROGRESS | Candidate14/15 证实软件参考注入至 AFE ch1；90ms 与 0ms 两组各两次播放结果不一致，且非配对测试，AEC NOT PASS。Candidate17 五分钟静置采样无复位，读取失败/参考丢帧为 0；旧 clipped 字段不具削波证据，Candidate19 的 near_full_scale_n 已构建、未刷机。交互/AEC/播放期 WakeNet 仍待复测。Candidate18 单帧相机取帧等待实机验证；还需设备网络同步失败注入与完整长稳 |
-| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403; PREFLIGHT_ROUNDS=0/2–3 | 正确模型写入/readback/runtime 已核验。同步尝试用户报告 Wake 成功并提问，但没有可听答案；捕获观察到 WS/STT/TTS markers，NAS 只读诊断见 EdgeTTS HTTP 403 warnings。Root 正通过独立 L-17 修复 NAS 依赖；修复未验证前不记为已解决。该次不是完整 Preflight round，正式 20 轮未开始，M1 未验收，M0 仍 `CHANGES_REQUIRED`。AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。见 [S-17 报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md)；S15、S11 与 S-08 均为历史证据 |
+| M1 | NAS 连续语音 20 轮 | Astra/Sol/Luna 按任务拆分 | NAS_TTS_SERVICE_REPAIR_PASS / PREFLIGHT_IN_PROGRESS; completed=0/2–3 | L-17/R-11 的 EdgeTTS 7.3.1 NAS service repair 与 synthetic provider probe 通过；不证明设备播放。Root 在不重刷 S-17 firmware 下已开始 `preflight-02`，结果待定，completed rounds 仍为 0；正式 20 轮未开始，M1 未验收。M0 仍 `CHANGES_REQUIRED`，AP recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。S-17 首次 403 阻断记录保留历史，细节见 [S-17 报告](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) 和 [L-18 service repair report](V6_M1_NAS_TTS_REPAIR_REPORT.md)；其他 Candidate 结果不转移 |
 | M1.5 | 七命令 pre-LLM router | Codex | BACKLOG | M1；认证/幂等/结果确认契约 |
 | M2 | 真实学习闭环 | Codex；可拆 WorkBuddy 辅助 | BACKLOG | M1.5；在线/离线/重启/补传 |
 | M2.5 | 离线主动提醒 MVP | Codex | BACKLOG | M2；RTC/TimeAuthority、缓存/内置音频恢复 |
