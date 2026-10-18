@@ -26,7 +26,7 @@
 
 AFE 摘要为 381 个输入窗口、6,126,720 samples、RMS max 1,183、peak max 13,592、I2S read failures 0、crash markers 0；feed chunks 11,982、fetch OK 11,981、fetch failures 0。不要从不同汇总计数的差值推断丢帧或根因。最后控制计数 `on_total=2/on_rc=1/off_total=8/off_rc=0`；启用/禁用均有对应调用计数，返回码可按 pinned interface 解读。该状态活动不是 Wake rearm 缺陷的证明。
 
-同期只读 NAS 诊断记录 service image `sha256:d8ab77bb1f2b212ee3f1d45fb9d9f9faf953be46c13c70ff6537044dd0b1e27e`、base image `sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc`、config SHA-256 `3e9a54b782b403932607b1a5c1cc54a3bd4146d48bd2cf176de21639ad1d5438`，Compose SHA-256 `8e420b89d0381608b5833078168c53c3c41b741fc9f0e971f2630c6d3d488f91a`。EdgeTTS 版本 7.2.6；在检查的 30 分钟 Docker 日志窗口观察到 25 条 HTTP 403 warning。直接合成 Ollama 请求返回预期数值 `2`，但不是完整端到端 TTS 证明。结合无可听答案，当前归类为 `WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403`。Root 将通过独立 L-17 处理 NAS 依赖；在其另行验证前不得记为已修复。此现场结果不判定其他 Voice/AEC 根因。
+同期只读 NAS 诊断记录 service image `sha256:d8ab77bb1f2b212ee3f1d45fb9d9f9faf953be46c13c70ff6537044dd0b1e27e`、base image `sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc`、config SHA-256 `3e9a54b782b403932607b1a5c1cc54a3bd4146d48bd2cf176de21639ad1d5438`，Compose SHA-256 `8e420b89d0381608b5833078168c53c3c41b741fc9f0e971f2630c6d3d488f91`。EdgeTTS 版本 7.2.6；在检查的 30 分钟 Docker 日志窗口观察到 25 条 HTTP 403 warning。直接合成 Ollama 请求返回预期数值 `2`，但不是完整端到端 TTS 证明。结合无可听答案，当前归类为 `WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403`。Root 将通过独立 L-17 处理 NAS 依赖；在其另行验证前不得记为已修复。此现场结果不判定其他 Voice/AEC 根因。
 
 当前状态 `PREFLIGHT_IN_PROGRESS / completed rounds=0`。正式连续 20 轮尚未开始；不宣称完整语音问答成功、AEC 有效或 M1 PASS。M0 仍为 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。S08/S11/S15 等旧 Candidate 设备结果不继承到 S17。
 
@@ -51,4 +51,4 @@ AFE 摘要为 381 个输入窗口、6,126,720 samples、RMS max 1,183、peak max
 | `preflight-01.raw` | 231,729 | `8e23fb82f300cdc6f8577a40c77a89e4cc987e986133addb74867013f0972d6f` |
 | `nas-diagnostic-summary.json` | 698 | `ebd7346496d37613922395d0f89a078f87e7af2feddcbe17f2320dbdf41cbcc1` |
 
-`HARDWARE_VERIFY_REQUIRED`: the first user-synchronized attempt is recorded but is incomplete because no audible answer was observed. Resolve and independently verify the NAS TTS dependency before another voice attempt; any future Flash operation requires separate explicit authorization.
+`HARDWARE_VERIFY_REQUIRED`: the first user-synchronized attempt is recorded but is incomplete because no audible answer was observed. Resolve and independently verify the NAS TTS dependency before another voice attempt; extending the explicitly approved model write or same-partition rollback scope requires separate authorization.
