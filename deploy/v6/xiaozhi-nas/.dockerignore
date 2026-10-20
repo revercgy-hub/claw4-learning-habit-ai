@@ -1,5 +1,8 @@
 **
 !Dockerfile.edge-tts
 !Dockerfile.voice
+!Dockerfile.asr-voice
 !edge-tts.requirements.txt
 !patch_ollama_voice.py
+!patch_asr_voice.py
+!claw4-m1-voice-prompt.txt

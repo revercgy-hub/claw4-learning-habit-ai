@@ -10,6 +10,8 @@ prompt: |
   你是小智。请用简短、清晰、友好的中文回答问题。
   当前是 Claw4 V6 合成语音验证环境；不要请求或记录儿童个人信息。
 
+prompt_template: claw4-m1-voice-prompt.txt
+
 selected_module:
   VAD: SileroVAD
   ASR: FunASR
