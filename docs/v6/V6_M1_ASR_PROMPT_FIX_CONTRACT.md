@@ -1,0 +1,19 @@
+# A-03: bounded M1 NAS ASR/prompt repair contract
+
+2026-10-20. Evidence baseline: `1831619c398de184db3d7099945187441d33ed1a`. See [S-19 audit](V6_M1_REPLY_SEGMENT_AUDIT.md) and [Preflight03](V6_M1_VOICE_PREFLIGHT03_REPORT.md). The device wake and an audible response were observed; answer correctness remains unconfirmed. Repeated/other operator speech prevents attributing extra ASR to echo. No successful Preflight round or formal 20-round result is inherited.
+
+## Astra boundary decision
+
+The change is an internal NAS adapter correction. Existing ASR provider signatures, raw provider results, reporting envelopes, ordinary text, common `startToChat`, WebSocket headers/messages, device Voice Core, firmware, AEC mode, V6 ADRs and Gate semantics remain unchanged. In the selected `core.providers.asr.fun_local` production path only, a known SenseVoice dictionary with exactly `content`, `language`, `emotion`, no speaker, string metadata, and a nonempty string content of at most 4096 characters may supply that content to chat. Preserve its original metadata envelope for existing reporting. Unknown providers/dictionaries/types, empty/oversize content, and all speaker-bearing paths retain existing behavior. Do not generalize JSON extraction at the common text entry.
+
+Use a deployment-specific Jinja prompt file selected explicitly by `prompt_template`; retain `{{ base_prompt }}` and concise, spoken-answer guidance. Do not change the generic upstream template, model/provider selection, endpoint, ports, authentication, data collection, command router, or V6 architecture. Runtime images and config must be independently identified; keep the L-20 image plus original config for rollback. The HTTP client timeout remains a per-operation/read bound, not a stream wall-clock guarantee.
+
+## Ownership and verification
+
+S-20 / Sol medium owns only `deploy/v6/xiaozhi-nas/patch_asr_voice.py`, `tools/v6/test_asr_voice_patch.py`, `tools/v6/fixtures/asr_base_v096.py`, and the added exact-byte rule in `tools/v6/fixtures/.gitattributes`. Hash-guard the real source fixture (SHA256 `929532c379d18598eff6fbecb991089f25a0c62cd77f74a25a0d1a5b8d13a713`) and fail before write on mismatch. Tests must execute the patched real ASR path and show the original reporting payload is unchanged, chat receives content only for the exact selected producer/schema, and speaker/unknown/plain/error paths retain prior behavior.
+
+L-24 / Luna high owns only `deploy/v6/xiaozhi-nas/claw4-m1-voice-prompt.txt`, `config.override.yaml`, `Dockerfile.asr-voice`, `compose.asr-voice-fix.yaml`, `.dockerignore`, and `README.md`. The Docker build applies the existing Ollama patch and the S-20 patch to the pinned v0.9.6 base with hashed EdgeTTS 7.3.1. Do not change prior images/Compose files. Tag: `claw4-xiaozhi-v6:voice-asr-20261020-01`. Context must exclude data, credentials and model weights.
+
+All workers use isolated worktrees/outputs and single-task commits; no NAS, SSH, COM7, hardware, Flash, NVS or shared build tree access. They are not alone and must not revert others. Run the full existing V6 Python Host suite for S-20 with exact counts; L-24 validates its scoped configuration/static build inputs. A separate Sol medium R-13 that did not implement either part must review the immutable integrated SHA before rollout. Root remains the sole NAS/hardware owner and verifies build, input/image/config/template hashes, actual rendered prompt/cache selection, synthetic full-server response/audio, and rollback readiness. New DEVICE evidence requires its own valid session binding. Formal 20 rounds remain unstarted; M0 stays CHANGES_REQUIRED and AP recovery stays SKIPPED_BY_USER / NOT_VERIFIED.
+
+Stop for any required V6 public contract/ADR change, expanded Flash/recovery or irreversible scope, data-loss risk, or unresolved cross-task architecture conflict. These tasks authorize no such expansion.
