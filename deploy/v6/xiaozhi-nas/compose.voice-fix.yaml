@@ -1,0 +1,6 @@
+services:
+  xiaozhi:
+    image: claw4-xiaozhi-v6:voice-20261020-01
+    build:
+      context: .
+      dockerfile: Dockerfile.voice
