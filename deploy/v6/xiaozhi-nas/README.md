@@ -113,3 +113,77 @@ sudo docker compose -f compose.yaml up -d --no-build --pull never --force-recrea
 ```
 
 The WebSocket endpoint is `ws://192.168.3.100:7444/xiaozhi/v1/`. Port 7443 remains plain HTTP; this port change does not add TLS. A running container, OTA response, and WebSocket handshake prove service reachability only. M1 acceptance still requires the same Candidate and service configuration to pass the 20-round voice and fault matrix in `docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md`.
+
+## M1 ASR content and spoken-answer prompt repair
+
+`compose.asr-voice-fix.yaml` builds an additional isolated image from the same
+digest-pinned XiaoZhi v0.9.6 base. `Dockerfile.asr-voice` repeats the hashed
+Edge TTS 7.3.1 install and the exact-source-guarded Ollama patch, then applies
+the separately owned `patch_asr_voice.py` to the upstream ASR base provider and
+copies `claw4-m1-voice-prompt.txt` into the image. The ASR patch input is not
+present in this task's source tree; the root integrator must supply the S-20
+file before building. This package does not claim the integrated image has
+been built or probed.
+
+The deployment-specific template includes `{{ base_prompt }}` so the existing
+Chinese and privacy instructions remain in the rendered prompt. It adds short
+spoken-answer guidance: answer first, usually in one or two sentences, without
+numbering, Markdown, emoji, or introductory filler. It contains no fixed
+answers, command routing, or emotion analysis. The override adds only the
+`prompt_template: claw4-m1-voice-prompt.txt` selector; model, provider, ASR,
+TTS, auth, endpoint, ports, and the existing prompt text remain as configured.
+The generic upstream `agent-base-prompt.txt` is unchanged.
+
+Before changing the NAS-local `data/.config.yaml`, retain a private owner-only
+backup and enforce the compare-and-swap guard against the expected original
+configuration hash. Do not print or copy the configuration into logs or Git:
+
+```sh
+cd /vol2/1008/docker/xiaozhi-v6
+cfg=data/.config.yaml
+expected=3e9a54b782b403932607b1a5c1cc54a3bd4146d48bd2cf176de21639ad1d5438
+actual=$(sudo sha256sum "$cfg" | awk '{print $1}')
+test "$actual" = "$expected" || { echo "config hash changed; stop" >&2; exit 1; }
+backup=/root/xiaozhi-config.pre-asr-voice-20261020-01.yaml
+sudo cp -a "$cfg" "$backup"
+sudo chmod 600 "$backup"
+sudo sha256sum "$backup"
+```
+
+Only after the guard and private backup succeed, add the single top-level
+`prompt_template: claw4-m1-voice-prompt.txt` key to the NAS-local config. Keep
+all existing keys and values. Record only the resulting config hash, not its
+contents. Validate and build the overlay with synthetic content:
+
+```sh
+sudo docker compose -f compose.yaml -f compose.asr-voice-fix.yaml config --quiet
+sudo docker compose -f compose.yaml -f compose.asr-voice-fix.yaml build xiaozhi
+```
+
+Before any rollout, record image ID, config hash, template SHA-256, and the
+integrated ASR patch source identity. Confirm the running service uses
+`/opt/xiaozhi-esp32-server/claw4-m1-voice-prompt.txt` as its selected template
+in the newly created container, that no stale prompt cache overrides the new
+selection, and that the rendered prompt reflects the template (record renderer
+hash and length). Confirm the NAS environment does not inherit device-specific
+`DEVICE` state. Use synthetic speech only. These checks and rollout belong to
+the root NAS owner. The Compose overlay changes only the `xiaozhi` image/build
+and does not add environment variables or ports.
+
+For rollback, restore the private backup to `data/.config.yaml`, verify its
+SHA-256 is again
+`3e9a54b782b403932607b1a5c1cc54a3bd4146d48bd2cf176de21639ad1d5438`, then
+recreate the service using the prior L-20 overlay and verify it resolves to
+the retained Edge TTS 7.3.1 image ID `34fb...` before starting it:
+
+```sh
+sudo cp -a /root/xiaozhi-config.pre-asr-voice-20261020-01.yaml data/.config.yaml
+sudo sha256sum data/.config.yaml
+image_id=$(sudo docker image inspect --format '{{.Id}}' claw4-xiaozhi-v6:voice-20261020-01)
+case "$image_id" in sha256:34fb*) ;; *) echo "retained L-20 image identity mismatch; stop" >&2; exit 1 ;; esac
+sudo docker compose -f compose.yaml -f compose.voice-fix.yaml config --quiet
+sudo docker compose -f compose.yaml -f compose.voice-fix.yaml up -d --no-build --pull never --force-recreate xiaozhi
+```
+
+Keep the original `compose.yaml` and the L-20 image available. Do not fall back
+to the upstream Edge TTS 7.2.6 image during this rollback path.
