@@ -1,6 +1,6 @@
 # S-17 Wake model repair 设备证据报告
 
-更新时间：2026-10-18。记录已授权 S-17 模型分区写入、读回、边界核验及首次正确模型启动/同步 Wake 与问题尝试。模型修复和目标模型加载已核验；Wake 被用户观察到，语音应答被 NAS TTS 403 阻断。Preflight 完成轮数仍为 0。
+更新时间：2026-10-20。记录已授权 S-17 模型分区写入、读回、边界核验及后续同步 Wake/语音观察。模型修复和目标模型加载已核验；首次 Preflight 01 未听到答案，后续 Preflight 02 用户报告有响应但较慢且不正确。当前状态 `PREFLIGHT_CHANGES_REQUIRED_SLOW_INCORRECT_RESPONSE`，完成轮数仍为 0。
 
 ## Candidate 与授权范围
 
@@ -28,7 +28,32 @@ AFE 摘要为 381 个输入窗口、6,126,720 samples、RMS max 1,183、peak max
 
 同期只读 NAS 诊断记录 service image `sha256:d8ab77bb1f2b212ee3f1d45fb9d9f9faf953be46c13c70ff6537044dd0b1e27e`、base image `sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc`、config SHA-256 `3e9a54b782b403932607b1a5c1cc54a3bd4146d48bd2cf176de21639ad1d5438`，Compose SHA-256 `8e420b89d0381608b5833078168c53c3c41b741fc9f0e971f2630c6d3d488f91`。EdgeTTS 版本 7.2.6；在检查的 30 分钟 Docker 日志窗口观察到 25 条 HTTP 403 warning。直接合成 Ollama 请求返回预期数值 `2`，但不是完整端到端 TTS 证明。结合无可听答案，当前归类为 `WAKE_OBSERVED / VOICE_BLOCKED_NAS_TTS_403`。Root 将通过独立 L-17 处理 NAS 依赖；在其另行验证前不得记为已修复。此现场结果不判定其他 Voice/AEC 根因。
 
-当前状态 `PREFLIGHT_IN_PROGRESS / completed rounds=0`。正式连续 20 轮尚未开始；不宣称完整语音问答成功、AEC 有效或 M1 PASS。M0 仍为 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。S08/S11/S15 等旧 Candidate 设备结果不继承到 S17。
+### Preflight 02：NAS 修复后的同步用户观察
+
+`preflight-02` 在未重刷 S-17 app/model 的情况下，经显式 USB reset（不是冷启动）连续捕获 600.014 秒，按 `max_seconds` 正常结束且无串口错误；COM7 随后已释放。运行时仍为 S-17 app/model。NAS 绑定已更新的 EdgeTTS 7.3.1 image；本窗口观察到 0 个 HTTP 403，但有 3 次 NAS interrupt。独立 NAS provider probe 通过不等同于设备端播放验证。
+
+用户报告本轮有响应，但较慢且回答不正确；尚无进一步的用户描述可精确说明实际听到的内容或主观延迟，故不推测。摘要记录 585 个输入窗口、9,404,640 mic samples、RMS max 1,377、peak max 14,038、I2S read failures 0、crash markers 0；AFE detected 总数 1，feed chunks/fetch OK 均 18,361，fetch failures 0。控制摘要为 `on_total=1/on_rc=1/off_total=6/off_rc=0`；各返回码只在对应调用计数大于 0 时有调用含义。状态时间线在 501,267 ms 记录回到 listening，556,615 ms 再记录 listening→speaking；不能据此称最终回到 idle 或 Wake recovery/next Wake 已验证，且没有 next-wake marker。
+
+安全时间线标记：受控问题 ASR marker 在 439,032 ms；首个后续 TTS marker 在 445,914 ms；另有 3 个 ASR marker 在 447,779、450,985、452,490 ms；匹配预期数学答案文本的 TTS marker 在 494,463 ms。状态时间线在 501,267 ms 记录 speaking→listening，556,615 ms 再记录 listening→speaking；没有 next-wake marker，不能称最终状态为 idle 或 Wake recovery 已验证。用户反馈为有响应但慢且答错。Marker 只表示解析到的文本/状态事件，不证明对应音频实际播放或用户听到；echo-screen 的相似度也不是内容或播放确认。额外 ASR 的来源未明，不能据此判断 AEC、near-end 或中断根因。NAS provider latency 旧探针证据见 [L-18 NAS TTS repair report](V6_M1_NAS_TTS_REPAIR_REPORT.md)：截至本次 L-19 证据冻结，记录的 native Ollama 探针以 exit 1 结束且结果为 null，错误详情未保留；先前 production Ollama provider 请求在 90 秒总超时后以 exit 124 结束，表示请求未完成，不足以测定首字延迟。该旧探针不能确认 `think=false` 对照或定位延迟根因；后续 10/20 新探针是独立证据，另行记录。
+
+本次结果不是通过的 Preflight round：`PREFLIGHT_CHANGES_REQUIRED_SLOW_INCORRECT_RESPONSE`，completed rounds `0/2–3`。正式连续 20 轮未开始；AEC、playback、near-end、next Wake 均 `NOT_VERIFIED`，M1 未验收。M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。S08/S11/S15 等旧 Candidate 设备结果不继承到 S17。
+
+本次安全摘要及哈希（私有路径 `E:/v6/s17-device-20261018-01/`；raw/index 仅计算哈希，未读取内容）：
+
+| 证据 | 字节 | SHA-256 |
+| --- | ---: | --- |
+| `preflight-02-state.json` | 295 | `ee3128e0cd1123eac0a6bffc1f663cb8836e52a880d2ac6fe3e8baf55e7ba0b7` |
+| `preflight-02-summary.json` | 1,474 | `6a18357db3b4328a39f869a12981f84af798964ae55849d58518099f3837d421` |
+| `preflight-02-safe-timeline.json` | 3,815 | `38fd15c6b7b9a356a8ee719485fc9ea1bb3e4a9fe1807e877b88a247ddd1c352` |
+| `preflight-02-echo-screen.json` | 1,406 | `fc388e7cf2e8305317ca69fd4be3fdd352e69d1a917b4f4360ae00e236575633` |
+| `preflight-02-nas-safe-events.json` | 3,849 | `12453d776983cd8383c23ba99a7dbd98f2547485a417c07d0db55ce28aae9502` |
+| `preflight-02-environment.json` | 2,245 | `2a1731e2577ae3e37200dea05ecaf57d43df4d8869a57238e483745fef55903c` |
+| `preflight-02-operator-events.jsonl` | 342 | `42bb95ae483e255a56ce2533d1e329e628dd1efcd5180ffb713cdee650ddc2e7` |
+| `preflight-02-index.jsonl` | 492,472 | `ea9b3aa743224b0a64a6bfe71ae949d3f9846b40e61fe024e706c77c5668c4f7` |
+| `preflight-02.raw` | 347,829 | `9b56c2353f7d6a74d499813d34834bacd2fafe34f0382adac872dbeecb7f1a93` |
+| `ollama-latency-native-probe.json` | 233 | `f8789d183a6982b6dd37fd32e34e81947738c7298defd73d624d0751b74e2f04` |
+
+S17 model/app 身份延续写入后已核验身份；本次环境 JSON SHA-256 与 NAS-safe-events JSON SHA-256 分别为上表所列。原始 UART、语音、转写、凭据和日志文本未写入报告。
 
 ## 证据索引
 
@@ -51,4 +76,4 @@ AFE 摘要为 381 个输入窗口、6,126,720 samples、RMS max 1,183、peak max
 | `preflight-01.raw` | 231,729 | `8e23fb82f300cdc6f8577a40c77a89e4cc987e986133addb74867013f0972d6f` |
 | `nas-diagnostic-summary.json` | 698 | `ebd7346496d37613922395d0f89a078f87e7af2feddcbe17f2320dbdf41cbcc1` |
 
-`HARDWARE_VERIFY_REQUIRED`: the first user-synchronized attempt is recorded but is incomplete because no audible answer was observed. Resolve and independently verify the NAS TTS dependency before another voice attempt; extending the explicitly approved model write or same-partition rollback scope requires separate authorization.
+`HARDWARE_VERIFY_REQUIRED`: Preflight 02 response quality and actual playback remain unresolved; user feedback says the response was slow and incorrect, and parsed text markers are not playback proof. Await the user's description and ongoing S18/NAS latency diagnostics before assigning a root cause. Any expansion of the already-approved model write or same-partition rollback scope requires separate authorization.
