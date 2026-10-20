@@ -1,3 +1,5 @@
 **
 !Dockerfile.edge-tts
+!Dockerfile.voice
 !edge-tts.requirements.txt
+!patch_ollama_voice.py

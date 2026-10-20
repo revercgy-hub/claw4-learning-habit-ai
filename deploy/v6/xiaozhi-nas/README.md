@@ -63,4 +63,53 @@ with:
 sudo docker compose -f compose.yaml up -d --no-build --pull never --force-recreate xiaozhi
 ```
 
+## Ollama Qwen voice response repair
+
+The optional `compose.voice-fix.yaml` builds a separate image from the same
+digest-pinned XiaoZhi v0.9.6 base. `Dockerfile.voice` repeats the reviewed,
+hash-locked Edge TTS 7.3.1 installation and applies a bounded patch to the
+upstream Ollama provider. The patch script first requires the exact provider
+source SHA-256 `0ce07df5f7f72b9e3a4ae4086eb62b4cc94f75ac5526ddda41a6600f335b6aa6`,
+then checks each source anchor before changing it. The exact source fixture is
+kept at `tools/v6/fixtures/ollama_provider_v096.py`; it was copied byte for byte
+from the read-only v0.9.6 NAS source capture
+`E:/v6/nas-latency-20261020-01/upstream-ollama-v096.py` and its hash is checked
+by the Host tests.
+
+For Qwen3-family models, the patched provider sends `reasoning_effort="none"`
+through the OpenAI-compatible API and caps responses at 128 tokens with
+temperature 0.3. Qwen3.5 no longer receives the ineffective `/no_think` text
+prefix; older Qwen3 keeps that prefix on a deep copy of the dialogue. Other
+models do not receive `reasoning_effort`. The existing stream, content/tool
+call handling, and model/LLM/TTS/ASR selection stay in place. The OpenAI client
+uses a 20-second request timeout and zero automatic retries. The timeout
+bounds HTTP request waiting; it is not a hard end-to-end wall-clock deadline
+for consuming a streamed response.
+
+Build and exercise the candidate with synthetic content before rollout:
+
+```sh
+cd /vol2/1008/docker/xiaozhi-v6
+sudo docker compose -f compose.yaml -f compose.voice-fix.yaml config --quiet
+sudo docker compose -f compose.yaml -f compose.voice-fix.yaml build xiaozhi
+```
+
+Record the image ID and merged Compose configuration, then run the existing
+synthetic Voice probe and validate the provider behavior before applying the
+overlay to only `xiaozhi`. The root task owner performs NAS build, probe, and
+rollout; this repository change does not claim those checks have run.
+
+There are two rollback levels. To remove only the Ollama patch while retaining
+the Edge TTS 7.3.1 repair, use the previous TTS-fix overlay and its image:
+
+```sh
+sudo docker compose -f compose.yaml -f compose.edge-tts-fix.yaml up -d --no-build --pull never --force-recreate xiaozhi
+```
+
+To return to the upstream server image as well, use the original Compose file:
+
+```sh
+sudo docker compose -f compose.yaml up -d --no-build --pull never --force-recreate xiaozhi
+```
+
 The WebSocket endpoint is `ws://192.168.3.100:7444/xiaozhi/v1/`. Port 7443 remains plain HTTP; this port change does not add TLS. A running container, OTA response, and WebSocket handshake prove service reachability only. M1 acceptance still requires the same Candidate and service configuration to pass the 20-round voice and fault matrix in `docs/v6/V6_M1_XIAOZHI_NAS_VOICE.md`.
