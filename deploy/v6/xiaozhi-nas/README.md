@@ -133,6 +133,15 @@ answers, command routing, or emotion analysis. The override adds only the
 TTS, auth, endpoint, ports, and the existing prompt text remain as configured.
 The generic upstream `agent-base-prompt.txt` is unchanged.
 
+This Compose overlay also maps `host.docker.internal` to the NAS LAN address
+`192.168.3.100` for the `xiaozhi` container only. The previous Docker
+`host-gateway` route resolved to `172.17.0.1`, where Ollama port 11434 refused
+connections; the NAS LAN address is the verified route. This is a container
+hostname-routing change only. It does not change Ollama, the provider URL or
+model, ASR/TTS, authentication, prompt, ports, or any other service. The
+existing `claw4-xiaozhi-v6:voice-asr-20261020-01` image remains reusable; this
+mapping does not require a rebuild.
+
 Before changing the NAS-local `data/.config.yaml`, retain a private owner-only
 backup and enforce the compare-and-swap guard against the expected original
 configuration hash. Do not print or copy the configuration into logs or Git:
@@ -173,7 +182,14 @@ For rollback, validate the retained L-20 image and private backup, and compare
 the current config against the expected pre-rollback SHA-256 before changing
 anything. Any mismatch stops the procedure. After restoring the backup, enforce
 its full SHA-256 and confirm the resolved Compose image maps to the exact
-retained L-20 image ID before recreating the service:
+retained L-20 image ID before recreating the service. Keep the repaired host
+route during rollback: the old `host-gateway` mapping is unreachable from this
+NAS. The root NAS owner keeps a private one-key Compose overlay at
+`evidence/asr-prompt-20261106-01/compose.rollback-route.yaml`; it must contain
+only the `xiaozhi` mapping `host.docker.internal:192.168.3.100`. Validate the
+merged configuration and confirm it contains exactly one mapping for that
+hostname to `192.168.3.100`, with no `host-gateway` residue. Do not use
+`compose.yaml` or `compose.voice-fix.yaml` alone for rollback.
 
 ```sh
 set -eu
@@ -192,12 +208,13 @@ current_config_sha=$(sudo sha256sum data/.config.yaml | awk '{print $1}')
 sudo cp -a "$backup" data/.config.yaml
 restored_config_sha=$(sudo sha256sum data/.config.yaml | awk '{print $1}')
 [ "$restored_config_sha" = "$expected_backup_sha" ] || { echo "restored config SHA mismatch; stop" >&2; exit 1; }
-sudo docker compose -f compose.yaml -f compose.voice-fix.yaml config --quiet
-resolved_image=$(sudo docker compose -f compose.yaml -f compose.voice-fix.yaml config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["xiaozhi"]["image"])')
+rollback_route_overlay=evidence/asr-prompt-20261106-01/compose.rollback-route.yaml
+sudo docker compose -f compose.yaml -f compose.voice-fix.yaml -f "$rollback_route_overlay" config --quiet
+resolved_image=$(sudo docker compose -f compose.yaml -f compose.voice-fix.yaml -f "$rollback_route_overlay" config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["xiaozhi"]["image"])')
 [ -n "$resolved_image" ] || { echo "resolved Compose image missing; stop" >&2; exit 1; }
 resolved_image_id=$(sudo docker image inspect --format '{{.Id}}' "$resolved_image")
 [ "$resolved_image_id" = "$expected_image_id" ] || { echo "resolved Compose image identity mismatch; stop" >&2; exit 1; }
-sudo docker compose -f compose.yaml -f compose.voice-fix.yaml up -d --no-build --pull never --force-recreate xiaozhi
+sudo docker compose -f compose.yaml -f compose.voice-fix.yaml -f "$rollback_route_overlay" up -d --no-build --pull never --force-recreate xiaozhi
 ```
 
 Keep the original `compose.yaml` and the L-20 image available. Do not fall back
