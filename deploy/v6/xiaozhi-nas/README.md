@@ -235,3 +235,31 @@ sudo docker compose -f compose.yaml -f compose.voice-fix.yaml -f "$rollback_rout
 
 Keep the original `compose.yaml` and the L-20 image available. Do not fall back
 to the upstream Edge TTS 7.2.6 image during this rollback path.
+
+## Connection-time Ollama preload candidate
+
+`compose.prewarm.yaml` is an additional, unrolled candidate overlay. Resolve it
+in this order: `compose.yaml`, `compose.asr-voice-fix.yaml`, then
+`compose.prewarm.yaml`. The accepted ASR overlay supplies the LAN host alias;
+the last overlay changes only the image tag and build recipe. The candidate
+starts from the same digest-pinned upstream image and retains the hashed Edge
+TTS repair, Ollama and ASR patches, and prompt. It adds a hash-guarded private
+connection hook and helper. The accepted `9cd9…` image and `e568…` config stay
+unchanged until independent review and root-owned isolated validation.
+
+After an authenticated connection passes the `need_bind` guard, the helper may
+schedule one daemon worker for the reviewed local Ollama host and `qwen3.5:2b`.
+It checks residency, verifies the installed model digest, and makes one native
+empty-prompt generation request only when needed. It sends no speech, chat or
+history; no keep-alive or generation options; and does not pull models. Failures
+do not stop normal initialization. HTTP response bodies are capped at 64 KiB
+and each socket operation has a 3-second timeout. This is **not** a strict
+wall-clock deadline: a peer that continuously drips data can occupy the sole
+worker longer, but further connections cannot accumulate workers. Only status,
+duration, load duration and error class are logged.
+
+Root should validate the three-file Compose merge, retained LAN alias, exact
+image ID and config SHA, then run isolated synthetic probes before considering
+rollout. A rollback must use the accepted ASR overlay so the LAN alias remains;
+base Compose alone restores the old gateway mapping. Never use this candidate
+as evidence for the earlier runtime or device sessions.
