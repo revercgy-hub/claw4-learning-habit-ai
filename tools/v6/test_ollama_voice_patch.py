@@ -217,7 +217,16 @@ class OllamaVoicePatchTests(unittest.TestCase):
         dockerignore = (deploy / ".dockerignore").read_text(encoding="utf-8").splitlines()
         self.assertEqual(
             dockerignore,
-            ["**", "!Dockerfile.edge-tts", "!Dockerfile.voice", "!edge-tts.requirements.txt", "!patch_ollama_voice.py"],
+            [
+                "**",
+                "!Dockerfile.edge-tts",
+                "!Dockerfile.voice",
+                "!Dockerfile.asr-voice",
+                "!edge-tts.requirements.txt",
+                "!patch_ollama_voice.py",
+                "!patch_asr_voice.py",
+                "!claw4-m1-voice-prompt.txt",
+            ],
         )
         dockerfile = (deploy / "Dockerfile.voice").read_text(encoding="utf-8")
         self.assertIn("server_0.9.6@sha256:9cf52d6b79c9d157356aba2c8bf1db645c2d2db4f14720c28128920020addccc", dockerfile)
