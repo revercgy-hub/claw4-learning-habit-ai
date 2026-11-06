@@ -1,0 +1,6 @@
+services:
+  xiaozhi:
+    image: claw4-xiaozhi-v6:voice-prewarm-20261106-01
+    build:
+      context: .
+      dockerfile: Dockerfile.prewarm

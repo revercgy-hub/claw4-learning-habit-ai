@@ -226,6 +226,9 @@ class OllamaVoicePatchTests(unittest.TestCase):
                 "!patch_ollama_voice.py",
                 "!patch_asr_voice.py",
                 "!claw4-m1-voice-prompt.txt",
+                "!Dockerfile.prewarm",
+                "!patch_ollama_prewarm.py",
+                "!claw4_ollama_prewarm.py",
             ],
         )
         dockerfile = (deploy / "Dockerfile.voice").read_text(encoding="utf-8")

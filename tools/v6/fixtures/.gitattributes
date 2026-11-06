@@ -1,2 +1,3 @@
 ollama_provider_v096.py -text
 asr_base_v096.py -text
+connection_v096.py -text
