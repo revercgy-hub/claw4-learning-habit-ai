@@ -76,6 +76,16 @@ I (4) app_init: ELF file SHA256:  123456789...
         self.assertEqual(result["candidate_anchor_prefixes"],
                          ["123456789", "abcdef123", "fedcba987", "123456789"])
 
+    def test_startup_identity_accepts_exact_production_v6m0_record_only(self):
+        result = summarize("\n".join((
+            "I (10) V6M0: CANDIDATE_ELF_SHA256=123456789abcdef",
+            "I (11) OtherTag: CANDIDATE_ELF_SHA256=abcdef123",
+            "I (12) V6M0: CANDIDATE_ELF_SHA256=abcdef123 private=secret",
+            "I (13) Application: transcript V6M0: CANDIDATE_ELF_SHA256=abcdef123",
+        )))
+        self.assertEqual(result["candidate_anchor_count"], 1)
+        self.assertEqual(result["candidate_anchor_prefixes"], ["123456789abcdef"])
+
     def test_never_emits_unknown_lines_or_private_text(self):
         secret = "private speech password=topsecret"
         result = summarize(secret + "\nI (4) Guru Meditation Error")
