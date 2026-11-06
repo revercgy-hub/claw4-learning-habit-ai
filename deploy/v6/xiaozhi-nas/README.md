@@ -253,8 +253,11 @@ It checks residency, verifies the installed model digest, and makes one native
 empty-prompt generation request only when needed. It sends no speech, chat or
 history; no keep-alive or generation options; and does not pull models. Failures
 do not stop normal initialization. HTTP response bodies are capped at 64 KiB
-and each socket operation has a 3-second timeout. This is **not** a strict
-wall-clock deadline: a peer that continuously drips data can occupy the sole
+and each residency/installed-model probe has a 3-second socket timeout. The
+empty generation preload has a 15-second socket timeout, leaving margin over
+the observed 5.577-second cold request. These are per-operation/read timeouts,
+**not** a strict whole-worker wall-clock deadline: a peer that continuously
+drips data can occupy the sole
 worker longer, but further connections cannot accumulate workers. Only status,
 duration, load duration and error class are logged.
 

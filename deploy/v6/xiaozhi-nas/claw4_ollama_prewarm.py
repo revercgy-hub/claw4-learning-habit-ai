@@ -17,7 +17,8 @@ MODEL_DIGEST = "324d162be6ca5629ae4517c8710434d0bd2d665bc94dbad46e9af8fbf8a2f0df
 HOST = "host.docker.internal"
 PORT = 11434
 LIMIT = 65536
-SOCKET_TIMEOUT = 3.0
+PROBE_TIMEOUT = 3.0
+PRELOAD_TIMEOUT = 15.0
 _lock = threading.Lock()
 _in_flight = False
 _log = logging.getLogger(__name__)
@@ -62,7 +63,8 @@ def _json_request(base, path, payload=None):
     request = Request(base + path, data=body,
                       headers={"Content-Type": "application/json"} if body is not None else {},
                       method="POST" if body is not None else "GET")
-    with _opener.open(request, timeout=SOCKET_TIMEOUT) as response:
+    timeout = PRELOAD_TIMEOUT if path == "/api/generate" else PROBE_TIMEOUT
+    with _opener.open(request, timeout=timeout) as response:
         if response.status != 200:
             raise ValueError("http_status")
         raw = response.read(LIMIT + 1)
