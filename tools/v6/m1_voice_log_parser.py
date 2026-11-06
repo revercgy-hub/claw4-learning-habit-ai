@@ -5,7 +5,15 @@ import re
 from pathlib import Path
 
 LINE = re.compile(r"^[IWEVD] \((\d+)\) (.*)$")
-ANCHOR = re.compile(r"CANDIDATE_ELF_SHA256=([0-9a-fA-F]{9,64})")
+# Candidate identity is an aggregate hint only. Accept the exact historical
+# tagless M0 record body, or ESP-IDF's exact app_init startup identity line.
+# Do not search arbitrary log messages: transcripts and unknown emitters may
+# contain marker-like text.
+LEGACY_ANCHOR = re.compile(r"^CANDIDATE_ELF_SHA256=([0-9a-fA-F]{9,64})$")
+APP_INIT_ELF = re.compile(
+    r"^[IWEVD] \((\d{1,10})\) app_init: ELF file SHA256:  "
+    r"([0-9a-fA-F]{9,64})(\.\.\.)?$"
+)
 HEALTH = re.compile(r"V6M0: HEALTH free=(\d+) psram=(\d+) wake=(\d+) taps=(\d+)")
 WAKE = re.compile(r"V6M0: WAKE_DETECTED .*count=(\d+)")
 FAILURE = re.compile(r"abort\(\) was called|assert failed|Guru Meditation Error")
@@ -135,7 +143,16 @@ def summarize(text):
                     result["m1_afe_control_last"] = snapshot
         match = LINE.match(line)
         msg = match.group(2) if match else line
-        anchors = ANCHOR.findall(msg)
+        anchors = []
+        if len(line) <= MAX_UART_LINE_CHARS:
+            legacy = LINE.fullmatch(line)
+            if legacy and legacy.group(2).startswith("CANDIDATE_ELF_SHA256="):
+                anchor = LEGACY_ANCHOR.fullmatch(legacy.group(2))
+                if anchor and int(legacy.group(1)) <= MAX_U32:
+                    anchors.append(anchor.group(1))
+            app_init = APP_INIT_ELF.fullmatch(line)
+            if app_init and int(app_init.group(1)) <= MAX_U32:
+                anchors.append(app_init.group(2))
         result["candidate_anchor_count"] += len(anchors)
         result["candidate_anchor_prefixes"].extend(a.lower() for a in anchors)
         if "V6M0: BOOT_READY" in msg:
