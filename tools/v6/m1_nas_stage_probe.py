@@ -14,7 +14,6 @@ import unicodedata
 import math
 import contextlib
 import io
-import logging
 from pathlib import Path
 import subprocess
 import sys
@@ -40,8 +39,9 @@ def digest(data: bytes) -> str:
 
 def _safe_relation(answer: str) -> str:
     compact = unicodedata.normalize("NFKC", answer).translate(str.maketrans("零一二三四五六七八九", "0123456789"))
-    compact = re.sub(r"[\s，。？！,?!:：=是]+", "", compact)
-    return "expected_match" if compact in {"1+1等于2", "1+1等于二", "一加一等于2", "一加一等于二", "2", "二"} else "no_match"
+    compact = compact.replace("加", "+").replace("等于", "=")
+    compact = re.sub(r"[\s，。？！,?!:：是]+", "", compact)
+    return "expected_match" if compact in {"1+1=2", "2", "二"} else "no_match"
 
 
 def selected_provider_configs(config):
@@ -49,9 +49,9 @@ def selected_provider_configs(config):
     return config["LLM"][selected["LLM"]], config["TTS"][selected["TTS"]]
 
 
-def profile_runtime(llm, tts, decoder, question, clock=time.monotonic):
+def profile_runtime(llm, tts, decoder, question, system_prompt, clock=time.monotonic):
     t0=clock(); first=None; chunks=[]
-    for chunk in llm.response("l28-synthetic", [{"role":"user","content":question}]):
+    for chunk in llm.response("l28-synthetic", [{"role":"system","content":system_prompt}, {"role":"user","content":question}]):
         if first is None: first=clock()
         chunks.append(str(chunk))
     complete=clock(); answer="".join(chunks)
@@ -88,15 +88,19 @@ def profile_runtime(llm, tts, decoder, question, clock=time.monotonic):
         tts.to_tts_stream(answer, on_frame)
     finally:
         communicate_type.stream=original_stream
-    end=clock(); metrics["tts_request_count"]=len(req_times)//2
-    if not frames: raise ValueError("empty_opus")
+        tts.text_to_speak=original_tts
+    metrics["tts_request_count"]=len(req_times)//2
+    if not frames or not req_times or audio_first is None: raise ValueError("empty_tts_stage")
     metrics["tts_first_mp3_chunk_ms"]=None if audio_first is None else (audio_first-started)*1000
-    metrics["tts_request_ms"]=(end-started)*1000
+    metrics["tts_request_ms"]=(req_times[-1]-started)*1000
     metrics["opus_first_frame_ms"]=(opus_first-started)*1000
     blob=b"".join(frames); metrics["opus_frames"]=len(frames); metrics["opus_bytes"]=len(blob); metrics["opus_sha256"]=digest(blob)
     samples=0; decoder_errors=[]
     for frame in frames:
-        try: samples += len(decoder.decode(frame, 960))
+        try:
+            pcm = decoder.decode(frame, 960)
+            if len(pcm) % 2: raise ValueError("odd_pcm")
+            samples += len(pcm) // 2
         except Exception as exc: decoder_errors.append(type(exc).__name__)
     metrics["opus_decoded_samples"]=samples
     metrics["opus_decode_error_class"]=decoder_errors[0] if decoder_errors else None
@@ -126,9 +130,11 @@ def _worker(root: Path, prompt: Path) -> dict:
         # before importing providers so payload-bearing logs cannot reach files.
         from loguru import logger
         logger.remove()
+        logger.disable("")
         from config.config_loader import load_config
         import asyncio
         config = asyncio.run(load_config())
+        logger.remove()
         from core.utils.prompt_manager import PromptManager
         rendered = PromptManager(config).build_enhanced_prompt(config["prompt"], "l28-synthetic", None)
         llm_cfg,tts_cfg=selected_provider_configs(config)
@@ -147,7 +153,7 @@ def _worker(root: Path, prompt: Path) -> dict:
         tts.conn=SimpleNamespace(sample_rate=16000)
         tts.opus_encoder=OpusEncoderUtils(sample_rate=16000,channels=1,frame_size_ms=60)
         decoder=opuslib_next.Decoder(16000,1)
-        metrics=profile_runtime(provider,tts,decoder,QUESTION)
+        metrics=profile_runtime(provider,tts,decoder,QUESTION,rendered)
         result={"status":"OK","source_sha256":hashes,"prompt_chars":len(rendered),"model_matches":True,
                 **metrics,"tts_scope":"serialized_synthetic_provider_not_live_pipeline_or_device"}
         result["worker_elapsed_ms"] = round((time.monotonic()-started)*1000,2)
@@ -155,6 +161,60 @@ def _worker(root: Path, prompt: Path) -> dict:
     except BaseException as exc:
         return {"status":"ERROR", "error_class":type(exc).__name__, "source_sha256":hashes,
                 "worker_elapsed_ms":round((time.monotonic()-started)*1000,2)}
+
+
+HASH_KEYS = set(SOURCE_HASHES)
+OK_FIELDS = {"status","source_sha256","prompt_chars","model_matches","llm_first_yield_ms",
+             "llm_complete_ms","generated_chars","generated_sha256","expected_relation",
+             "tts_request_count","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms",
+             "opus_frames","opus_bytes","opus_sha256","opus_decoded_samples",
+             "opus_decode_error_class","tts_scope","worker_elapsed_ms"}
+
+
+def _valid_hash(value):
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _valid_elapsed(value):
+    return type(value) in (int, float) and math.isfinite(value) and 0 <= value <= 60000
+
+
+def _valid_worker_output(data):
+    if not isinstance(data, dict): return False
+    status = data.get("status")
+    if status == "SOURCE_UNAVAILABLE":
+        return (set(data) == {"status", "error_class"} and isinstance(data["error_class"], str)
+                and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]{0,79}", data["error_class"]) is not None)
+    if status == "SOURCE_MISMATCH":
+        return set(data) == {"status", "source_sha256"} and _valid_sources(data["source_sha256"])
+    if status == "CONFIG_MISMATCH":
+        return (set(data) == {"status", "source_sha256", "prompt_chars", "model_matches"}
+                and _valid_sources(data["source_sha256"]) and data["source_sha256"] == SOURCE_HASHES
+                and type(data["prompt_chars"]) is int
+                and 0 <= data["prompt_chars"] <= 100000 and data["model_matches"] is False)
+    if status == "ERROR":
+        return (set(data) == {"status", "error_class", "source_sha256", "worker_elapsed_ms"}
+                and _valid_sources(data["source_sha256"]) and data["source_sha256"] == SOURCE_HASHES
+                and _valid_elapsed(data["worker_elapsed_ms"])
+                and isinstance(data["error_class"], str) and re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]{0,79}", data["error_class"]) is not None)
+    if status != "OK" or set(data) != OK_FIELDS: return False
+    if not _valid_sources(data["source_sha256"]) or data["source_sha256"] != SOURCE_HASHES: return False
+    if data["prompt_chars"] != 177 or data["model_matches"] is not True: return False
+    if data["tts_scope"] != "serialized_synthetic_provider_not_live_pipeline_or_device": return False
+    for key in ("llm_first_yield_ms","llm_complete_ms","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms","worker_elapsed_ms"):
+        if not _valid_elapsed(data[key]): return False
+    if not (data["llm_first_yield_ms"] <= data["llm_complete_ms"]
+            and data["tts_first_mp3_chunk_ms"] <= data["tts_request_ms"]
+            and data["tts_request_ms"] <= data["opus_first_frame_ms"]): return False
+    for key in ("generated_chars","tts_request_count","opus_frames","opus_bytes","opus_decoded_samples"):
+        if type(data[key]) is not int or data[key] <= 0: return False
+    return (_valid_hash(data["generated_sha256"]) and _valid_hash(data["opus_sha256"])
+            and data["expected_relation"] in {"expected_match","no_match"}
+            and data["opus_decode_error_class"] is None)
+
+
+def _valid_sources(value):
+    return isinstance(value, dict) and set(value) == HASH_KEYS and all(_valid_hash(v) for v in value.values())
 
 
 def run_trials(worker, trials: int, timeout: float):
@@ -170,22 +230,10 @@ def run_trials(worker, trials: int, timeout: float):
             continue
         try:
             data=json.loads(p.stdout)
-            if p.returncode or not isinstance(data,dict) or data.get("status") not in {"OK","SOURCE_MISMATCH","SOURCE_UNAVAILABLE","CONFIG_MISMATCH","ERROR"}:
-                raise ValueError()
-            allowed={"status","source_sha256","prompt_chars","model_matches","llm_first_yield_ms","llm_complete_ms","generated_chars","generated_sha256","expected_relation","tts_request_count","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms","opus_frames","opus_bytes","opus_sha256","opus_decoded_samples","opus_decode_error_class","tts_scope","worker_elapsed_ms","error_class"}
-            if set(data)-allowed: raise ValueError()
-            if data["status"]=="OK":
-                required={"source_sha256","prompt_chars","model_matches","llm_first_yield_ms","llm_complete_ms","generated_chars","generated_sha256","expected_relation","tts_request_count","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms","opus_frames","opus_bytes","opus_sha256","opus_decoded_samples","opus_decode_error_class","tts_scope"}
-                if set(data)!=required|{"status"}: raise ValueError()
-                numeric=[data[k] for k in ("llm_first_yield_ms","llm_complete_ms","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms")]
-                if any(v is None or not isinstance(v,(int,float)) or not math.isfinite(v) or v<0 or v>60000 for v in numeric): raise ValueError()
-                if not (data["llm_first_yield_ms"]<=data["llm_complete_ms"] and data["tts_first_mp3_chunk_ms"]>=0 and data["opus_first_frame_ms"]<=data["tts_request_ms"]): raise ValueError()
-                if data["generated_chars"]<=0 or data["opus_frames"]<=0 or data["opus_bytes"]<=0 or data["opus_decoded_samples"]<=0 or data["tts_request_count"]<=0: raise ValueError()
-                if data["opus_decode_error_class"] is not None or data["expected_relation"] not in {"expected_match","no_match"}: raise ValueError()
+            if p.returncode or not _valid_worker_output(data): raise ValueError()
         except Exception:
             rows.append({"trial":index+1,"status":"INVALID_WORKER_OUTPUT"})
             continue
-        data={k:v for k,v in data.items() if k in allowed}
         data["trial"]=index+1
         rows.append(data)
     return rows
@@ -196,11 +244,15 @@ def main():
     ap.add_argument("--trials",type=int,choices=range(1,4),default=1)
     ap.add_argument("--timeout-seconds",type=int,choices=range(1,61),default=45)
     ap.add_argument("--upstream-root",type=Path,default=Path(os.getenv("L28_UPSTREAM_ROOT","/opt/xiaozhi-esp32-server")))
-    ap.add_argument("--prompt-file",type=Path,default=Path(os.getenv("L28_PROMPT_FILE","/opt/xiaozhi-esp32-server/config/prompts/claw4-m1-voice-prompt.txt")))
+    ap.add_argument("--prompt-file",type=Path,default=Path(os.getenv("L28_PROMPT_FILE","/opt/xiaozhi-esp32-server/claw4-m1-voice-prompt.txt")))
     ap.add_argument("--_worker",action="store_true",help=argparse.SUPPRESS)
     a=ap.parse_args()
     if a._worker:
-        print(json.dumps(_worker(a.upstream_root,a.prompt_file),separators=(",",":")))
+        # Provider/config diagnostics may contain the utterance or private config.
+        # Keep their stdout and stderr confined to this disposable process.
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            result = _worker(a.upstream_root,a.prompt_file)
+        print(json.dumps(result,separators=(",",":")))
         return 0
     rows=run_trials((a.upstream_root,a.prompt_file),a.trials,a.timeout_seconds)
     print(json.dumps({"version":VERSION,"scope":"actual_provider_stage_profile_synthetic_only","results":rows},separators=(",",":")))
