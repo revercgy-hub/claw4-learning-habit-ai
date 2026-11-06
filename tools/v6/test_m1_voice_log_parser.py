@@ -36,6 +36,56 @@ I (4) V6M0: WAKE_DETECTED (local only) count=1
         self.assertEqual(result["heap_min_bytes"], 123)
         self.assertTrue(all(x == "NOT_VERIFIED" for x in result["voice_flow"].values()))
 
+    def test_startup_identity_accepts_exact_app_init_emitter_and_legacy_records(self):
+        full = "a" * 64
+        result = summarize("\n".join((
+            "I (601) app_init: ELF file SHA256:  123456789...",
+            f"I (602) app_init: ELF file SHA256:  {full}",
+            "I (603) app_init: ELF file SHA256:  ABCDEF123...",
+            "I (604) CANDIDATE_ELF_SHA256=abcdef123",
+        )))
+        self.assertEqual(result["candidate_anchor_count"], 4)
+        self.assertEqual(result["candidate_anchor_prefixes"],
+                         ["123456789", full, "abcdef123", "abcdef123"])
+        self.assertEqual(result["boot_ready_count"], 0)
+        self.assertTrue(all(value == "NOT_VERIFIED" for value in result["voice_flow"].values()))
+
+    def test_startup_identity_rejects_embedded_malformed_and_unbounded_records(self):
+        logs = "\n".join((
+            "I (1) Application: transcript CANDIDATE_ELF_SHA256=abcdef123",
+            "I (2) app_init: ELF file SHA256:  123456789... extra private text",
+            "I (3) OtherTag: ELF file SHA256:  123456789...",
+            "I (4) app_init: ELF file SHA256:  12345678...",
+            "I (5) app_init: ELF file SHA256:  1234567890" + "a" * 55 + "...",
+            "I (4294967296) app_init: ELF file SHA256:  123456789...",
+            "I (4294967296) CANDIDATE_ELF_SHA256=abcdef123",
+            "I (6) Application: speech CANDIDATE_ELF_SHA256=abcdef123",
+        ))
+        result = summarize(logs)
+        self.assertEqual(result["candidate_anchor_count"], 0)
+        self.assertEqual(result["candidate_anchor_prefixes"], [])
+        self.assertEqual(result["boot_ready_count"], 0)
+
+    def test_startup_identity_counts_repeated_and_mixed_valid_anchors(self):
+        result = summarize("""I (1) app_init: ELF file SHA256:  123456789...
+I (2) app_init: ELF file SHA256:  abcdef123...
+I (3) CANDIDATE_ELF_SHA256=FEDCBA987
+I (4) app_init: ELF file SHA256:  123456789...
+""")
+        self.assertEqual(result["candidate_anchor_count"], 4)
+        self.assertEqual(result["candidate_anchor_prefixes"],
+                         ["123456789", "abcdef123", "fedcba987", "123456789"])
+
+    def test_startup_identity_accepts_exact_production_v6m0_record_only(self):
+        result = summarize("\n".join((
+            "I (10) V6M0: CANDIDATE_ELF_SHA256=123456789abcdef",
+            "I (11) OtherTag: CANDIDATE_ELF_SHA256=abcdef123",
+            "I (12) V6M0: CANDIDATE_ELF_SHA256=abcdef123 private=secret",
+            "I (13) Application: transcript V6M0: CANDIDATE_ELF_SHA256=abcdef123",
+        )))
+        self.assertEqual(result["candidate_anchor_count"], 1)
+        self.assertEqual(result["candidate_anchor_prefixes"], ["123456789abcdef"])
+
     def test_never_emits_unknown_lines_or_private_text(self):
         secret = "private speech password=topsecret"
         result = summarize(secret + "\nI (4) Guru Meditation Error")
