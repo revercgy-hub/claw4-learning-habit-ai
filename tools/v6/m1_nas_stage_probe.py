@@ -9,14 +9,20 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import unicodedata
+import math
+import contextlib
+import io
+import logging
 from pathlib import Path
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 VERSION = 1
-QUESTION = "What is 17 plus 25? Reply with one short sentence."
-EXPECTED_ANSWER = "17 plus 25 is 42."
+QUESTION = "一加一等于几？"
 MODEL = "qwen3.5:2b"
 LLM_TYPE = "ollama"
 TTS_TYPE = "edge"
@@ -24,13 +30,80 @@ SOURCE_HASHES = {
     "ollama": "434751da49b9baf2aa6a1726c2f3202ad79b06a96e7ee27110268366580e22f9",
     "edge": "1b1f46e58a5363d104a363ad1fcf7d3fccc999910e208537c6bafb14664a0281",
     "base": "be741215966d4419a471206d6f8dd9afd7d29dab9bd455bc7b0e5eb10e2c9ca8",
-    "tts_utils": "",  # Not used as a source guard: path is supplied by image layout.
     "prompt": "72d4417d61ee6bcdd5c6361bedcf7659031c1a44276d5743b6af40f070f55f45",
 }
 
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _safe_relation(answer: str) -> str:
+    compact = unicodedata.normalize("NFKC", answer).translate(str.maketrans("零一二三四五六七八九", "0123456789"))
+    compact = re.sub(r"[\s，。？！,?!:：=是]+", "", compact)
+    return "expected_match" if compact in {"1+1等于2", "1+1等于二", "一加一等于2", "一加一等于二", "2", "二"} else "no_match"
+
+
+def selected_provider_configs(config):
+    selected=config["selected_module"]
+    return config["LLM"][selected["LLM"]], config["TTS"][selected["TTS"]]
+
+
+def profile_runtime(llm, tts, decoder, question, clock=time.monotonic):
+    t0=clock(); first=None; chunks=[]
+    for chunk in llm.response("l28-synthetic", [{"role":"user","content":question}]):
+        if first is None: first=clock()
+        chunks.append(str(chunk))
+    complete=clock(); answer="".join(chunks)
+    if not answer.strip(): raise ValueError("empty_llm")
+    metrics={"llm_first_yield_ms":(first-t0)*1000,"llm_complete_ms":(complete-t0)*1000,
+             "generated_chars":len(answer),"generated_sha256":digest(answer.encode()),
+             "expected_relation":_safe_relation(answer),"tts_request_count":0,
+             "tts_first_mp3_chunk_ms":None,"tts_request_ms":None,"opus_first_frame_ms":None,
+             "opus_frames":0,"opus_bytes":0,"opus_sha256":None,"opus_decoded_samples":0,
+             "opus_decode_error_class":None}
+    started=clock(); audio_first=None; opus_first=None
+    # Instrument the actual edge_tts async generator, while delegating every chunk.
+    from core.providers.tts import edge as edge_module
+    communicate_type=edge_module.edge_tts.Communicate
+    original_stream=communicate_type.stream
+    async def measured_stream(instance, *args, **kwargs):
+        nonlocal audio_first
+        async for item in original_stream(instance,*args,**kwargs):
+            if item.get("type")=="audio" and audio_first is None: audio_first=clock()
+            yield item
+    communicate_type.stream=measured_stream
+    req_times=[]; original_tts=tts.text_to_speak
+    async def measured_tts(*args,**kwargs):
+        req_times.append(clock())
+        try: return await original_tts(*args,**kwargs)
+        finally: req_times.append(clock())
+    tts.text_to_speak=measured_tts
+    frames=[]
+    def on_frame(frame):
+        nonlocal opus_first
+        if opus_first is None: opus_first=clock()
+        frames.append(bytes(frame))
+    try:
+        tts.to_tts_stream(answer, on_frame)
+    finally:
+        communicate_type.stream=original_stream
+    end=clock(); metrics["tts_request_count"]=len(req_times)//2
+    if not frames: raise ValueError("empty_opus")
+    metrics["tts_first_mp3_chunk_ms"]=None if audio_first is None else (audio_first-started)*1000
+    metrics["tts_request_ms"]=(end-started)*1000
+    metrics["opus_first_frame_ms"]=(opus_first-started)*1000
+    blob=b"".join(frames); metrics["opus_frames"]=len(frames); metrics["opus_bytes"]=len(blob); metrics["opus_sha256"]=digest(blob)
+    samples=0; decoder_errors=[]
+    for frame in frames:
+        try: samples += len(decoder.decode(frame, 960))
+        except Exception as exc: decoder_errors.append(type(exc).__name__)
+    metrics["opus_decoded_samples"]=samples
+    metrics["opus_decode_error_class"]=decoder_errors[0] if decoder_errors else None
+    if decoder_errors or not samples: raise ValueError("opus_decode")
+    for key,value in list(metrics.items()):
+        if isinstance(value,float): metrics[key]=round(value,2)
+    return metrics
 
 
 def _worker(root: Path, prompt: Path) -> dict:
@@ -41,7 +114,10 @@ def _worker(root: Path, prompt: Path) -> dict:
         "base": root / "core/providers/tts/base.py",
         "prompt": prompt,
     }
-    hashes = {k: digest(p.read_bytes()) for k, p in sources.items()}
+    try:
+        hashes = {k: digest(p.read_bytes()) for k, p in sources.items()}
+    except Exception as exc:
+        return {"status":"SOURCE_UNAVAILABLE","error_class":type(exc).__name__}
     if any(hashes[k] != SOURCE_HASHES[k] for k in hashes):
         return {"status": "SOURCE_MISMATCH", "source_sha256": hashes}
     started = time.monotonic()
@@ -55,49 +131,25 @@ def _worker(root: Path, prompt: Path) -> dict:
         config = asyncio.run(load_config())
         from core.utils.prompt_manager import PromptManager
         rendered = PromptManager(config).build_enhanced_prompt(config["prompt"], "l28-synthetic", None)
-        if len(rendered) != 177 or config.get("llm", {}).get("type") != LLM_TYPE or config.get("tts", {}).get("type") != TTS_TYPE:
+        llm_cfg,tts_cfg=selected_provider_configs(config)
+        if len(rendered) != 177 or llm_cfg.get("type") != LLM_TYPE or tts_cfg.get("type") != TTS_TYPE:
             return {"status": "CONFIG_MISMATCH", "source_sha256": hashes,
                     "prompt_chars": len(rendered), "model_matches": False}
-        model = config.get("llm", {}).get("model_name")
+        model = llm_cfg.get("model_name") or llm_cfg.get("model")
         if model != MODEL:
             return {"status": "CONFIG_MISMATCH", "source_sha256": hashes,
                     "prompt_chars": len(rendered), "model_matches": False}
         from core.providers.llm.ollama.ollama import LLMProvider
-        provider = LLMProvider(config.get("llm"))
-        t0 = time.monotonic()
-        first = None
-        pieces = []
-        for part in provider.response("l28-synthetic", [{"role":"system","content":rendered},{"role":"user","content":QUESTION}]):
-            if first is None:
-                first = time.monotonic()
-            pieces.append(str(part))
-        ended = time.monotonic()
-        answer = "".join(pieces)
-        result = {"status":"OK", "source_sha256":hashes, "prompt_chars":len(rendered),
-                  "model_matches":True, "llm_first_yield_ms":None if first is None else round((first-t0)*1000,2),
-                  "llm_complete_ms":round((ended-t0)*1000,2), "generated_chars":len(answer),
-                  "generated_sha256":digest(answer.encode()),
-                  "expected_relation":"contains_42" if "42" in answer else "no_42",
-                  "tts_first_mp3_chunk_ms":None,"opus_first_frame_ms":None,
-                  "opus_frames":None,"opus_bytes":None,"opus_sha256":None,
-                  "opus_decoded_samples":None,"opus_decode_error_class":None}
-        # Keep the probe bounded and serial: real TTS receives only the first
-        # completed sentence, falling back to the short full answer.
-        sentence = next((s.strip() for s in answer.split(".") if s.strip()), answer.strip())
-        if sentence:
-            from core.providers.tts.edge import TTSProvider
-            tts = TTSProvider(config.get("tts"), delete_audio_file=True)
-            out = Path("/tmp/l28-stage-probe.mp3")
-            tt0 = time.monotonic()
-            asyncio.run(tts.text_to_speak(sentence, str(out)))
-            result["tts_serialized_ms"] = round((time.monotonic()-tt0)*1000,2)
-            result["tts_input_chars"] = len(sentence)
-            result["tts_scope"] = "serialized_synthetic_provider_call_not_device_or_live_pipeline"
-            try: out.unlink(missing_ok=True)
-            except OSError: pass
-        else:
-            result["tts_serialized_ms"] = None
-            result["tts_scope"] = "not_run_empty_llm_answer"
+        from core.providers.tts.edge import TTSProvider
+        from core.utils.opus_encoder_utils import OpusEncoderUtils
+        import opuslib_next
+        provider=LLMProvider(llm_cfg); tts=TTSProvider(tts_cfg, True)
+        tts.conn=SimpleNamespace(sample_rate=16000)
+        tts.opus_encoder=OpusEncoderUtils(sample_rate=16000,channels=1,frame_size_ms=60)
+        decoder=opuslib_next.Decoder(16000,1)
+        metrics=profile_runtime(provider,tts,decoder,QUESTION)
+        result={"status":"OK","source_sha256":hashes,"prompt_chars":len(rendered),"model_matches":True,
+                **metrics,"tts_scope":"serialized_synthetic_provider_not_live_pipeline_or_device"}
         result["worker_elapsed_ms"] = round((time.monotonic()-started)*1000,2)
         return result
     except BaseException as exc:
@@ -118,11 +170,22 @@ def run_trials(worker, trials: int, timeout: float):
             continue
         try:
             data=json.loads(p.stdout)
-            if p.returncode or not isinstance(data,dict) or data.get("status") not in {"OK","SOURCE_MISMATCH","CONFIG_MISMATCH","ERROR"}:
+            if p.returncode or not isinstance(data,dict) or data.get("status") not in {"OK","SOURCE_MISMATCH","SOURCE_UNAVAILABLE","CONFIG_MISMATCH","ERROR"}:
                 raise ValueError()
+            allowed={"status","source_sha256","prompt_chars","model_matches","llm_first_yield_ms","llm_complete_ms","generated_chars","generated_sha256","expected_relation","tts_request_count","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms","opus_frames","opus_bytes","opus_sha256","opus_decoded_samples","opus_decode_error_class","tts_scope","worker_elapsed_ms","error_class"}
+            if set(data)-allowed: raise ValueError()
+            if data["status"]=="OK":
+                required={"source_sha256","prompt_chars","model_matches","llm_first_yield_ms","llm_complete_ms","generated_chars","generated_sha256","expected_relation","tts_request_count","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms","opus_frames","opus_bytes","opus_sha256","opus_decoded_samples","opus_decode_error_class","tts_scope"}
+                if set(data)!=required|{"status"}: raise ValueError()
+                numeric=[data[k] for k in ("llm_first_yield_ms","llm_complete_ms","tts_first_mp3_chunk_ms","tts_request_ms","opus_first_frame_ms")]
+                if any(v is None or not isinstance(v,(int,float)) or not math.isfinite(v) or v<0 or v>60000 for v in numeric): raise ValueError()
+                if not (data["llm_first_yield_ms"]<=data["llm_complete_ms"] and data["tts_first_mp3_chunk_ms"]>=0 and data["opus_first_frame_ms"]<=data["tts_request_ms"]): raise ValueError()
+                if data["generated_chars"]<=0 or data["opus_frames"]<=0 or data["opus_bytes"]<=0 or data["opus_decoded_samples"]<=0 or data["tts_request_count"]<=0: raise ValueError()
+                if data["opus_decode_error_class"] is not None or data["expected_relation"] not in {"expected_match","no_match"}: raise ValueError()
         except Exception:
             rows.append({"trial":index+1,"status":"INVALID_WORKER_OUTPUT"})
             continue
+        data={k:v for k,v in data.items() if k in allowed}
         data["trial"]=index+1
         rows.append(data)
     return rows
