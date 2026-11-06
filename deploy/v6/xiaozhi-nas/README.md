@@ -120,10 +120,9 @@ The WebSocket endpoint is `ws://192.168.3.100:7444/xiaozhi/v1/`. Port 7443 remai
 digest-pinned XiaoZhi v0.9.6 base. `Dockerfile.asr-voice` repeats the hashed
 Edge TTS 7.3.1 install and the exact-source-guarded Ollama patch, then applies
 the separately owned `patch_asr_voice.py` to the upstream ASR base provider and
-copies `claw4-m1-voice-prompt.txt` into the image. The ASR patch input is not
-present in this task's source tree; the root integrator must supply the S-20
-file before building. This package does not claim the integrated image has
-been built or probed.
+copies `claw4-m1-voice-prompt.txt` into the image. The S-20 ASR patch is already
+root-integrated in the build context. This package does not claim the integrated
+image has been built or probed.
 
 The deployment-specific template includes `{{ base_prompt }}` so the existing
 Chinese and privacy instructions remain in the rendered prompt. It adds short
@@ -170,18 +169,34 @@ hash and length). Confirm the NAS environment does not inherit device-specific
 the root NAS owner. The Compose overlay changes only the `xiaozhi` image/build
 and does not add environment variables or ports.
 
-For rollback, restore the private backup to `data/.config.yaml`, verify its
-SHA-256 is again
-`3e9a54b782b403932607b1a5c1cc54a3bd4146d48bd2cf176de21639ad1d5438`, then
-recreate the service using the prior L-20 overlay and verify it resolves to
-the retained Edge TTS 7.3.1 image ID `34fb...` before starting it:
+For rollback, validate the retained L-20 image and private backup, and compare
+the current config against the expected pre-rollback SHA-256 before changing
+anything. Any mismatch stops the procedure. After restoring the backup, enforce
+its full SHA-256 and confirm the resolved Compose image maps to the exact
+retained L-20 image ID before recreating the service:
 
 ```sh
-sudo cp -a /root/xiaozhi-config.pre-asr-voice-20261020-01.yaml data/.config.yaml
-sudo sha256sum data/.config.yaml
+set -eu
+backup=/root/xiaozhi-config.pre-asr-voice-20261020-01.yaml
+expected_image_id=sha256:34fb7e5daa3cf24818b459e95b0eb772063788fc52b331841e5780beed48f0cd
+expected_backup_sha=3e9a54b782b403932607b1a5c1cc54a3bd4146d48bd2cf176de21639ad1d5438
+expected_current_config_sha=e56859eb205c6124c66cc30275d643556c9666e66ec2ceaa1ae4f4f55f344911
+
+backup_sha=$(sudo sha256sum "$backup" | awk '{print $1}')
+[ "$backup_sha" = "$expected_backup_sha" ] || { echo "backup SHA mismatch; stop" >&2; exit 1; }
 image_id=$(sudo docker image inspect --format '{{.Id}}' claw4-xiaozhi-v6:voice-20261020-01)
-case "$image_id" in sha256:34fb*) ;; *) echo "retained L-20 image identity mismatch; stop" >&2; exit 1 ;; esac
+[ "$image_id" = "$expected_image_id" ] || { echo "retained L-20 image identity mismatch; stop" >&2; exit 1; }
+current_config_sha=$(sudo sha256sum data/.config.yaml | awk '{print $1}')
+[ "$current_config_sha" = "$expected_current_config_sha" ] || { echo "current config CAS mismatch; stop" >&2; exit 1; }
+
+sudo cp -a "$backup" data/.config.yaml
+restored_config_sha=$(sudo sha256sum data/.config.yaml | awk '{print $1}')
+[ "$restored_config_sha" = "$expected_backup_sha" ] || { echo "restored config SHA mismatch; stop" >&2; exit 1; }
 sudo docker compose -f compose.yaml -f compose.voice-fix.yaml config --quiet
+resolved_image=$(sudo docker compose -f compose.yaml -f compose.voice-fix.yaml config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["xiaozhi"]["image"])')
+[ -n "$resolved_image" ] || { echo "resolved Compose image missing; stop" >&2; exit 1; }
+resolved_image_id=$(sudo docker image inspect --format '{{.Id}}' "$resolved_image")
+[ "$resolved_image_id" = "$expected_image_id" ] || { echo "resolved Compose image identity mismatch; stop" >&2; exit 1; }
 sudo docker compose -f compose.yaml -f compose.voice-fix.yaml up -d --no-build --pull never --force-recreate xiaozhi
 ```
 
