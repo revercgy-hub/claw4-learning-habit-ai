@@ -1,8 +1,18 @@
 # V6 唯一阶段看板
 
+## 2026-11-06 L-25 NAS ASR/prompt repair（当前 NAS 服务状态）
+
+L-25 source `150fe555a83105ad10852865ec363404f24d9a78`（S-20 `f436a8f` + L-24 `b58e958`）普通 push 并核对远端 SHA；S-20 定向 Host `10/10`、完整 V6 Host `175/175`。R-13 对 L-24 README rollback-guard 修复复审 `PASS`（source `ce19ee77f037c2973c5c835779d2926f81e1a34d`）。L-26 路由修复普通 `extra_hosts` 合并首次被 root guard fail-closed 拒绝，未改 live config/service；随后 Compose `!override` retry 经 R-14 `PASS`（集成 source `426f187c4ec9c916c09e4edebfbdea919ccce7b8`）。生产与回退 overlay 均解析为唯一 NAS host 映射。Root sole-owner 部署无重建、无刷机：image `9cd9…`、config `e568…`、container `5af9aa…`、restart 0、未执行 rollback；manifest exact-byte SHA256 `0b61eca72f33ab98d482dafc1d1f337c0a5a0bf908baf4e0219e1c9007ce7d16`。post-deployment source/Ollama/prompt/model identity checks 与 OTA HTTP 200 / 预期 WS endpoint 通过。两个独立 synthetic WebSocket text cases 均匹配预期答案并收到 TTS stop；binary 4,377/4,622 B，解码 31,680/32,640 samples @16 kHz，decode errors 0，first audio 8,494/2,086 ms，总时长 10,543/4,190 ms。仅 `NAS_SERVICE_VERIFIED` synthetic service path：WS text probe bypasses ASR producer；prompt/cache检查在新 Python process，不是 live server memory。**设备状态没有变化**：Preflight `0/2–3`，正式 20 轮未开始，AEC/near-end/next Wake `NOT_VERIFIED`；无设备测试、Flash 或 rebuild。M0 `CHANGES_REQUIRED`，AP outage/recovery `SKIPPED_BY_USER / NOT_VERIFIED`。见 [L-25 报告](V6_M1_ASR_PROMPT_REPAIR_REPORT.md)。
+
+## 2026-10-20 L-23 S-17 Preflight 03（历史设备状态；NAS 服务状态已由 L-25 更新）
+
+> L-23 的 S-17 device observations remain latest device evidence; L-25 did not run a device test. This entry is superseded only for current NAS service state.
+
 > **SUPERSEDED 历史快照（2026-09-23）**：Candidate19 已构建但未刷机；Candidate17 DEVICE 观察仅属于 Candidate17。Candidate19 没有 DEVICE PASS。旧工具测试统计按发生时间分别为 C19 构建时 68 项、接管基线 83 项（增加 15 项）；均为 Host 工具测试，不是设备验收。AEC NOT PASS；旧 `clipped=0` 计数无效。
 
-## 2026-10-20 L-23 S-17 Preflight 03（当前状态）
+## 2026-10-20 L-23 S-17 Preflight 03（历史设备状态；NAS 服务状态已由 L-25 更新）
+
+> L-23 的 S-17 device observations remain latest device evidence; L-25 did not run a device test. This entry is superseded only for current NAS service state.
 
 L-20 provider 修复后的 `preflight-03` 使用同一 S-17 app/model 与已核验 L-20 NAS image/config；未刷写设备。438.889 秒 UART capture 按 stop file 正常结束、无 serial error，COM7 已释放。用户确认 Wake 并听到包含“1/2”的回答，主观延迟约 5 秒，但正确性不明；ASR 286,062 ms 与 302,063 ms 在中英数字、全半角归一化后匹配受控问题，严格正则未命中是 parser 盲点，不是 ASR 错误。两组 TTS text marker 摘要 hash 相同；时间线 marker 不等于实际音频开始播放或回答正确。用户之后确认还重复提问并说过其他话，因此额外 ASR 不归因于回声。最终观测状态迁移 `speaking→listening`；没有 idle 恢复或 next Wake 证据。NAS runtime 本窗口 HTTP 403 为 0，image/config 与 restart state 未变。状态为 `WAKE_OBSERVED / AUDIBLE_RESPONSE_UNCLEAR / PREFLIGHT_CHANGES_REQUIRED`，Preflight completed `0/2–3`，正式 20 轮未开始；AEC、near-end、next Wake 仍 `NOT_VERIFIED`。NAS provider service verification 保留，但不等同 device Voice PASS。S-19 Sol 的动态 prompt→分段/清洗审计进行中；Root 的 flat system/user synthetic probe 不代表实际连接路径，当前根因未定。M0 仍 `CHANGES_REQUIRED`，AP outage/recovery 仍 `SKIPPED_BY_USER / NOT_VERIFIED`。证据见 [S-17 Preflight 03 report](V6_M1_VOICE_PREFLIGHT03_REPORT.md)。
 
@@ -65,7 +75,8 @@ Candidate20 的 CODE/HOST/BUILD/DEVICE 证据分开记账；Candidate17/18/19 DE
 | L-18-NAS-TTS-EVIDENCE | DOCS_COMPLETE / NAS_TTS_SERVICE_REPAIR_PASS / PREFLIGHT_CHANGES_REQUIRED_SLOW_INCORRECT_RESPONSE (historical device result) | 汇总旧 NAS TTS build/rollout 与 provider probe，并记录 S-17 `preflight-02` 慢且答错的历史观察；L-19 冻结时旧 latency probes 无有效结果，后续 L-20/L-21 另有 provider 修复与探针。本行不覆盖当前 `DEVICE_PREFLIGHT_PENDING`。见 [报告](V6_M1_NAS_TTS_REPAIR_REPORT.md) 与 [S-17 device report](V6_M1_WAKE_MODEL_REPAIR_DEVICE_REPORT.md) |
 | L-20 / R-12 | SOURCE_INTEGRATED / REVIEW_PASS | L-20 source `2e9be855f3382db7f8182adfd197e94f88583e95`，集成 base `531ac23e8ed8608179ad83d42d163c0b8f40efa5`；R-12 `PASS` 仅限 CODE/HOST/readiness；Host `165/0/0/0`，定向 `7/7`。实际 NAS build 与 rollout 由 Root 独立执行，不等于设备验证 |
 | L-21-NAS-VOICE-PROVIDER-EVIDENCE | DOCS_COMPLETE / NAS_VOICE_PROVIDER_SERVICE_VERIFIED | 文档记录 build、rollout、HTTP/WS/service 与 provider synthetic probes；config/model 身份不变，仅 image/build 改变。其设备 pending 状态已由 L-23 更新。见 [报告](V6_M1_NAS_VOICE_PROVIDER_REPAIR_REPORT.md) |
-| L-23-S17-PREFLIGHT03-EVIDENCE | DOCS_COMPLETE / WAKE_OBSERVED / AUDIBLE_RESPONSE_UNCLEAR / PREFLIGHT_CHANGES_REQUIRED | 记录 438.889 秒同步 UART、用户确认 Wake 与可听响应但答题正确性未确认；strict regex parser 缺陷与 normalized ASR 匹配已区分。额外 ASR 不归因于 echo；正式 20 轮未开始，AEC/near-end/next Wake NOT_VERIFIED。见 [报告](V6_M1_VOICE_PREFLIGHT03_REPORT.md) |
+| L-23-S17-PREFLIGHT03-EVIDENCE | DOCS_COMPLETE / WAKE_OBSERVED / AUDIBLE_RESPONSE_UNCLEAR / PREFLIGHT_CHANGES_REQUIRED (historical latest device evidence) | 记录 438.889 秒同步 UART、用户确认 Wake 与可听响应但答题正确性未确认；strict regex parser 缺陷与 normalized ASR 匹配已区分。额外 ASR 不归因于 echo；正式 20 轮未开始，AEC/near-end/next Wake NOT_VERIFIED。L-25 只更新 NAS service 状态，不覆盖本设备证据。见 [报告](V6_M1_VOICE_PREFLIGHT03_REPORT.md) |
+| L-25-NAS-ASR-PROMPT-REPAIR | DOCS_COMPLETE / NAS_SERVICE_VERIFIED / DEVICE_PREFLIGHT_PENDING | S-20 + L-24 integrated source `150fe555a83105ad10852865ec363404f24d9a78`; Host focused `10/10`, V6 full `175/175`; R-13 `PASS` after README fix, L-26 `!override` route correction R-14 `PASS` at `426f187c4ec9c916c09e4edebfbdea919ccce7b8`. Root NAS rollout reused image `9cd9…`, config `e568…`, no build/Flash, restart 0. Manifest SHA `0b61eca72f33ab98d482dafc1d1f337c0a5a0bf908baf4e0219e1c9007ce7d16`; active synthetic WS 2/2 expected-answer/TTS-stop cases, decode errors 0. WS probes bypass ASR producer and do not prove DEVICE. Preflight 0/2–3, formal 20 rounds unstarted, M0 `CHANGES_REQUIRED`, AP recovery `SKIPPED_BY_USER / NOT_VERIFIED`. See [report](V6_M1_ASR_PROMPT_REPAIR_REPORT.md) |
 
 Candidate20 已有有限 DEVICE 日志、会话和 readback 事实，但不满足同候选 M0 完整证据；旧全片备份的分区表不同于当前设备，不能作为当前布局的已验证恢复基线。M0 Gate 保持 `CHANGES_REQUIRED`。M1 主机工具与 NAS 部署/合成连通性已完成；M1 验收仍定义为同一候选、同一服务版本下 NAS 连续语音 20 轮和方案规定的故障测试。旧 relay 学习闭环及 Candidate05–08 的 READY 入口均为 `SUPERSEDED`，不构成当前授权。
 
