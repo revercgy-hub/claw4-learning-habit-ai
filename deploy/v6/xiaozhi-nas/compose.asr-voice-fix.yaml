@@ -1,6 +1,8 @@
 services:
   xiaozhi:
     image: claw4-xiaozhi-v6:voice-asr-20261020-01
+    extra_hosts:
+      - "host.docker.internal:192.168.3.100"
     build:
       context: .
       dockerfile: Dockerfile.asr-voice
