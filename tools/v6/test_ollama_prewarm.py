@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -173,8 +174,38 @@ class PrewarmTests(unittest.TestCase):
         with patch.object(helper._opener,"open",return_value=response) as request:
             with self.assertRaises(ValueError): helper._json_request("http://host.docker.internal:11434","/api/ps")
             self.assertEqual(response.assert_count,helper.LIMIT+1)
-            self.assertEqual(request.call_args.kwargs["timeout"],helper.SOCKET_TIMEOUT)
+            self.assertEqual(request.call_args.kwargs["timeout"],helper.PROBE_TIMEOUT)
         self.assertIsNone(helper._NoRedirect().redirect_request(None,None,302,"",{},"http://foreign"))
+
+    def test_valid_cold_preload_uses_longer_transport_timeout(self):
+        class Response:
+            status = 200
+            def __init__(self, data): self.data = data
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+            def read(self, size):
+                self_outer.assertEqual(size, helper.LIMIT + 1)
+                return json.dumps(self.data).encode("utf-8")
+        self_outer = self
+        calls = []
+        def open_request(request, timeout):
+            path = request.full_url.rsplit("/api/",1)[-1]
+            calls.append((path, timeout))
+            if path == "ps": return Response({"models":[]})
+            if path == "tags":
+                return Response({"models":[{"name":helper.MODEL,"digest":helper.MODEL_DIGEST}]})
+            self.assertEqual(path,"generate")
+            if timeout < 5.6: raise TimeoutError("valid cold load exceeded timeout")
+            self.assertEqual(json.loads(request.data),
+                             {"model":helper.MODEL,"prompt":"","stream":False})
+            return Response({"done":True,"load_duration":4_962_000_000})
+        statuses=[]
+        with patch.object(helper._opener,"open",side_effect=open_request), \
+             patch.object(helper,"_stage",side_effect=lambda *args,**kw: statuses.append((args[0],kw))):
+            helper._work("http://host.docker.internal:11434",helper.MODEL)
+        self.assertEqual(calls,[("ps",3.0),("tags",3.0),("generate",15.0)])
+        self.assertEqual(statuses,[("preloaded",{"load_ms":4962.0})])
+        self.assertFalse(helper._in_flight)
 
     def test_status_logging_is_metadata_only(self):
         messages=[]
