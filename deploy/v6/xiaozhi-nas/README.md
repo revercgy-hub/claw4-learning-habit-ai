@@ -136,11 +136,16 @@ The generic upstream `agent-base-prompt.txt` is unchanged.
 This Compose overlay also maps `host.docker.internal` to the NAS LAN address
 `192.168.3.100` for the `xiaozhi` container only. The previous Docker
 `host-gateway` route resolved to `172.17.0.1`, where Ollama port 11434 refused
-connections; the NAS LAN address is the verified route. This is a container
-hostname-routing change only. It does not change Ollama, the provider URL or
-model, ASR/TTS, authentication, prompt, ports, or any other service. The
-existing `claw4-xiaozhi-v6:voice-asr-20261020-01` image remains reusable; this
-mapping does not require a rebuild.
+connections; the NAS LAN address is the verified route. Compose normally
+merges `extra_hosts` lists, which can leave both the stale `host-gateway` and
+the new LAN entry active. The `!override` tag replaces the list completely;
+it requires Docker Compose 2.24.4 or newer (the NAS has 2.40.3). Verify the
+merged config resolves `xiaozhi.extra_hosts` to exactly the single list entry
+`host.docker.internal=192.168.3.100`, with no `host-gateway` residue. This is a
+container hostname-routing change only. It does not change Ollama, the provider
+URL or model, ASR/TTS, authentication, prompt, ports, or any other service.
+The existing `claw4-xiaozhi-v6:voice-asr-20261020-01` image remains reusable;
+this mapping does not require a rebuild.
 
 Before changing the NAS-local `data/.config.yaml`, retain a private owner-only
 backup and enforce the compare-and-swap guard against the expected original
@@ -176,7 +181,7 @@ selection, and that the rendered prompt reflects the template (record renderer
 hash and length). Confirm the NAS environment does not inherit device-specific
 `DEVICE` state. Use synthetic speech only. These checks and rollout belong to
 the root NAS owner. The Compose overlay changes only the `xiaozhi` image/build
-and does not add environment variables or ports.
+and its exact hostname mapping; it does not add environment variables or ports.
 
 For rollback, validate the retained L-20 image and private backup, and compare
 the current config against the expected pre-rollback SHA-256 before changing
@@ -186,10 +191,21 @@ retained L-20 image ID before recreating the service. Keep the repaired host
 route during rollback: the old `host-gateway` mapping is unreachable from this
 NAS. The root NAS owner keeps a private one-key Compose overlay at
 `evidence/asr-prompt-20261106-01/compose.rollback-route.yaml`; it must contain
-only the `xiaozhi` mapping `host.docker.internal:192.168.3.100`. Validate the
-merged configuration and confirm it contains exactly one mapping for that
-hostname to `192.168.3.100`, with no `host-gateway` residue. Do not use
-`compose.yaml` or `compose.voice-fix.yaml` alone for rollback.
+only this `xiaozhi` override (the `!override` tag is required so the old list
+is replaced):
+
+```yaml
+services:
+  xiaozhi:
+    extra_hosts: !override
+      - "host.docker.internal:192.168.3.100"
+```
+
+Docker Compose 2.24.4 or newer is required for `!override`; the NAS runs
+2.40.3. Validate the merged configuration and normalize the CLI's list-form
+`extra_hosts` before asserting it equals exactly
+`["host.docker.internal=192.168.3.100"]`, with no `host-gateway` residue. Do
+not use `compose.yaml` or `compose.voice-fix.yaml` alone for rollback.
 
 ```sh
 set -eu
