@@ -2,12 +2,12 @@
 
 import hashlib
 import math
+import time
 import unicodedata
 
 
 _RECORDS_ATTR = "_claw4_echo_records"
 _ACTIVE_ATTR = "_claw4_echo_active_sentence"
-_GENERATION_ATTR = "_claw4_echo_generation"
 _MAX_RECORDS = 8
 _MAX_PCM_BYTES = 16_000 * 2 * 3
 _PCM_BYTES_PER_SECOND = 16_000 * 2
@@ -52,47 +52,37 @@ def record_text(conn, sentence_id, text, now=None):
     stamp = _time(now)
     key = _sentence_key(sentence_id)
     digest = _digest(text)
-    generation = getattr(conn, _GENERATION_ATTR, 0) + 1
-    setattr(conn, _GENERATION_ATTR, generation)
     # Starting malformed/short output deliberately detaches prior audio from it.
     setattr(conn, _ACTIVE_ATTR, None)
     if key is None or digest is None or stamp is None:
         return
     history = _records(conn)
-    history[:] = [item for item in history if item["sentence_id"] != key]
-    history.append({"sentence_id": key, "digest": digest, "generation": generation,
-                    "first_send": None, "last_send": None, "finished": False})
+    segment = {"sentence_id": key, "digest": digest, "first_send": None, "last_send": None}
+    history.append(segment)
     del history[:-_MAX_RECORDS]
-    setattr(conn, _ACTIVE_ATTR, key)
+    setattr(conn, _ACTIVE_ATTR, segment)
 
 
 def record_packet(conn, sentence_id, now=None):
     """Record one successfully sent Opus packet for the active sentence."""
     stamp = _time(now)
     key = _sentence_key(sentence_id)
-    if stamp is None or key is None or getattr(conn, _ACTIVE_ATTR, None) != key:
+    segment = getattr(conn, _ACTIVE_ATTR, None)
+    if stamp is None or key is None or segment is None or segment["sentence_id"] != key:
         return
-    for item in reversed(_records(conn)):
-        if item["sentence_id"] == key and not item["finished"]:
-            if item["first_send"] is None:
-                item["first_send"] = stamp
-            elif stamp < item["last_send"]:
-                return
-            item["last_send"] = stamp
-            return
+    last = segment["last_send"]
+    if last is not None and stamp < last:
+        return
+    if last is None:
+        segment["first_send"] = stamp
+    segment["last_send"] = stamp
 
 
 def finish_text(conn, sentence_id):
-    """Stop packet association but retain the bounded record for recent capture."""
-    key = _sentence_key(sentence_id)
-    if key is None:
-        return
-    if getattr(conn, _ACTIVE_ATTR, None) == key:
+    """Detach future packets while retaining recent segment evidence."""
+    segment = getattr(conn, _ACTIVE_ATTR, None)
+    if segment is not None and segment["sentence_id"] == _sentence_key(sentence_id):
         setattr(conn, _ACTIVE_ATTR, None)
-    for item in reversed(_records(conn)):
-        if item["sentence_id"] == key:
-            item["finished"] = True
-            return
 
 
 def snapshot_echoes(conn, capture_end, pcm_bytes):
@@ -128,6 +118,5 @@ def matches_echo(text, snapshot):
 
 def _time(now):
     if now is None:
-        import time
         now = time.monotonic()
     return now if _valid_time(now) else None

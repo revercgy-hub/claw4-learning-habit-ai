@@ -4,3 +4,8 @@ COPY claw4_timer_voice.py claw4_timer_bridge.py /opt/xiaozhi-esp32-server/core/u
 COPY patch_timer_preview.py /tmp/patch_timer_preview.py
 RUN python /tmp/patch_timer_preview.py /opt/xiaozhi-esp32-server/core/connection.py \
     && rm /tmp/patch_timer_preview.py
+
+COPY claw4_echo_guard.py /opt/xiaozhi-esp32-server/core/utils/claw4_echo_guard.py
+COPY patch_echo_guard.py /tmp/patch_echo_guard.py
+RUN python /tmp/patch_echo_guard.py /opt/xiaozhi-esp32-server \
+    && rm /tmp/patch_echo_guard.py

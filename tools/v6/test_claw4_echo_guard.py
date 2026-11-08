@@ -40,6 +40,17 @@ class EchoGuardTests(unittest.TestCase):
         self.assertFalse(echo_guard.matches_echo("现在开始写作业", snap))
         self.assertFalse(echo_guard.matches_echo("请现在开始写作业然后休息", snap))
 
+    def test_two_sent_segments_in_same_sentence_can_overlap_one_capture(self):
+        conn = Conn("s1")
+        first, second = "这是一句足够长度的话", "另外一句同样足够长的话"
+        echo_guard.record_text(conn, "s1", first, now=10.0)
+        echo_guard.record_packet(conn, "s1", now=10.2)
+        echo_guard.record_text(conn, "s1", second, now=10.5)
+        echo_guard.record_packet(conn, "s1", now=10.7)
+        snap = echo_guard.snapshot_echoes(conn, 11.0, 32_000)
+        self.assertTrue(echo_guard.matches_echo(first, snap))
+        self.assertTrue(echo_guard.matches_echo(second, snap))
+
     def test_requires_sent_packet_matching_connection_and_sentence(self):
         conn = Conn("s1")
         echo_guard.record_text(conn, "s1", "这是一句足够长度的话", now=10)

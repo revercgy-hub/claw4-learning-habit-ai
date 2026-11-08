@@ -3,3 +3,5 @@
 !claw4_timer_bridge.py
 !claw4_timer_voice.py
 !patch_timer_preview.py
+!claw4_echo_guard.py
+!patch_echo_guard.py
