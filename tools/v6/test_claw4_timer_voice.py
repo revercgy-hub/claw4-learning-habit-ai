@@ -25,6 +25,12 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(timer_voice.classify("取消番茄钟"), {"action": 3})
         self.assertEqual(timer_voice.classify("番茄钟还剩多久"), {"action": 6})
 
+    def test_timer_homophone_only_matches_full_commands(self):
+        self.assertEqual(timer_voice.classify("开始一分钟番茄中。"), {"action": 0, "minutes": 1})
+        self.assertEqual(timer_voice.classify("暂停番茄中"), {"action": 1})
+        self.assertIsNone(timer_voice.classify("番茄中含有维生素吗"))
+        self.assertIsNone(timer_voice.classify("不要开始一分钟番茄中"))
+
     def test_alarm_explicit_time_and_half(self):
         self.assertEqual(
             timer_voice.classify("设置明天早上七点的闹钟"),

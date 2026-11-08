@@ -51,6 +51,10 @@ def _number(value):
     return (10 if not tens else _DIGITS[tens] * 10) + (0 if not ones else _DIGITS[ones])
 
 
+# ASR can transcribe the final homophone as 中. Use it only in full command patterns.
+_FOCUS_NAME = r"番茄[钟中]"
+
+
 def _clarify(message):
     return {"clarify": message}
 
@@ -66,17 +70,17 @@ def classify(query):
 
     # Control/status phrases are full matches to avoid stealing other requests.
     simple = (
-        (r"(?:暂停|停下)(?:一下)?(?:我的)?番茄钟", {"action": 1}),
-        (r"(?:继续|恢复)(?:我的)?番茄钟", {"action": 2}),
-        (r"取消(?:我的)?番茄钟", {"action": 3}),
-        (r"(?:番茄钟还剩多久|我的番茄钟还剩多久|番茄钟状态|计时器状态)", {"action": 6}),
+        (rf"(?:暂停|停下)(?:一下)?(?:我的)?{_FOCUS_NAME}", {"action": 1}),
+        (rf"(?:继续|恢复)(?:我的)?{_FOCUS_NAME}", {"action": 2}),
+        (rf"取消(?:我的)?{_FOCUS_NAME}", {"action": 3}),
+        (rf"(?:(?:我的)?{_FOCUS_NAME}还剩多久|{_FOCUS_NAME}状态|计时器状态)", {"action": 6}),
         (r"取消(?:的)?闹钟", {"action": 5}),
     )
     for pattern, result in simple:
         if re.fullmatch(pattern, text):
             return result.copy()
 
-    match = re.fullmatch(r"开始(?:(?P<minutes>[0-9零〇一二两三四五六七八九十百]+)分钟)?(?:的)?番茄钟", text)
+    match = re.fullmatch(rf"开始(?:(?P<minutes>[0-9零〇一二两三四五六七八九十百]+)分钟)?(?:的)?{_FOCUS_NAME}", text)
     if match:
         raw = match.group("minutes")
         if raw is None:
@@ -111,7 +115,7 @@ def classify(query):
         return {"action": 4, "hour": hour, "minute": minute, "day_offset": offset}
 
     # Recognized command stems with malformed/missing values need clarification.
-    if re.fullmatch(r"(?:开始|启动).*(?:番茄钟|计时)", text):
+    if re.fullmatch(rf"(?:开始|启动).*(?:{_FOCUS_NAME}|计时)", text):
         return _clarify("请说番茄钟时长，例如：开始25分钟番茄钟。")
     if re.fullmatch(r"取消(?:今天|明天|明早|明晚|今晚).*(?:闹钟)", text):
         return _clarify("设备只能取消当前闹钟，请直接说：取消闹钟。")
