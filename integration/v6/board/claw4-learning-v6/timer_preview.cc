@@ -1,4 +1,5 @@
 #include "timer_preview.h"
+#include "timer_preview_cue.h"
 #include "sdkconfig.h"
 
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
@@ -96,12 +97,10 @@ bool focus_done = false;
 int64_t deadline_ms = 0;
 int64_t remaining_ms = 0;
 int64_t alarm_due = 0;
-int64_t alarm_defer_until = 0;
 int64_t alarm_retry_after = 0;
 bool alarm_visual = false;
-bool alarm_played = false;
-bool focus_chime_pending = false;
-int64_t focus_chime_deadline = 0;
+claw4::TimerPreviewCue focus_cue;
+claw4::TimerPreviewCue alarm_cue;
 lv_obj_t* panel = nullptr;
 lv_obj_t* entry = nullptr;
 lv_obj_t* entry_label = nullptr;
@@ -158,6 +157,7 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
     case 0:
         if (minutes < 1 || minutes > 120) return "invalid_time";
         if (running) return "busy";
+        focus_cue.Cancel();
         remaining_ms = int64_t(minutes) * 60000;
         deadline_ms = now + remaining_ms;
         running = true; paused = false; focus_done = false;
@@ -169,7 +169,7 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
         if (!running || !paused) return "inactive";
         deadline_ms = now + remaining_ms; paused = false; return "ok";
     case 3:
-        running = paused = focus_done = false; remaining_ms = 0; return "ok";
+        running = paused = focus_done = false; remaining_ms = 0; focus_cue.Cancel(); return "ok";
     case 4: {
         if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || day_offset < 0 || day_offset > 1) return "invalid_time";
         if (!storage_ok) return "not_saved";
@@ -184,13 +184,13 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
         if (result == claw4::reminder::AlarmScheduleResult::ClockNotReady) return "clock_not_ready";
         if (result == claw4::reminder::AlarmScheduleResult::InvalidTime) return "invalid_time";
         if (result == claw4::reminder::AlarmScheduleResult::NotSaved) return "not_saved";
-        alarm_due = due; alarm_visual = false; alarm_played = false; alarm_defer_until = alarm_retry_after = 0; return "ok";
+        alarm_due = due; alarm_visual = false; alarm_cue.Cancel(); alarm_retry_after = 0; return "ok";
     }
     case 5:
         if (!storage_ok) return "not_saved";
         if (!AlarmDue()) return "inactive";
         if (!reminders.cancelAlarm(claw4::domain::ChildId{kChild}, AlarmDue())) return "not_saved";
-        alarm_due = 0; alarm_visual = false; alarm_played = false; alarm_defer_until = alarm_retry_after = 0; return "ok";
+        alarm_due = 0; alarm_visual = false; alarm_cue.Cancel(); alarm_retry_after = 0; return "ok";
     case 6: return "ok";
     default: return "invalid_time";
     }
@@ -199,37 +199,49 @@ void Tick() {
     {
         std::lock_guard<std::mutex> lock(state_mutex);
         if (running && !paused && deadline_ms <= Now()) {
-            running = false; remaining_ms = 0; focus_done = true; focus_chime_pending = true;
-            focus_chime_deadline = Now() + 30000;
+            running = false; remaining_ms = 0; focus_done = true;
+            focus_cue.Arm(Now(), 180000);
         }
         auto& app = Application::GetInstance();
-        const bool audio_idle = app.GetDeviceState() == kDeviceStateIdle && app.GetAudioService().IsIdle();
-        if (focus_chime_pending && audio_idle) {
-            app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-            focus_chime_pending = false;
-        } else if (focus_chime_pending && Now() >= focus_chime_deadline) focus_chime_pending = false;
+        const bool audio_idle = app.GetDeviceState() == kDeviceStateIdle &&
+                                app.GetAudioService().IsPlaybackIdle();
+        bool cue_queued_now = false;
         if (storage_ok) {
             alarm_due = AlarmDue();
             auto due = reminders.collectDue(0);
             if (!due.empty()) {
                 alarm_visual = true;
-                if (!alarm_played && audio_idle) {
+                if (!alarm_cue.pending() && !alarm_cue.queued() && !alarm_cue.expired()) alarm_cue.Arm(Now(), 300000);
+                const auto decision = alarm_cue.Poll(Now(), audio_idle);
+                if (decision == claw4::CueDecision::Deferred) ESP_LOGI("Claw4Timer", "ALARM_CUE deferred");
+                if (decision == claw4::CueDecision::Expired) ESP_LOGI("Claw4Timer", "ALARM_CUE expired");
+                if (decision == claw4::CueDecision::Queued) {
                     app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-                    alarm_played = true;
+                    ESP_LOGI("Claw4Timer", "ALARM_CUE queued");
+                    cue_queued_now = true;
                 }
-                if (alarm_played) {
+                if (alarm_cue.queued()) {
                     if (Now() >= alarm_retry_after) {
                         if (reminders.markDelivered(due[0].instance_id, authority.status().epoch_ms.value_or(0))) {
-                            alarm_due = 0; alarm_defer_until = alarm_retry_after = 0;
+                            alarm_due = 0; alarm_retry_after = 0;
                         } else alarm_retry_after = Now() + 5000;
                     }
-                } else if (!alarm_defer_until) alarm_defer_until = Now() + 30000;
-                else if (Now() >= alarm_defer_until) {
-                    if (reminders.markDelivered(due[0].instance_id, authority.status().epoch_ms.value_or(0))) {
-                        alarm_due = 0; alarm_defer_until = alarm_retry_after = 0;
-                    } else alarm_defer_until = Now() + 5000;
                 }
+            } else if (alarm_cue.pending()) {
+                const auto decision = alarm_cue.Poll(Now(), false);
+                if (decision == claw4::CueDecision::Expired) ESP_LOGI("Claw4Timer", "ALARM_CUE expired");
             }
+            if (!alarm_due && (alarm_cue.pending() || alarm_cue.queued() || alarm_cue.expired())) {
+                if (alarm_cue.pending()) ESP_LOGI("Claw4Timer", "ALARM_CUE expired");
+                alarm_cue.Cancel();
+            }
+        }
+        const auto focus_decision = focus_cue.Poll(Now(), audio_idle && !cue_queued_now);
+        if (focus_decision == claw4::CueDecision::Deferred) ESP_LOGI("Claw4Timer", "FOCUS_CUE deferred");
+        if (focus_decision == claw4::CueDecision::Expired) ESP_LOGI("Claw4Timer", "FOCUS_CUE expired");
+        if (focus_decision == claw4::CueDecision::Queued) {
+            app.PlaySound(Lang::Sounds::OGG_SUCCESS);
+            ESP_LOGI("Claw4Timer", "FOCUS_CUE queued");
         }
     }
     Render();
