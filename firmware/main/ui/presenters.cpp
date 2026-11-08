@@ -4,6 +4,8 @@
 // Contract source: ARCHITECTURE.md §8.1 / WB-STREAM-002 CP4.
 #include "ui/presenters.h"
 
+#include <string>
+
 namespace claw4 {
 namespace ui {
 
@@ -108,6 +110,16 @@ FocusView buildFocus(const ViewState& vs, const int64_t now_monotonic_ms) {
   out.remaining_ms = (planned_ms - out.elapsed_ms) > 0 ? (planned_ms - out.elapsed_ms) : 0;
 
   if (active) {
+    if (out.planned_minutes > 0) {
+      // Round any positive fraction of a second up so the display does not
+      // reach 00:00 before the monotonic countdown actually expires.
+      const int64_t remaining_seconds = out.remaining_ms / 1000 +
+                                        (out.remaining_ms % 1000 != 0 ? 1 : 0);
+      const int64_t minutes = remaining_seconds / 60;
+      const int64_t seconds = remaining_seconds % 60;
+      out.countdown_text = (minutes < 10 ? "0" : "") + std::to_string(minutes) + ":" +
+                           (seconds < 10 ? "0" : "") + std::to_string(seconds);
+    }
     const auto tstat = ti >= 0 ? d.tasks[static_cast<std::size_t>(ti)].status
                                : claw4::domain::TaskStatus::InProgress;
     out.pause_enabled = out.running;

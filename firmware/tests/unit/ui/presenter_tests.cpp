@@ -197,6 +197,7 @@ static bool run_case_focus_running_fields() {
   CHECK(v.running);
   CHECK(v.elapsed_ms == 10'000);
   CHECK(v.remaining_ms == 30 * 60'000 - 10'000);
+  CHECK(v.countdown_text == "29:50");
   CHECK(v.pause_enabled);
   CHECK(!v.resume_enabled);
   CHECK(v.complete_enabled);
@@ -213,6 +214,7 @@ static bool run_case_focus_remaining_time_math() {
   FocusView v = buildFocus(vs, 61'000);
   CHECK(v.elapsed_ms == 111'000);
   CHECK(v.remaining_ms == 180'000 - 111'000);
+  CHECK(v.countdown_text == "01:09");
   return true;
 }
 
@@ -226,6 +228,25 @@ static bool run_case_focus_paused_view() {
   CHECK(!v.pause_enabled);
   CHECK(v.complete_enabled);
   CHECK(v.elapsed_ms == 120'000);  // no running segment added
+  CHECK(v.countdown_text == "08:00");  // paused countdown is stable
+  return true;
+}
+
+static bool run_case_focus_countdown_rounding_and_long_duration() {
+  ViewState subsecond = makeVS(
+      DeviceState::Focusing,
+      {makeTask("t1", "A", "math", 1, TaskStatus::InProgress)},
+      makeSession("s1", "t1", SessionStatus::Running, 1, 0, 1));
+  CHECK(buildFocus(subsecond, 999).countdown_text == "01:00");
+  CHECK(buildFocus(subsecond, 1000).countdown_text == "01:00");
+  CHECK(buildFocus(subsecond, 1001).countdown_text == "00:59");
+  CHECK(buildFocus(subsecond, 60'001).countdown_text == "00:00");
+
+  ViewState long_session = makeVS(
+      DeviceState::Paused,
+      {makeTask("t1", "A", "math", 125, TaskStatus::Paused)},
+      makeSession("s1", "t1", SessionStatus::Paused, 125, 0, 0));
+  CHECK(buildFocus(long_session, 900'000).countdown_text == "125:00");
   return true;
 }
 
@@ -264,6 +285,7 @@ static bool run_case_focus_complete_disabled_on_completed_task() {
   FocusView v = buildFocus(vs, 0);
   CHECK(!v.has_session);
   CHECK(v.hint == PageHint::Error);
+  CHECK(v.countdown_text.empty());
   CHECK(mapFocusTap(v, FocusTap::Complete) == std::nullopt);
   CHECK(mapFocusTap(v, FocusTap::Pause) == std::nullopt);
   return true;
@@ -489,6 +511,7 @@ int main() {
   CASE(focus_running_fields);
   CASE(focus_remaining_time_math);
   CASE(focus_paused_view);
+  CASE(focus_countdown_rounding_and_long_duration);
   CASE(focus_tap_mappings);
   CASE(focus_resume_mapping_when_paused);
   CASE(focus_complete_disabled_on_completed_task);

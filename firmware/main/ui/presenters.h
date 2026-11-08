@@ -85,6 +85,7 @@ struct FocusView {
   int planned_minutes = 0;
   int64_t elapsed_ms = 0;    // accumulated focus time including current segment
   int64_t remaining_ms = 0;  // planned_ms - elapsed_ms, clamped >= 0
+  std::string countdown_text;  // MM:SS display; empty without usable active time
   bool running = false;      // true: Running segment; false: Paused
   bool pause_enabled = false;
   bool resume_enabled = false;
