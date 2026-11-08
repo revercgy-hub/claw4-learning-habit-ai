@@ -1,5 +1,9 @@
 # V6 唯一阶段看板
 
+## 2026-11-08 L-38 NAS synthetic voice-flow evidence
+
+Root's isolated synthetic WebSocket/provider observations and S-26 static source audit are documented in [L-38 report](V6_M1_NAS_VOICE_FLOW_REPORT.md). `listen.detect` bypasses ASR but still enters same-session Dialogue/Ollama/TTS; TTS FIRST is a control marker, not actual Opus arrival. The first fresh-blue LLM dialogue lacked a system message and returned 200 characters before client timeout; other six initial cases had the expected prompt. This supports a first-turn prompt-readiness hypothesis only. Count segmentation split the first `1`; slow second Edge TTS took 15,785 ms with three failed attempts, while fast second took 2,576 ms without retries. S-25 exact-text/hash reclassification found zero outer retries on both historical segments, so the isolated retries do not explain its 11.989643 s interval. Initial literal-suffix blue exactness was 0/3 for baseline and candidate; directed V2 was 2/3 (fresh and after-theme passed, after-count failed), with violet/explanation/arithmetic controls passing. Safe summary SHA-256 `58a20b705db69b34fb2780e0bad9cb9d25c97c3b752d97e0101f0d0182b04179`. No live production change, device test, AEC claim, or latency claim. S-24 DEVICE remains as S-25 records; M0 `CHANGES_REQUIRED`, AP `SKIPPED_BY_USER / NOT_VERIFIED`, Preflight `0/2–3`, formal 20 `NOT_STARTED`.
+
 ## 2026-11-08 S-25 S-24 真机回声诊断
 
 S-24 已 app-only 写入 `ota_0`，完整读回与候选一致。实际分区表、启动选择区及目标模型镜像范围读回一致，写前完整扇区备份已验证。连续采集 371.705 秒，确认 ELF、NAS 端点及 357 个配对音频窗口、351 个 AFE 快照。安静数数首两段 NAS 发送标记相隔 11.990 秒。插话复测精确识别受控短句且 ASR/LLM 哈希匹配，操作者报告答复偏离指令。观察到参考信号可用及一次回复期间 Write 内短缺，物理回采根因未验证。L-37 证据工具定向 7/7、V6 Host 209/209。Preflight `CHANGES_REQUIRED`，仍计 `0/2–3`；正式 20 轮未开始，M0 `CHANGES_REQUIRED`，AP `SKIPPED_BY_USER / NOT_VERIFIED`。见 [S-25 设备报告](V6_M1_AEC_DIAGNOSTIC_DEVICE_REPORT.md)。下步在服务侧分别复现答偏和分段停顿。
