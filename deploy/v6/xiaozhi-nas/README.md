@@ -266,3 +266,32 @@ image ID and config SHA, then run isolated synthetic probes before considering
 rollout. A rollback must use the accepted ASR overlay so the LAN alias remains;
 base Compose alone restores the old gateway mapping. Never use this candidate
 as evidence for the earlier runtime or device sessions.
+
+## Live weather and news
+
+`compose.live-lookup.yaml` adds a NAS-only weather and headline path to the
+reviewed prewarm image. Apply it last, after `compose.yaml`,
+`compose.asr-voice-fix.yaml`, and `compose.prewarm.yaml`. Its Dockerfile uses
+the local prewarm image as a base and checks the exact connection source before
+applying the hook. Keep the verified prewarm tag available for rollback.
+
+The connection worker handles supported questions in the existing reply turn.
+Weather uses [Open-Meteo](https://open-meteo.com/en/docs) with fixed city-centre
+coordinates and China time. A missing or unsupported city prompts the user to
+specify a supported city. News reads up to three same-day headlines from
+[China News Service](https://www.chinanews.com/rss/). These requests send only
+fixed data-source parameters. Replies are formatted from the fetched data and
+use the existing TTS pipeline. Other questions continue through the local LLM.
+
+Examples include 北京今天的天气怎么样, 上海明天天气, 北京现在多少度, and
+今天有什么新闻. The service reports source failures or missing data explicitly.
+
+Validate the four-file Compose merge and the image and runtime configuration
+identities. Test in an isolated container before switching the service. To roll
+back, first verify the retained prewarm image and runtime configuration, then
+recreate the service using the original three overlays:
+
+```sh
+sudo docker compose -f compose.yaml -f compose.asr-voice-fix.yaml -f compose.prewarm.yaml \
+  up -d --no-build --pull never --force-recreate xiaozhi
+```

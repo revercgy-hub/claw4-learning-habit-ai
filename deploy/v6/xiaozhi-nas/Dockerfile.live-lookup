@@ -1,0 +1,6 @@
+FROM claw4-xiaozhi-v6:voice-prewarm-20261106-01
+
+COPY claw4_live_lookup.py /opt/xiaozhi-esp32-server/core/utils/claw4_live_lookup.py
+COPY patch_live_lookup.py /tmp/patch_live_lookup.py
+RUN python /tmp/patch_live_lookup.py /opt/xiaozhi-esp32-server/core/connection.py \
+    && rm /tmp/patch_live_lookup.py

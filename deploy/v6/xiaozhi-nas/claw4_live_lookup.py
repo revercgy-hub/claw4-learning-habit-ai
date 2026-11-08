@@ -39,37 +39,43 @@ CITIES = {
 }
 
 _CITY_ALTERNATION = "|".join(re.escape(name) for name in sorted(CITIES, key=len, reverse=True))
-_CITIES_FORM = rf"(?P<city>(?:{_CITY_ALTERNATION})(?:和(?:{_CITY_ALTERNATION}))*)?"
+_CITY_NAME = rf"(?:{_CITY_ALTERNATION})市?"
+_CITIES_FORM = rf"(?P<city>{_CITY_NAME}(?:和{_CITY_NAME})*)?"
+_DAY = r"(?P<day>今天|今日|明天|明日|现在|当前|此刻)"
 _WEATHER_FORMS = (
-    re.compile(rf"{_CITIES_FORM}(?P<day>今天|今日|明天|明日)?的?天气(?:怎么样|如何|预报)?"),
-    re.compile(rf"(?P<day>今天|今日|明天|明日){_CITIES_FORM}的?天气(?:怎么样|如何|预报)?"),
-    re.compile(rf"{_CITIES_FORM}(?P<day>今天|今日|明天|明日)天气"),
-    re.compile(rf"(?P<city>{_CITY_ALTERNATION})(?:现在|当前|此刻)(?:的)?天气(?:怎么样|如何)?"),
-    re.compile(rf"(?P<city>{_CITY_ALTERNATION})(?:现在|当前|此刻)(?:有)?多少度"),
+    re.compile(rf"{_CITIES_FORM}{_DAY}?的?天气(?:怎么样|如何|预报)?"),
+    re.compile(rf"{_DAY}{_CITIES_FORM}的?天气(?:怎么样|如何|预报)?"),
+    re.compile(rf"{_CITIES_FORM}(?P<day>现在|当前|此刻)(?:有)?多少度"),
 )
-_NEWS_FORMS = tuple(re.compile(pattern) for pattern in (
-    r"今天有什么新闻", r"今日有什么新闻", r"今天的新闻", r"今日新闻", r"最新新闻", r"今天新闻",
-))
+_UNSUPPORTED_CITY = re.compile(
+    rf"(?:[\u4e00-\u9fff]{{2,8}}{_DAY}|(?:今天|今日|明天|明日|现在|当前|此刻)"
+    r"[\u4e00-\u9fff]{2,8})的?天气(?:怎么样|如何|预报)?"
+)
+_PREFIX = re.compile(r"^(?:请问|请)?(?:帮我(?:查一下|查查|查|查询|播报)|查一下|查查|查询|播报|讲讲|告诉我)?")
+_NEWS = re.compile(r"(?:今天|今日)(?:的|有什么)?(?:最新)?新闻|最新新闻")
 
 
 def classify(query: str):
     """Return a bounded intent dict or None; never include the transcript."""
-    if not isinstance(query, str) or not query.strip():
+    if not isinstance(query, str):
         return None
-    text = re.sub(r"[\s，。？！!?、]+$", "", query.strip())
-    if any(pattern.fullmatch(text) for pattern in _NEWS_FORMS):
+    text = _PREFIX.sub("", query.strip(), count=1)
+    text = re.sub(r"[\s，。？！!?、]+$", "", text).lstrip()
+    if _NEWS.fullmatch(text):
         return {"kind": "news"}
     for pattern in _WEATHER_FORMS:
         match = pattern.fullmatch(text)
-        if not match:
-            continue
-        city_text = match.groupdict().get("city") or ""
-        city_hits = [name for name in CITIES if name in city_text]
-        city = city_hits[0] if len(city_hits) == 1 and city_text.replace(city_hits[0], "") in ("", "的") else None
-        day_text = match.groupdict().get("day")
-        day = "current" if "现在" in text or "当前" in text or "此刻" in text else (
-            "tomorrow" if day_text in ("明天", "明日") else "today")
-        return {"kind": "weather", "city": city, "day": day}
+        if match:
+            city_text = (match["city"] or "").removesuffix("市")
+            city = city_text if city_text in CITIES else None
+            day_text = match["day"]
+            day = {
+                "明天": "tomorrow", "明日": "tomorrow",
+                "现在": "current", "当前": "current", "此刻": "current",
+            }.get(day_text, "today")
+            return {"kind": "weather", "city": city, "day": day}
+    if _UNSUPPORTED_CITY.fullmatch(text):
+        return {"kind": "weather", "city": None, "day": "today"}
     return None
 
 
@@ -99,7 +105,7 @@ def answer(request) -> str:
         city = request.get("city")
         day = request.get("day")
         if not isinstance(city, str) or city not in CITIES:
-            return "请告诉我城市名称和要查询的天气，比如北京今天的天气。"
+            return "请告诉我城市名称和要查询的天气，比如北京今天的天气。目前支持常见城市。"
         if day not in ("today", "tomorrow", "current"):
             day = "today"
         return _weather(city, day)
@@ -169,7 +175,7 @@ def _news() -> str:
         channel = root.find("channel")
         if channel is None:
             raise ValueError("missing channel")
-        today = datetime.now(CHINA_TZ).date()
+        now = datetime.now(CHINA_TZ)
         dated_headlines = []
         for item in channel.findall("item"):
             title_node, date_node = item.find("title"), item.find("pubDate")
@@ -180,7 +186,7 @@ def _news() -> str:
                 if published.tzinfo is None:
                     published = published.replace(tzinfo=timezone.utc)
                 local_time = published.astimezone(CHINA_TZ)
-                if local_time.date() != today or local_time > datetime.now(CHINA_TZ):
+                if local_time.date() != now.date() or local_time > now:
                     continue
             except (TypeError, ValueError, OverflowError):
                 continue

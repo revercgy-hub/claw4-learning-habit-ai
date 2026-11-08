@@ -26,6 +26,13 @@ class ClassificationTests(unittest.TestCase):
                       "我今天看了新闻，天气也很好", "昨天新闻"):
             self.assertIsNone(lookup.classify(query))
 
+    def test_common_spoken_forms_and_unknown_city(self):
+        self.assertEqual(lookup.classify("帮我查一下北京市今天的天气。")["city"], "北京")
+        self.assertEqual(lookup.classify("现在多少度？")["day"], "current")
+        self.assertEqual(lookup.classify("请播报今天的新闻。"), {"kind": "news"})
+        self.assertIsNone(lookup.classify("请写一篇新闻"))
+        self.assertIsNone(lookup.classify("牡丹江今天的天气")["city"])
+
     def test_ambiguous_city_requests_city_clarification(self):
         self.assertEqual(lookup.classify("北京和上海今天的天气怎么样"),
                          {"kind": "weather", "city": None, "day": "today"})
