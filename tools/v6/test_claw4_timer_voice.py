@@ -87,6 +87,18 @@ class ReplyTests(unittest.TestCase):
             "番茄钟还剩2分钟。",
         )
 
+    def test_busy_focus_reports_existing_timer_instead_of_starting_a_new_one(self):
+        request = {"action": 0, "minutes": 1}
+        self.assertEqual(
+            timer_voice.reply(request, {"status": "busy", "remaining_seconds": 61}),
+            "已有番茄钟，还剩1分1秒。请先取消旧计时，再开始新的。",
+        )
+        for value in (None, True, 0, 7201):
+            self.assertEqual(
+                timer_voice.reply(request, {"status": "busy", "remaining_seconds": value}),
+                "已有番茄钟。请先取消旧计时，再开始新的。",
+            )
+
     def test_errors_and_malformed_results_never_claim_success(self):
         self.assertIn("尚未确认", timer_voice.reply({"action": 0}, None))
         self.assertIn("尚未确认", timer_voice.reply({"action": 0}, {"status": "unexpected", "message": "OK"}))

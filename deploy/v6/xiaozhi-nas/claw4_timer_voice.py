@@ -130,11 +130,18 @@ def reply(request, result):
         return request["clarify"]
     if not isinstance(request, dict) or not isinstance(result, dict):
         return "设备结果尚未确认，暂不能报告计时器状态。"
+    action = request.get("action")
     status = result.get("status")
     if status not in {"ok", "busy", "inactive", "clock_not_ready", "invalid_time", "not_saved"}:
         return "设备结果尚未确认，暂不能报告计时器状态。"
 
     if status == "busy":
+        if action == 0:
+            seconds = result.get("remaining_seconds")
+            if type(seconds) is int and 0 < seconds <= 120 * 60:
+                minutes, seconds = divmod(seconds, 60)
+                return f"已有番茄钟，还剩{minutes}分{seconds}秒。请先取消旧计时，再开始新的。"
+            return "已有番茄钟。请先取消旧计时，再开始新的。"
         return "设备正在处理其他计时器操作，请稍后再试。"
     if status == "inactive":
         return "当前没有正在运行的番茄钟。"
@@ -145,7 +152,6 @@ def reply(request, result):
     if status == "not_saved":
         return "闹钟没有保存成功。"
 
-    action = request.get("action")
     if action == 0:
         return "番茄钟已开始。"
     if action == 1:
