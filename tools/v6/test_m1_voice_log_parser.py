@@ -136,10 +136,18 @@ I (300) Application: Wake word detected
 """)
         self.assertEqual(result["m1_wake_log_count"], 3)
 
+    def test_s17_detector_and_immediate_legacy_record_both_count(self):
+        result = summarize("""I (1) Application: Wake word detected: 你好小智 (state: 3)
+I (2) Application: Wake word detected
+""")
+        self.assertEqual(result["m1_wake_log_count"], 2)
+
     def test_s17_detector_rejects_forged_wrong_target_and_malformed_records(self):
         result = summarize("""I (1) Application: speech Wake word detected: 你好小智 (state: 3)
 I (2) OtherTag: Wake word detected: 你好小智 (state: 3)
+I (2) Application: Wake word detected: 你好小智2 (state: 3)
 I (3) Application: Wake word detected: 你好小智 (state: 12)
+I (3) Application: Wake word detected: 你好小智 (state: 03)
 I (4) Application: Wake word detected: 你好小智 (state: 3) trailing
 I (4294967296) Application: Wake word detected: 你好小智 (state: 3)
 I (5) Application: Wake word detected: 你好小智 (state: 3x)

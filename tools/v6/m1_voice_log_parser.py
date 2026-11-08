@@ -29,8 +29,8 @@ M1_WAKE = re.compile(r"^[IWEVD] \((\d{1,10})\) Application: Wake word detected$"
 # Frozen S17 emits the state-bearing detector record before forwarding the
 # same target wake word. Keep this exact model and the source enum range (0-11).
 M1_WAKE_DETECTOR = re.compile(
-    r"^[IWEVD] \((\d{1,10})\) Application: Wake word detected: 你好小智 "
-    r"\(state: (\d{1,2})\)$"
+    r"^[IWEVD] \(([0-9]{1,10})\) Application: Wake word detected: 你好小智 "
+    r"\(state: (?:[0-9]|1[01])\)$"
 )
 # Reviewed opt-in 1 Hz AfeAudioEngine diagnostics. Keep each record exact,
 # bounded, and tied to the firmware's emitting ESP-IDF tag.
@@ -80,7 +80,6 @@ def summarize(text):
                                "aec_effectiveness", "near_end_during_playback", "wake_recovery")},
                   privacy="raw lines, speech, transcripts, endpoints and credentials are not emitted")
     wakes, heap, psram = set(), [], []
-    suppress_forwarded_target = False
     for line in text.splitlines():
         # A bounded line also prevents huge hostile inputs from reaching the
         # regular expressions or numeric conversions below.
@@ -99,19 +98,12 @@ def summarize(text):
                     result["m1_peak_max"] = max(result["m1_peak_max"] or 0, peak)
         if len(line) <= MAX_UART_LINE_CHARS:
             detector = M1_WAKE_DETECTOR.fullmatch(line)
-            if detector and int(detector.group(1)) <= MAX_U32 and int(detector.group(2)) <= 11:
+            if detector and int(detector.group(1)) <= MAX_U32:
                 if result["m1_wake_log_count"] < MAX_U64:
                     result["m1_wake_log_count"] += 1
-                suppress_forwarded_target = True
             elif M1_WAKE.fullmatch(line):
-                # Preserve the old tagless body. Suppress only the immediately
-                # forwarded target-model record paired with the detector line.
-                if suppress_forwarded_target:
-                    suppress_forwarded_target = False
-                elif result["m1_wake_log_count"] < MAX_U64:
+                if result["m1_wake_log_count"] < MAX_U64:
                     result["m1_wake_log_count"] += 1
-            else:
-                suppress_forwarded_target = False
         if len(line) <= MAX_UART_LINE_CHARS:
             state = M1_AFE_STATE.fullmatch(line)
             if state:
