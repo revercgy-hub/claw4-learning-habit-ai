@@ -1,5 +1,9 @@
 # Claw4 当前任务看板
 
+### 2026-11-08 L-34 S-17 Voice Preflight 05
+
+Device state is updated by [L-34 report](../v6/V6_M1_VOICE_PREFLIGHT05_REPORT.md): one 427.176 s capture after USB reset (not cold boot), no build/Flash/app readback; target ELF prefix/model/NAS OTA+WS observed. Three exercise scenarios are not credited as full rounds. R2 contains two ASR→LLM forwards matching preceding TTS normalized substrings during/at playback boundary, alongside one reported controlled near-end marker and audible answer. This is a strong recapture/self-reply observation for that interruption exercise; acoustic root cause and general AEC/near-end remain unverified. R1/R3 positive operator observations and their bounds are recorded in L-34. NAS service remains the valid L-33 prewarm deployment; device and service evidence are separate. Preflight `PREFLIGHT_CHANGES_REQUIRED / TTS_RECAPTURE_OBSERVED`, `0/2–3`; formal 20 `NOT_STARTED`; M0 `CHANGES_REQUIRED`; AP `SKIPPED_BY_USER / NOT_VERIFIED`. S-23 source audit leaves root cause unproven; no speculative fix or additional retest requested.
+
 > **SUPERSEDED 历史快照（2026-09-23）**：Candidate19 已构建但未刷机等历史技术事实保留；其中旧的“当前有效/无 WorkBuddy 活动流”调度文字已由 2026-09-24 接管状态覆盖。Candidate17 的设备证据不转移至 Candidate19。
 
 ## 2026-09-24 接管及后续开发状态（当前有效）
