@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <limits>
 #include <mutex>
+#include <string>
 
 namespace {
 constexpr int64_t kDay = 86400000;
@@ -103,8 +104,10 @@ bool focus_chime_pending = false;
 int64_t focus_chime_deadline = 0;
 lv_obj_t* panel = nullptr;
 lv_obj_t* entry = nullptr;
+lv_obj_t* entry_label = nullptr;
 lv_obj_t* focus_label = nullptr;
 lv_obj_t* alarm_label = nullptr;
+std::string shown_entry;
 
 int64_t Now() { return clock_port.monotonicMs(); }
 int64_t Remaining() {
@@ -119,12 +122,17 @@ int64_t AlarmDue() {
 }
 void Render() {
     if (!panel) return;
-    char focus[96], alarm[96];
+    char focus[96], alarm[96], chip[48];
     {
         std::lock_guard<std::mutex> lock(state_mutex);
         const int64_t seconds = (Remaining() + 999) / 1000;
         std::snprintf(focus, sizeof(focus), "Focus %02lld:%02lld  %s", (long long)(seconds / 60),
                       (long long)(seconds % 60), focus_done ? "Done" : paused ? "Paused" : running ? "Running" : "Ready");
+        if (alarm_visual) std::snprintf(chip, sizeof(chip), "Alarm due!");
+        else if (focus_done) std::snprintf(chip, sizeof(chip), "Focus done");
+        else if (running) std::snprintf(chip, sizeof(chip), "%s %02lld:%02lld",
+            paused ? "Paused" : "Timer", (long long)(seconds / 60), (long long)(seconds % 60));
+        else std::snprintf(chip, sizeof(chip), "Timer / Alarm");
         auto status = authority.status();
         if (!storage_ok) std::snprintf(alarm, sizeof(alarm), "Alarm: storage unavailable");
         else if (!status.calendar_allowed) std::snprintf(alarm, sizeof(alarm), "Alarm: clock not ready");
@@ -135,6 +143,10 @@ void Render() {
         } else std::snprintf(alarm, sizeof(alarm), "Alarm: none (China +08)");
     }
     if (!lvgl_port_lock(100)) return;
+    if (shown_entry != chip) {
+        lv_label_set_text(entry_label, chip);
+        shown_entry = chip;
+    }
     lv_label_set_text(focus_label, focus);
     lv_label_set_text(alarm_label, alarm);
     lvgl_port_unlock();
@@ -175,6 +187,7 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
         alarm_due = due; alarm_visual = false; alarm_played = false; alarm_defer_until = alarm_retry_after = 0; return "ok";
     }
     case 5:
+        if (!storage_ok) return "not_saved";
         if (!AlarmDue()) return "inactive";
         if (!reminders.cancelAlarm(claw4::domain::ChildId{kChild}, AlarmDue())) return "not_saved";
         alarm_due = 0; alarm_visual = false; alarm_played = false; alarm_defer_until = alarm_retry_after = 0; return "ok";
@@ -264,7 +277,10 @@ lv_obj_t* Button(lv_obj_t* parent, const char* text, int action, int x, int y) {
 
 void Claw4TimerPreviewSetupUI(lv_obj_t* parent) {
     if (!lvgl_port_lock(1000)) return;
-    entry = Button(parent, "Timer", 7, 10, 10);
+    // Top layer remains visible while chat is active; leave the system status row clear.
+    entry = Button(parent, "Timer / Alarm", 7, 10, 100);
+    lv_obj_set_width(entry, 190);
+    entry_label = lv_obj_get_child(entry, 0);
     panel = lv_obj_create(parent);
     lv_obj_set_size(panel, 580, 380);
     lv_obj_center(panel);
@@ -300,6 +316,7 @@ void Claw4TimerPreviewStart() {
             const char* status = Action(action, p["minutes"].value<int>(), p["hour"].value<int>(),
                                         p["minute"].value<int>(), p["day_offset"].value<int>());
             cJSON* result = cJSON_CreateObject();
+            if (!result) return std::unexpected("timer preview result allocation failed");
             cJSON_AddStringToObject(result, "status", status);
             { std::lock_guard<std::mutex> lock(state_mutex);
               cJSON_AddNumberToObject(result, "remaining_seconds", (Remaining() + 999) / 1000);
