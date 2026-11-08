@@ -3,6 +3,9 @@
 #include "sdkconfig.h"
 #include "claw4_audio.h"
 #include "board_algorithms.h"
+#ifdef CONFIG_CLAW4_TIMER_PREVIEW
+#include "timer_preview.h"
+#endif
 #include "display/lcd_display.h"
 #include "esp_lcd_nv3051f.h"
 #include <driver/i2c_master.h>
@@ -38,6 +41,12 @@
 // The generic MipiLcdDisplay defaults to RGB565 partial transfers.
 class Claw4Display final : public LcdDisplay {
 public:
+    void SetupUI() override {
+        LcdDisplay::SetupUI();
+#ifdef CONFIG_CLAW4_TIMER_PREVIEW
+        Claw4TimerPreviewSetupUI(lv_display_get_layer_top(display_));
+#endif
+    }
     Claw4Display(esp_lcd_panel_io_handle_t io, esp_lcd_panel_handle_t panel)
         : LcdDisplay(io, panel, 720, 720) {
         lv_init();
@@ -681,6 +690,9 @@ public:
         InitializeDisplay();
         InitializeTouch();
         audio_ = new Claw4Audio([this](bool enable) { SetOutput(8, enable); });
+#ifdef CONFIG_CLAW4_TIMER_PREVIEW
+        Claw4TimerPreviewStart();
+#endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
         StartPowerKeyDiagnostic();
 #endif
