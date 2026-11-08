@@ -40,11 +40,18 @@
 // Keep the upstream UI, but give this panel its native RGB888 frame buffers.
 // The generic MipiLcdDisplay defaults to RGB565 partial transfers.
 class Claw4Display final : public LcdDisplay {
+#ifdef CONFIG_CLAW4_TIMER_PREVIEW
+    bool preview_setup_ = false;
+#endif
 public:
     void SetupUI() override {
         LcdDisplay::SetupUI();
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
-        Claw4TimerPreviewSetupUI(lv_display_get_layer_top(display_));
+        if (!preview_setup_) {
+            Claw4TimerPreviewSetupUI(lv_display_get_layer_top(display_));
+            Claw4TimerPreviewStart();
+            preview_setup_ = true;
+        }
 #endif
     }
     Claw4Display(esp_lcd_panel_io_handle_t io, esp_lcd_panel_handle_t panel)
@@ -690,9 +697,6 @@ public:
         InitializeDisplay();
         InitializeTouch();
         audio_ = new Claw4Audio([this](bool enable) { SetOutput(8, enable); });
-#ifdef CONFIG_CLAW4_TIMER_PREVIEW
-        Claw4TimerPreviewStart();
-#endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
         StartPowerKeyDiagnostic();
 #endif
