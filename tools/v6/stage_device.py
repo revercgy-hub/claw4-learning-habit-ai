@@ -477,11 +477,76 @@ def m1_input_diagnostics_kconfig(enabled):
             f'    default {default}\n')
 
 
-def stage(upstream, destination, variant='m0', m1_input_diagnostics=False):
+TIMER_PREVIEW_CORE = (
+    'learning_domain/ids.h',
+    'ports/clock_port.h',
+    'ports/reminder_wake_port.h',
+    'reminder/reminder_core.cpp',
+    'reminder/reminder_core.h',
+    'time/time_authority.cpp',
+    'time/time_authority.h',
+)
+
+TIMER_PREVIEW_KCONFIG = """
+config CLAW4_TIMER_PREVIEW
+    bool
+    depends on BOARD_TYPE_CLAW4_LEARNING_V6 && !CLAW4_M0_DIAGNOSTICS
+    default y
+"""
+
+
+def stage_timer_preview(destination):
+    core = ROOT / 'firmware/main'
+    output = destination / 'main/claw4_timer_core'
+    for relative in TIMER_PREVIEW_CORE:
+        target = output / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(core / relative, target)
+    replace_once(
+        destination / 'main/CMakeLists.txt',
+        'list(APPEND SOURCES ${BOARD_SOURCES})',
+        'list(APPEND SOURCES ${BOARD_SOURCES})\n'
+        'if(CONFIG_CLAW4_TIMER_PREVIEW)\n'
+        '    list(APPEND SOURCES "claw4_timer_core/reminder/reminder_core.cpp"\n'
+        '                        "claw4_timer_core/time/time_authority.cpp")\n'
+        '    list(APPEND INCLUDE_DIRS "claw4_timer_core")\n'
+        'endif()',
+    )
+    with (destination / 'main/Kconfig.projbuild').open('a', encoding='utf-8') as output:
+        output.write(TIMER_PREVIEW_KCONFIG)
+
+    ota = destination / 'main/ota.cc'
+    replace_once(ota, '#include "ota.h"', """#include "ota.h"
+#include "sdkconfig.h"
+
+#if CONFIG_CLAW4_TIMER_PREVIEW
+#include <cstdint>
+void Claw4TimerPreviewAcceptTime(int64_t epoch_ms);
+#endif""")
+    replace_once(
+        ota,
+        '            settimeofday(&tv, NULL);\n            has_server_time_ = true;',
+        """            const int clock_update_result = settimeofday(&tv, NULL);
+            has_server_time_ = true;
+#if CONFIG_CLAW4_TIMER_PREVIEW
+            // Use the UTC value from the fixed LAN OTA response, before the
+            // legacy display-clock timezone adjustment.
+            const double utc_ms = timestamp->valuedouble;
+            if (clock_update_result == 0 &&
+                utc_ms >= 1735689600000.0 && utc_ms < 4102444800000.0) {
+                Claw4TimerPreviewAcceptTime(static_cast<int64_t>(utc_ms));
+            }
+#endif""",
+    )
+
+
+def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer_preview=False):
     if variant not in ('m0', 'm1'):
         raise ValueError(f'Unknown build variant: {variant}')
     if m1_input_diagnostics and variant != 'm1':
         raise ValueError('M1 input diagnostics require the M1 variant')
+    if timer_preview and variant != 'm1':
+        raise ValueError('Timer preview requires the M1 variant')
     lock = json.loads((ROOT / 'integration/v6/baseline.lock.json').read_text())
     pin = lock['sources']['xiaozhi']['sha']
     verify_checkout(upstream, pin)
@@ -532,6 +597,8 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False):
                  'if(CONFIG_CLAW4_M0_DIAGNOSTICS)\n'
                  '    list(REMOVE_ITEM SOURCES "main.cc")\n'
                  'endif()')
+    if timer_preview:
+        stage_timer_preview(destination)
     # CMake identity is recorded separately; do not masquerade as upstream releases.
     replace_once(destination / 'CMakeLists.txt', 'set(PROJECT_VER "2.5.0")',
                  f'set(PROJECT_VER "6.0.0-{variant}.1")')
@@ -551,6 +618,12 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False):
         manifest['m1_input_diagnostics'] = m1_input_diagnostics
         manifest['staged_kconfig_sha256'] = hashlib.sha256(
             (destination / 'main/Kconfig.projbuild').read_bytes()).hexdigest()
+    if timer_preview:
+        manifest['timer_preview'] = True
+        manifest['timer_core_sha256'] = {
+            relative: hashlib.sha256((destination / 'main/claw4_timer_core' / relative).read_bytes()).hexdigest()
+            for relative in TIMER_PREVIEW_CORE
+        }
     (destination / 'v6-stage-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
 
 
@@ -561,6 +634,8 @@ if __name__ == '__main__':
     parser.add_argument('--variant', choices=('m0', 'm1'), default='m0')
     parser.add_argument('--m1-input-diagnostics', action='store_true',
                         help='Enable M1 mic level/read-failure counters in this staged candidate')
+    parser.add_argument('--timer-preview', action='store_true',
+                        help='Stage the approved local timer/alarm preview for M1')
     args = parser.parse_args()
     stage(args.upstream.resolve(), args.destination.resolve(), args.variant,
-          args.m1_input_diagnostics)
+          args.m1_input_diagnostics, args.timer_preview)

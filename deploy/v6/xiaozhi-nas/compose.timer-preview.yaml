@@ -1,0 +1,6 @@
+services:
+  xiaozhi:
+    image: claw4-xiaozhi-v6:timer-preview-20261108-01
+    build:
+      context: .
+      dockerfile: Dockerfile.timer-preview

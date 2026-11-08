@@ -1,0 +1,6 @@
+FROM claw4-xiaozhi-v6:live-lookup-20261108-01
+
+COPY claw4_timer_voice.py claw4_timer_bridge.py /opt/xiaozhi-esp32-server/core/utils/
+COPY patch_timer_preview.py /tmp/patch_timer_preview.py
+RUN python /tmp/patch_timer_preview.py /opt/xiaozhi-esp32-server/core/connection.py \
+    && rm /tmp/patch_timer_preview.py

@@ -18,6 +18,36 @@ from stage_device import (M1_AFE_DIAG_PATCHES, M1_ENDPOINT_PATCHES, NVS_ERASE_AN
 from build_device import verify_m1_endpoint_sources
 
 
+class TimerPreviewStageTests(unittest.TestCase):
+    def test_only_preview_core_is_staged_with_validated_lan_time_hook(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main = root / "main"
+            main.mkdir()
+            (main / "CMakeLists.txt").write_text("list(APPEND SOURCES ${BOARD_SOURCES})\n", encoding="utf-8")
+            (main / "Kconfig.projbuild").write_text("", encoding="utf-8")
+            ota = main / "ota.cc"
+            ota.write_text(
+                '#include "ota.h"\n            settimeofday(&tv, NULL);\n'
+                '            has_server_time_ = true;\n',
+                encoding="utf-8",
+            )
+            stage_device.stage_timer_preview(root)
+            files = {
+                path.relative_to(main / "claw4_timer_core").as_posix()
+                for path in (main / "claw4_timer_core").rglob("*") if path.is_file()
+            }
+            self.assertEqual(files, set(stage_device.TIMER_PREVIEW_CORE))
+            self.assertIn("Claw4TimerPreviewAcceptTime(static_cast<int64_t>(utc_ms))", ota.read_text())
+            self.assertIn("clock_update_result == 0", ota.read_text())
+            self.assertIn("if(CONFIG_CLAW4_TIMER_PREVIEW)", (main / "CMakeLists.txt").read_text())
+            self.assertIn("!CLAW4_M0_DIAGNOSTICS", (main / "Kconfig.projbuild").read_text())
+
+    def test_m0_refuses_preview_before_staging(self):
+        with self.assertRaisesRegex(ValueError, "requires the M1 variant"):
+            stage(Path("unused"), Path("unused"), timer_preview=True)
+
+
 class NvsPolicyPatchTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
