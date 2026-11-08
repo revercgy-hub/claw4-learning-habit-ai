@@ -152,7 +152,7 @@ M1_AFE_DIAG_PATCHES = {
     ),
     'main/audio/engines/afe_audio_engine.cc': (
         ('#include <sstream>\n',
-         '#include <sstream>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <new>\n#endif\n'),
+         '#include <sstream>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <new>\n#include <esp_timer.h>\n#endif\n'),
         ('''#define TAG "AfeAudioEngine"
 
 #if CONFIG_USE_AUDIO_PROCESSOR''',
@@ -181,6 +181,9 @@ struct M1AfeDiagState {
     std::atomic<uint32_t> wakenet_disable_total{0};
     std::atomic<int32_t> wakenet_enable_rc{0};
     std::atomic<int32_t> wakenet_disable_rc{0};
+    std::atomic<bool> aec_requested{false};
+    std::atomic<uint32_t> aec_apply_total{0};
+    std::atomic<int32_t> aec_latest_rc{0};
 };
 
 static void ReleaseM1AfeDiagState(M1AfeDiagState* state) {
@@ -382,11 +385,35 @@ void AfeAudioEngine::ReportM1AfeStats(M1AfeDiagState* state) {
              int(state->wakenet_enable_rc.load(std::memory_order_relaxed)),
              unsigned(state->wakenet_disable_total.load(std::memory_order_relaxed)),
              int(state->wakenet_disable_rc.load(std::memory_order_relaxed)));
+    ESP_LOGI(TAG, "M1_AFE_AEC t_us=%lld requested=%u apply_total=%u latest_rc=%d",
+             static_cast<long long>(esp_timer_get_time()),
+             unsigned(state->aec_requested.load(std::memory_order_relaxed)),
+             unsigned(state->aec_apply_total.load(std::memory_order_relaxed)),
+             int(state->aec_latest_rc.load(std::memory_order_relaxed)));
 }
 #endif
 
 void AfeAudioEngine::ProcessingTask() {
     while (true) {'''),
+        ('''        if (enable_aec) {
+            afe_iface_->enable_aec(afe_data_);
+        } else {
+            afe_iface_->disable_aec(afe_data_);
+        }''', '''#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        const int rc = enable_aec ? afe_iface_->enable_aec(afe_data_)
+                                  : afe_iface_->disable_aec(afe_data_);
+        if (m1_diag_ != nullptr) {
+            m1_diag_->aec_requested.store(enable_aec, std::memory_order_relaxed);
+            m1_diag_->aec_latest_rc.store(rc, std::memory_order_relaxed);
+            m1_diag_->aec_apply_total.fetch_add(1, std::memory_order_relaxed);
+        }
+#else
+        if (enable_aec) {
+            afe_iface_->enable_aec(afe_data_);
+        } else {
+            afe_iface_->disable_aec(afe_data_);
+        }
+#endif'''),
     ),
 }
 

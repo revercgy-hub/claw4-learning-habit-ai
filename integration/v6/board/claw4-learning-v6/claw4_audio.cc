@@ -92,7 +92,14 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
         if (err != ESP_OK || bytes != count * sizeof(int32_t)) {
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
             ++m1_i2s_read_failures_;
+            {
+                std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+                if (audio_window_start_us_ == 0) audio_window_start_us_ = esp_timer_get_time();
+                ++audio_window_.rx_fail;
+                if (reference_write_in_flight_) ++audio_window_.rx_fail_inflight;
+            }
             ReportM1InputStats();
+            ReportAudioWindow();
 #endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
             ++read_failures_;
@@ -102,6 +109,9 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
         }
         std::lock_guard<std::mutex> reference_lock(reference_mutex_);
         const int64_t now = esp_timer_get_time();
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        if (audio_window_start_us_ == 0) audio_window_start_us_ = now;
+#endif
         if (!reference_write_in_flight_ && last_reference_write_us_ != 0 &&
             now - last_reference_write_us_ >= kReferenceIdleResetUs) {
             playback_reference_.End();
@@ -118,12 +128,31 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
                 frame_mic_energy += static_cast<uint64_t>(value * value);
                 frame_mic_peak = std::max(frame_mic_peak, magnitude);
                 ++frame_mic_samples;
+                audio_window_.mic_energy += static_cast<uint64_t>(value * value);
+                ++audio_window_.rx_frames;
             }
 #endif
             if ((total + i) % 2 == 1) {
                 // Hardware R slot was silent on Candidate20. Feed the accepted
                 // post-volume TX stream as an uncalibrated AFE reference.
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+                const bool active = playback_reference_.active();
+                bool valid = false;
+                dest[total + i] = playback_reference_.Next(&valid);
+                if (valid) {
+                    ++audio_window_.ref_valid;
+                    if (dest[total + i] == 0) ++audio_window_.ref_zero;
+                    const int64_t ref = dest[total + i];
+                    audio_window_.ref_energy += static_cast<uint64_t>(ref * ref);
+                } else {
+                    ++audio_window_.ref_shortage;
+                    if (!active) ++audio_window_.ref_inactive;
+                    if (active) ++audio_window_.ref_underflow;
+                    if (reference_write_in_flight_) ++audio_window_.ref_shortage_inflight;
+                }
+#else
                 dest[total + i] = playback_reference_.Next();
+#endif
             }
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
             const unsigned channel = (total + i) % 2;
@@ -156,6 +185,7 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
     ReportReferenceStats();
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
     ReportM1InputStats();
+    ReportAudioWindow();
 #endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
     ReportInputStats();
@@ -164,6 +194,40 @@ int Claw4Audio::Read(int16_t* dest, int samples) {
 }
 
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+void Claw4Audio::ReportAudioWindow() {
+    int64_t now = 0;
+    AudioWindow window;
+    int64_t start = 0;
+    bool active = false;
+    unsigned pending = 0;
+    {
+        std::lock_guard<std::mutex> lock(reference_mutex_);
+        now = esp_timer_get_time();
+        if (audio_window_start_us_ == 0) audio_window_start_us_ = now;
+        if (now - audio_window_start_us_ < 1000000) return;
+        start = audio_window_start_us_;
+        audio_window_start_us_ = now;
+        window = audio_window_;
+        audio_window_ = {};
+        active = playback_reference_.active();
+        pending = static_cast<unsigned>(playback_reference_.pending_size());
+    }
+    // esp_timer uptime bounds codec bookkeeping instants. TX count is driver
+    // acceptance, not speaker onset or physical acoustic alignment.
+    ESP_LOGI("Claw4Audio", "M1_AUDIO_WINDOW t0=%lld t1=%lld rx=%u rx_fail=%u rx_fail_tx=%u tx=%u ref_ok=%u ref_zero=%u ref_short=%u short_tx=%u",
+             static_cast<long long>(start), static_cast<long long>(now),
+             window.rx_frames, window.rx_fail, window.rx_fail_inflight,
+             window.tx_frames,
+             window.ref_valid, window.ref_zero, window.ref_shortage,
+             window.ref_shortage_inflight);
+    ESP_LOGI("Claw4Audio", "M1_AUDIO_ENERGY t1=%lld mic_sum_sq=%llu ref_sum_sq=%llu tx_calls=%u tx_write_us_max=%u inactive=%u underflow=%u active=%u pending=%u",
+             static_cast<long long>(now),
+             static_cast<unsigned long long>(window.mic_energy),
+             static_cast<unsigned long long>(window.ref_energy),
+             window.tx_calls, window.tx_write_us_max,
+             window.ref_inactive, window.ref_underflow, unsigned(active), pending);
+}
+
 void Claw4Audio::ReportM1InputStats() {
     const int64_t now = esp_timer_get_time();
     if (last_m1_stats_us_ == 0) {
@@ -188,13 +252,19 @@ void Claw4Audio::ReportReferenceStats() {
     const int64_t now = esp_timer_get_time();
     if (now - last_reference_stats_us_ < 1000000) return;
     last_reference_stats_us_ = now;
-    std::lock_guard<std::mutex> lock(reference_mutex_);
-    const auto stats = playback_reference_.TakeStats();
+    claw4::PlaybackReferenceDelay::Stats stats;
+    bool active;
+    unsigned pending;
+    {
+        std::lock_guard<std::mutex> lock(reference_mutex_);
+        stats = playback_reference_.TakeStats();
+        active = playback_reference_.active();
+        pending = static_cast<unsigned>(playback_reference_.pending_size());
+    }
     ESP_LOGI("Claw4Audio", "TX_REFERENCE source=accepted_software_post_volume delay_frames=%u alignment=uncalibrated active=%u overflow=%u underflow=%u stale_writes=%u discarded=%u pending=%u",
-             unsigned(kPlaybackReferenceDelayFrames), unsigned(playback_reference_.active()),
+             unsigned(kPlaybackReferenceDelayFrames), unsigned(active),
              unsigned(stats.overflow), unsigned(stats.underflow),
-             unsigned(stats.stale_writes), unsigned(stats.discarded),
-             unsigned(playback_reference_.pending_size()));
+             unsigned(stats.stale_writes), unsigned(stats.discarded), pending);
 }
 
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
@@ -251,8 +321,14 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
         tx_nonzero_active_.store(std::any_of(buffer.begin(), buffer.begin() + count * 2,
                                             [](int32_t value) { return value != 0; }));
 #endif
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        const int64_t write_start_us = esp_timer_get_time();
+#endif
         const auto err = i2s_channel_write(tx_handle_, buffer.data(), count * 2 * sizeof(int32_t),
                                            &bytes, 200);
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+        const int64_t write_elapsed_us = esp_timer_get_time() - write_start_us;
+#endif
 #if CONFIG_CLAW4_M0_DIAGNOSTICS
         tx_nonzero_active_.store(false);
         tx_frames_.fetch_add(bytes / (2 * sizeof(int32_t)));
@@ -260,6 +336,13 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
         const int written_frames = static_cast<int>(bytes / (2 * sizeof(int32_t)));
         {
             std::lock_guard<std::mutex> reference_lock(reference_mutex_);
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            if (audio_window_start_us_ == 0) audio_window_start_us_ = esp_timer_get_time();
+            audio_window_.tx_frames += static_cast<uint32_t>(written_frames);
+            ++audio_window_.tx_calls;
+            audio_window_.tx_write_us_max = std::max(audio_window_.tx_write_us_max,
+                static_cast<uint32_t>(std::min<int64_t>(write_elapsed_us, UINT32_MAX)));
+#endif
             if (written_frames > 0) last_reference_write_us_ = esp_timer_get_time();
             for (int i = 0; i < written_frames; ++i) {
                 playback_reference_.Push(reference_token, claw4::DecodePcm16(buffer[i * 2]));
@@ -272,6 +355,9 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
                 reference_write_in_flight_ = false;
             }
             ESP_LOGW("Claw4Audio", "I2S output incomplete: %s", esp_err_to_name(err));
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+            ReportAudioWindow();
+#endif
             return total;
         }
     }
@@ -279,5 +365,8 @@ int Claw4Audio::Write(const int16_t* data, int samples) {
         std::lock_guard<std::mutex> reference_lock(reference_mutex_);
         reference_write_in_flight_ = false;
     }
+#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    ReportAudioWindow();
+#endif
     return total;
 }

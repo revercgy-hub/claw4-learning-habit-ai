@@ -37,6 +37,15 @@ private:
     int64_t last_reference_stats_us_ = 0;
     void ReportReferenceStats();
 #if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS
+    struct AudioWindow {
+        uint64_t mic_energy = 0, ref_energy = 0;
+        uint32_t rx_frames = 0, rx_fail = 0, rx_fail_inflight = 0;
+        uint32_t tx_frames = 0, tx_calls = 0, tx_write_us_max = 0;
+        uint32_t ref_valid = 0, ref_zero = 0, ref_shortage = 0;
+        uint32_t ref_shortage_inflight = 0, ref_inactive = 0, ref_underflow = 0;
+    } audio_window_;
+    int64_t audio_window_start_us_ = 0; // Protected by reference_mutex_.
+    void ReportAudioWindow();
     uint64_t m1_mic_energy_ = 0;
     uint32_t m1_mic_peak_ = 0;
     uint32_t m1_mic_samples_ = 0;
