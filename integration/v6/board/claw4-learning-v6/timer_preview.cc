@@ -101,7 +101,6 @@ bool alarm_visual = false;
 bool alarm_played = false;
 bool focus_chime_pending = false;
 int64_t focus_chime_deadline = 0;
-int chosen_minutes = 25;
 lv_obj_t* panel = nullptr;
 lv_obj_t* entry = nullptr;
 lv_obj_t* focus_label = nullptr;
@@ -119,21 +118,25 @@ int64_t AlarmDue() {
     return 0;
 }
 void Render() {
-    if (!panel || !lvgl_port_lock(100)) return;
-    char text[96];
-    const int64_t seconds = (Remaining() + 999) / 1000;
-    std::snprintf(text, sizeof(text), "Focus %02lld:%02lld  %s", (long long)(seconds / 60),
-                  (long long)(seconds % 60), focus_done ? "Done" : paused ? "Paused" : running ? "Running" : "Ready");
-    lv_label_set_text(focus_label, text);
-    auto status = authority.status();
-    if (!storage_ok) std::snprintf(text, sizeof(text), "Alarm: storage unavailable");
-    else if (!status.calendar_allowed) std::snprintf(text, sizeof(text), "Alarm: clock not ready");
-    else if (alarm_visual) std::snprintf(text, sizeof(text), "Alarm due!");
-    else if (alarm_due) {
-        int64_t local = (alarm_due + kChina) / 60000;
-        std::snprintf(text, sizeof(text), "Alarm: %02lld:%02lld", (long long)((local / 60) % 24), (long long)(local % 60));
-    } else std::snprintf(text, sizeof(text), "Alarm: none (China +08)");
-    lv_label_set_text(alarm_label, text);
+    if (!panel) return;
+    char focus[96], alarm[96];
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        const int64_t seconds = (Remaining() + 999) / 1000;
+        std::snprintf(focus, sizeof(focus), "Focus %02lld:%02lld  %s", (long long)(seconds / 60),
+                      (long long)(seconds % 60), focus_done ? "Done" : paused ? "Paused" : running ? "Running" : "Ready");
+        auto status = authority.status();
+        if (!storage_ok) std::snprintf(alarm, sizeof(alarm), "Alarm: storage unavailable");
+        else if (!status.calendar_allowed) std::snprintf(alarm, sizeof(alarm), "Alarm: clock not ready");
+        else if (alarm_visual) std::snprintf(alarm, sizeof(alarm), "Alarm due!");
+        else if (alarm_due) {
+            int64_t local = (alarm_due + kChina) / 60000;
+            std::snprintf(alarm, sizeof(alarm), "Alarm: %02lld:%02lld", (long long)((local / 60) % 24), (long long)(local % 60));
+        } else std::snprintf(alarm, sizeof(alarm), "Alarm: none (China +08)");
+    }
+    if (!lvgl_port_lock(100)) return;
+    lv_label_set_text(focus_label, focus);
+    lv_label_set_text(alarm_label, alarm);
     lvgl_port_unlock();
 }
 const char* Action(int action, int minutes, int hour, int minute, int day_offset) {
@@ -143,7 +146,6 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
     case 0:
         if (minutes < 1 || minutes > 120) return "invalid_time";
         if (running) return "busy";
-        chosen_minutes = minutes;
         remaining_ms = int64_t(minutes) * 60000;
         deadline_ms = now + remaining_ms;
         running = true; paused = false; focus_done = false;
@@ -244,7 +246,7 @@ void Click(lv_event_t* event) {
             }
             Action(4, 25, hour, minute, offset);
         } else if (action == 10) Action(0, 5, 0, 0, 0);
-        else Action(action, action == 0 ? 25 : chosen_minutes, 0, 0, 0);
+        else Action(action, 25, 0, 0, 0);
         Render();
     });
 }
