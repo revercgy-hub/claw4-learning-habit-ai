@@ -29,7 +29,8 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    foreach(suite IN ITEMS domain/domain_reducer sync/outbox_core application/coordinator ui/presenter)
+    foreach(suite IN ITEMS domain/domain_reducer sync/outbox_core application/coordinator
+                          ui/presenter time/time_authority reminder/reminder_core)
         string(REPLACE "/" "_" name "${suite}")
         add_executable(${name} "${CLAW4_ROOT}/firmware/tests/unit/${suite}_tests.cpp")
         target_include_directories(${name} PRIVATE "${CLAW4_ROOT}/firmware/tests")

@@ -18,6 +18,7 @@ using claw4::domain::ChildId;
 using claw4::domain::TaskId;
 using claw4::fakes::FakeReminderWakePort;
 using claw4::ports::ClockPort;
+using claw4::reminder::AlarmScheduleResult;
 using claw4::reminder::ReminderBatch;
 using claw4::reminder::ReminderCore;
 using claw4::reminder::ReminderKind;
@@ -675,6 +676,94 @@ static bool run_case_quiet_after_midnight_wakes_same_day_quiet_end() {
   return true;
 }
 
+static bool run_case_alarm_validates_time_and_storage() {
+  Harness h;
+  const ChildId child{"child-1"};
+  const int64_t due = kBaseEpoch + 1000;
+  CHECK(h.core->setAlarm(child, due) == AlarmScheduleResult::ClockNotReady);
+  CHECK(h.trustTime());
+  CHECK(h.core->setAlarm(child, kBaseEpoch) == AlarmScheduleResult::InvalidTime);
+  CHECK(h.core->setAlarm(child, INT64_MAX) == AlarmScheduleResult::InvalidTime);
+  CHECK(h.core->setAlarm({}, due) == AlarmScheduleResult::InvalidTime);
+  CHECK(h.store.save_calls == 0);
+  h.store.fail_saves = true;
+  CHECK(h.core->setAlarm(child, due) == AlarmScheduleResult::NotSaved);
+  CHECK(h.core->activeCount() == 0);
+  CHECK(h.store.records.empty());
+  return true;
+}
+
+static bool run_case_alarm_wake_and_delivery_during_quiet() {
+  Harness h;
+  CHECK(h.trustTime());
+  const ChildId child{"child-1"};
+  const int64_t due = kBaseEpoch + 1000;
+  CHECK(h.core->setAlarm(child, due) == AlarmScheduleResult::Scheduled);
+  CHECK(h.core->setAlarm(child, due) == AlarmScheduleResult::Scheduled);
+  CHECK(h.store.save_calls == 1);
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "task-1", due)));
+  CHECK(h.core->nextWakeMonotonicMs(kMidnight30) == 1000);
+  CHECK(h.core->collectDue(kMidnight30).empty());
+
+  h.clock.mono = 1000;
+  const auto ready = h.core->collectDue(kMidnight30 + 1000);
+  CHECK(ready.size() == 1);
+  CHECK(ready.front().kind == ReminderKind::ManualAlarm);
+  CHECK(ready.front().child_id == child);
+  CHECK(h.core->markDelivered(ready.front().instance_id, due));
+  CHECK(h.core->collectDue(kMidnight30 + 1000).empty());
+  CHECK(h.core->activeCount() == 1);  // Learning reminder remains quiet.
+  return true;
+}
+
+static bool run_case_alarm_recovers_and_respects_untrusted_clock() {
+  Harness h;
+  CHECK(h.trustTime());
+  const ChildId child{"child-1"};
+  const int64_t due = kBaseEpoch + 1000;
+  CHECK(h.core->setAlarm(child, due) == AlarmScheduleResult::Scheduled);
+  FakeClock reboot_clock;
+  TimeAuthority reboot_authority(reboot_clock, "boot-b", TimeAuthorityConfig{60000, 600000, 60000, 100});
+  ReminderCore restored(h.policy, h.store, reboot_authority);
+  CHECK(restored.load());
+  CHECK(restored.activeCount() == 1);
+  CHECK(!restored.nextWakeMonotonicMs(kNoon).has_value());
+  CHECK(restored.collectDue(kNoon).empty());
+  CHECK(reboot_authority.acceptSync(due, "net", 1000).outcome ==
+        claw4::time::SyncOutcome::Accepted);
+  const auto ready = restored.collectDue(kNoon);
+  CHECK(ready.size() == 1);
+  CHECK(restored.markDelivered(ready.front().instance_id, due));
+  CHECK(reboot_authority.acceptSync(kBaseEpoch, "net", 1000).outcome ==
+        claw4::time::SyncOutcome::Accepted);
+  CHECK(restored.setAlarm(child, due) == AlarmScheduleResult::InvalidTime);
+  CHECK(restored.activeCount() == 0);
+  return true;
+}
+
+static bool run_case_alarm_cancel_is_scoped_and_durable() {
+  Harness h;
+  CHECK(h.trustTime());
+  const ChildId child{"child-1"};
+  const int64_t due = kBaseEpoch + 1000;
+  CHECK(h.core->setAlarm(child, due) == AlarmScheduleResult::Scheduled);
+  CHECK(h.core->upsert(makeRecord(ReminderKind::TaskDue, "task-1", due)));
+  CHECK(h.core->cancelForTask({}));
+  CHECK(h.core->cancelForChild(child));
+  CHECK(h.core->recordCount() == 1);
+  CHECK(h.core->cancelAlarm(ChildId{"child-2"}, due));
+  CHECK(h.core->recordCount() == 1);
+  h.store.fail_saves = true;
+  CHECK(!h.core->cancelAlarm(child, due));
+  CHECK(h.core->recordCount() == 1);
+  h.store.fail_saves = false;
+  CHECK(h.core->cancelAlarm(child, due));
+  CHECK(h.core->cancelAlarm(child, due));
+  CHECK(h.core->recordCount() == 0);
+  CHECK(h.store.records.empty());
+  return true;
+}
+
 static bool run_case_all() {
   CASE(stable_instance_id_dedupes_on_rebuild);
   CASE(rebuild_preserves_snooze);
@@ -699,6 +788,10 @@ static bool run_case_all() {
   CASE(wake_cancelled_when_calendar_not_allowed);
   CASE(quiet_deferred_reminder_wakes_at_quiet_end);
   CASE(quiet_after_midnight_wakes_same_day_quiet_end);
+  CASE(alarm_validates_time_and_storage);
+  CASE(alarm_wake_and_delivery_during_quiet);
+  CASE(alarm_recovers_and_respects_untrusted_clock);
+  CASE(alarm_cancel_is_scoped_and_durable);
   return g_fail == 0;
 }
 

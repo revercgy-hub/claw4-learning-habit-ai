@@ -42,6 +42,14 @@ enum class ReminderKind : uint8_t {
   Snooze,
   FocusEnd,
   DailyReview,
+  ManualAlarm,
+};
+
+enum class AlarmScheduleResult : uint8_t {
+  Scheduled,
+  ClockNotReady,
+  InvalidTime,
+  NotSaved,
 };
 
 struct ReminderRecord {
@@ -119,9 +127,18 @@ class ReminderCore {
   // the instance table is already at capacity and this is a new instance.
   bool upsert(const ReminderRecord& record);
 
+  // One-shot user alarm. The caller resolves local date/time to an epoch.
+  // A successful result means the alarm is already in the reminder store.
+  // Use the same child and deadline to cancel it. Both operations are
+  // idempotent. Delivery requires trusted calendar time. The quiet period
+  // applies to plan reminders, not to explicitly set alarms.
+  AlarmScheduleResult setAlarm(const claw4::domain::ChildId& child_id,
+                               int64_t due_epoch_ms);
+  bool cancelAlarm(const claw4::domain::ChildId& child_id, int64_t due_epoch_ms);
+
   // Removes all reminders bound to the task (reschedule / delete / complete).
   bool cancelForTask(const claw4::domain::TaskId& task_id);
-  // Removes every reminder for the child (plan replaced).
+  // Removes plan reminders for the child when their learning plan is replaced.
   bool cancelForChild(const claw4::domain::ChildId& child_id);
 
   // Snooze is deliberately idempotent on the instance, not on the task: the

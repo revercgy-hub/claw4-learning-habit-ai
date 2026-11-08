@@ -9,6 +9,7 @@ namespace reminder {
 namespace {
 
 constexpr int64_t kDayMs = 24 * 3600 * 1000;
+constexpr int64_t kMaxAlarmLeadMs = 366 * kDayMs;
 
 }  // namespace
 
@@ -165,12 +166,49 @@ bool ReminderCore::upsert(const ReminderRecord& record) {
   return commit(std::move(next));
 }
 
+AlarmScheduleResult ReminderCore::setAlarm(const claw4::domain::ChildId& child_id,
+                                           const int64_t due_epoch_ms) {
+  const time::TimeStatus status = time_authority_.status();
+  if (!status.calendar_allowed || !status.epoch_valid || !status.epoch_ms) {
+    return AlarmScheduleResult::ClockNotReady;
+  }
+  const int64_t now = *status.epoch_ms;
+  if (child_id.empty() || due_epoch_ms <= now || due_epoch_ms - now > kMaxAlarmLeadMs) {
+    return AlarmScheduleResult::InvalidTime;
+  }
+
+  ReminderRecord alarm;
+  alarm.kind = ReminderKind::ManualAlarm;
+  alarm.child_id = child_id;
+  alarm.due_epoch_ms = due_epoch_ms;
+  alarm.instance_id = makeInstanceId(alarm.kind, child_id, alarm.task_id, due_epoch_ms);
+  for (const auto& record : records_) {
+    if (record.instance_id != alarm.instance_id) continue;
+    // A request repeated after a clock rollback must not re-arm a rung alarm.
+    return isFinished(record) ? AlarmScheduleResult::InvalidTime
+                              : AlarmScheduleResult::Scheduled;
+  }
+  return upsert(alarm) ? AlarmScheduleResult::Scheduled : AlarmScheduleResult::NotSaved;
+}
+
+bool ReminderCore::cancelAlarm(const claw4::domain::ChildId& child_id,
+                               const int64_t due_epoch_ms) {
+  const std::string id = makeInstanceId(ReminderKind::ManualAlarm, child_id, {}, due_epoch_ms);
+  auto next = records_;
+  const auto end = std::remove_if(next.begin(), next.end(), [&](const ReminderRecord& record) {
+    return record.kind == ReminderKind::ManualAlarm && record.instance_id == id;
+  });
+  if (end == next.end()) return true;
+  next.erase(end, next.end());
+  return commit(std::move(next));
+}
+
 bool ReminderCore::cancelForTask(const claw4::domain::TaskId& task_id) {
   std::vector<ReminderRecord> next;
   next.reserve(records_.size());
   bool changed = false;
   for (const auto& r : records_) {
-    if (r.task_id == task_id) {
+    if (r.kind != ReminderKind::ManualAlarm && r.task_id == task_id) {
       changed = true;
       continue;  // reschedule / delete / complete cancels the old reminders
     }
@@ -185,7 +223,7 @@ bool ReminderCore::cancelForChild(const claw4::domain::ChildId& child_id) {
   next.reserve(records_.size());
   bool changed = false;
   for (const auto& r : records_) {
-    if (r.child_id == child_id) {
+    if (r.kind != ReminderKind::ManualAlarm && r.child_id == child_id) {
       changed = true;
       continue;
     }
@@ -259,7 +297,7 @@ ReminderCore::Evaluation ReminderCore::evaluate(const int64_t local_ms_of_day) {
     const int64_t eff = effectiveDue(r);
     if (eff > ev.now) continue;  // not due yet
 
-    if (ev.quiet) {
+    if (ev.quiet && r.kind != ReminderKind::ManualAlarm) {
       // RF5.1 frozen semantics: the quiet period suppresses delivery but keeps
       // the reminder pending, and a quiet-induced delay does NOT consume the
       // normal grace window.
@@ -400,7 +438,7 @@ std::optional<int64_t> ReminderCore::nextWakeMonotonicMs(
     // a far-future due time.
     const int64_t local_at_candidate =
         (local_ms_of_day + delta_to_candidate % kDayMs) % kDayMs;
-    if (quietActive(local_at_candidate)) {
+    if (r.kind != ReminderKind::ManualAlarm && quietActive(local_at_candidate)) {
       candidate += quietEndDeltaMs(local_at_candidate);
     }
 
