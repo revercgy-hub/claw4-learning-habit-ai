@@ -48,18 +48,20 @@ int main() {
     assert(first != 0 && reference.active());
     assert(reference.Push(first, 10));
     assert(reference.Push(first, 11));
-    assert(reference.Next() == 0);
+    bool delayed_valid = true;
+    assert(reference.Next(&delayed_valid) == 0 && !delayed_valid);
     assert(reference.Next() == 0);
     assert(reference.Push(first, 12));
     assert(reference.Next() == 0);
     assert(reference.Push(first, 13));
-    assert(reference.Next() == 10);
+    assert(reference.Next(&delayed_valid) == 10 && delayed_valid);
     assert(reference.Next() == 11);
     assert(reference.Next() == 12);
     assert(reference.Next() == 13);
     assert(reference.pending_size() == 0);
     auto stats = reference.TakeStats();
     assert(stats.underflow == 3 && stats.overflow == 0);
+    assert(reference.TakeStats().underflow == 0); // Delta snapshot resets.
     assert(reference.Push(first, 77));
     assert(reference.Next() == 0);
     assert(reference.Push(first, 78));
@@ -80,14 +82,18 @@ int main() {
     reference.End();
 
     claw4::PlaybackReferenceDelay immediate_reference(0);
-    assert(immediate_reference.Next() == 0);
+    bool valid = true;
+    assert(immediate_reference.Next(&valid) == 0 && !valid);
     const auto immediate_token = immediate_reference.Begin();
+    assert(immediate_reference.Push(immediate_token, 0));
+    assert(immediate_reference.Next(&valid) == 0 && valid); // Real accepted zero.
+    assert(immediate_reference.Next(&valid) == 0 && !valid); // Actual shortage.
     assert(immediate_reference.Push(immediate_token, -1234));
-    assert(immediate_reference.Next() == -1234);
+    assert(immediate_reference.Next(&valid) == -1234 && valid);
     for (std::size_t i = 0; i < claw4::PlaybackReferenceDelay::kPendingCapacity; ++i)
         assert(immediate_reference.Push(immediate_token, static_cast<int16_t>(i)));
     assert(!immediate_reference.Push(immediate_token, 99)); // overflow invalidates alignment
-    assert(immediate_reference.Next() == 0);
+    assert(immediate_reference.Next(&valid) == 0 && !valid);
     assert(!immediate_reference.active() && immediate_reference.pending_size() == 0);
     stats = immediate_reference.TakeStats();
     assert(stats.overflow == 1 && stats.discarded == claw4::PlaybackReferenceDelay::kPendingCapacity);

@@ -191,18 +191,19 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
             encoding='utf-8')
         header = (diagnostic / 'main/audio/engines/afe_audio_engine.h').read_text(
             encoding='utf-8')
-        for marker in ('M1_AFE_STATE', 'M1_AFE_FLOW', 'M1_AFE_CTL'):
+        for marker in ('M1_AFE_STATE', 'M1_AFE_FLOW', 'M1_AFE_CTL', 'M1_AFE_AEC'):
             match = re.search(r'"(' + marker + r' [^"\n]+)"', afe)
             self.assertIsNotNone(match)
             # Reserve 60 bytes for the ESP log prefix within the parser's
             # 256-character line cap, including INT32_MIN return codes.
-            worst = match.group(1).replace('%u', '4294967295').replace('%d', '-2147483648')
+            worst = (match.group(1).replace('%u', '4294967295')
+                     .replace('%d', '-2147483648').replace('%lld', '9223372036854775807'))
             self.assertLessEqual(len(worst) + 60, 256)
         self.assertIn('"m1_afe_diag", 4096, m1_diag_, 1, nullptr)', afe)
         self.assertIn('ReleaseM1AfeDiagState(state);\n                vTaskDelete(nullptr);', afe)
         self.assertNotIn('xSemaphoreTake', afe)
         self.assertNotIn('portMAX_DELAY', afe)
-        self.assertNotIn('esp_timer_', afe)
+        self.assertEqual(afe.count('esp_timer_get_time()'), 1)
         self.assertIn('std::memory_order_relaxed', afe)
         self.assertIn('M1AfeDiagState* m1_diag_', header)
         self.assertIn('std::atomic<uint32_t> feed_chunks{0}', afe)
@@ -221,6 +222,13 @@ class M1InputDiagnosticsStageTests(unittest.TestCase):
             self.assertIn(f'state->{name}.load(std::memory_order_relaxed)', report)
             self.assertNotIn(f'state->{name}.exchange(', report)
         self.assertIn('M1_AFE_CTL on_total=%u on_rc=%d off_total=%u off_rc=%d', report)
+        self.assertIn('M1_AFE_AEC t_us=%lld requested=%u apply_total=%u latest_rc=%d', report)
+        self.assertIn('const int rc = enable_aec ? afe_iface_->enable_aec(afe_data_)', afe)
+        self.assertIn('if (m1_diag_->aec_apply_total != UINT32_MAX) ++m1_diag_->aec_apply_total;', afe)
+        self.assertIn('std::lock_guard<std::mutex> lock(m1_diag_->aec_mutex);', afe)
+        self.assertIn('std::lock_guard<std::mutex> lock(state->aec_mutex);', report)
+        self.assertLess(report.index('aec_snapshot_us = esp_timer_get_time();'),
+                        report.index('aec_apply_total = state->aec_apply_total;'))
         self.assertNotIn('wake_applied_seq', afe)
         self.assertNotIn('wake_desired_seq', afe)
         self.assertNotIn('M1_AFE_STATE', (ordinary / 'main/audio/engines/afe_audio_engine.cc').read_text(

@@ -74,7 +74,8 @@ public:
         return true;
     }
 
-    int16_t Next() {
+    int16_t Next(bool* valid = nullptr) {
+        if (valid != nullptr) *valid = false;
         if (!active_) return 0;
         int16_t current = 0;
         bool current_valid = false;
@@ -86,6 +87,7 @@ public:
         }
         if (delay_samples_ == 0) {
             if (!current_valid) Add(stats_.underflow, 1);
+            if (valid != nullptr) *valid = current_valid;
             return current;
         }
         const int16_t delayed = delay_[delay_pos_];
@@ -96,6 +98,7 @@ public:
         if (current_valid) ++delayed_pending_;
         delay_pos_ = (delay_pos_ + 1) % delay_samples_;
         if (!delayed_valid) Add(stats_.underflow, 1);
+        if (valid != nullptr) *valid = delayed_valid;
         return delayed;
     }
 
