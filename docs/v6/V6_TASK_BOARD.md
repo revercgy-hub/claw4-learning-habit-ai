@@ -1,5 +1,13 @@
 # V6 唯一阶段看板
 
+## 2026-11-08 S-27 闹钟与番茄钟真机预览
+
+用户批准在 M1 验收前进行此项预览。S-27 独立应用提供屏幕 Timer / Alarm 入口、5/25 分钟触控预设、语音指定时长、暂停/继续/取消、一次性闹钟及到点提示。计时使用单调时钟，闹钟使用设备接收的 NAS UTC 校时和北京时间，预览最多保存一个待响闹钟。语音确认使用当前设备回执。
+
+设备候选 `claw4-learning-v6-timer-preview-s27-20261108-01`，源码 `9e90e43d6c9bea880cdf0c9a359a8634ece06385`，manifest SHA-256 `c630f07bbc5a1c76da2326a4110ea4b704ce3ee4a5a8fb3a67536269d3bc93f8`。应用仅写 `ota_0`，完整读回 SHA-256 `52c3e678a4025497eadaf1401f3bc0fd297d15afbe625b6b11ba8b1689848448`，回退备份已校验，分区表、启动选择区和唤醒模型前缀保持一致。USB reset 后连续采集 240.077 秒，观察到唯一 ELF 锚点、计时界面初始化、校时接受和设备待机，崩溃标记为 0。启动摘要 SHA-256 `6908cf714ed70f54a492e3549004611b6e3eb57dfe676c8ca5cac7c567176c11`。真机触控、语音计时和到点播报待操作者验证。
+
+NAS 源码 `2ade5879e1c27cf5a971fd79d1b848acc321618d`，正式镜像 `sha256:16f4ac8cd91fb014a89b0e5e4e876849ddd29da1bb80b7bec34907e7337d5314`。隔离及正式服务各通过 6/6 合成 WebSocket 用例，覆盖模拟设备回执、未校时、不支持工具、天气与普通问答。工具回归 235/235，Board C++17 严格警告构建及测试通过。预览证据独立记录，M0 `CHANGES_REQUIRED`，M1 正式 20 轮 `NOT_STARTED`。
+
 ## 2026-11-08 L-40 闹钟与专注倒计时（HOST_VERIFIED）
 
 用户要求增加闹钟和番茄钟。主机侧复用 Focus 的单调时钟剩余时间，输出 `MM:SS`，暂停时稳定、到期显示 `00:00`。首版倒计时绑定学习任务。一次性手动闹钟通过既有提醒存储设定和取消，只有时钟可信且保存成功后才返回成功。显式设定的闹钟按设定时间评估，学习提醒继续遵循免打扰策略。断电重启后的主机仿真验证了记录恢复、未校时抑制和重新校时后的触发。真机屏幕、语音命令、RTC、存储适配及提示音待接入；M2/M2.5 阶段门禁待放行。
@@ -8,7 +16,7 @@
 
 ## 2026-11-08 L-39 NAS 实时天气与新闻（NAS_SERVICE_VERIFIED）
 
-用户授权增加实时天气和新闻。服务在既有语音会话中处理常见城市的当前、今天及明天天气，并播报中新网当日最新至多三条标题。天气请求仅使用预设城市坐标，新闻使用固定 RSS 请求。缺少支持的城市或数据源失败时有明确提示。集成源码 `fafc8ce9aee3410e02b9f0cd41a00c69e9414547`，本地 V6 Host `223/223`。隔离及正式 NAS 各通过 `6/6` 合成 WebSocket 文本到 Opus 用例，覆盖当前天气、今天、明天、新闻、城市提示、普通算术。正式镜像 `sha256:06d26d826107edc2e4ecd1a0bf07367b354c66d81328e9836438f650748e3370c`，容器 `aa6bd98417a4d39449c10af8667fa335c51764f3d062f67b47b25a1b37682a5c`，restart 0，配置 SHA `e56859eb205c6124c66cc30275d643556c9666e66ec2ceaa1ae4f4f55f344911`，OTA HTTP 200 / WS 端点核对通过。正式测试证据 `evidence/live-lookup-20261108-01/active-ws.json` SHA-256 `4c5ec42f96fd83909d285165cce263bd48e2b619505080aa71fd5adbdca49660`。真机 ASR、扬声器和设备轮次仍待验证。M0 `CHANGES_REQUIRED`，AP `SKIPPED_BY_USER / NOT_VERIFIED`，Preflight `0/2–3`，正式 20 轮 `NOT_STARTED`。 [部署与回退](../../deploy/v6/xiaozhi-nas/README.md#live-weather-and-news)。
+用户授权增加实时天气和新闻。服务在既有语音会话中处理常见城市的当前、今天及明天天气，并播报中新网当日最新至多三条标题。天气请求仅使用预设城市坐标，新闻使用固定 RSS 请求。缺少支持的城市或数据源失败时有明确提示。集成源码 `fafc8ce9aee3410e02b9f0cd41a00c69e9414547`，本地 V6 Host `223/223`。隔离及正式 NAS 各通过 `6/6` 合成 WebSocket 文本到 Opus 用例，覆盖当前天气、今天、明天、新闻、城市提示、普通算术。正式镜像 `sha256:06d26d826107edc2e4ecd1a0bf07367b354c66d81328e9836438f650748e370c`，容器 `aa6bd98417a4d39449c10af8667fa335c51764f3d062f67b47b25a1b37682a5c`，restart 0，配置 SHA `e56859eb205c6124c66cc30275d643556c9666e66ec2ceaa1ae4f4f55f344911`，OTA HTTP 200 / WS 端点核对通过。正式测试证据 `evidence/live-lookup-20261108-01/active-ws.json` SHA-256 `4c5ec42f96fd83909d285165cce263bd48e2b619505080aa71fd5adbdca49660`。真机 ASR、扬声器和设备轮次仍待验证。M0 `CHANGES_REQUIRED`，AP `SKIPPED_BY_USER / NOT_VERIFIED`，Preflight `0/2–3`，正式 20 轮 `NOT_STARTED`。 [部署与回退](../../deploy/v6/xiaozhi-nas/README.md#live-weather-and-news)。
 
 ## 2026-11-08 L-38 NAS synthetic voice-flow evidence
 
