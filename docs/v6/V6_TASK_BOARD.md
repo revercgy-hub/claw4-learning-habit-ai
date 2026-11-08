@@ -1,7 +1,8 @@
+# V6 唯一阶段看板
+
 ## 2026-11-08 L-36 S-24 AEC diagnostic candidate evidence (DOCS_COMPLETE / BUILD_REVIEW_PASS)
 
 Docs-only evidence record is in [L-36 report](V6_M1_AEC_DIAGNOSTIC_REPORT.md). Candidate `claw4-learning-v6-m1-aec-diag-s24-20261108-01`, source `5a9dbfcf66ad6d8c505a8d3be8126e8362d1fb03`, manifest SHA-256 `8c082e7199e81561d93d648e17abe6e0f9d76aa0043282bddb3e51b5d7f45fbe`; build `BUILT_NOT_FLASHED`, independent R-18 `PASS`. Device validation `NOT_VERIFIED`; no Flash authorization is implied. Bootloader output differs from S15 and is excluded from any permitted write payload. L-34 remains `PREFLIGHT_CHANGES_REQUIRED / TTS_RECAPTURE_OBSERVED`, full Preflight `0/2–3`, formal 20 `NOT_STARTED`; M0 `CHANGES_REQUIRED`; AP `SKIPPED_BY_USER / NOT_VERIFIED`. Diagnostic counters do not establish acoustic delay, AFE feed, AEC effectiveness, or near-end performance.
-# V6 唯一阶段看板
 
 ## 2026-11-08 L-34 S-17 Voice Preflight 05
 
