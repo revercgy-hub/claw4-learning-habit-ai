@@ -1,5 +1,9 @@
 # V6 唯一阶段看板
 
+## 2026-11-08 S-25 S-24 真机回声诊断
+
+S-24 已 app-only 写入 `ota_0`，完整读回与候选一致。实际分区表、启动选择区及目标模型镜像范围读回一致，写前完整扇区备份已验证。连续采集 371.705 秒，确认 ELF、NAS 端点及 357 个配对音频窗口、351 个 AFE 快照。安静数数首两段 NAS 发送标记相隔 11.990 秒。插话复测精确识别受控短句且 ASR/LLM 哈希匹配，操作者报告答复偏离指令。观察到参考信号可用及一次回复期间 Write 内短缺，物理回采根因未验证。L-37 证据工具定向 7/7、V6 Host 209/209。Preflight `CHANGES_REQUIRED`，仍计 `0/2–3`；正式 20 轮未开始，M0 `CHANGES_REQUIRED`，AP `SKIPPED_BY_USER / NOT_VERIFIED`。见 [S-25 设备报告](V6_M1_AEC_DIAGNOSTIC_DEVICE_REPORT.md)。下步在服务侧分别复现答偏和分段停顿。
+
 ## 2026-11-08 L-36 S-24 AEC diagnostic candidate evidence (DOCS_COMPLETE / BUILD_REVIEW_PASS)
 
 Docs-only evidence record is in [L-36 report](V6_M1_AEC_DIAGNOSTIC_REPORT.md). Candidate `claw4-learning-v6-m1-aec-diag-s24-20261108-01`, source `5a9dbfcf66ad6d8c505a8d3be8126e8362d1fb03`, manifest SHA-256 `8c082e7199e81561d93d648e17abe6e0f9d76aa0043282bddb3e51b5d7f45fbe`; build `BUILT_NOT_FLASHED`, independent R-18 `PASS`. Device validation `NOT_VERIFIED`; no Flash authorization is implied. Bootloader output differs from S15 and is excluded from any permitted write payload. L-34 remains `PREFLIGHT_CHANGES_REQUIRED / TTS_RECAPTURE_OBSERVED`, full Preflight `0/2–3`, formal 20 `NOT_STARTED`; M0 `CHANGES_REQUIRED`; AP `SKIPPED_BY_USER / NOT_VERIFIED`. Diagnostic counters do not establish acoustic delay, AFE feed, AEC effectiveness, or near-end performance.
