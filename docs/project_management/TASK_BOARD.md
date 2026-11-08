@@ -1,3 +1,6 @@
+## 2026-11-08 L-36 S-24 AEC diagnostic candidate evidence (DOCS_COMPLETE / BUILD_REVIEW_PASS)
+
+The L-36 docs-only record is complete: [V6 L-36 report](../v6/V6_M1_AEC_DIAGNOSTIC_REPORT.md). Candidate `claw4-learning-v6-m1-aec-diag-s24-20261108-01`, source baseline `5a9dbfcf66ad6d8c505a8d3be8126e8362d1fb03`, manifest SHA-256 `8c082e7199e81561d93d648e17abe6e0f9d76aa0043282bddb3e51b5d7f45fbe`; isolated build completed and R-18 `PASS`. Candidate remains unflashed; device validation `NOT_VERIFIED`; no Flash authorization is inferred. Historical Preflight remains `0/2–3`; formal 20 rounds `NOT_STARTED`; M0 `CHANGES_REQUIRED`; AP recovery `SKIPPED_BY_USER / NOT_VERIFIED`.
 # Claw4 当前任务看板
 
 ### 2026-11-08 L-34 S-17 Voice Preflight 05
