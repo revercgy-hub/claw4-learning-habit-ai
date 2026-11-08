@@ -216,16 +216,17 @@ void Claw4Audio::ReportAudioWindow() {
     // acceptance, not speaker onset or physical acoustic alignment.
     ESP_LOGI("Claw4Audio", "M1_AUDIO_WINDOW t0=%lld t1=%lld rx=%u rx_fail=%u rx_fail_tx=%u tx=%u ref_ok=%u ref_zero=%u ref_short=%u short_tx=%u",
              static_cast<long long>(start), static_cast<long long>(now),
-             window.rx_frames, window.rx_fail, window.rx_fail_inflight,
-             window.tx_frames,
-             window.ref_valid, window.ref_zero, window.ref_shortage,
-             window.ref_shortage_inflight);
+             unsigned(window.rx_frames), unsigned(window.rx_fail),
+             unsigned(window.rx_fail_inflight), unsigned(window.tx_frames),
+             unsigned(window.ref_valid), unsigned(window.ref_zero),
+             unsigned(window.ref_shortage), unsigned(window.ref_shortage_inflight));
     ESP_LOGI("Claw4Audio", "M1_AUDIO_ENERGY t1=%lld mic_sum_sq=%llu ref_sum_sq=%llu tx_calls=%u tx_write_us_max=%u inactive=%u underflow=%u active=%u pending=%u",
              static_cast<long long>(now),
              static_cast<unsigned long long>(window.mic_energy),
              static_cast<unsigned long long>(window.ref_energy),
-             window.tx_calls, window.tx_write_us_max,
-             window.ref_inactive, window.ref_underflow, unsigned(active), pending);
+             unsigned(window.tx_calls), unsigned(window.tx_write_us_max),
+             unsigned(window.ref_inactive), unsigned(window.ref_underflow),
+             unsigned(active), pending);
 }
 
 void Claw4Audio::ReportM1InputStats() {

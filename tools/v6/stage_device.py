@@ -152,7 +152,7 @@ M1_AFE_DIAG_PATCHES = {
     ),
     'main/audio/engines/afe_audio_engine.cc': (
         ('#include <sstream>\n',
-         '#include <sstream>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <new>\n#include <esp_timer.h>\n#endif\n'),
+         '#include <sstream>\n#if CONFIG_CLAW4_M1_INPUT_DIAGNOSTICS\n#include <new>\n#include <mutex>\n#include <esp_timer.h>\n#endif\n'),
         ('''#define TAG "AfeAudioEngine"
 
 #if CONFIG_USE_AUDIO_PROCESSOR''',
@@ -181,9 +181,11 @@ struct M1AfeDiagState {
     std::atomic<uint32_t> wakenet_disable_total{0};
     std::atomic<int32_t> wakenet_enable_rc{0};
     std::atomic<int32_t> wakenet_disable_rc{0};
-    std::atomic<bool> aec_requested{false};
-    std::atomic<uint32_t> aec_apply_total{0};
-    std::atomic<int32_t> aec_latest_rc{0};
+    // Only ApplyAfeControls and the reporter touch this brief snapshot lock.
+    std::mutex aec_mutex;
+    bool aec_requested = false;
+    uint32_t aec_apply_total = 0;
+    int32_t aec_latest_rc = 0;
 };
 
 static void ReleaseM1AfeDiagState(M1AfeDiagState* state) {
@@ -385,11 +387,20 @@ void AfeAudioEngine::ReportM1AfeStats(M1AfeDiagState* state) {
              int(state->wakenet_enable_rc.load(std::memory_order_relaxed)),
              unsigned(state->wakenet_disable_total.load(std::memory_order_relaxed)),
              int(state->wakenet_disable_rc.load(std::memory_order_relaxed)));
+    int64_t aec_snapshot_us;
+    bool aec_requested;
+    uint32_t aec_apply_total;
+    int32_t aec_latest_rc;
+    {
+        std::lock_guard<std::mutex> lock(state->aec_mutex);
+        aec_snapshot_us = esp_timer_get_time();
+        aec_requested = state->aec_requested;
+        aec_apply_total = state->aec_apply_total;
+        aec_latest_rc = state->aec_latest_rc;
+    }
     ESP_LOGI(TAG, "M1_AFE_AEC t_us=%lld requested=%u apply_total=%u latest_rc=%d",
-             static_cast<long long>(esp_timer_get_time()),
-             unsigned(state->aec_requested.load(std::memory_order_relaxed)),
-             unsigned(state->aec_apply_total.load(std::memory_order_relaxed)),
-             int(state->aec_latest_rc.load(std::memory_order_relaxed)));
+             static_cast<long long>(aec_snapshot_us), unsigned(aec_requested),
+             unsigned(aec_apply_total), int(aec_latest_rc));
 }
 #endif
 
@@ -403,9 +414,10 @@ void AfeAudioEngine::ProcessingTask() {
         const int rc = enable_aec ? afe_iface_->enable_aec(afe_data_)
                                   : afe_iface_->disable_aec(afe_data_);
         if (m1_diag_ != nullptr) {
-            m1_diag_->aec_requested.store(enable_aec, std::memory_order_relaxed);
-            m1_diag_->aec_latest_rc.store(rc, std::memory_order_relaxed);
-            m1_diag_->aec_apply_total.fetch_add(1, std::memory_order_relaxed);
+            std::lock_guard<std::mutex> lock(m1_diag_->aec_mutex);
+            m1_diag_->aec_requested = enable_aec;
+            m1_diag_->aec_latest_rc = rc;
+            if (m1_diag_->aec_apply_total != UINT32_MAX) ++m1_diag_->aec_apply_total;
         }
 #else
         if (enable_aec) {
