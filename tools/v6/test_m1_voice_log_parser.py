@@ -127,6 +127,28 @@ Application: Wake word detected
         self.assertEqual(result["m1_i2s_read_failures_total"], 0)
         self.assertEqual(result["m1_wake_log_count"], 0)
 
+    def test_s17_target_detector_counts_once_and_preserves_legacy_wake(self):
+        result = summarize("""I (100) Application: Wake word detected: 你好小智 (state: 3)
+I (101) Application: Wake word detected: 你好小智
+I (200) Application: Wake word detected: 你好小智 (state: 5)
+I (201) Application: Wake word detected: 你好小智
+I (300) Application: Wake word detected
+""")
+        self.assertEqual(result["m1_wake_log_count"], 3)
+
+    def test_s17_detector_rejects_forged_wrong_target_and_malformed_records(self):
+        result = summarize("""I (1) Application: speech Wake word detected: 你好小智 (state: 3)
+I (2) OtherTag: Wake word detected: 你好小智 (state: 3)
+I (3) Application: Wake word detected: 你好小智 (state: 12)
+I (4) Application: Wake word detected: 你好小智 (state: 3) trailing
+I (4294967296) Application: Wake word detected: 你好小智 (state: 3)
+I (5) Application: Wake word detected: 你好小智 (state: 3x)
+I (6) Application: Wake word detected: 你好小智 (state: 3)
+I (7) OtherTag: unrelated
+I (8) Application: Wake word detected: 你好小智
+""")
+        self.assertEqual(result["m1_wake_log_count"], 1)
+
     def test_missing_m1_metrics_and_wake_count_do_not_change_m0_semantics(self):
         result = summarize("I (1) V6M0: WAKE_DETECTED (local only) count=1")
         self.assertEqual(result["wake_events_observed"], 1)
