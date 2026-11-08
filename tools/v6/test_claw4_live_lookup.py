@@ -22,8 +22,14 @@ class ClassificationTests(unittest.TestCase):
     def test_news_and_unrelated_queries(self):
         for query in ("今天有什么新闻", "今天的新闻", "最新新闻"):
             self.assertEqual(lookup.classify(query), {"kind": "news"})
-        for query in ("什么是天气预报", "写一篇新闻", "你好", "天气相关的作文"):
+        for query in ("什么是天气预报", "写一篇新闻", "你好", "天气相关的作文", "天气预报怎么形成",
+                      "我今天看了新闻，天气也很好", "昨天新闻"):
             self.assertIsNone(lookup.classify(query))
+
+    def test_ambiguous_city_requests_city_clarification(self):
+        self.assertEqual(lookup.classify("北京和上海今天的天气怎么样"),
+                         {"kind": "weather", "city": None, "day": "today"})
+        self.assertIn("告诉我城市", lookup.answer(lookup.classify("北京和上海今天的天气怎么样")))
 
     def test_transcript_is_not_returned(self):
         request = lookup.classify("北京今天的天气怎么样，家里有点冷")
@@ -32,12 +38,14 @@ class ClassificationTests(unittest.TestCase):
 
 class AnswerTests(unittest.TestCase):
     def test_weather_url_uses_fixed_city_coordinates(self):
-        payload = {"daily": {"time": ["2026-11-08", "2026-11-09"],
+        today = datetime.now(lookup.CHINA_TZ).date().isoformat()
+        tomorrow = (datetime.now(lookup.CHINA_TZ).date() + lookup.timedelta(days=1)).isoformat()
+        payload = {"daily": {"time": [today, tomorrow],
                              "temperature_2m_max": [18, 19], "temperature_2m_min": [8, 9],
                              "weather_code": [0, 3]}}
         with patch.object(lookup, "_fetch", return_value=json.dumps(payload).encode()) as fetch:
             result = lookup.answer({"kind": "weather", "city": "北京", "day": "today"})
-        self.assertEqual(result, "北京今天晴，气温8到18摄氏度。")
+        self.assertEqual(result, "北京今天，Open-Meteo预报晴，气温8到18摄氏度。")
         self.assertIn("latitude=39.9042&longitude=116.4074", fetch.call_args.args[0])
         self.assertNotIn("家里", fetch.call_args.args[0])
 
@@ -54,14 +62,25 @@ class AnswerTests(unittest.TestCase):
             self.assertEqual(lookup.answer({"kind": "weather", "city": "北京", "day": "current"}),
                              "暂时无法获取北京的天气，请稍后再试。")
 
+    def test_daily_weather_rejects_wrong_date_and_inverted_range(self):
+        payload = {"daily": {"time": ["2000-01-01", "2000-01-02"],
+                             "temperature_2m_max": [5, 5], "temperature_2m_min": [10, 10],
+                             "weather_code": [0, 0]}}
+        with patch.object(lookup, "_fetch", return_value=json.dumps(payload).encode()):
+            self.assertIn("暂时无法获取", lookup.answer({"kind": "weather", "city": "北京", "day": "today"}))
+
     def test_news_only_speaks_fresh_bounded_headlines(self):
-        today = datetime.now(lookup.CHINA_TZ).strftime("%a, %d %b %Y %H:%M:%S +0800")
+        from datetime import timedelta
+        today = (datetime.now(lookup.CHINA_TZ) - timedelta(minutes=2)).strftime("%a, %d %b %Y %H:%M:%S +0800")
         old = "Mon, 01 Jan 2001 00:00:00 +0800"
-        xml = f"""<rss><channel><item><title>今日&lt;b&gt;要闻&lt;/b&gt;</title><pubDate>{today}</pubDate></item>
+        later = (datetime.now(lookup.CHINA_TZ) + timedelta(minutes=2)).strftime("%a, %d %b %Y %H:%M:%S +0800")
+        xml = f"""<rss><channel><item><title>较早要闻</title><pubDate>{today}</pubDate></item>
+        <item><title>较新要闻</title><pubDate>{(datetime.now(lookup.CHINA_TZ) - timedelta(minutes=1)).strftime('%a, %d %b %Y %H:%M:%S +0800')}</pubDate></item>
+        <item><title>未来消息</title><pubDate>{later}</pubDate></item>
         <item><title>旧消息</title><pubDate>{old}</pubDate></item></channel></rss>""".encode()
         with patch.object(lookup, "_fetch", return_value=xml):
             result = lookup.answer({"kind": "news"})
-        self.assertEqual(result, "中新网今日新闻：今日 要闻。")
+        self.assertEqual(result, "中新网今日新闻：较新要闻；较早要闻。")
         with patch.object(lookup, "_fetch", return_value=b"<rss><channel/></rss>"):
             self.assertEqual(lookup.answer({"kind": "news"}), "暂时没有找到今天发布的新闻。")
 

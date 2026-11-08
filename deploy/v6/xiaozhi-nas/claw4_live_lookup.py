@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 import json
 import re
-import urllib.error
-import urllib.request
 import xml.etree.ElementTree as ET
+import asyncio
 
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -39,54 +38,56 @@ CITIES = {
     "呼和浩特": (40.8426, 111.7492), "拉萨": (29.6520, 91.1721),
 }
 
-_WEATHER_PATTERN = re.compile(r"天气|气温|温度|下雨|降雨|天气预报")
-_EXPLAIN_WEATHER = re.compile(r"什么是|是什么意思|解释|介绍|写一篇|作文")
-_NEWS_PATTERN = re.compile(r"新闻|头条")
+_CITY_ALTERNATION = "|".join(re.escape(name) for name in sorted(CITIES, key=len, reverse=True))
+_CITIES_FORM = rf"(?P<city>(?:{_CITY_ALTERNATION})(?:和(?:{_CITY_ALTERNATION}))*)?"
+_WEATHER_FORMS = (
+    re.compile(rf"{_CITIES_FORM}(?P<day>今天|今日|明天|明日)?的?天气(?:怎么样|如何|预报)?"),
+    re.compile(rf"(?P<day>今天|今日|明天|明日){_CITIES_FORM}的?天气(?:怎么样|如何|预报)?"),
+    re.compile(rf"{_CITIES_FORM}(?P<day>今天|今日|明天|明日)天气"),
+    re.compile(rf"(?P<city>{_CITY_ALTERNATION})(?:现在|当前|此刻)(?:的)?天气(?:怎么样|如何)?"),
+    re.compile(rf"(?P<city>{_CITY_ALTERNATION})(?:现在|当前|此刻)(?:有)?多少度"),
+)
+_NEWS_FORMS = tuple(re.compile(pattern) for pattern in (
+    r"今天有什么新闻", r"今日有什么新闻", r"今天的新闻", r"今日新闻", r"最新新闻", r"今天新闻",
+))
 
 
 def classify(query: str):
     """Return a bounded intent dict or None; never include the transcript."""
     if not isinstance(query, str) or not query.strip():
         return None
-    text = query.strip()
-    if _EXPLAIN_WEATHER.search(text) or "写一篇新闻" in text or "写新闻" in text:
-        return None
-
-    if _WEATHER_PATTERN.search(text):
-        if re.search(r"现在|当前|此刻|多少度", text):
-            day = "current"
-        elif re.search(r"明天|明日", text):
-            day = "tomorrow"
-        elif re.search(r"今天|今日", text):
-            day = "today"
-        else:
-            day = "today"
-        city = next((name for name in sorted(CITIES, key=len, reverse=True) if name in text), None)
-        return {"kind": "weather", "city": city, "day": day}
-    if re.search(r"现在|当前|此刻", text) and re.search(r"多少度|几度|气温", text):
-        city = next((name for name in sorted(CITIES, key=len, reverse=True) if name in text), None)
-        return {"kind": "weather", "city": city, "day": "current"}
-
-    if _NEWS_PATTERN.search(text) and not re.search(r"写|创作|编一", text):
+    text = re.sub(r"[\s，。？！!?、]+$", "", query.strip())
+    if any(pattern.fullmatch(text) for pattern in _NEWS_FORMS):
         return {"kind": "news"}
+    for pattern in _WEATHER_FORMS:
+        match = pattern.fullmatch(text)
+        if not match:
+            continue
+        city_text = match.groupdict().get("city") or ""
+        city_hits = [name for name in CITIES if name in city_text]
+        city = city_hits[0] if len(city_hits) == 1 and city_text.replace(city_hits[0], "") in ("", "的") else None
+        day_text = match.groupdict().get("day")
+        day = "current" if "现在" in text or "当前" in text or "此刻" in text else (
+            "tomorrow" if day_text in ("明天", "明日") else "today")
+        return {"kind": "weather", "city": city, "day": day}
     return None
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
-_OPENER = urllib.request.build_opener(_NoRedirect)
-
-
 def _fetch(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "Claw4LiveLookup/1.0"})
-    with _OPENER.open(request, timeout=_TIMEOUT_SECONDS) as response:
-        data = response.read(_MAX_RESPONSE + 1)
-    if len(data) > _MAX_RESPONSE:
-        raise ValueError("response too large")
-    return data
+    async def fetch() -> bytes:
+        import aiohttp
+        timeout = aiohttp.ClientTimeout(total=_TIMEOUT_SECONDS)
+        async with aiohttp.ClientSession(timeout=timeout, headers={"User-Agent": "Claw4LiveLookup/1.0"}) as session:
+            async with session.get(url, allow_redirects=False) as response:
+                response.raise_for_status()
+                chunks, size = [], 0
+                async for chunk in response.content.iter_chunked(8192):
+                    size += len(chunk)
+                    if size > _MAX_RESPONSE:
+                        raise ValueError("response too large")
+                    chunks.append(chunk)
+                return b"".join(chunks)
+    return asyncio.run(fetch())
 
 
 def answer(request) -> str:
@@ -124,20 +125,23 @@ def _weather(city: str, day: str) -> str:
             current_time = current_time.astimezone(CHINA_TZ)
             now = datetime.now(CHINA_TZ)
             temp, code = float(current["temperature_2m"]), int(current["weather_code"])
-            if abs((now - current_time).total_seconds()) > 3 * 3600 or not -80 <= temp <= 60:
+            age_seconds = (now - current_time).total_seconds()
+            if age_seconds > 3 * 3600 or age_seconds < -300 or not -80 <= temp <= 60:
                 raise ValueError("stale or invalid current observation")
-            return f"{city}现在{_weather_word(code)}，气温{temp:g}摄氏度。"
+            return f"{city}截至{current_time:%H:%M}，Open-Meteo显示{_weather_word(code)}，气温{temp:g}摄氏度。"
         index = 0 if day == "today" else 1
         dates = daily["time"]
         highs, lows, codes = daily["temperature_2m_max"], daily["temperature_2m_min"], daily["weather_code"]
         if not (len(dates) > index and len(highs) > index and len(lows) > index and len(codes) > index):
             raise ValueError("missing forecast")
         high, low, code = float(highs[index]), float(lows[index]), int(codes[index])
-        if not (-80 <= low <= 60 and -80 <= high <= 60 and -80 <= code <= 1000):
+        expected_date = datetime.now(CHINA_TZ).date() + timedelta(days=index)
+        if (dates[index] != expected_date.isoformat() or not (-80 <= low <= 60 and -80 <= high <= 60)
+                or high < low or not -80 <= code <= 1000):
             raise ValueError("invalid forecast")
         label = "今天" if day == "today" else "明天"
-        return f"{city}{label}{_weather_word(code)}，气温{low:g}到{high:g}摄氏度。"
-    except (OSError, urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError, IndexError, UnicodeError):
+        return f"{city}{label}，Open-Meteo预报{_weather_word(code)}，气温{low:g}到{high:g}摄氏度。"
+    except Exception:
         return f"暂时无法获取{city}的天气，请稍后再试。"
 
 
@@ -166,7 +170,7 @@ def _news() -> str:
         if channel is None:
             raise ValueError("missing channel")
         today = datetime.now(CHINA_TZ).date()
-        headlines = []
+        dated_headlines = []
         for item in channel.findall("item"):
             title_node, date_node = item.find("title"), item.find("pubDate")
             if title_node is None or date_node is None or not title_node.text or not date_node.text:
@@ -175,18 +179,18 @@ def _news() -> str:
                 published = parsedate_to_datetime(date_node.text.strip())
                 if published.tzinfo is None:
                     published = published.replace(tzinfo=timezone.utc)
-                if published.astimezone(CHINA_TZ).date() != today:
+                local_time = published.astimezone(CHINA_TZ)
+                if local_time.date() != today or local_time > datetime.now(CHINA_TZ):
                     continue
             except (TypeError, ValueError, OverflowError):
                 continue
             title = re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]*>", " ", title_node.text))).strip()
             title = "".join(ch for ch in title if ch.isprintable())[:100]
             if title:
-                headlines.append(title)
-            if len(headlines) == 3:
-                break
+                dated_headlines.append((local_time, title))
+        headlines = [title for _, title in sorted(dated_headlines, key=lambda row: row[0], reverse=True)[:3]]
         if not headlines:
             return "暂时没有找到今天发布的新闻。"
         return "中新网今日新闻：" + "；".join(headlines) + "。"
-    except (OSError, urllib.error.URLError, TimeoutError, ValueError, ET.ParseError, UnicodeError):
+    except Exception:
         return "暂时无法获取新闻，请稍后再试。"
