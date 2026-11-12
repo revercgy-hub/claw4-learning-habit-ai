@@ -28,6 +28,7 @@ constexpr int64_t kChina = 8 * 3600000;
 constexpr char kNamespace[] = "claw4_tmr";
 constexpr char kKey[] = "alarm";
 constexpr char kChild[] = "timer_preview";
+constexpr int kAcknowledgeRinging = 11;
 
 class Clock final : public claw4::ports::ClockPort {
 public:
@@ -99,13 +100,18 @@ int64_t remaining_ms = 0;
 int64_t alarm_due = 0;
 int64_t alarm_retry_after = 0;
 bool alarm_visual = false;
-claw4::TimerPreviewCue focus_cue;
-claw4::TimerPreviewCue alarm_cue;
+bool focus_ringing = false;
+bool alarm_ringing = false;
+std::string acknowledged_alarm;
+claw4::TimerPreviewCue ringer;
+std::atomic<bool> ringing{false};
 lv_obj_t* panel = nullptr;
 lv_obj_t* entry = nullptr;
 lv_obj_t* entry_label = nullptr;
 lv_obj_t* focus_label = nullptr;
 lv_obj_t* alarm_label = nullptr;
+lv_obj_t* stop_alarm = nullptr;
+bool shown_ringing = false;
 std::string shown_entry;
 
 int64_t Now() { return clock_port.monotonicMs(); }
@@ -122,12 +128,15 @@ int64_t AlarmDue() {
 void Render() {
     if (!panel) return;
     char focus[96], alarm[96], chip[48];
+    bool ring_visible;
     {
         std::lock_guard<std::mutex> lock(state_mutex);
+        ring_visible = ringer.active();
         const int64_t seconds = (Remaining() + 999) / 1000;
         std::snprintf(focus, sizeof(focus), "Focus %02lld:%02lld  %s", (long long)(seconds / 60),
-                      (long long)(seconds % 60), focus_done ? "Done" : paused ? "Paused" : running ? "Running" : "Ready");
-        if (alarm_visual) std::snprintf(chip, sizeof(chip), "Alarm due!");
+                      (long long)(seconds % 60), focus_ringing ? "Ringing" : focus_done ? "Done" : paused ? "Paused" : running ? "Running" : "Ready");
+        if (ring_visible) std::snprintf(chip, sizeof(chip), "Alarm ringing");
+        else if (alarm_visual) std::snprintf(chip, sizeof(chip), "Alarm done");
         else if (focus_done) std::snprintf(chip, sizeof(chip), "Focus done");
         else if (running) std::snprintf(chip, sizeof(chip), "%s %02lld:%02lld",
             paused ? "Paused" : "Timer", (long long)(seconds / 60), (long long)(seconds % 60));
@@ -135,7 +144,8 @@ void Render() {
         auto status = authority.status();
         if (!storage_ok) std::snprintf(alarm, sizeof(alarm), "Alarm: storage unavailable");
         else if (!status.calendar_allowed) std::snprintf(alarm, sizeof(alarm), "Alarm: clock not ready");
-        else if (alarm_visual) std::snprintf(alarm, sizeof(alarm), "Alarm due!");
+        else if (alarm_ringing) std::snprintf(alarm, sizeof(alarm), "Alarm ringing");
+        else if (alarm_visual) std::snprintf(alarm, sizeof(alarm), "Alarm acknowledged");
         else if (alarm_due) {
             int64_t local = (alarm_due + kChina) / 60000;
             std::snprintf(alarm, sizeof(alarm), "Alarm: %02lld:%02lld", (long long)((local / 60) % 24), (long long)(local % 60));
@@ -148,6 +158,15 @@ void Render() {
     }
     lv_label_set_text(focus_label, focus);
     lv_label_set_text(alarm_label, alarm);
+    if (ring_visible != shown_ringing) {
+        if (ring_visible) {
+            lv_obj_remove_flag(stop_alarm, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(panel, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(stop_alarm, LV_OBJ_FLAG_HIDDEN);
+        }
+        shown_ringing = ring_visible;
+    }
     lvgl_port_unlock();
 }
 const char* Action(int action, int minutes, int hour, int minute, int day_offset) {
@@ -156,8 +175,7 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
     switch (action) {
     case 0:
         if (minutes < 1 || minutes > 120) return "invalid_time";
-        if (running) return "busy";
-        focus_cue.Cancel();
+        if (running || focus_ringing) return "busy";
         remaining_ms = int64_t(minutes) * 60000;
         deadline_ms = now + remaining_ms;
         running = true; paused = false; focus_done = false;
@@ -169,7 +187,8 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
         if (!running || !paused) return "inactive";
         deadline_ms = now + remaining_ms; paused = false; return "ok";
     case 3:
-        running = paused = focus_done = false; remaining_ms = 0; focus_cue.Cancel(); return "ok";
+        if (focus_ringing) return "busy";
+        running = paused = focus_done = false; remaining_ms = 0; return "ok";
     case 4: {
         if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || day_offset < 0 || day_offset > 1) return "invalid_time";
         if (!storage_ok) return "not_saved";
@@ -184,64 +203,72 @@ const char* Action(int action, int minutes, int hour, int minute, int day_offset
         if (result == claw4::reminder::AlarmScheduleResult::ClockNotReady) return "clock_not_ready";
         if (result == claw4::reminder::AlarmScheduleResult::InvalidTime) return "invalid_time";
         if (result == claw4::reminder::AlarmScheduleResult::NotSaved) return "not_saved";
-        alarm_due = due; alarm_visual = false; alarm_cue.Cancel(); alarm_retry_after = 0; return "ok";
+        alarm_due = due; alarm_visual = false; return "ok";
     }
     case 5:
         if (!storage_ok) return "not_saved";
+        if (alarm_ringing || !acknowledged_alarm.empty()) return "busy";
         if (!AlarmDue()) return "inactive";
         if (!reminders.cancelAlarm(claw4::domain::ChildId{kChild}, AlarmDue())) return "not_saved";
-        alarm_due = 0; alarm_visual = false; alarm_cue.Cancel(); alarm_retry_after = 0; return "ok";
+        alarm_due = 0; alarm_visual = false; return "ok";
     case 6: return "ok";
     default: return "invalid_time";
     }
 }
+void AcknowledgeRinging() {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (!ringer.active()) return;
+    if (alarm_ringing) {
+        // Use the same record identity as ReminderCore. Mute immediately and
+        // retry persistence independently if the first NVS write fails.
+        acknowledged_alarm = claw4::reminder::ReminderCore::makeInstanceId(
+            claw4::reminder::ReminderKind::ManualAlarm, claw4::domain::ChildId{kChild}, {}, alarm_due);
+        alarm_retry_after = 0;
+    }
+    focus_ringing = alarm_ringing = false;
+    ringer.Acknowledge();
+    ringing.store(false);
+    ESP_LOGI("Claw4Timer", "RINGER acknowledged");
+}
 void Tick() {
+    bool ring_active;
+    const int64_t now = Now();
     {
         std::lock_guard<std::mutex> lock(state_mutex);
-        if (running && !paused && deadline_ms <= Now()) {
+        if (running && !paused && deadline_ms <= now) {
             running = false; remaining_ms = 0; focus_done = true;
-            focus_cue.Arm(Now(), 180000);
+            focus_ringing = true;
+            ringer.Arm(now);
         }
-        auto& app = Application::GetInstance();
-        const bool audio_idle = app.GetDeviceState() == kDeviceStateIdle &&
-                                app.GetAudioService().IsPlaybackIdle();
-        bool cue_queued_now = false;
         if (storage_ok) {
             alarm_due = AlarmDue();
-            auto due = reminders.collectDue(0);
-            if (!due.empty()) {
-                alarm_visual = true;
-                if (!alarm_cue.pending() && !alarm_cue.queued() && !alarm_cue.expired()) alarm_cue.Arm(Now(), 300000);
-                const auto decision = alarm_cue.Poll(Now(), audio_idle);
-                if (decision == claw4::CueDecision::Deferred) ESP_LOGI("Claw4Timer", "ALARM_CUE deferred");
-                if (decision == claw4::CueDecision::Expired) ESP_LOGI("Claw4Timer", "ALARM_CUE expired");
-                if (decision == claw4::CueDecision::Queued) {
-                    app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-                    ESP_LOGI("Claw4Timer", "ALARM_CUE queued");
-                    cue_queued_now = true;
-                }
-                if (alarm_cue.queued()) {
-                    if (Now() >= alarm_retry_after) {
-                        if (reminders.markDelivered(due[0].instance_id, authority.status().epoch_ms.value_or(0))) {
-                            alarm_due = 0; alarm_retry_after = 0;
-                        } else alarm_retry_after = Now() + 5000;
+            if (!acknowledged_alarm.empty()) {
+                if (now >= alarm_retry_after) {
+                    if (reminders.markDelivered(acknowledged_alarm, authority.status().epoch_ms.value_or(alarm_due))) {
+                        acknowledged_alarm.clear();
+                        alarm_due = 0;
+                    } else {
+                        alarm_retry_after = now + 5000;
                     }
                 }
-            } else if (alarm_cue.pending()) {
-                const auto decision = alarm_cue.Poll(Now(), false);
-                if (decision == claw4::CueDecision::Expired) ESP_LOGI("Claw4Timer", "ALARM_CUE expired");
-            }
-            if (!alarm_due && (alarm_cue.pending() || alarm_cue.queued() || alarm_cue.expired())) {
-                if (alarm_cue.pending()) ESP_LOGI("Claw4Timer", "ALARM_CUE expired");
-                alarm_cue.Cancel();
+            } else if (alarm_due && !alarm_ringing && !reminders.collectDue(0).empty()) {
+                alarm_visual = alarm_ringing = true;
+                ringer.Arm(now);
             }
         }
-        const auto focus_decision = focus_cue.Poll(Now(), audio_idle && !cue_queued_now);
-        if (focus_decision == claw4::CueDecision::Deferred) ESP_LOGI("Claw4Timer", "FOCUS_CUE deferred");
-        if (focus_decision == claw4::CueDecision::Expired) ESP_LOGI("Claw4Timer", "FOCUS_CUE expired");
-        if (focus_decision == claw4::CueDecision::Queued) {
-            app.PlaySound(Lang::Sounds::OGG_SUCCESS);
-            ESP_LOGI("Claw4Timer", "FOCUS_CUE queued");
+        ring_active = ringer.active();
+        if (ring_active && !ringing.exchange(true)) ESP_LOGI("Claw4Timer", "RINGER active");
+    }
+    auto& app = Application::GetInstance();
+    if (ring_active && app.PrepareTimerAlarmPlayback()) {
+        bool play;
+        {
+            std::lock_guard<std::mutex> lock(state_mutex);
+            play = ringer.Poll(now, true);
+        }
+        if (play) {
+            app.PlaySound(Lang::Sounds::OGG_VIBRATION);
+            ESP_LOGI("Claw4Timer", "RINGER clip");
         }
     }
     Render();
@@ -258,7 +285,9 @@ void Click(lv_event_t* event) {
     if (action == 7) { lv_obj_remove_flag(panel, LV_OBJ_FLAG_HIDDEN); return; }
     if (action == 8) { lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN); return; }
     Application::GetInstance().Schedule([action] {
-        if (action == 9) {
+        if (action == kAcknowledgeRinging) {
+            AcknowledgeRinging();
+        } else if (action == 9) {
             int hour = 0, minute = 0, offset = 0;
             { std::lock_guard<std::mutex> lock(state_mutex);
               auto status = authority.status();
@@ -310,11 +339,15 @@ void Claw4TimerPreviewSetupUI(lv_obj_t* parent) {
     Button(panel, "Cancel", 3, 15, 205);
     Button(panel, "Alarm +1m", 9, 155, 205);
     Button(panel, "Cancel alarm", 5, 295, 205);
+    stop_alarm = Button(panel, "Stop Alarm", kAcknowledgeRinging, 435, 205);
+    lv_obj_set_style_bg_color(stop_alarm, lv_color_hex(0xB42318), 0);
+    lv_obj_add_flag(stop_alarm, LV_OBJ_FLAG_HIDDEN);
     Button(panel, "Back", 8, 15, 275);
     lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
     lvgl_port_unlock();
     ESP_LOGI("Claw4Timer", "PREVIEW_UI_READY");
 }
+bool Claw4TimerPreviewIsRinging() { return ringing.load(); }
 void Claw4TimerPreviewStart() {
     { std::lock_guard<std::mutex> lock(state_mutex); storage_ok = reminders.load(); alarm_due = AlarmDue(); }
     McpServer::GetInstance().AddTool("self.claw4.timer_preview", "Local focus timer and one-shot China-time alarm",

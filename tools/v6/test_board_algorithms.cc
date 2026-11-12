@@ -6,17 +6,19 @@
 
 int main() {
     claw4::TimerPreviewCue cue;
-    cue.Arm(1000, 180000);
-    assert(cue.Poll(1000, false) == claw4::CueDecision::Deferred);
-    assert(cue.Poll(100000, false) == claw4::CueDecision::None);
-    assert(cue.Poll(121000, true) == claw4::CueDecision::Queued);
-    assert(cue.Poll(122000, true) == claw4::CueDecision::None);
-    cue.Arm(200000, 180000);
-    cue.Cancel();
-    assert(cue.Poll(201000, true) == claw4::CueDecision::None);
-    cue.Arm(300000, 180000);
-    assert(cue.Poll(480000, true) == claw4::CueDecision::Expired);
-    assert(cue.Poll(481000, true) == claw4::CueDecision::None);
+    cue.Arm(1000);
+    assert(cue.active() && !cue.Poll(1000, false));
+    assert(cue.Poll(600000, true));  // a busy speaker does not expire the alarm
+    cue.Arm(600001);  // a second due source joins the same ringing cadence
+    assert(!cue.Poll(600499, true));
+    assert(!cue.Poll(600500, false));
+    assert(cue.Poll(600700, true));
+    assert(!cue.Poll(602199, true));
+    assert(cue.Poll(602200, true));
+    cue.Acknowledge();
+    assert(!cue.active() && !cue.Poll(900000, true));
+    cue.Arm(900001);
+    assert(cue.Poll(900001, true));
     using claw4::ActiveLowButtonDebouncer;
     using claw4::ButtonEvent;
     ActiveLowButtonDebouncer boot_held;

@@ -2,34 +2,27 @@
 #include <cstdint>
 
 namespace claw4 {
-enum class CueDecision { None, Deferred, Queued, Expired };
-
-// One cue per expiry, with a bounded wait for an undisturbed audio path.
+// Ring in pairs with a longer gap. At most one clip is requested per poll,
+// and a busy output delays the next clip without clearing the alarm.
 class TimerPreviewCue {
 public:
-    void Arm(int64_t now_ms, int64_t wait_ms) {
-        pending_ = true;
-        queued_ = false;
-        expired_ = false;
-        deferred_reported_ = false;
-        deadline_ms_ = now_ms + wait_ms;
+    void Arm(int64_t now_ms) {
+        if (active_) return;
+        active_ = true;
+        second_in_pair_ = false;
+        next_ms_ = now_ms;
     }
-    void Cancel() { pending_ = false; queued_ = false; expired_ = false; deferred_reported_ = false; }
-    bool pending() const { return pending_; }
-    bool queued() const { return queued_; }
-    bool expired() const { return expired_; }
-    CueDecision Poll(int64_t now_ms, bool can_play) {
-        if (!pending_) return CueDecision::None;
-        if (now_ms >= deadline_ms_) { pending_ = false; expired_ = true; return CueDecision::Expired; }
-        if (can_play) { pending_ = false; queued_ = true; return CueDecision::Queued; }
-        if (!deferred_reported_) { deferred_reported_ = true; return CueDecision::Deferred; }
-        return CueDecision::None;
+    void Acknowledge() { active_ = false; }
+    bool active() const { return active_; }
+    bool Poll(int64_t now_ms, bool can_play) {
+        if (!active_ || !can_play || now_ms < next_ms_) return false;
+        next_ms_ = now_ms + (second_in_pair_ ? 1500 : 500);
+        second_in_pair_ = !second_in_pair_;
+        return true;
     }
 private:
-    int64_t deadline_ms_ = 0;
-    bool pending_ = false;
-    bool queued_ = false;
-    bool expired_ = false;
-    bool deferred_reported_ = false;
+    int64_t next_ms_ = 0;
+    bool active_ = false;
+    bool second_in_pair_ = false;
 };
 } // namespace claw4

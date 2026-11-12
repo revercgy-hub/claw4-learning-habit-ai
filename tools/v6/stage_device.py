@@ -515,6 +515,56 @@ def stage_timer_preview(destination):
     with (destination / 'main/Kconfig.projbuild').open('a', encoding='utf-8') as output:
         output.write(TIMER_PREVIEW_KCONFIG)
 
+    app = destination / 'main/application.cc'
+    app_header = destination / 'main/application.h'
+    replace_once(app_header, '#include <esp_timer.h>', '#include <esp_timer.h>\n#include "sdkconfig.h"')
+    replace_once(
+        app_header,
+        '    void AbortSpeaking(AbortReason reason);',
+        '    void AbortSpeaking(AbortReason reason);\n'
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '    bool PrepareTimerAlarmPlayback();\n'
+        '#endif',
+    )
+    replace_once(
+        app, '#include "application.h"',
+        '#include "application.h"\n'
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        'bool Claw4TimerPreviewIsRinging();\n'
+        '#endif',
+    )
+    for handler in ('HandleWakeWordDetected', 'HandleToggleChatEvent', 'HandleStartListeningEvent'):
+        anchor = f'void Application::{handler}() {{'
+        replace_once(app, anchor, anchor + '\n'
+                     '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+                     '    if (Claw4TimerPreviewIsRinging()) return;\n'
+                     '#endif')
+    replace_once(
+        app, 'void Application::AbortSpeaking(AbortReason reason) {',
+        """#if CONFIG_CLAW4_TIMER_PREVIEW
+bool Application::PrepareTimerAlarmPlayback() {
+    const auto state = GetDeviceState();
+    if (state == kDeviceStateIdle) return audio_service_.IsPlaybackIdle();
+    if (state != kDeviceStateSpeaking && state != kDeviceStateListening &&
+        state != kDeviceStateConnecting) return false;
+    if (SetDeviceState(kDeviceStateIdle)) {
+        if (protocol_ && protocol_->IsAudioChannelOpened()) protocol_->CloseAudioChannel();
+        audio_service_.ResetDecoder();
+    }
+    return false;
+}
+#endif
+
+void Application::AbortSpeaking(AbortReason reason) {""",
+    )
+    replace_once(
+        app, '                    aborted_ = false;\n                    SetDeviceState(kDeviceStateSpeaking);',
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '                    if (Claw4TimerPreviewIsRinging()) return;\n'
+        '#endif\n'
+        '                    aborted_ = false;\n                    SetDeviceState(kDeviceStateSpeaking);',
+    )
+
     ota = destination / 'main/ota.cc'
     replace_once(ota, '#include "ota.h"', """#include "ota.h"
 #include "sdkconfig.h"

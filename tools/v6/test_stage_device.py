@@ -26,6 +26,19 @@ class TimerPreviewStageTests(unittest.TestCase):
             main.mkdir()
             (main / "CMakeLists.txt").write_text("list(APPEND SOURCES ${BOARD_SOURCES})\n", encoding="utf-8")
             (main / "Kconfig.projbuild").write_text("", encoding="utf-8")
+            (main / "application.h").write_text(
+                "#include <esp_timer.h>\n    void AbortSpeaking(AbortReason reason);\n", encoding="utf-8"
+            )
+            (main / "application.cc").write_text(
+                '#include "application.h"\n'
+                'void Application::HandleWakeWordDetected() {}\n'
+                'void Application::HandleToggleChatEvent() {}\n'
+                'void Application::HandleStartListeningEvent() {}\n'
+                'void Application::AbortSpeaking(AbortReason reason) {}\n'
+                '                    aborted_ = false;\n'
+                '                    SetDeviceState(kDeviceStateSpeaking);\n',
+                encoding="utf-8",
+            )
             ota = main / "ota.cc"
             ota.write_text(
                 '#include "ota.h"\n            settimeofday(&tv, NULL);\n'
@@ -42,6 +55,8 @@ class TimerPreviewStageTests(unittest.TestCase):
             self.assertIn("clock_update_result == 0", ota.read_text())
             self.assertIn("if(CONFIG_CLAW4_TIMER_PREVIEW)", (main / "CMakeLists.txt").read_text())
             self.assertIn("!CLAW4_M0_DIAGNOSTICS", (main / "Kconfig.projbuild").read_text())
+            self.assertEqual((main / "application.cc").read_text().count(
+                "if (Claw4TimerPreviewIsRinging()) return;"), 4)
 
     def test_m0_refuses_preview_before_staging(self):
         with self.assertRaisesRegex(ValueError, "requires the M1 variant"):
