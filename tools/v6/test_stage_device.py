@@ -36,7 +36,12 @@ class TimerPreviewStageTests(unittest.TestCase):
                 'void Application::HandleStartListeningEvent() {}\n'
                 'void Application::AbortSpeaking(AbortReason reason) {}\n'
                 '                    aborted_ = false;\n'
-                '                    SetDeviceState(kDeviceStateSpeaking);\n',
+                '                    SetDeviceState(kDeviceStateSpeaking);\n'
+                '    return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;\n'
+                '                // Only AFE wake word can be detected in speaking mode\n'
+                '                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());\n'
+                '        if (bits & MAIN_EVENT_SEND_AUDIO) {\n'
+                '            while (auto packet = audio_service_.PopPacketFromSendQueue()) {\n',
                 encoding="utf-8",
             )
             ota = main / "ota.cc"
@@ -57,6 +62,9 @@ class TimerPreviewStageTests(unittest.TestCase):
             self.assertIn("!CLAW4_M0_DIAGNOSTICS", (main / "Kconfig.projbuild").read_text())
             self.assertEqual((main / "application.cc").read_text().count(
                 "if (Claw4TimerPreviewIsRinging()) return;"), 4)
+            source = (main / "application.cc").read_text()
+            self.assertIn("return kListeningModeAutoStop;", source)
+            self.assertIn("GetDeviceState() == kDeviceStateSpeaking || Claw4TimerPreviewIsRinging()", source)
 
     def test_m0_refuses_preview_before_staging(self):
         with self.assertRaisesRegex(ValueError, "requires the M1 variant"):

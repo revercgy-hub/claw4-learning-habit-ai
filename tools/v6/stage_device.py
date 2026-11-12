@@ -567,6 +567,34 @@ void Application::AbortSpeaking(AbortReason reason) {""",
         '#endif\n'
         '                    aborted_ = false;\n                    SetDeviceState(kDeviceStateSpeaking);',
     )
+    replace_once(
+        app, '    return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;',
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '    // Capture the next turn only after local speaker playback drains.\n'
+        '    return kListeningModeAutoStop;\n'
+        '#else\n'
+        '    return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;\n'
+        '#endif',
+    )
+    replace_once(
+        app, '                // Only AFE wake word can be detected in speaking mode\n'
+        '                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());',
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '                audio_service_.EnableWakeWordDetection(false);\n'
+        '#else\n'
+        '                // Only AFE wake word can be detected in speaking mode\n'
+        '                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());\n'
+        '#endif',
+    )
+    replace_once(
+        app, '        if (bits & MAIN_EVENT_SEND_AUDIO) {\n'
+        '            while (auto packet = audio_service_.PopPacketFromSendQueue()) {',
+        '        if (bits & MAIN_EVENT_SEND_AUDIO) {\n'
+        '            while (auto packet = audio_service_.PopPacketFromSendQueue()) {\n'
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '                if (GetDeviceState() == kDeviceStateSpeaking || Claw4TimerPreviewIsRinging()) continue;\n'
+        '#endif',
+    )
 
     ota = destination / 'main/ota.cc'
     replace_once(ota, '#include "ota.h"', """#include "ota.h"

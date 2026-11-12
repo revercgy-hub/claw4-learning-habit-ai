@@ -30,6 +30,7 @@
 #include <linux/videodev2.h>
 #include <sd_pwr_ctrl_by_on_chip_ldo.h>
 #include <sdmmc_cmd.h>
+#include <cstring>
 #include <mutex>
 #include <sys/errno.h>
 #include <sys/ioctl.h>
@@ -42,18 +43,91 @@
 class Claw4Display final : public LcdDisplay {
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
     bool preview_setup_ = false;
+    lv_obj_t* speaker_label_ = nullptr;
+
+    static void ChatColor(lv_obj_t* obj, uint32_t color) {
+        lv_obj_set_style_bg_color(obj, lv_color_hex(color), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
+    }
+    static void EnlargeText(lv_obj_t* label, int zoom) {
+        lv_obj_set_style_transform_pivot_x(label, lv_pct(50), LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_y(label, lv_pct(50), LV_PART_MAIN);
+        lv_obj_set_style_transform_scale_x(label, zoom, LV_PART_MAIN);
+        lv_obj_set_style_transform_scale_y(label, zoom, LV_PART_MAIN);
+    }
+    void StyleChat() {
+        if (!bottom_bar_ || !chat_message_label_ || !emoji_box_ || !lvgl_port_lock(1000)) return;
+        ChatColor(container_, 0x13262E);
+        lv_obj_set_style_bg_grad_color(container_, lv_color_hex(0x243244), LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_dir(container_, LV_GRAD_DIR_VER, LV_PART_MAIN);
+        lv_obj_set_style_bg_image_src(container_, nullptr, LV_PART_MAIN);
+
+        ChatColor(top_bar_, 0x172C35);
+        for (auto* icon : {network_label_, battery_label_, mute_label_}) {
+            lv_obj_set_style_text_color(icon, lv_color_hex(0xD4E5E2), LV_PART_MAIN);
+        }
+        ChatColor(status_bar_, 0x27454D);
+        lv_obj_set_size(status_bar_, 416, 58);
+        lv_obj_set_style_radius(status_bar_, 25, LV_PART_MAIN);
+        lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 12);
+        for (auto* label : {status_label_, notification_label_}) {
+            lv_obj_set_width(label, 320);
+            lv_obj_set_style_text_color(label, lv_color_hex(0xEAF8F1), LV_PART_MAIN);
+            EnlargeText(label, 332);
+        }
+
+        ChatColor(emoji_box_, 0x2C4450);
+        lv_obj_set_style_radius(emoji_box_, 26, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(emoji_box_, 20, LV_PART_MAIN);
+        lv_obj_set_style_border_width(emoji_box_, 2, LV_PART_MAIN);
+        lv_obj_set_style_border_color(emoji_box_, lv_color_hex(0x588077), LV_PART_MAIN);
+        lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, -25);
+
+        ChatColor(bottom_bar_, 0xDAF4E8);
+        lv_obj_set_size(bottom_bar_, 656, 112);
+        lv_obj_set_style_pad_all(bottom_bar_, 0, LV_PART_MAIN);
+        lv_obj_set_style_radius(bottom_bar_, 25, LV_PART_MAIN);
+        lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, -24);
+        lv_obj_set_width(chat_message_label_, 505);
+        lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 13);
+        lv_obj_set_style_text_color(chat_message_label_, lv_color_hex(0x203831), LV_PART_MAIN);
+        EnlargeText(chat_message_label_, 316);
+        if (!speaker_label_) {
+            speaker_label_ = lv_label_create(bottom_bar_);
+            lv_label_set_text(speaker_label_, "Xiaozhi");
+            lv_obj_align(speaker_label_, LV_ALIGN_TOP_LEFT, 23, 13);
+            lv_obj_set_style_text_color(speaker_label_, lv_color_hex(0x32544B), LV_PART_MAIN);
+        }
+        lvgl_port_unlock();
+    }
 #endif
 public:
     void SetupUI() override {
         LcdDisplay::SetupUI();
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
         if (!preview_setup_) {
+            StyleChat();
             Claw4TimerPreviewSetupUI(lv_display_get_layer_top(display_));
             Claw4TimerPreviewStart();
             preview_setup_ = true;
         }
 #endif
     }
+#ifdef CONFIG_CLAW4_TIMER_PREVIEW
+    void SetTheme(Theme* theme) override {
+        LcdDisplay::SetTheme(theme);
+        if (preview_setup_) StyleChat();
+    }
+    void SetChatMessage(const char* role, const char* content) override {
+        LcdDisplay::SetChatMessage(role, content);
+        if (!speaker_label_ || !content || !*content || !lvgl_port_lock(100)) return;
+        const bool user = std::strcmp(role, "user") == 0;
+        const bool assistant = std::strcmp(role, "assistant") == 0;
+        ChatColor(bottom_bar_, user ? 0xEEE3FA : assistant ? 0xDAF4E8 : 0xE1EDF4);
+        lv_label_set_text(speaker_label_, user ? "You" : assistant ? "Xiaozhi" : "Claw4");
+        lvgl_port_unlock();
+    }
+#endif
     Claw4Display(esp_lcd_panel_io_handle_t io, esp_lcd_panel_handle_t panel)
         : LcdDisplay(io, panel, 720, 720) {
         lv_init();
