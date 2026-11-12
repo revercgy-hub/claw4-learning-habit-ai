@@ -4,7 +4,9 @@
 #include "claw4_audio.h"
 #include "board_algorithms.h"
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
+#include "application.h"
 #include "timer_preview.h"
+bool Claw4TimerPreviewIsRinging();
 #endif
 #include "display/lcd_display.h"
 #include "esp_lcd_nv3051f.h"
@@ -44,6 +46,37 @@ class Claw4Display final : public LcdDisplay {
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
     bool preview_setup_ = false;
     lv_obj_t* speaker_label_ = nullptr;
+    lv_obj_t* chat_button_ = nullptr;
+    lv_obj_t* chat_button_label_ = nullptr;
+    enum class ChatButtonMode { Hidden, Interrupt, Continue };
+    ChatButtonMode chat_button_mode_ = ChatButtonMode::Hidden;
+
+    static ChatButtonMode CurrentChatButtonMode() {
+        if (Claw4TimerPreviewIsRinging()) return ChatButtonMode::Hidden;
+        auto& app = Application::GetInstance();
+        const auto state = app.GetDeviceState();
+        if (state == kDeviceStateListening || state == kDeviceStateSpeaking)
+            return ChatButtonMode::Interrupt;
+        if (state == kDeviceStateIdle && app.IsChatInterrupted())
+            return ChatButtonMode::Continue;
+        return ChatButtonMode::Hidden;
+    }
+    void UpdateChatButton() {
+        if (!chat_button_ || !lvgl_port_lock(100)) return;
+        const auto mode = CurrentChatButtonMode();
+        if (chat_button_mode_ != mode) {
+            chat_button_mode_ = mode;
+            if (mode == ChatButtonMode::Hidden) {
+                lv_obj_add_flag(chat_button_, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                const bool resume = mode == ChatButtonMode::Continue;
+                lv_label_set_text(chat_button_label_, resume ? "Continue" : "Interrupt");
+                ChatColor(chat_button_, resume ? 0x42866E : 0xA14655);
+                lv_obj_remove_flag(chat_button_, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        lvgl_port_unlock();
+    }
 
     static void ChatColor(lv_obj_t* obj, uint32_t color) {
         lv_obj_set_style_bg_color(obj, lv_color_hex(color), LV_PART_MAIN);
@@ -98,6 +131,24 @@ class Claw4Display final : public LcdDisplay {
             lv_obj_align(speaker_label_, LV_ALIGN_TOP_LEFT, 23, 13);
             lv_obj_set_style_text_color(speaker_label_, lv_color_hex(0x32544B), LV_PART_MAIN);
         }
+        if (!chat_button_) {
+            chat_button_ = lv_button_create(lv_obj_get_parent(bottom_bar_));
+            lv_obj_set_size(chat_button_, 178, 55);
+            lv_obj_align(chat_button_, LV_ALIGN_BOTTOM_MID, 0, -153);
+            lv_obj_set_style_radius(chat_button_, 21, LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(chat_button_, LV_OPA_70, LV_STATE_PRESSED);
+            lv_obj_add_event_cb(chat_button_, [](lv_event_t* event) {
+                const auto* display = static_cast<Claw4Display*>(lv_event_get_user_data(event));
+                if (display->chat_button_mode_ != ChatButtonMode::Hidden)
+                    Application::GetInstance().RequestChatButton(
+                        display->chat_button_mode_ == ChatButtonMode::Continue);
+            }, LV_EVENT_CLICKED, this);
+            chat_button_label_ = lv_label_create(chat_button_);
+            lv_obj_set_style_text_color(chat_button_label_, lv_color_white(), LV_PART_MAIN);
+            EnlargeText(chat_button_label_, 316);
+            lv_obj_center(chat_button_label_);
+            lv_obj_add_flag(chat_button_, LV_OBJ_FLAG_HIDDEN);
+        }
         lvgl_port_unlock();
     }
 #endif
@@ -114,6 +165,14 @@ public:
 #endif
     }
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
+    void SetStatus(const char* status) override {
+        LcdDisplay::SetStatus(status);
+        UpdateChatButton();
+    }
+    void UpdateStatusBar(bool update_all = false) override {
+        LcdDisplay::UpdateStatusBar(update_all);
+        UpdateChatButton();
+    }
     void SetTheme(Theme* theme) override {
         LcdDisplay::SetTheme(theme);
         if (preview_setup_) StyleChat();

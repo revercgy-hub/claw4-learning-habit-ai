@@ -517,13 +517,23 @@ def stage_timer_preview(destination):
 
     app = destination / 'main/application.cc'
     app_header = destination / 'main/application.h'
-    replace_once(app_header, '#include <esp_timer.h>', '#include <esp_timer.h>\n#include "sdkconfig.h"')
+    replace_once(app_header, '#include <esp_timer.h>',
+                 '#include <esp_timer.h>\n#include "sdkconfig.h"\n#include <atomic>')
     replace_once(
         app_header,
         '    void AbortSpeaking(AbortReason reason);',
         '    void AbortSpeaking(AbortReason reason);\n'
         '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
         '    bool PrepareTimerAlarmPlayback();\n'
+        '    bool IsChatInterrupted() const { return chat_interrupted_.load(); }\n'
+        '    void RequestChatButton(bool resume);\n'
+        '#endif',
+    )
+    replace_once(
+        app_header, '    std::deque<std::function<void()>> main_tasks_;',
+        '    std::deque<std::function<void()>> main_tasks_;\n'
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '    std::atomic<bool> chat_interrupted_{false};\n'
         '#endif',
     )
     replace_once(
@@ -537,11 +547,38 @@ def stage_timer_preview(destination):
         anchor = f'void Application::{handler}() {{'
         replace_once(app, anchor, anchor + '\n'
                      '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
-                     '    if (Claw4TimerPreviewIsRinging()) return;\n'
+                     '    if (Claw4TimerPreviewIsRinging() || IsChatInterrupted()) return;\n'
                      '#endif')
     replace_once(
         app, 'void Application::AbortSpeaking(AbortReason reason) {',
         """#if CONFIG_CLAW4_TIMER_PREVIEW
+void Application::RequestChatButton(bool resume) {
+    Schedule([this, resume]() {
+        if (Claw4TimerPreviewIsRinging()) return;
+        const auto state = GetDeviceState();
+        if (resume) {
+            if (!IsChatInterrupted() || state != kDeviceStateIdle || !protocol_) return;
+            if (SetDeviceState(kDeviceStateConnecting)) {
+                ESP_LOGI(TAG, "CHAT_BUTTON resume requested");
+                Schedule([this]() { ContinueOpenAudioChannel(GetDefaultListeningMode()); });
+            }
+            return;
+        }
+        if (state != kDeviceStateSpeaking && state != kDeviceStateListening) return;
+        chat_interrupted_.store(true);
+        SetDeviceState(kDeviceStateIdle);
+        audio_service_.EnableVoiceProcessing(false);
+        audio_service_.EnableWakeWordDetection(false);
+        audio_service_.ResetDecoder();
+        while (audio_service_.PopPacketFromSendQueue()) {}
+        if (protocol_ && protocol_->IsAudioChannelOpened()) {
+            if (state == kDeviceStateSpeaking) AbortSpeaking(kAbortReasonNone);
+            protocol_->CloseAudioChannel();
+        }
+        ESP_LOGI(TAG, "CHAT_BUTTON interrupted");
+    });
+}
+
 bool Application::PrepareTimerAlarmPlayback() {
     const auto state = GetDeviceState();
     if (state == kDeviceStateIdle) {
@@ -563,9 +600,38 @@ void Application::AbortSpeaking(AbortReason reason) {""",
     replace_once(
         app, '                    aborted_ = false;\n                    SetDeviceState(kDeviceStateSpeaking);',
         '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
-        '                    if (Claw4TimerPreviewIsRinging()) return;\n'
+        '                    if (Claw4TimerPreviewIsRinging() || IsChatInterrupted()) return;\n'
         '#endif\n'
         '                    aborted_ = false;\n                    SetDeviceState(kDeviceStateSpeaking);',
+    )
+    replace_once(
+        app, '    SetListeningMode(mode);\n}\n\nvoid Application::HandleStartListeningEvent()',
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '    if (chat_interrupted_.exchange(false)) ESP_LOGI(TAG, "CHAT_BUTTON resumed");\n'
+        '#endif\n'
+        '    SetListeningMode(mode);\n}\n\nvoid Application::HandleStartListeningEvent()',
+    )
+    replace_once(
+        app, '                display->SetStatus(Lang::Strings::STANDBY);\n'
+        '                display->ClearChatMessages();',
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '                display->SetStatus(IsChatInterrupted() ? "Paused" : Lang::Strings::STANDBY);\n'
+        '#else\n'
+        '                display->SetStatus(Lang::Strings::STANDBY);\n'
+        '#endif\n'
+        '                display->ClearChatMessages();',
+    )
+    replace_once(
+        app, '            audio_service_.EnableVoiceProcessing(false);\n'
+        '            audio_service_.EnableWakeWordDetection(true);\n'
+        '            break;\n        case kDeviceStateConnecting:',
+        '            audio_service_.EnableVoiceProcessing(false);\n'
+        '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
+        '            audio_service_.EnableWakeWordDetection(!IsChatInterrupted());\n'
+        '#else\n'
+        '            audio_service_.EnableWakeWordDetection(true);\n'
+        '#endif\n'
+        '            break;\n        case kDeviceStateConnecting:',
     )
     replace_once(
         app, '    return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;',
@@ -592,7 +658,8 @@ void Application::AbortSpeaking(AbortReason reason) {""",
         '        if (bits & MAIN_EVENT_SEND_AUDIO) {\n'
         '            while (auto packet = audio_service_.PopPacketFromSendQueue()) {\n'
         '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
-        '                if (GetDeviceState() == kDeviceStateSpeaking || Claw4TimerPreviewIsRinging()) continue;\n'
+        '                if (GetDeviceState() == kDeviceStateSpeaking || Claw4TimerPreviewIsRinging() ||\n'
+        '                    IsChatInterrupted()) continue;\n'
         '#endif',
     )
 

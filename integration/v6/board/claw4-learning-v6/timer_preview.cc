@@ -322,7 +322,8 @@ void Tick() {
         }
     } else if (!ring_active && ringing.load() && app.GetAudioService().IsPlaybackIdle()) {
         ringing.store(false);
-        if (app.GetDeviceState() == kDeviceStateIdle) app.GetAudioService().EnableWakeWordDetection(true);
+        if (app.GetDeviceState() == kDeviceStateIdle && !app.IsChatInterrupted())
+            app.GetAudioService().EnableWakeWordDetection(true);
         ESP_LOGI("Claw4Timer", "RINGER released");
     }
     Render();

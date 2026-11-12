@@ -27,16 +27,22 @@ class TimerPreviewStageTests(unittest.TestCase):
             (main / "CMakeLists.txt").write_text("list(APPEND SOURCES ${BOARD_SOURCES})\n", encoding="utf-8")
             (main / "Kconfig.projbuild").write_text("", encoding="utf-8")
             (main / "application.h").write_text(
-                "#include <esp_timer.h>\n    void AbortSpeaking(AbortReason reason);\n", encoding="utf-8"
+                "#include <esp_timer.h>\n    void AbortSpeaking(AbortReason reason);\n"
+                "    std::deque<std::function<void()>> main_tasks_;\n", encoding="utf-8"
             )
             (main / "application.cc").write_text(
                 '#include "application.h"\n'
                 'void Application::HandleWakeWordDetectedEvent() {}\n'
                 'void Application::HandleToggleChatEvent() {}\n'
-                'void Application::HandleStartListeningEvent() {}\n'
+                '    SetListeningMode(mode);\n}\n\nvoid Application::HandleStartListeningEvent() {}\n'
                 'void Application::AbortSpeaking(AbortReason reason) {}\n'
                 '                    aborted_ = false;\n'
                 '                    SetDeviceState(kDeviceStateSpeaking);\n'
+                '                display->SetStatus(Lang::Strings::STANDBY);\n'
+                '                display->ClearChatMessages();\n'
+                '            audio_service_.EnableVoiceProcessing(false);\n'
+                '            audio_service_.EnableWakeWordDetection(true);\n'
+                '            break;\n        case kDeviceStateConnecting:\n'
                 '    return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;\n'
                 '                // Only AFE wake word can be detected in speaking mode\n'
                 '                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());\n'
@@ -61,10 +67,11 @@ class TimerPreviewStageTests(unittest.TestCase):
             self.assertIn("if(CONFIG_CLAW4_TIMER_PREVIEW)", (main / "CMakeLists.txt").read_text())
             self.assertIn("!CLAW4_M0_DIAGNOSTICS", (main / "Kconfig.projbuild").read_text())
             self.assertEqual((main / "application.cc").read_text().count(
-                "if (Claw4TimerPreviewIsRinging()) return;"), 4)
+                "if (Claw4TimerPreviewIsRinging() || IsChatInterrupted()) return;"), 4)
             source = (main / "application.cc").read_text()
             self.assertIn("return kListeningModeAutoStop;", source)
             self.assertIn("GetDeviceState() == kDeviceStateSpeaking || Claw4TimerPreviewIsRinging()", source)
+            self.assertIn('if (chat_interrupted_.exchange(false)) ESP_LOGI(TAG, "CHAT_BUTTON resumed");', source)
 
     def test_m0_refuses_preview_before_staging(self):
         with self.assertRaisesRegex(ValueError, "requires the M1 variant"):
