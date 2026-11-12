@@ -533,7 +533,7 @@ def stage_timer_preview(destination):
         'bool Claw4TimerPreviewIsRinging();\n'
         '#endif',
     )
-    for handler in ('HandleWakeWordDetected', 'HandleToggleChatEvent', 'HandleStartListeningEvent'):
+    for handler in ('HandleWakeWordDetectedEvent', 'HandleToggleChatEvent', 'HandleStartListeningEvent'):
         anchor = f'void Application::{handler}() {{'
         replace_once(app, anchor, anchor + '\n'
                      '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
@@ -544,7 +544,10 @@ def stage_timer_preview(destination):
         """#if CONFIG_CLAW4_TIMER_PREVIEW
 bool Application::PrepareTimerAlarmPlayback() {
     const auto state = GetDeviceState();
-    if (state == kDeviceStateIdle) return audio_service_.IsPlaybackIdle();
+    if (state == kDeviceStateIdle) {
+        if (audio_service_.IsWakeWordRunning()) audio_service_.EnableWakeWordDetection(false);
+        return audio_service_.IsPlaybackIdle();
+    }
     if (state != kDeviceStateSpeaking && state != kDeviceStateListening &&
         state != kDeviceStateConnecting) return false;
     if (SetDeviceState(kDeviceStateIdle)) {

@@ -31,7 +31,7 @@ class TimerPreviewStageTests(unittest.TestCase):
             )
             (main / "application.cc").write_text(
                 '#include "application.h"\n'
-                'void Application::HandleWakeWordDetected() {}\n'
+                'void Application::HandleWakeWordDetectedEvent() {}\n'
                 'void Application::HandleToggleChatEvent() {}\n'
                 'void Application::HandleStartListeningEvent() {}\n'
                 'void Application::AbortSpeaking(AbortReason reason) {}\n'

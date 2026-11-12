@@ -227,7 +227,6 @@ void AcknowledgeRinging() {
     }
     focus_ringing = alarm_ringing = false;
     ringer.Acknowledge();
-    ringing.store(false);
     ESP_LOGI("Claw4Timer", "RINGER acknowledged");
 }
 void Tick() {
@@ -270,6 +269,9 @@ void Tick() {
             app.PlaySound(Lang::Sounds::OGG_VIBRATION);
             ESP_LOGI("Claw4Timer", "RINGER clip");
         }
+    } else if (!ring_active && ringing.load() && app.GetAudioService().IsPlaybackIdle()) {
+        ringing.store(false);
+        if (app.GetDeviceState() == kDeviceStateIdle) app.GetAudioService().EnableWakeWordDetection(true);
     }
     Render();
     tick_queued = false;
