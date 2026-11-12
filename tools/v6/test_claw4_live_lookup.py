@@ -20,10 +20,14 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(lookup.classify("北京现在多少度"), {"kind": "weather", "city": "北京", "day": "current"})
 
     def test_news_and_unrelated_queries(self):
-        for query in ("今天有什么新闻", "今天的新闻", "最新新闻"):
-            self.assertEqual(lookup.classify(query), {"kind": "news"})
+        for query in ("今天有什么新闻", "今天的新闻", "最新新闻", "实时新闻",
+                      "给我看看今天的新闻。", "播报今天最新的新闻", "我想听一下今天的新闻",
+                      "联网查新闻", "今天的新闻有哪些？", "小智，请给我说一下今天的头条。"):
+            with self.subTest(query=query):
+                self.assertEqual(lookup.classify(query), {"kind": "news"})
         for query in ("什么是天气预报", "写一篇新闻", "你好", "天气相关的作文", "天气预报怎么形成",
-                      "我今天看了新闻，天气也很好", "昨天新闻"):
+                      "我今天看了新闻，天气也很好", "昨天新闻", "新闻是什么",
+                      "给我看看今天的新闻怎么写", "无法访问实时新闻"):
             self.assertIsNone(lookup.classify(query))
 
     def test_common_spoken_forms_and_unknown_city(self):

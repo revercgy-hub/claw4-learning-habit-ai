@@ -52,17 +52,26 @@ _UNSUPPORTED_CITY = re.compile(
     r"[\u4e00-\u9fff]{2,8})的?天气(?:怎么样|如何|预报)?"
 )
 _PREFIX = re.compile(r"^(?:请问|请)?(?:帮我(?:查一下|查查|查|查询|播报)|查一下|查查|查询|播报|讲讲|告诉我)?")
-_NEWS = re.compile(r"(?:今天|今日)(?:的|有什么)?(?:最新)?新闻|最新新闻")
+_NEWS = re.compile(
+    r"(?:小智)?(?:请问|请)?(?:你能不能|你能|能不能|可以|能否|能)?"
+    r"(?:帮我|给我|我想|我要)?(?:联网(?:帮我|给我)?)?"
+    r"(?:查(?:询|一下|一查|查)?|搜(?:索|一下|搜)?|看(?:一下|看)?|"
+    r"听(?:一下|听)?|播报(?:一下)?|说(?:一下|说)?|讲(?:一下|讲)?|告诉我)?"
+    r"(?:(?:今天|今日|现在|当前|此刻)(?:的|有什么|有哪些|有啥)?)?"
+    r"(?:(?:实时|即时|最新|热点)的?)?"
+    r"(?:新闻(?:头条)?|头条(?:新闻)?|要闻)"
+    r"(?:有哪些|有什么|有啥)?(?:吗|呢|吧)?"
+)
 
 
 def classify(query: str):
     """Return a bounded intent dict or None; never include the transcript."""
     if not isinstance(query, str):
         return None
+    if len(query) <= 96 and _NEWS.fullmatch(re.sub(r"[\s，,。？！!?、]+", "", query)):
+        return {"kind": "news"}
     text = _PREFIX.sub("", query.strip(), count=1)
     text = re.sub(r"[\s，。？！!?、]+$", "", text).lstrip()
-    if _NEWS.fullmatch(text):
-        return {"kind": "news"}
     for pattern in _WEATHER_FORMS:
         match = pattern.fullmatch(text)
         if match:
