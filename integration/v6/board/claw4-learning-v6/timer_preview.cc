@@ -388,8 +388,8 @@ lv_obj_t* Button(lv_obj_t* parent, const char* text, int action, int x, int y,
     lv_obj_set_size(button, width, height);
     lv_obj_set_pos(button, x, y);
     lv_obj_set_style_shadow_width(button, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(button, LV_OPA_60, LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_style_opa(button, LV_OPA_50, LV_PART_MAIN | LV_STATE_DISABLED);
+    lv_obj_set_style_bg_opa(button, LV_OPA_60, LV_STATE_PRESSED);
+    lv_obj_set_style_opa(button, LV_OPA_50, LV_STATE_DISABLED);
     lv_obj_set_style_text_color(button, lv_color_hex(ink), LV_PART_MAIN);
     lv_obj_add_event_cb(button, Click, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(action)));
     lv_obj_t* label = lv_label_create(button);
