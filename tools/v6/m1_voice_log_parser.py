@@ -32,6 +32,13 @@ M1_WAKE_DETECTOR = re.compile(
     r"^[IWEVD] \(([0-9]{1,10})\) Application: Wake word detected: 你好小智 "
     r"\(state: (?:[0-9]|1[01])\)$"
 )
+M1_STATE = re.compile(
+    r"^[IWEVD] \(([0-9]{1,10})\) StateMachine: State: ([a-z_]+) -> ([a-z_]+)$"
+)
+M1_RECOGNITION = re.compile(r"^[IWEVD] \(([0-9]{1,10})\) Application: >> \S.*$")
+M1_CHAT_BUTTON = re.compile(
+    r"^[IWEVD] \(([0-9]{1,10})\) Application: CHAT_BUTTON (interrupted|resume requested|resumed)$"
+)
 # Reviewed opt-in 1 Hz AfeAudioEngine diagnostics. Keep each record exact,
 # bounded, and tied to the firmware's emitting ESP-IDF tag.
 M1_AFE_STATE = re.compile(
@@ -73,6 +80,8 @@ def summarize(text):
                   m1_afe_feed_chunks_total=0, m1_afe_fetch_ok_total=0,
                   m1_afe_fetch_fail_total=0, m1_afe_fetch_other_total=0,
                   m1_afe_control_sample_count=0, m1_afe_control_last=None,
+                  m1_post_reply_listening_windows=[],
+                  m1_chat_button_counts={"interrupted": 0, "resume requested": 0, "resumed": 0},
                   heap_min_bytes=None, psram_min_bytes=None,
                   crash_markers=0,
                   voice_flow={k: "NOT_VERIFIED" for k in
@@ -80,6 +89,17 @@ def summarize(text):
                                "aec_effectiveness", "near_end_during_playback", "wake_recovery")},
                   privacy="raw lines, speech, transcripts, endpoints and credentials are not emitted")
     wakes, heap, psram = set(), [], []
+    post_reply_start = None
+    last_uptime = None
+    first_recognition = None
+
+    def finish_window(end):
+        result["m1_post_reply_listening_windows"].append({
+            "start_uptime_ms": post_reply_start,
+            "observed_ms": end - post_reply_start,
+            "first_recognition_ms": None if first_recognition is None else first_recognition - post_reply_start,
+        })
+
     for line in text.splitlines():
         # A bounded line also prevents huge hostile inputs from reaching the
         # regular expressions or numeric conversions below.
@@ -155,6 +175,30 @@ def summarize(text):
                     result["m1_afe_control_last"] = snapshot
         match = LINE.match(line)
         msg = match.group(2) if match else line
+        if match and len(match.group(1)) <= 10 and int(match.group(1)) <= MAX_U32:
+            uptime = int(match.group(1))
+            if APP_INIT_ELF.fullmatch(line) and last_uptime is not None:
+                if post_reply_start is not None:
+                    finish_window(last_uptime)
+                post_reply_start = None
+                last_uptime = None
+            # Concurrent log producers can emit a slightly older timestamp
+            # after a newer one. Only ordered events contribute to this timeline.
+            ordered = last_uptime is None or uptime >= last_uptime
+            if ordered:
+                last_uptime = uptime
+            state = M1_STATE.fullmatch(line) if len(line) <= MAX_UART_LINE_CHARS else None
+            if ordered and state:
+                if post_reply_start is not None:
+                    finish_window(uptime)
+                    post_reply_start = None
+                if state.groups()[1:] == ("speaking", "listening"):
+                    post_reply_start, first_recognition = uptime, None
+            elif ordered and post_reply_start is not None and first_recognition is None and M1_RECOGNITION.fullmatch(line):
+                first_recognition = uptime
+            button = M1_CHAT_BUTTON.fullmatch(line) if len(line) <= MAX_UART_LINE_CHARS else None
+            if button:
+                result["m1_chat_button_counts"][button.group(2)] += 1
         anchors = []
         if len(line) <= MAX_UART_LINE_CHARS:
             legacy = LINE.fullmatch(line)
@@ -179,6 +223,8 @@ def summarize(text):
             heap.append(int(health.group(1))); psram.append(int(health.group(2)))
         if FAILURE.search(msg):
             result["crash_markers"] += 1
+    if post_reply_start is not None:
+        finish_window(last_uptime)
     result["wake_events_observed"] = len(wakes)
     result["heap_min_bytes"] = min(heap) if heap else None
     result["psram_min_bytes"] = min(psram) if psram else None

@@ -7,6 +7,30 @@ from tools.v6.m1_voice_log_parser import summarize
 
 
 class M1VoiceLogParserTests(unittest.TestCase):
+    def test_post_reply_windows_record_first_recognition_without_exporting_text(self):
+        result = summarize("\n".join((
+            "I (100) StateMachine: State: speaking -> listening",
+            "I (200) Other: >> unrelated",
+            "I (350) Application: >> private transcript",
+            "I (400) Application: >> another transcript",
+            "I (500) StateMachine: State: listening -> speaking",
+            "I (900) StateMachine: State: speaking -> listening",
+            "I (1000) Claw4Audio: sample",
+            "I (993) AfeAudioEngine: sample",
+            "I (15900) Application: CHAT_BUTTON interrupted",
+            "I (10) app_init: ELF file SHA256:  abcdef123...",
+            "I (50) Application: << CHAT_BUTTON resumed",
+        )))
+        self.assertEqual(result["m1_post_reply_listening_windows"], [
+            {"start_uptime_ms": 100, "observed_ms": 400, "first_recognition_ms": 250},
+            {"start_uptime_ms": 900, "observed_ms": 15000, "first_recognition_ms": None},
+        ])
+        self.assertEqual(result["m1_chat_button_counts"], {
+            "interrupted": 1, "resume requested": 0, "resumed": 0,
+        })
+        self.assertNotIn("private transcript", json.dumps(result))
+        self.assertEqual(result["voice_flow"]["aec_effectiveness"], "NOT_VERIFIED")
+
     def test_preflight_template_has_two_numbered_unverified_rows(self):
         path = Path(__file__).with_name("templates") / "m1_preflight_input.json"
         template = json.loads(path.read_text(encoding="utf-8"))
