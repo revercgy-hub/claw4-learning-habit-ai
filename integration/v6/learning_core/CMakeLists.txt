@@ -7,6 +7,7 @@ set(CORE "${CLAW4_ROOT}/firmware/main")
 add_library(claw4_learning_core STATIC
     "${CORE}/learning_domain/reducer.cpp"
     "${CORE}/application/coordinator.cpp"
+    "${CORE}/application/learning_voice_commands.cpp"
     "${CORE}/sync/outbox_core.cpp"
     "${CORE}/sync/wire_codec.cpp"
     "${CORE}/sync/backend_client.cpp"
@@ -30,6 +31,8 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
     foreach(suite IN ITEMS domain/domain_reducer sync/outbox_core application/coordinator
+                          application/learning_voice_commands application/ack_queue_recovery
+                          sync/learning_backend_session sync/sync_executor
                           ui/presenter time/time_authority reminder/reminder_core)
         string(REPLACE "/" "_" name "${suite}")
         add_executable(${name} "${CLAW4_ROOT}/firmware/tests/unit/${suite}_tests.cpp")
