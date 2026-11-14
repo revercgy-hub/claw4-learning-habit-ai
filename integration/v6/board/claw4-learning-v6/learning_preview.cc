@@ -10,6 +10,7 @@
 #include "metalio_claw4/device/ports/nvs_backend_provisioning.h"
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
 #include "timer_preview.h"
+#include "ui_fonts.h"
 
 #include <esp_log.h>
 #include <esp_lvgl_port.h>
@@ -223,6 +224,12 @@ void Show(lv_obj_t* obj, bool show) {
 void Text(lv_obj_t* obj, const char* value) {
   if (std::string_view(lv_label_get_text(obj)) != value) lv_label_set_text(obj, value);
 }
+std::string_view DisplayTaskTitle(const domain::Task& item, bool local_demo) {
+  // Translate persisted local demo seeds for display only; backend titles stay exact.
+  if (local_demo && item.task_id.value == "math" && item.title == "Math warm-up") return "数学热身";
+  if (local_demo && item.task_id.value == "reading" && item.title == "Reading break") return "阅读休息";
+  return item.title;
+}
 void Color(lv_obj_t* obj, uint32_t color) {
   const auto value = lv_color_hex(color);
   if (!lv_color_eq(lv_obj_get_style_bg_color(obj, LV_PART_MAIN), value))
@@ -252,11 +259,11 @@ void Refresh() {
   if (r.confirming && !r.commands.confirmationPending(now.value_or(0))) {
     r.commands.cancelConfirmation();
     r.confirming = r.voice_confirmation = false;
-    r.feedback = "Confirmation expired.";
+    r.feedback = "确认已过期";
   }
   if (!lvgl_port_lock(100)) return;
   if (Claw4TimerPreviewIsRinging()) Show(panel, false);
-  Text(subtitle, r.paired ? "Paired learning" : "Local preview  /  Sample tasks");
+  Text(subtitle, r.paired ? "已连接学习" : "本地预览 · 示例任务");
   Text(counter, focus.has_session ? focus.countdown_text.c_str() : "01:00");
   const bool current_today = !r.paired || (now && r.Today(*now));
   const auto shown_count = current_today ? state.tasks.size() : 0;
@@ -264,13 +271,13 @@ void Refresh() {
   const int percent = focus.has_session && focus.planned_minutes > 0
       ? int(100 - focus.remaining_ms * 100 / (int64_t(focus.planned_minutes) * 60000)) : 0;
   if (lv_bar_get_value(progress) != percent) lv_bar_set_value(progress, percent, LV_ANIM_OFF);
-  Text(state_label, due ? "Time is up" : focus.running ? "Focusing" : focus.has_session ? "Paused" :
-       !current_today ? "Waiting for tasks" : shown_count == 0 ? "No tasks today" : "Choose a task");
-  Text(feedback_label, !r.ready ? "Learning storage unavailable" : !now ? "Waiting for device clock" :
-       r.confirming && !*r.feedback ? "Confirm completion on this screen." :
-       r.upload_blocked ? "Learning records need review." :
-       r.records_pending && !*r.feedback ? "Records saved on Claw4. Sync pending." : r.feedback);
-  Text(lv_obj_get_child(primary, 0), focus.running ? "Pause" : focus.has_session ? "Resume" : "Start focus");
+  Text(state_label, due ? "时间到啦" : focus.running ? "专注中" : focus.has_session ? "已暂停" :
+       !current_today ? "正在获取今日任务" : shown_count == 0 ? "今天还没有任务" : "选择一个任务开始");
+  Text(feedback_label, !r.ready ? "学习记录暂不可用" : !now ? "正在等待设备时间" :
+       r.confirming && !*r.feedback ? "请在此屏幕确认完成" :
+       r.upload_blocked ? "学习记录需要检查" :
+       r.records_pending && !*r.feedback ? "记录已保存在设备，等待同步" : r.feedback);
+  Text(lv_obj_get_child(primary, 0), focus.running ? "暂停" : focus.has_session ? "继续" : "开始专注");
   const bool selected_ready = current_today &&
       std::any_of(state.tasks.begin(), state.tasks.end(), [&](const auto& item) {
         return item.task_id == r.selection && item.status == domain::TaskStatus::Ready;
@@ -285,8 +292,12 @@ void Refresh() {
     Show(task[i], index < shown_count);
     if (index >= shown_count) continue;
     const auto& item = state.tasks[index];
-    const auto title = item.status == domain::TaskStatus::Completed ? item.title + "  (Done)" : item.title;
-    Color(task[i], (focus.has_session ? focus.task_id : r.selection) == item.task_id ? kMint : kWhite);
+    auto title = std::string(DisplayTaskTitle(item, !r.paired));
+    if (item.status == domain::TaskStatus::Completed) title += "（已完成）";
+    const bool selected = (focus.has_session ? focus.task_id : r.selection) == item.task_id;
+    Color(task[i], selected ? kMint : kWhite);
+    lv_obj_set_style_border_width(task[i], selected ? 3 : 0, LV_PART_MAIN);
+    lv_obj_set_style_border_color(task[i], lv_color_hex(0x468675), LV_PART_MAIN);
     Text(lv_obj_get_child(task[i], 0), title.c_str());
   }
   lvgl_port_unlock();
@@ -326,8 +337,8 @@ void Handle(Tap tap) {
       const auto reply = r.commands.confirmFromTouch(r.TouchBinding(), r.context(*now), now);
       r.confirming = reply.status == Status::StorageError;
       if (!r.confirming) r.voice_confirmation = false;
-      r.feedback = reply.status == Status::Applied ? "Task saved on Claw4." :
-                   r.confirming ? "Could not save. Try confirming again." : "Confirmation expired.";
+      r.feedback = reply.status == Status::Applied ? "任务已保存在设备" :
+                   r.confirming ? "保存失败，请再次确认" : "确认已过期";
       ESP_LOGI(kTag, "LOCAL_CONFIRM outcome=%d", int(reply.status));
     } else if (now && !r.confirming && (state.active_session || current_today) &&
                (tap == Tap::StartPause || tap == Tap::Finish)) {
@@ -351,7 +362,7 @@ void Handle(Tap tap) {
       }
       r.confirming = status == Status::ConfirmationRequired;
       r.feedback = status == Status::Applied || r.confirming ? "" :
-          status == Status::StorageError ? "Could not save. Try again." : "This task is unavailable.";
+          status == Status::StorageError ? "保存失败，请重试" : "该任务当前不可用";
       ESP_LOGI(kTag, "LOCAL_ACTION tap=%d outcome=%d", int(tap), int(status));
     }
   }
@@ -372,7 +383,7 @@ lv_obj_t* Label(lv_obj_t* parent, const char* title, int x, int y, uint32_t colo
   lv_label_set_text(label, title);
   lv_obj_set_pos(label, x, y);
   lv_obj_set_style_text_color(label, lv_color_hex(color), LV_PART_MAIN);
-  if (large) lv_obj_set_style_text_font(label, &font_noto_sans_basic_30_4, LV_PART_MAIN);
+  Claw4UiSetTextSize(label, large ? 320 : 256);
   return label;
 }
 lv_obj_t* Button(lv_obj_t* parent, const char* title, Tap tap,
@@ -394,29 +405,30 @@ lv_obj_t* Button(lv_obj_t* parent, const char* title, Tap tap,
 void Claw4LearningPreviewSetup(lv_obj_t* parent) {
   Claw4LearningPairingBegin();
   if (panel || !lvgl_port_lock(1000)) return;
-  Button(parent, "Study", Tap::Open, 548, 92, 154, 50, kMint);
+  Button(parent, "学习", Tap::Open, 548, 92, 154, 50, kMint);
   panel = lv_obj_create(parent);
   Surface(panel, kPaper, 32);
   lv_obj_set_size(panel, 610, 515);
   lv_obj_center(panel);
-  Label(panel, "Study corner", 28, 23, kInk, true);
-  subtitle = Label(panel, "Local preview  /  Sample tasks", 29, 64, kMuted);
-  Button(panel, "Close", Tap::Close, 488, 27, 94, 48, kLilac);
-  task[0] = Button(panel, "Math warm-up", Tap::SelectFirst, 28, 108, 270, 64, kMint, true);
-  task[1] = Button(panel, "Reading break", Tap::SelectSecond, 310, 108, 272, 64, kWhite, true);
+  Label(panel, "学习时间", 28, 22, kInk, true);
+  subtitle = Label(panel, "本地预览 · 示例任务", 29, 64, kMuted);
+  Button(panel, "关闭", Tap::Close, 488, 27, 94, 48, kLilac);
+  task[0] = Button(panel, "数学热身", Tap::SelectFirst, 28, 108, 270, 64, kMint, true);
+  task[1] = Button(panel, "阅读休息", Tap::SelectSecond, 310, 108, 272, 64, kWhite, true);
   for (auto* button : task) {
     auto* label = lv_obj_get_child(button, 0);
     lv_obj_set_width(label, 238);
     lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
   }
-  next_tasks = Button(panel, "More", Tap::Next, 496, 350, 86, 39, kLilac);
+  next_tasks = Button(panel, "更多", Tap::Next, 496, 350, 86, 39, kLilac);
   auto* card = lv_obj_create(panel);
   Surface(card, kLilac, 24);
   lv_obj_set_pos(card, 28, 192);
   lv_obj_set_size(card, 554, 144);
-  state_label = Label(card, "Choose a task", 25, 20, kMuted);
+  state_label = Label(card, "选择一个任务开始", 25, 13, kInk, true);
   counter = Label(card, "01:00", 24, 50, kInk, true);
+  lv_obj_set_style_text_font(counter, &font_noto_sans_basic_30_4, LV_PART_MAIN);
   lv_obj_set_style_transform_scale_x(counter, 390, LV_PART_MAIN);
   lv_obj_set_style_transform_scale_y(counter, 390, LV_PART_MAIN);
   progress = lv_bar_create(card);
@@ -425,10 +437,10 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
   lv_obj_set_style_bg_color(progress, lv_color_hex(0xD2C3E5), LV_PART_MAIN);
   lv_obj_set_style_bg_color(progress, lv_color_hex(0x468675), LV_PART_INDICATOR);
   feedback_label = Label(panel, "", 29, 357, kMuted);
-  primary = Button(panel, "Start focus", Tap::StartPause, 28, 407, 270, 62, kMint, true);
-  finish = Button(panel, "Finish task", Tap::Finish, 310, 407, 272, 62, kWhite, true);
-  confirm = Button(panel, "Confirm", Tap::Confirm, 28, 407, 270, 62, kMint, true);
-  cancel = Button(panel, "Keep going", Tap::Cancel, 310, 407, 272, 62, kWhite, true);
+  primary = Button(panel, "开始专注", Tap::StartPause, 28, 407, 270, 62, kMint, true);
+  finish = Button(panel, "完成任务", Tap::Finish, 310, 407, 272, 62, kWhite, true);
+  confirm = Button(panel, "确认完成", Tap::Confirm, 28, 407, 270, 62, kMint, true);
+  cancel = Button(panel, "继续学习", Tap::Cancel, 310, 407, 272, 62, kWhite, true);
   Show(panel, false);
   lv_timer_create([](lv_timer_t*) {
     if (refresh_pending.exchange(true)) return;
@@ -442,7 +454,7 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
           }, [](application::SyncRequestEnvelope sent, sync::SyncClient::Response result) {
             runtime->UploadFinished(std::move(sent), std::move(result));
           });
-          if (!r.worker_started) r.feedback = "Task sync unavailable.";
+          if (!r.worker_started) r.feedback = "任务同步暂不可用";
           v6::RegisterLearningVoiceTool(r.commands, v6::CreateLearningVoiceSigner(std::move(r.pairing.device_secret)),
               []() -> std::optional<v6::LearningVoiceCallContext> {
                 auto& current = *runtime;
