@@ -20,6 +20,7 @@
 namespace {
 constexpr char kNamespace[] = "learning_cfg";
 constexpr char kKey[] = "v6_pairing";
+constexpr char kHex[] = "0123456789abcdef";
 constexpr size_t kMaxFrame = 8 + 36 + 1 + 128 + 1 + 64 + 1;
 std::atomic<bool> pending{false};
 std::atomic<bool> begun{false};
@@ -48,11 +49,10 @@ bool Valid(std::string_view frame, claw4::sync::ProvisionedBackendConfig& out) {
   unsigned char sha[32];
   if (mbedtls_sha256(reinterpret_cast<const unsigned char*>(frame.data()), frame.size(), sha, 0) != 0) return false;
   unsigned diff = 0;
-  constexpr char digits[] = "0123456789abcdef";
   if (sizeof(kLearningPairingSha256) != 65) return false;
   for (size_t i = 0; i < 32; ++i) {
-    diff |= static_cast<unsigned>(digits[sha[i] >> 4] ^ kLearningPairingSha256[2 * i]);
-    diff |= static_cast<unsigned>(digits[sha[i] & 15] ^ kLearningPairingSha256[2 * i + 1]);
+    diff |= static_cast<unsigned>(kHex[sha[i] >> 4] ^ kLearningPairingSha256[2 * i]);
+    diff |= static_cast<unsigned>(kHex[sha[i] & 15] ^ kLearningPairingSha256[2 * i + 1]);
   }
   if (diff) return false;
   out = {kLearningLanOrigin, std::string(device), std::string(frame.substr(45, second - 45)),
@@ -86,10 +86,10 @@ bool Save(std::string_view frame) {
 }
 void Receive(void*) {
   char elf[65]{};
-  if (esp_app_get_elf_sha256(elf, sizeof(elf)) != sizeof(elf)) {
-    pending.store(false);
-    vTaskDelete(nullptr);
-    return;
+  const auto& app_hash = esp_app_get_description()->app_elf_sha256;
+  for (size_t i = 0; i < sizeof(app_hash); ++i) {
+    elf[2 * i] = kHex[app_hash[i] >> 4];
+    elf[2 * i + 1] = kHex[app_hash[i] & 15];
   }
   ESP_LOGI("Claw4Pairing", "LEARNING_PAIRING_ELF %s", elf);
   ESP_LOGI("Claw4Pairing", "LEARNING_PAIRING_READY %s", kLearningPairingSha256);
