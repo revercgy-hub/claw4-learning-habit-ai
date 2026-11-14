@@ -1,0 +1,15 @@
+services:
+  xiaozhi:
+    image: claw4-xiaozhi-v6:learning-voice-20261114-01
+    build:
+      context: .
+      dockerfile: Dockerfile.learning-voice
+    environment:
+      CLAW4_LEARNING_PAIRINGS_FILE: /run/claw4/learning-pairings.json
+    volumes:
+      - type: bind
+        source: ${CLAW4_LEARNING_PAIRINGS_FILE:?Set the NAS-local learning pairing file}
+        target: /run/claw4/learning-pairings.json
+        read_only: true
+        bind:
+          create_host_path: false
