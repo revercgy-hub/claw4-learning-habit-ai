@@ -24,7 +24,10 @@ class TimerPreviewStageTests(unittest.TestCase):
             root = Path(directory)
             main = root / "main"
             main.mkdir()
-            (main / "CMakeLists.txt").write_text("list(APPEND SOURCES ${BOARD_SOURCES})\n", encoding="utf-8")
+            cmake = main / "CMakeLists.txt"
+            cmake.write_text("list(APPEND SOURCES ${BOARD_SOURCES})\n"
+                             "idf_component_register(SRCS ${SOURCES}\n"
+                             "    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}\n)\n", encoding="utf-8")
             (main / "Kconfig.projbuild").write_text("", encoding="utf-8")
             (main / "application.h").write_text(
                 "#include <esp_timer.h>\n    void AbortSpeaking(AbortReason reason);\n"
@@ -65,6 +68,8 @@ class TimerPreviewStageTests(unittest.TestCase):
             self.assertIn("Claw4TimerPreviewAcceptTime(static_cast<int64_t>(utc_ms))", ota.read_text())
             self.assertIn("clock_update_result == 0", ota.read_text())
             self.assertIn("if(CONFIG_CLAW4_TIMER_PREVIEW)", (main / "CMakeLists.txt").read_text())
+            self.assertIn("font_noto_sans_common_20_4.bin", cmake.read_text())
+            self.assertIn("EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${CLAW4_UI_FONT}", cmake.read_text())
             self.assertIn("!CLAW4_M0_DIAGNOSTICS", (main / "Kconfig.projbuild").read_text())
             self.assertEqual((main / "application.cc").read_text().count(
                 "if (Claw4TimerPreviewIsRinging() || IsChatInterrupted()) return;"), 4)
