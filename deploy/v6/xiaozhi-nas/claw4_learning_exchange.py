@@ -76,6 +76,26 @@ def new_command(kind, session, now_ms):
     return LearningCommand(secrets.token_hex(16), kind, session.session_epoch, now_ms + 30_000)
 
 
+def session_challenge():
+    return secrets.token_hex(16)
+
+
+def verify_session(record, connection_id, challenge, response):
+    if not isinstance(record, PairedLearningSession) or not record.valid() or not isinstance(response, dict):
+        return None
+    epoch = response.get("session_epoch")
+    signature = response.get("mac")
+    if (not _valid_field(connection_id, 36) or not _valid_field(challenge, 32)
+            or not isinstance(epoch, str) or re.fullmatch(r"[1-9][0-9]{0,18}", epoch) is None
+            or not _positive(int(epoch)) or not isinstance(signature, str) or not signature.isascii()):
+        return None
+    expected = _mac(record.key, "claw4-learning-session-v1", record.device_id, record.child_id,
+                    connection_id, challenge, epoch)
+    if not hmac.compare_digest(expected, signature):
+        return None
+    return PairedLearningSession(record.device_id, record.child_id, int(epoch), record.key)
+
+
 def verify_result(command, session, response, now_ms):
     if (not _positive(now_ms) or now_ms >= command.expires_at_ms or not session.valid()
             or command.session_epoch != session.session_epoch

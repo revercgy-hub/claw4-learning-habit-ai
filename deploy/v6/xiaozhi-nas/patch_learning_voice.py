@@ -63,10 +63,14 @@ def patch(root):
     receiver = root / "core/handle/receiveAudioHandle.py"
     asr = root / "core/providers/asr/base.py"
     replacements = (
+        ("            self.websocket = ws\n",
+         "            self.websocket = ws\n"
+         "            self.resolve_claw4_learning_pairing = pairing_resolver(self)\n"),
         ("    def chat(self, query, depth=0):\n",
          "    def chat(self, query, depth=0, *, asr_final=False):\n"),
         (IMPORT, IMPORT + "from core.utils.claw4_learning_bridge import resolve_learning_reply\n"
-         "from core.utils.claw4_learning_voice import classify as classify_learning\n"),
+         "from core.utils.claw4_learning_voice import classify as classify_learning\n"
+         "from core.utils.claw4_learning_pairing import pairing_resolver\n"),
         (TIMER,
          '        resolve_pairing = getattr(self, "resolve_claw4_learning_pairing", None)\n'
          '        learning_request = classify_learning(query) if depth == 0 and asr_final and callable(resolve_pairing) else None\n'

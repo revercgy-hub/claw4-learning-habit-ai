@@ -66,6 +66,9 @@ class LearningVoiceCommands {
                                      const domain::ReducerContext& context,
                                      std::optional<int64_t> trusted_epoch_ms);
   void cancelConfirmation() { pending_.reset(); }
+  bool confirmationPending(int64_t now_ms) const {
+    return pending_ && now_ms > 0 && now_ms < pending_->expires_at_ms;
+  }
 
  private:
   struct Pending {

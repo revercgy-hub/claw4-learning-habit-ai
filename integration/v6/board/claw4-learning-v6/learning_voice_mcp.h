@@ -9,6 +9,7 @@ namespace claw4::v6 {
 
 struct LearningVoiceCallContext {
   application::LearningVoiceBinding binding;
+  std::string connection_id;
   domain::ReducerContext reducer;
   std::optional<int64_t> now;
   std::optional<int64_t> snapshot;
@@ -19,7 +20,8 @@ struct LearningVoiceCallContext {
 // Application task and returns no context when the current lease is invalid.
 void RegisterLearningVoiceTool(
     application::LearningVoiceCommands& commands, application::LearningVoiceMac signer,
-    std::function<std::optional<LearningVoiceCallContext>()> current);
+    std::function<std::optional<LearningVoiceCallContext>()> current,
+    std::function<void()> show_confirmation);
 
 application::LearningVoiceMac CreateLearningVoiceSigner(std::string key);
 

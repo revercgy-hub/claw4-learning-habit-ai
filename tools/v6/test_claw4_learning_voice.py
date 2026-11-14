@@ -1,6 +1,8 @@
 import importlib.util
+import json
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from threading import Event
 from types import ModuleType, SimpleNamespace
 import unittest
@@ -100,11 +102,19 @@ class LearningExchangeTests(unittest.TestCase):
         self.assertNotIn(self.session.key.decode(), repr(self.session))
 
     def test_bridge_uses_current_turn_and_signed_device_reply(self):
-        connection = SimpleNamespace(sentence_id="current", client_abort=False, stop_event=Event())
+        connection = SimpleNamespace(sentence_id="current", client_abort=False, stop_event=Event(),
+                                     session_id="12345678-1234-4123-8123-123456789abc")
         calls = []
 
         def call_device_tool(conn, request, turn, tool, alias):
             calls.append((conn, request, turn, tool, alias))
+            if tool == "self.claw4.learning_session":
+                return {
+                    "session_epoch": "42",
+                    "mac": exchange._mac(self.session.key, "claw4-learning-session-v1",
+                                         "dev-test", "child-test", conn.session_id,
+                                         request["challenge"], "42"),
+                }
             fields = ("dev-test", "child-test", "42", request["command_id"],
                       request["kind"], request["expires_at_ms"])
             return {
@@ -130,7 +140,8 @@ class LearningExchangeTests(unittest.TestCase):
         self.assertEqual(calls, [])
         text = bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", paired)
         self.assertIn("点确认", text)
-        conn, request, turn, tool, alias = calls[0]
+        self.assertEqual(calls[0][3:], ("self.claw4.learning_session", "self_claw4_learning_session"))
+        conn, request, turn, tool, alias = calls[1]
         self.assertIs(conn, connection)
         self.assertEqual((turn, tool, alias), ("current", "self.claw4.learning", "self_claw4_learning"))
         self.assertEqual(request["kind"], "COMPLETE_REQUEST")
@@ -149,3 +160,34 @@ class LearningExchangeTests(unittest.TestCase):
             result = bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current",
                                                    lambda: next(leases))
             self.assertIn("还没有收到设备确认", result)
+        before = len(calls)
+        with patch.object(bridge, "call_device_tool", return_value={"session_epoch": "42", "mac": "bad"}) as call:
+            self.assertIn("还没有收到设备确认",
+                          bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", paired))
+            self.assertEqual(call.call_count, 1)
+        self.assertEqual(len(calls), before)
+
+    def test_pairing_file_and_link_scope(self):
+        spec = importlib.util.spec_from_file_location("claw4_learning_pairing",
+                                                     Path(SPEC.origin).with_name("claw4_learning_pairing.py"))
+        pairing = importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules, {"core.utils.claw4_learning_exchange": exchange}):
+            spec.loader.exec_module(pairing)
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "pairings.json"
+            hardware = "02:00:00:00:00:01"
+            record = {"device_id": "test-device", "child_id": "test-child", "device_secret": "1a" * 32}
+            path.write_text(json.dumps({hardware: record}), encoding="utf-8")
+            parsed = pairing._read_pairings(path)
+            self.assertEqual(set(parsed), {hardware})
+            conn = SimpleNamespace(device_id=hardware, session_id="12345678-1234-4123-8123-123456789abc",
+                                   websocket=object(), stop_event=Event())
+            with patch.object(pairing, "_configured_pairings", return_value=parsed):
+                resolver = pairing.pairing_resolver(conn)
+                self.assertIs(resolver(), parsed[hardware])
+                conn.websocket = object()
+                self.assertIsNone(resolver())
+                conn.device_id = "02:00:00:00:00:02"
+                self.assertIsNone(pairing.pairing_resolver(conn))
+            path.write_text('{"02:00:00:00:00:01":{},"02:00:00:00:00:01":{}}', encoding="utf-8")
+            self.assertEqual(pairing._read_pairings(path), {})

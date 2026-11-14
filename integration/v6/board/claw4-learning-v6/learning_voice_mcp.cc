@@ -3,6 +3,7 @@
 #ifdef CLAW4_LEARNING_PREVIEW
 #include <array>
 #include <charconv>
+#include <memory>
 
 #include "mbedtls/base64.h"
 #include "mbedtls/md.h"
@@ -41,8 +42,25 @@ application::LearningVoiceMac CreateLearningVoiceSigner(std::string key) {
 
 void RegisterLearningVoiceTool(
     application::LearningVoiceCommands& commands, application::LearningVoiceMac signer,
-    std::function<std::optional<LearningVoiceCallContext>()> current) {
-  if (!signer || !current) return;
+    std::function<std::optional<LearningVoiceCallContext>()> current,
+    std::function<void()> show_confirmation) {
+  if (!signer || !current || !show_confirmation) return;
+  McpServer::GetInstance().AddTool(
+      "self.claw4.learning_session", "Prove the paired learning device on the current connection",
+      PropertyList({Property("challenge", kPropertyTypeString).SetMaxLength(32)}),
+      [signer, current](const PropertyList& props) -> ToolResult {
+        const auto scope = current();
+        if (!scope) return std::unexpected("Learning session unavailable");
+        const auto mac = application::signLearningVoiceSession(
+            scope->binding, scope->connection_id, props["challenge"].value<std::string>(), signer);
+        if (mac.size() != 44) return std::unexpected("Learning session unavailable");
+        std::unique_ptr<cJSON, decltype(&cJSON_Delete)> json(cJSON_CreateObject(), cJSON_Delete);
+        if (!json ||
+            !cJSON_AddStringToObject(json.get(), "session_epoch", std::to_string(scope->binding.session_epoch).c_str()) ||
+            !cJSON_AddStringToObject(json.get(), "mac", mac.c_str()))
+          return std::unexpected("Learning session unavailable");
+        return json.release();
+      });
   McpServer::GetInstance().AddTool(
       "self.claw4.learning", "Paired learning command exchange",
       PropertyList({Property("command_id", kPropertyTypeString).SetMaxLength(64),
@@ -50,7 +68,8 @@ void RegisterLearningVoiceTool(
                     Property("session_epoch", kPropertyTypeString).SetMaxLength(19),
                     Property("expires_at_ms", kPropertyTypeString).SetMaxLength(19),
                     Property("mac", kPropertyTypeString).SetMaxLength(44)}),
-      [&commands, signer = std::move(signer), current = std::move(current)](const PropertyList& props) -> ToolResult {
+      [&commands, signer = std::move(signer), current = std::move(current),
+       show_confirmation = std::move(show_confirmation)](const PropertyList& props) -> ToolResult {
         const auto session = PositiveInteger(props["session_epoch"].value<std::string>());
         const auto expiry = PositiveInteger(props["expires_at_ms"].value<std::string>());
         const auto scope = current();
@@ -73,6 +92,7 @@ void RegisterLearningVoiceTool(
           cJSON_Delete(json);
           return std::unexpected("Learning reply unavailable");
         }
+        if (result->status == "CONFIRMATION_REQUIRED") show_confirmation();
         return json;
       });
 }

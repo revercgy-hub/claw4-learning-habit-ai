@@ -11,6 +11,10 @@ namespace claw4::application {
 // Returns a Base64 HMAC-SHA256 for the complete message, or an empty string.
 using LearningVoiceMac = std::function<std::string(std::string_view)>;
 
+std::string signLearningVoiceSession(const LearningVoiceBinding& binding,
+                                    std::string_view connection_id, std::string_view challenge,
+                                    const LearningVoiceMac& sign);
+
 struct LearningVoiceEnvelope {
   std::string command_id;
   std::string kind;

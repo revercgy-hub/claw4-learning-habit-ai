@@ -85,12 +85,15 @@ class TimerPreviewStageTests(unittest.TestCase):
             cmake = main / "CMakeLists.txt"
             cmake.write_text('list(APPEND SOURCES ${BOARD_SOURCES})\n'
                              'idf_component_register(SRCS ${SOURCES})\n', encoding="utf-8")
+            (main / "application.h").write_text('    void SendMcpMessage(const std::string& payload);\n')
+            (main / "application.cc").write_text('void Application::ResetProtocol() {\n}')
             files = stage_device.stage_learning_preview(root)
             for name, digest in files.items():
                 path = main / "claw4_learning_core" / name
                 self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
             self.assertNotIn("learning_runtime.cpp", cmake.read_text())
             self.assertIn("CLAW4_LEARNING_PREVIEW=1", cmake.read_text())
+            self.assertIn("return protocol_->session_id();", (main / "application.cc").read_text())
         with self.assertRaisesRegex(ValueError, "requires the timer preview"):
             stage(Path("unused"), Path("unused"), "m1", learning_preview=True)
 

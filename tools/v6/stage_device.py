@@ -696,6 +696,7 @@ LEARNING_PREVIEW_CORE = (
 LEARNING_PREVIEW_ADAPTER = (
     'device/core/outbox_codec.cpp', 'device/core/outbox_codec.h',
     'device/ports/nvs_outbox_storage.cpp', 'device/ports/nvs_outbox_storage.h',
+    'device/ports/nvs_backend_provisioning.cpp', 'device/ports/nvs_backend_provisioning.h',
 )
 
 
@@ -723,6 +724,19 @@ def stage_learning_preview(destination):
         stream.write('\nif(NOT CMAKE_BUILD_EARLY_EXPANSION)\n'
                      '    target_compile_definitions(${COMPONENT_LIB} PRIVATE CLAW4_LEARNING_PREVIEW=1)\n'
                      'endif()\n')
+    replace_once(destination / 'main/application.h', '    void SendMcpMessage(const std::string& payload);',
+                 '    void SendMcpMessage(const std::string& payload);\n'
+                 '#ifdef CLAW4_LEARNING_PREVIEW\n'
+                 '    std::string LearningConnectionId() const;\n'
+                 '#endif')
+    replace_once(destination / 'main/application.cc', 'void Application::ResetProtocol() {',
+                 '#ifdef CLAW4_LEARNING_PREVIEW\n'
+                 'std::string Application::LearningConnectionId() const {\n'
+                 '    if (!protocol_ || !protocol_->IsAudioChannelOpened()) return {};\n'
+                 '    return protocol_->session_id();\n'
+                 '}\n'
+                 '#endif\n\n'
+                 'void Application::ResetProtocol() {')
     return {name: hashlib.sha256(source.read_bytes()).hexdigest() for name, source in inputs.items()}
 
 

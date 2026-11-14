@@ -53,6 +53,20 @@ std::string macNumber(std::optional<int64_t> value) {
 
 }  // namespace
 
+std::string signLearningVoiceSession(const LearningVoiceBinding& binding,
+                                    std::string_view connection_id, std::string_view challenge,
+                                    const LearningVoiceMac& sign) {
+  if (!sign || binding.session_epoch <= 0 ||
+      !validField(binding.device_id.value, 128) || !validField(binding.child_id.value, 128) ||
+      connection_id.size() != 36 || !validField(connection_id, 36) || challenge.size() != 32 ||
+      !std::all_of(challenge.begin(), challenge.end(), [](char c) {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+      })) return {};
+  return sign("claw4-learning-session-v1\n" + binding.device_id.value + "\n" + binding.child_id.value +
+              "\n" + std::string(connection_id) + "\n" + std::string(challenge) + "\n" +
+              std::to_string(binding.session_epoch));
+}
+
 std::optional<LearningVoiceResult> exchangeLearningVoice(
     LearningVoiceCommands& commands, const LearningVoiceEnvelope& envelope,
     std::string_view request_mac, const std::optional<LearningVoiceBinding>& binding,

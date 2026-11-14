@@ -4,6 +4,8 @@
 #include "application.h"
 #include "application/learning_voice_commands.h"
 #include "assets/lang_config.h"
+#include "learning_voice_mcp.h"
+#include "metalio_claw4/device/ports/nvs_backend_provisioning.h"
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
 #include "timer_preview.h"
 
@@ -11,6 +13,7 @@
 #include <esp_lvgl_port.h>
 #include <esp_random.h>
 #include <esp_timer.h>
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <memory>
@@ -26,6 +29,15 @@ constexpr char kTag[] = "Claw4Learning";
 constexpr uint32_t kInk = 0x233D3B, kMuted = 0x4B6461, kMint = 0xBDE9D1;
 constexpr uint32_t kLilac = 0xE9DFF6, kPaper = 0xF7F3E9, kWhite = 0xFFFDF7;
 const application::LearningVoiceBinding binding{{"v6-preview"}, {"demo"}, 1};
+
+sync::ProvisionedBackendConfig ReadPairing() {
+  sync::ProvisionedBackendConfig config;
+  metalio::NvsBackendProvisioning provisioning;
+  if (provisioning.load(config) != sync::ProvisioningStatus::Ready ||
+      config.device_secret.size() != 64 ||
+      config.device_secret.find_first_not_of("0123456789abcdef") != std::string::npos) return {};
+  return config;
+}
 
 class Clock final : public ports::ClockPort {
  public:
@@ -47,25 +59,41 @@ std::string Id(const char* kind) {
 }
 
 struct Runtime {
+  sync::ProvisionedBackendConfig pairing = ReadPairing();
+  const bool paired = pairing.complete();
+  const application::LearningVoiceBinding identity = paired
+      ? application::LearningVoiceBinding{{pairing.device_id}, {pairing.child_id}, 0} : binding;
   Clock clock;
   time::TimeAuthority calendar{clock, "local-preview"};
   NoReminderStorage reminder_store;
   reminder::ReminderCore reminders{{}, reminder_store, calendar};
-  metalio::NvsOutboxStorage storage{"claw4_v6demo"};
+  metalio::NvsOutboxStorage storage{paired ? "claw4_v6study" : "claw4_v6demo"};
   domain::DomainReducer reducer;
   application::AppCoordinator coordinator{storage, reducer};
   application::LearningVoiceCommands commands{coordinator, reminders};
   domain::TaskId selection{"math"};
   domain::SessionId cue_session;
   bool ready = false, confirming = false, cue_played = false;
+  std::string voice_connection;
+  int64_t voice_epoch = 0;
+  bool voice_confirmation = false;
   const char* feedback = "";
 
   Runtime() {
     sync::OutboxState previous;
     const auto presence = storage.loadWithPresence(previous);
-    ready = presence != metalio::NvsOutboxStorage::StateReadStatus::Error &&
+    const bool snapshot_owned = !paired ||
+        (std::all_of(previous.domain.tasks.begin(), previous.domain.tasks.end(), [&](const auto& task) {
+           return task.child_id == identity.child_id;
+         }) && (!previous.domain.active_session ||
+                (previous.domain.active_session->device_id == identity.device_id &&
+                 previous.domain.active_session->child_id == identity.child_id)) &&
+         std::all_of(previous.pending.begin(), previous.pending.end(), [&](const auto& row) {
+           return row.device_id == identity.device_id && row.child_id == identity.child_id;
+         }));
+    ready = presence != metalio::NvsOutboxStorage::StateReadStatus::Error && snapshot_owned &&
             coordinator.prepareAfterBoot(clock.monotonicMs());
-    if (ready && presence == metalio::NvsOutboxStorage::StateReadStatus::Missing) {
+    if (ready && !paired && presence == metalio::NvsOutboxStorage::StateReadStatus::Missing) {
       domain::Task math;
       math.task_id = {"math"};
       math.child_id = binding.child_id;
@@ -81,16 +109,34 @@ struct Runtime {
     ESP_LOGI(kTag, "LOCAL_PREVIEW_READY=%d", ready ? 1 : 0);
   }
   domain::ReducerContext context(int64_t now) {
-    return {binding.device_id, binding.child_id, now / 1000, clock.monotonicMs(),
+    return {identity.device_id, identity.child_id, now / 1000, clock.monotonicMs(),
             [] { return domain::EventId{Id("event")}; },
             [] { return domain::SessionId{Id("study")}; }};
+  }
+  void RefreshConnection() {
+    auto next = Application::GetInstance().LearningConnectionId();
+    if (next == voice_connection) return;
+    voice_connection = std::move(next);
+    if (voice_confirmation) {
+      commands.cancelConfirmation();
+      confirming = voice_confirmation = false;
+    }
+    if (voice_connection.empty()) {
+      voice_epoch = 0;
+    } else {
+      const uint64_t random = (uint64_t(esp_random()) << 32) | esp_random();
+      voice_epoch = int64_t((random & 0x3ffffffffffffffeULL) + 2);
+    }
+  }
+  application::LearningVoiceBinding TouchBinding() const {
+    return {identity.device_id, identity.child_id, voice_confirmation ? voice_epoch : 1};
   }
 };
 
 enum class Tap { Open, Close, Math, Reading, StartPause, Finish, Confirm, Cancel };
 std::unique_ptr<Runtime> runtime;
 std::atomic<bool> refresh_pending{false};
-lv_obj_t *panel, *counter, *progress, *state_label, *feedback_label;
+lv_obj_t *panel, *counter, *progress, *state_label, *feedback_label, *subtitle;
 lv_obj_t *primary, *finish, *confirm, *cancel, *task[2];
 
 void Show(lv_obj_t* obj, bool show) {
@@ -107,6 +153,7 @@ void Color(lv_obj_t* obj, uint32_t color) {
 }
 void Refresh() {
   auto& r = *runtime;
+  if (r.paired) r.RefreshConnection();
   const auto& state = r.coordinator.state();
   ui::ViewState view;
   view.domain.active_session = state.active_session;
@@ -124,21 +171,29 @@ void Refresh() {
     ESP_LOGI(kTag, "LOCAL_FOCUS_CUE");
   }
   const auto now = Claw4TimerPreviewTrustedTime();
+  if (r.confirming && !r.commands.confirmationPending(now.value_or(0))) {
+    r.commands.cancelConfirmation();
+    r.confirming = r.voice_confirmation = false;
+    r.feedback = "Confirmation expired.";
+  }
   if (!lvgl_port_lock(100)) return;
   if (Claw4TimerPreviewIsRinging()) Show(panel, false);
+  Text(subtitle, r.paired ? "Paired learning" : "Local preview  /  Sample tasks");
   Text(counter, focus.has_session ? focus.countdown_text.c_str() : "01:00");
   const int percent = focus.has_session && focus.planned_minutes > 0
       ? int(100 - focus.remaining_ms * 100 / (int64_t(focus.planned_minutes) * 60000)) : 0;
   if (lv_bar_get_value(progress) != percent) lv_bar_set_value(progress, percent, LV_ANIM_OFF);
-  Text(state_label, due ? "Time is up" : focus.running ? "Focusing" : focus.has_session ? "Paused" : "Choose a task");
+  Text(state_label, due ? "Time is up" : focus.running ? "Focusing" : focus.has_session ? "Paused" :
+       r.paired && state.tasks.empty() ? "Waiting for tasks" : "Choose a task");
   Text(feedback_label, !r.ready ? "Learning storage unavailable" : !now ? "Waiting for device clock" :
        r.confirming && !*r.feedback ? "Confirm completion on this screen." : r.feedback);
   Text(lv_obj_get_child(primary, 0), focus.running ? "Pause" : focus.has_session ? "Resume" : "Start focus");
-  Show(primary, r.ready && now && !r.confirming);
+  Show(primary, r.ready && now && !r.confirming && (focus.has_session || !state.tasks.empty()));
   Show(finish, r.ready && now && focus.has_session && !r.confirming);
   Show(confirm, r.confirming && now);
   Show(cancel, r.confirming);
   for (int i = 0; i < 2; ++i) {
+    if (r.paired) { Show(task[i], false); continue; }
     const std::string_view id = i == 0 ? "math" : "reading";
     Color(task[i], (focus.has_session ? focus.task_id : r.selection).value == id ? kMint : kWhite);
     const char* title = i == 0 ? "Math warm-up" : "Reading break";
@@ -154,6 +209,7 @@ void Refresh() {
 void Handle(Tap tap) {
   if (!runtime || Claw4TimerPreviewIsRinging()) return;
   auto& r = *runtime;
+  if (r.paired) r.RefreshConnection();
   if (tap == Tap::Open || tap == Tap::Close) {
     if (lvgl_port_lock(100)) {
       Show(panel, tap == Tap::Open);
@@ -162,7 +218,7 @@ void Handle(Tap tap) {
     }
     if (tap == Tap::Close) {
       r.commands.cancelConfirmation();
-      r.confirming = false;
+      r.confirming = r.voice_confirmation = false;
     }
   } else if (r.ready) {
     const auto& state = r.coordinator.state();
@@ -174,11 +230,12 @@ void Handle(Tap tap) {
       }
     } else if (tap == Tap::Cancel) {
       r.commands.cancelConfirmation();
-      r.confirming = false;
+      r.confirming = r.voice_confirmation = false;
       r.feedback = "";
     } else if (now && tap == Tap::Confirm && r.confirming) {
-      const auto reply = r.commands.confirmFromTouch(binding, r.context(*now), now);
+      const auto reply = r.commands.confirmFromTouch(r.TouchBinding(), r.context(*now), now);
       r.confirming = reply.status == Status::StorageError;
+      if (!r.confirming) r.voice_confirmation = false;
       r.feedback = reply.status == Status::Applied ? "Task saved on Claw4." :
                    r.confirming ? "Could not save. Try confirming again." : "Confirmation expired.";
       ESP_LOGI(kTag, "LOCAL_CONFIRM outcome=%d", int(reply.status));
@@ -187,8 +244,8 @@ void Handle(Tap tap) {
       auto status = Status::InvalidState;
       if (tap == Tap::Finish) {
         const application::LearningVoiceRequest request{
-            Id("tap"), binding.session_epoch, Kind::CompleteRequest, task_id, {}, *now + 60000};
-        status = r.commands.execute(request, binding, r.context(*now), now, {}, {}).status;
+            Id("tap"), 1, Kind::CompleteRequest, task_id, {}, *now + 60000};
+        status = r.commands.execute(request, r.TouchBinding(), r.context(*now), now, {}, {}).status;
       } else {
         domain::Intent intent = domain::Intent::StartTask;
         std::optional<domain::SessionId> session_id;
@@ -251,7 +308,7 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
   lv_obj_set_size(panel, 610, 515);
   lv_obj_center(panel);
   Label(panel, "Study corner", 28, 23, kInk, true);
-  Label(panel, "Local preview  /  Sample tasks", 29, 64, kMuted);
+  subtitle = Label(panel, "Local preview  /  Sample tasks", 29, 64, kMuted);
   Button(panel, "Close", Tap::Close, 488, 27, 94, 48, kLilac);
   task[0] = Button(panel, "Math warm-up", Tap::Math, 28, 108, 270, 64, kMint, true);
   task[1] = Button(panel, "Reading break", Tap::Reading, 310, 108, 272, 64, kWhite, true);
@@ -277,7 +334,26 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
   lv_timer_create([](lv_timer_t*) {
     if (refresh_pending.exchange(true)) return;
     Application::GetInstance().Schedule([] {
-      if (!runtime) runtime = std::make_unique<Runtime>();
+      if (!runtime) {
+        runtime = std::make_unique<Runtime>();
+        auto& r = *runtime;
+        if (r.paired && r.ready) {
+          v6::RegisterLearningVoiceTool(r.commands, v6::CreateLearningVoiceSigner(std::move(r.pairing.device_secret)),
+              []() -> std::optional<v6::LearningVoiceCallContext> {
+                auto& current = *runtime;
+                current.RefreshConnection();
+                const auto now = Claw4TimerPreviewTrustedTime();
+                if (!now || !current.voice_epoch || Claw4TimerPreviewIsRinging()) return std::nullopt;
+                return v6::LearningVoiceCallContext{
+                    {current.identity.device_id, current.identity.child_id, current.voice_epoch},
+                    current.voice_connection, current.context(*now), now, {}, {}};
+              }, [] {
+                runtime->confirming = runtime->voice_confirmation = true;
+                runtime->feedback = "";
+                Handle(Tap::Open);
+              });
+        }
+      }
       Refresh();
       refresh_pending.store(false);
     });

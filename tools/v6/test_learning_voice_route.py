@@ -58,6 +58,8 @@ class RouteTests(unittest.TestCase):
     def install(self, answer=None):
         source = (
             lookup.IMPORT + "class ConnectionHandler:\n"
+            "    async def handle_connection(self, ws):\n"
+            "        if ws:\n            self.websocket = ws\n"
             "    def chat(self, query, depth=0):\n"
             '        if query is not None:\n            self.logger.bind(tag=TAG).info(f"大模型收到用户消息: {query}")\n'
             "        if depth == 0:\n"
@@ -101,6 +103,7 @@ class RouteTests(unittest.TestCase):
                 route.patch(root)
             self.assertIn(b"asr_final=asr_final", receiver.read_bytes())
             self.assertIn(b"asr_final=True", asr.read_bytes())
+            self.assertIn(b"self.resolve_claw4_learning_pairing = pairing_resolver(self)", path.read_bytes())
             cls = next(node for node in ast.parse(path.read_bytes()).body if isinstance(node, ast.ClassDef))
         namespace = dict(
             uuid=uuid, classify_learning=voice.classify, classify_timer=timer.classify,
