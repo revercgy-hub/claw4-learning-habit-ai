@@ -71,9 +71,9 @@ class TimerPreviewStageTests(unittest.TestCase):
             self.assertIn("font_noto_sans_common_20_4.bin", cmake.read_text())
             self.assertIn("EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${CLAW4_UI_FONT}", cmake.read_text())
             self.assertIn("!CLAW4_M0_DIAGNOSTICS", (main / "Kconfig.projbuild").read_text())
-            self.assertEqual((main / "application.cc").read_text().count(
+            source = (main / "application.cc").read_text(encoding="utf-8")
+            self.assertEqual(source.count(
                 "if (Claw4TimerPreviewIsRinging() || IsChatInterrupted()) return;"), 4)
-            source = (main / "application.cc").read_text()
             self.assertIn("return kListeningModeAutoStop;", source)
             self.assertIn("GetDeviceState() == kDeviceStateSpeaking || Claw4TimerPreviewIsRinging()", source)
             self.assertIn('if (chat_interrupted_.exchange(false)) ESP_LOGI(TAG, "CHAT_BUTTON resumed");', source)
