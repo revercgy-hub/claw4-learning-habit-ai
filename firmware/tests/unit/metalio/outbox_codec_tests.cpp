@@ -232,6 +232,43 @@ bool RunEntropyIdFormatting() {
   return true;
 }
 
+void RunLearningReceiptRoundtrip() {
+  auto original = MakeFullState();
+  std::string legacy;
+  CHECK(encodeOutboxState(original, legacy));
+  OutboxState decoded;
+  CHECK(decodeOutboxState(legacy, decoded));
+  CHECK(decoded.domain.learning_command_receipts.empty());
+  CHECK(decoded.domain.learning_command_expired_through_ms == 0);
+
+  original.domain.learning_command_expired_through_ms = 8000;
+  original.domain.learning_command_receipts.push_back({
+      {"dev"}, {"child"}, 2, "pause\\one", claw4::domain::Intent::Pause,
+      TaskId{"task-口算"}, 5, 9000, 5});
+  std::string blob;
+  CHECK(encodeOutboxState(original, blob));
+  CHECK(decodeOutboxState(blob, decoded));
+  CHECK(decoded.domain.learning_command_receipts.size() == 1);
+  if (decoded.domain.learning_command_receipts.size() != 1) return;
+  const auto& receipt = decoded.domain.learning_command_receipts.front();
+  CHECK(decoded.domain.learning_command_expired_through_ms == 8000);
+  CHECK(receipt.command_id == "pause\\one");
+  CHECK(receipt.intent == claw4::domain::Intent::Pause);
+  CHECK(receipt.requested_task == TaskId{"task-口算"});
+  CHECK(receipt.expected_task_version == 5);
+  CHECK(receipt.applied_task_version == 5);
+  CHECK(receipt.expires_at_ms == 9000);
+  std::string again;
+  CHECK(encodeOutboxState(decoded, again) && again == blob);
+
+  const auto record = blob.find("\nl|");
+  CHECK(record != std::string::npos);
+  if (record != std::string::npos) CHECK(!decodeOutboxState(blob.substr(0, record + 1), decoded));
+  original.domain.learning_command_receipts.push_back(original.domain.learning_command_receipts.front());
+  CHECK(encodeOutboxState(original, blob));
+  CHECK(!decodeOutboxState(blob, decoded));
+}
+
 }  // namespace
 
 int main() {
@@ -240,6 +277,7 @@ int main() {
   RunIdempotentRoundtrip();
   RunCorruptionNegatives();
   RunEntropyIdFormatting();
+  RunLearningReceiptRoundtrip();
   if (g_fail == 0) {
     std::printf("outbox_codec_tests: all PASS\n");
     return 0;

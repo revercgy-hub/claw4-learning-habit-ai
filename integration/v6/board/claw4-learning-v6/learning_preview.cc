@@ -183,18 +183,28 @@ void Handle(Tap tap) {
                    r.confirming ? "Could not save. Try confirming again." : "Confirmation expired.";
       ESP_LOGI(kTag, "LOCAL_CONFIRM outcome=%d", int(reply.status));
     } else if (now && !r.confirming && (tap == Tap::StartPause || tap == Tap::Finish)) {
-      Kind kind = Kind::StartTask;
-      if (tap == Tap::Finish) kind = Kind::CompleteRequest;
-      else if (state.active_session) kind = state.active_session->status == domain::SessionStatus::Running
-          ? Kind::PauseTask : Kind::ResumeTask;
-      const application::LearningVoiceRequest request{
-          Id("tap"), binding.session_epoch, kind,
-          state.active_session ? state.active_session->task_id : r.selection, {}, *now + 60000};
-      const auto reply = r.commands.execute(request, binding, r.context(*now), now, {}, {});
-      r.confirming = reply.status == Status::ConfirmationRequired;
-      r.feedback = reply.status == Status::Applied || r.confirming ? "" :
-          reply.status == Status::StorageError ? "Could not save. Try again." : "This task is unavailable.";
-      ESP_LOGI(kTag, "LOCAL_ACTION kind=%d outcome=%d", int(kind), int(reply.status));
+      const auto task_id = state.active_session ? state.active_session->task_id : r.selection;
+      auto status = Status::InvalidState;
+      if (tap == Tap::Finish) {
+        const application::LearningVoiceRequest request{
+            Id("tap"), binding.session_epoch, Kind::CompleteRequest, task_id, {}, *now + 60000};
+        status = r.commands.execute(request, binding, r.context(*now), now, {}, {}).status;
+      } else {
+        domain::Intent intent = domain::Intent::StartTask;
+        std::optional<domain::SessionId> session_id;
+        if (state.active_session) {
+          session_id = state.active_session->session_id;
+          intent = state.active_session->status == domain::SessionStatus::Running
+              ? domain::Intent::Pause : domain::Intent::Resume;
+        }
+        const auto result = r.coordinator.dispatchIntent({intent, task_id, session_id}, r.context(*now));
+        if (result.ok) status = Status::Applied;
+        else if (result.intent_result == domain::IntentResult::PersistFailed) status = Status::StorageError;
+      }
+      r.confirming = status == Status::ConfirmationRequired;
+      r.feedback = status == Status::Applied || r.confirming ? "" :
+          status == Status::StorageError ? "Could not save. Try again." : "This task is unavailable.";
+      ESP_LOGI(kTag, "LOCAL_ACTION tap=%d outcome=%d", int(tap), int(status));
     }
   }
   Refresh();

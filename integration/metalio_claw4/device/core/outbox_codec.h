@@ -10,6 +10,8 @@
 //     S|<0|1>                   followed by one `s|` row when 1
 //     E|<pending_count>         followed by `p|` rows
 //     Q|<next_sequence>  A|<last_acked>  F|<diag_fail>  R|<diag_rec>
+//     Optional L|<receipt_count>\t<expired_through_ms> followed by `l|` rows
+//     in V6 learning state. Earlier blobs omit this section.
 //   Scalar/string fields inside a row are separated by '\t'; the three
 //   characters '\\' '\t' '\n' are escaped inside string fields ("\\","\t","\n").
 //   The pending payload map is serialized as k \x1f v pairs joined by \x1e.

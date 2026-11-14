@@ -2,6 +2,7 @@
 // WB-LEARNING-V4-L1 — OutboxState <-> string codec (see header for format).
 #include "metalio_claw4/device/core/outbox_codec.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdint>
 #include <cstdlib>
@@ -201,6 +202,30 @@ bool ReadInt(const std::string& s, int64_t& v) {
   return true;
 }
 
+bool ParseReceipt(const std::vector<std::string>& fields,
+                  claw4::domain::LearningCommandReceipt& row, int64_t expired_through) {
+  using claw4::domain::Intent;
+  if (fields.size() != 9) return false;
+  int64_t intent;
+  if (!ReadInt(fields[2], row.session_epoch) || row.session_epoch <= 0 ||
+      !ReadInt(fields[4], intent) ||
+      (intent != int(Intent::StartTask) && intent != int(Intent::Pause) && intent != int(Intent::Resume)) ||
+      !ReadInt(fields[7], row.expires_at_ms) || row.expires_at_ms <= expired_through ||
+      !ReadInt(fields[8], row.applied_task_version)) return false;
+  row.device_id = {Unescape(fields[0])};
+  row.child_id = {Unescape(fields[1])};
+  row.command_id = Unescape(fields[3]);
+  row.intent = static_cast<Intent>(intent);
+  if (!fields[5].empty()) row.requested_task = claw4::domain::TaskId{Unescape(fields[5])};
+  if (!fields[6].empty()) {
+    int64_t version;
+    if (!ReadInt(fields[6], version)) return false;
+    row.expected_task_version = version;
+  }
+  return !row.device_id.empty() && !row.child_id.empty() && !row.command_id.empty() &&
+         row.command_id.size() <= 64 && (!row.requested_task || row.requested_task->value.size() <= 128);
+}
+
 }  // namespace
 
 bool encodeOutboxState(const claw4::sync::OutboxState& st, std::string& out) {
@@ -219,6 +244,18 @@ bool encodeOutboxState(const claw4::sync::OutboxState& st, std::string& out) {
   o << "A|" << I(st.last_acked_sequence) << '\n';
   o << "F|" << (st.diagnostic.sync_failed ? "1" : "0") << '\n';
   o << "R|" << (st.diagnostic.sync_recovered ? "1" : "0") << '\n';
+  const auto& receipts = st.domain.learning_command_receipts;
+  if (receipts.size() > claw4::domain::LearningCommandReceipt::kCapacity) return false;
+  if (!receipts.empty() || st.domain.learning_command_expired_through_ms) {
+    o << "L|" << I(receipts.size()) << kSep << I(st.domain.learning_command_expired_through_ms) << '\n';
+    for (const auto& row : receipts) {
+      o << "l|" << Escape(row.device_id.value) << kSep << Escape(row.child_id.value) << kSep
+        << I(row.session_epoch) << kSep << Escape(row.command_id) << kSep << I(int(row.intent)) << kSep
+        << (row.requested_task ? Escape(row.requested_task->value) : std::string()) << kSep
+        << (row.expected_task_version ? I(*row.expected_task_version) : std::string()) << kSep
+        << I(row.expires_at_ms) << kSep << I(row.applied_task_version) << '\n';
+    }
+  }
   out = o.str();
   if (out.size() > kOutboxCodecMaxBytes) {
     out.clear();
@@ -233,10 +270,11 @@ bool decodeOutboxState(const std::string& in, claw4::sync::OutboxState& out) {
   std::istringstream is(in);
   std::string line;
   if (!std::getline(is, line) || line != kOutboxCodecMagic) return false;
-  int64_t tasks_left = -1, sessions_flag = -1, pending_left = -1;
+  int64_t tasks_left = -1, sessions_flag = -1, pending_left = -1, receipts_left = -1;
   bool have_next = false, have_acked = false, have_f = false, have_r = false;
   while (std::getline(is, line)) {
     if (line.empty()) continue;
+    if (line.size() < 2 || line[1] != '|') return false;
     const char tag = line[0];
     std::vector<std::string> f = Split(line.substr(2));
     switch (tag) {
@@ -310,11 +348,31 @@ bool decodeOutboxState(const std::string& in, claw4::sync::OutboxState& out) {
         have_r = true;
         break;
       }
+      case 'L': {
+        auto& floor = st.domain.learning_command_expired_through_ms;
+        if (receipts_left != -1 || f.size() != 2 || !ReadInt(f[0], receipts_left) ||
+            receipts_left < 0 || receipts_left > int64_t(claw4::domain::LearningCommandReceipt::kCapacity) ||
+            !ReadInt(f[1], floor) || floor < 0) return false;
+        break;
+      }
+      case 'l': {
+        auto& receipts = st.domain.learning_command_receipts;
+        claw4::domain::LearningCommandReceipt row{};
+        if (receipts_left <= 0 || !ParseReceipt(f, row, st.domain.learning_command_expired_through_ms))
+          return false;
+        if (std::any_of(receipts.begin(), receipts.end(), [&](const auto& prior) {
+          return prior.device_id == row.device_id && prior.child_id == row.child_id &&
+                 prior.session_epoch == row.session_epoch && prior.command_id == row.command_id;
+        })) return false;
+        receipts.push_back(std::move(row));
+        --receipts_left;
+        break;
+      }
       default:
         return false;  // unknown record -> corrupt
     }
   }
-  if (tasks_left != 0 || sessions_flag != 0 || pending_left != 0 ||
+  if (tasks_left != 0 || sessions_flag != 0 || pending_left != 0 || receipts_left > 0 ||
       !have_next || !have_acked || !have_f || !have_r) {
     return false;
   }

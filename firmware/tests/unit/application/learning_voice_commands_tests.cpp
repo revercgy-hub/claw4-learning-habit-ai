@@ -129,4 +129,45 @@ int main() {
   check(restarted.confirmFromTouch(binding, ctx, now).status == Status::InvalidState);
   check(restarted.execute(snooze, binding, ctx, now + 500, now, r.instance_id).status == Status::Applied);
   check(store.rows.front().snooze_until_epoch_ms == snoozed_until);
+
+  // Losing an applied pause reply and replaying it after restart/resume must
+  // never pause the new running segment.
+  check(run(request(Kind::StartTask, other.task_id)).status == Status::Applied);
+  const auto pause = request(Kind::PauseTask);
+  disk->fail_next_commit = true;
+  check(run(pause).status == Status::StorageError);
+  check(coordinator.state().active_session->status == domain::SessionStatus::Running);
+  check(run(pause).status == Status::Applied);
+  check(run(request(Kind::ResumeTask)).status == Status::Applied);
+  AppCoordinator recovered(storage, reducer);
+  LearningVoiceCommands recovery(recovered, reminders);
+  const auto before = recovered.pendingCount();
+  const auto replay = recovery.execute(pause, binding, ctx, now, {}, {});
+  check(replay.status == Status::Applied && replay.task_version == other.version);
+  check(recovered.pendingCount() == before);
+  check(recovered.state().active_session->status == domain::SessionStatus::Running);
+  auto collision = pause;
+  collision.kind = Kind::ResumeTask;
+  check(recovery.execute(collision, binding, ctx, now, {}, {}).status == Status::Stale);
+  collision = pause;
+  ++collision.expires_at_ms;
+  check(recovery.execute(collision, binding, ctx, now, {}, {}).status == Status::Stale);
+
+  const auto later = now + 31'000;
+  auto new_pause = request(Kind::PauseTask);
+  new_pause.expires_at_ms = later + 30'000;
+  check(recovery.execute(new_pause, binding, ctx, later, {}, {}).status == Status::Applied);
+  check(recovered.state().learning_command_receipts.size() == 1);
+  check(recovered.state().learning_command_expired_through_ms == pause.expires_at_ms);
+  check(recovery.execute(pause, binding, ctx, now, {}, {}).status == Status::Stale);
+
+  for (std::size_t i = 1; i < domain::LearningCommandReceipt::kCapacity; ++i) {
+    auto change = request(i % 2 ? Kind::ResumeTask : Kind::PauseTask);
+    change.expires_at_ms = later + 30'000;
+    check(recovery.execute(change, binding, ctx, later, {}, {}).status == Status::Applied);
+  }
+  auto overflow = request(Kind::PauseTask);
+  overflow.expires_at_ms = later + 30'000;
+  check(recovery.execute(overflow, binding, ctx, later, {}, {}).status == Status::Busy);
+  check(recovery.execute(new_pause, binding, ctx, later, {}, {}).status == Status::Applied);
 }

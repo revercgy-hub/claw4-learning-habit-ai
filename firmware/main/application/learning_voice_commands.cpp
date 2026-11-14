@@ -30,6 +30,15 @@ bool hasActiveSession(const domain::DomainState& state, const domain::ReducerCon
           state.active_session->status == domain::SessionStatus::Paused);
 }
 
+std::optional<domain::Intent> taskMutation(Kind kind) {
+  switch (kind) {
+    case Kind::StartTask: return domain::Intent::StartTask;
+    case Kind::PauseTask: return domain::Intent::Pause;
+    case Kind::ResumeTask: return domain::Intent::Resume;
+    default: return std::nullopt;
+  }
+}
+
 LearningVoiceReply apply(AppCoordinator& coordinator, domain::Intent intent,
                          domain::TaskId task, std::optional<domain::SessionId> session,
                          const domain::ReducerContext& context) {
@@ -51,11 +60,25 @@ LearningVoiceReply LearningVoiceCommands::execute(
     std::optional<int64_t> snapshot_epoch_ms, const std::optional<std::string>& presented_reminder) {
   if (!bound(binding, context) || request.session_epoch != binding->session_epoch ||
       !now || *now <= 0 || request.expires_at_ms <= *now) return {Status::Stale};
-  if (request.command_id.empty() || request.command_id.size() > 64 ||
+  if (request.expires_at_ms - *now > domain::LearningCommandReceipt::kMaxLifetimeMs ||
+      request.command_id.empty() || request.command_id.size() > 64 ||
       (request.task_id && (request.task_id->empty() || request.task_id->value.size() > 128)))
     return {Status::InvalidState};
 
   const auto& state = coordinator_.state();
+  if (request.expires_at_ms <= state.learning_command_expired_through_ms)
+    return {Status::Stale};
+  const auto mutation = taskMutation(request.kind);
+  std::size_t live_receipts = 0;
+  for (const auto& row : state.learning_command_receipts) {
+    if (row.expires_at_ms > *now) ++live_receipts;
+    if (row.device_id != binding->device_id || row.child_id != binding->child_id ||
+        row.session_epoch != binding->session_epoch || row.command_id != request.command_id) continue;
+    if (row.intent != mutation || row.requested_task != request.task_id ||
+        row.expected_task_version != request.expected_task_version ||
+        row.expires_at_ms != request.expires_at_ms) return {Status::Stale};
+    return {Status::Applied, {}, {}, {}, row.applied_task_version};
+  }
   const bool active = hasActiveSession(state, context);
   if (request.kind == Kind::QueryTodayTasks) {
     if (!snapshot_epoch_ms || *snapshot_epoch_ms <= 0 || *snapshot_epoch_ms > *now)
@@ -108,18 +131,23 @@ LearningVoiceReply LearningVoiceCommands::execute(
 
   const auto session = active ? std::optional<domain::SessionId>(state.active_session->session_id)
                               : std::nullopt;
-  switch (request.kind) {
-    case Kind::StartTask: return apply(coordinator_, domain::Intent::StartTask, task->task_id, session, context);
-    case Kind::PauseTask: return apply(coordinator_, domain::Intent::Pause, task->task_id, session, context);
-    case Kind::ResumeTask: return apply(coordinator_, domain::Intent::Resume, task->task_id, session, context);
-    case Kind::CompleteRequest:
-      if (!session) return {Status::InvalidState};
-      pending_ = Pending{context.device_id, context.child_id, task->task_id, *session,
-                         binding->session_epoch, task->version, state.active_session->status,
-                         state.active_session->pause_count, request.expires_at_ms};
-      return {Status::ConfirmationRequired, {}, {}, {}, task->version};
-    default: return {Status::InvalidState};
+  if (mutation) {
+    if (live_receipts >= domain::LearningCommandReceipt::kCapacity) return {Status::Busy};
+    const int64_t version = task->version;
+    const auto result = coordinator_.dispatchLearningCommand(
+        {*mutation, task->task_id, session}, context,
+        {binding->device_id, binding->child_id, binding->session_epoch, request.command_id,
+         *mutation, request.task_id, request.expected_task_version, request.expires_at_ms, version},
+        *now);
+    if (result.intent_result == domain::IntentResult::PersistFailed) return {Status::StorageError};
+    if (!result.ok) return {Status::InvalidState};
+    return {Status::Applied, {}, {}, {}, version};
   }
+  if (request.kind != Kind::CompleteRequest || !session) return {Status::InvalidState};
+  pending_ = Pending{context.device_id, context.child_id, task->task_id, *session,
+                     binding->session_epoch, task->version, state.active_session->status,
+                     state.active_session->pause_count, request.expires_at_ms};
+  return {Status::ConfirmationRequired, {}, {}, {}, task->version};
 }
 
 LearningVoiceReply LearningVoiceCommands::confirmFromTouch(

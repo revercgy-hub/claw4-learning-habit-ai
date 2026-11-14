@@ -133,6 +133,11 @@ class AppCoordinator {
   domain::TransitionResult dispatchIntent(const domain::IntentRequest& intent,
                                           const domain::ReducerContext& ctx);
 
+  // Save an applied voice request in the same commit as the business events.
+  domain::TransitionResult dispatchLearningCommand(
+      const domain::IntentRequest& intent, const domain::ReducerContext& ctx,
+      domain::LearningCommandReceipt receipt, int64_t trusted_epoch_ms);
+
   // Focus-segment timeout through the same commit-then-publish pipeline.
   domain::TransitionResult dispatchSegmentTimeout(const domain::SessionId& session_id,
                                                   const domain::ReducerContext& ctx);

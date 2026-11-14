@@ -111,6 +111,24 @@ domain::TransitionResult AppCoordinator::dispatchIntent(
   return commitAndPublish(reducer_.reduce(state_, intent, ctx));
 }
 
+domain::TransitionResult AppCoordinator::dispatchLearningCommand(
+    const domain::IntentRequest& intent, const domain::ReducerContext& ctx,
+    domain::LearningCommandReceipt receipt, int64_t trusted_epoch_ms) {
+  auto result = reducer_.reduce(state_, intent, ctx);
+  if (result.ok && result.next && !result.drafts.empty()) {
+    auto& next = *result.next;
+    auto& receipts = next.learning_command_receipts;
+    receipts.erase(std::remove_if(receipts.begin(), receipts.end(), [&](const auto& row) {
+      if (row.expires_at_ms > trusted_epoch_ms) return false;
+      next.learning_command_expired_through_ms =
+          std::max(next.learning_command_expired_through_ms, row.expires_at_ms);
+      return true;
+    }), receipts.end());
+    receipts.push_back(std::move(receipt));
+  }
+  return commitAndPublish(std::move(result));
+}
+
 domain::TransitionResult AppCoordinator::dispatchSegmentTimeout(
     const domain::SessionId& session_id, const domain::ReducerContext& ctx) {
   if (!state_.active_session) {
