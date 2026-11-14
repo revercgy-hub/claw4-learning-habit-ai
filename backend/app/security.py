@@ -21,9 +21,8 @@ import secrets
 import time
 
 from app.store import Store
+from app.deployment import DEVICE_TOKEN_KEY
 
-# Mock-only static secret used to sign device tokens (never a production key).
-MOCK_TOKEN_SECRET = "wb-stream-001-mock-only-secret"
 TOKEN_TTL_SECONDS = 24 * 3600
 
 
@@ -69,7 +68,7 @@ def issue_device_token(device_id: str, child_ids: list[str]) -> str:
         "scope": "device",
     }
     body = _b64url(json.dumps(claims, separators=(",", ":")).encode("utf-8"))
-    mac = hmac.new(MOCK_TOKEN_SECRET.encode("utf-8"), body.encode("ascii"),
+    mac = hmac.new(DEVICE_TOKEN_KEY.encode("utf-8"), body.encode("ascii"),
                    hashlib.sha256).digest()
     return f"{body}.{_b64url(mac)}"
 
@@ -78,7 +77,7 @@ def decode_device_token(token: str) -> dict:
     """Returns claims; raises ValueError when malformed, expired or tampered."""
     try:
         body, sig = token.split(".", 1)
-        expected = _b64url(hmac.new(MOCK_TOKEN_SECRET.encode("utf-8"),
+        expected = _b64url(hmac.new(DEVICE_TOKEN_KEY.encode("utf-8"),
                                     body.encode("ascii"),
                                     hashlib.sha256).digest())
         if not hmac.compare_digest(expected, sig):

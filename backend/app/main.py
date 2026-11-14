@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app import clock, db, security, store as store_mod
 from app.db import get_db
+from app.deployment import PARENT_1_TOKEN, PARENT_2_TOKEN
 from app.schemas import (
     AuthRequest,
     AuthResponse,
@@ -103,10 +104,13 @@ def bootstrap() -> None:
     db.create_schema()
     with db.SessionLocal() as s:
         repo = Store(s)
-        repo.seed_parent(Parent(parent_id="parent-1", token="mock-parent-token-1",
+        repo.seed_parent(Parent(parent_id="parent-1", token=PARENT_1_TOKEN,
                                 child_ids=["child-1"]))
-        repo.seed_parent(Parent(parent_id="parent-2", token="mock-parent-token-2",
+        repo.seed_parent(Parent(parent_id="parent-2", token=PARENT_2_TOKEN,
                                 child_ids=["child-2"]))
+        if (repo.parent_id_for_token(PARENT_1_TOKEN) != "parent-1" or
+                repo.parent_id_for_token(PARENT_2_TOKEN) != "parent-2"):
+            raise RuntimeError("Configured parent credentials do not match the database")
         existing = repo.tasks_for_child("child-1",
                                         scheduled_date=clock.local_today())
         if not existing:
