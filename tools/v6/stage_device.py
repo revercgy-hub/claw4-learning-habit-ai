@@ -762,8 +762,18 @@ def stage_learning_lan_ca(destination, ca, origin):
             'include_sha256': hashlib.sha256(include.read_bytes()).hexdigest()}
 
 
+def stage_learning_usb_pairing(destination, digest):
+    include = destination / 'main/claw4_learning_core/learning_usb_pairing.inc'
+    include.write_bytes(f'constexpr char kLearningPairingSha256[] = "{digest}";\n'.encode('ascii'))
+    cmake = destination / 'main/CMakeLists.txt'
+    replace_once(cmake, 'CLAW4_LEARNING_LAN_CA=1)',
+                 'CLAW4_LEARNING_LAN_CA=1 CLAW4_LEARNING_USB_PAIRING=1)')
+    return {'frame_sha256': digest, 'include_sha256': hashlib.sha256(include.read_bytes()).hexdigest()}
+
+
 def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer_preview=False,
-          learning_preview=False, learning_lan_ca=None, learning_lan_origin=None):
+          learning_preview=False, learning_lan_ca=None, learning_lan_origin=None,
+          learning_usb_pairing_sha256=None):
     if variant not in ('m0', 'm1'):
         raise ValueError(f'Unknown build variant: {variant}')
     if m1_input_diagnostics and variant != 'm1':
@@ -774,6 +784,9 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer
         raise ValueError('Learning preview requires the timer preview')
     if bool(learning_lan_ca) != bool(learning_lan_origin) or (learning_lan_ca and not learning_preview):
         raise ValueError('Learning LAN TLS requires the preview, a public CA and an HTTPS origin')
+    if learning_usb_pairing_sha256 is not None and (
+            not learning_lan_ca or not re.fullmatch(r'[a-f0-9]{64}', learning_usb_pairing_sha256)):
+        raise ValueError('Learning USB pairing requires LAN TLS and a lowercase SHA-256 digest')
     lock = json.loads((ROOT / 'integration/v6/baseline.lock.json').read_text())
     pin = lock['sources']['xiaozhi']['sha']
     verify_checkout(upstream, pin)
@@ -856,6 +869,8 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer
         manifest['learning_core_sha256'] = learning_inputs
     if learning_lan_ca:
         manifest['learning_lan_tls'] = stage_learning_lan_ca(destination, learning_lan_ca, learning_lan_origin)
+    if learning_usb_pairing_sha256:
+        manifest['learning_usb_pairing'] = stage_learning_usb_pairing(destination, learning_usb_pairing_sha256)
     (destination / 'v6-stage-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
 
 
@@ -872,7 +887,8 @@ if __name__ == '__main__':
                         help='Include the local learning firmware preview')
     parser.add_argument('--learning-lan-ca', type=Path)
     parser.add_argument('--learning-lan-origin')
+    parser.add_argument('--learning-usb-pairing-sha256', help='Enable validation USB pairing for this frame digest')
     args = parser.parse_args()
     stage(args.upstream.resolve(), args.destination.resolve(), args.variant,
           args.m1_input_diagnostics, args.timer_preview, args.learning_preview,
-          args.learning_lan_ca, args.learning_lan_origin)
+          args.learning_lan_ca, args.learning_lan_origin, args.learning_usb_pairing_sha256)

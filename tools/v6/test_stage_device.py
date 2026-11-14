@@ -94,6 +94,28 @@ class TimerPreviewStageTests(unittest.TestCase):
             self.assertEqual(result["certificate_sha256"], hashlib.sha256(ca.read_bytes()).hexdigest())
             self.assertEqual(result["include_sha256"], hashlib.sha256(include.read_bytes()).hexdigest())
 
+    def test_learning_usb_pairing_requires_lan_tls_and_records_only_digest(self):
+        digest = "ab" * 32
+        with self.assertRaisesRegex(ValueError, "Learning USB pairing requires"):
+            stage(Path("unused"), Path("unused"), learning_usb_pairing_sha256=digest)
+        with self.assertRaisesRegex(ValueError, "lowercase SHA-256"):
+            stage(Path("unused"), Path("unused"), variant="m1", timer_preview=True,
+                  learning_preview=True, learning_lan_ca=Path("unused"),
+                  learning_lan_origin="https://192.168.3.100:8744", learning_usb_pairing_sha256="secret")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            core = root / "main/claw4_learning_core"
+            core.mkdir(parents=True)
+            cmake = root / "main/CMakeLists.txt"
+            cmake.write_text("PRIVATE CLAW4_LEARNING_PREVIEW=1 CLAW4_LEARNING_LAN_CA=1)\n")
+            result = stage_device.stage_learning_usb_pairing(root, digest)
+            include = core / "learning_usb_pairing.inc"
+            self.assertEqual(include.read_bytes(),
+                             f'constexpr char kLearningPairingSha256[] = "{digest}";\n'.encode("ascii"))
+            self.assertEqual(result, {"frame_sha256": digest,
+                                      "include_sha256": hashlib.sha256(include.read_bytes()).hexdigest()})
+            self.assertIn("CLAW4_LEARNING_USB_PAIRING=1", cmake.read_text())
+
     def test_learning_preview_copies_its_own_sources_without_sibling_runtime(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
