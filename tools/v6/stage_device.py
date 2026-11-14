@@ -515,6 +515,19 @@ def stage_timer_preview(destination):
     )
     with (destination / 'main/Kconfig.projbuild').open('a', encoding='utf-8') as output:
         output.write(TIMER_PREVIEW_KCONFIG)
+    replace_once(
+        destination / 'main/CMakeLists.txt',
+        '    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}',
+        '    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${CLAW4_UI_FONT}',
+    )
+    replace_once(
+        destination / 'main/CMakeLists.txt',
+        'idf_component_register(SRCS ${SOURCES}',
+        'if(CONFIG_CLAW4_TIMER_PREVIEW)\n'
+        '    set(CLAW4_UI_FONT "${PROJECT_DIR}/managed_components/78__xiaozhi-fonts/cbin/font_noto_sans_common_20_4.bin")\n'
+        'endif()\n'
+        'idf_component_register(SRCS ${SOURCES}',
+    )
 
     app = destination / 'main/application.cc'
     app_header = destination / 'main/application.h'
@@ -616,7 +629,7 @@ void Application::AbortSpeaking(AbortReason reason) {""",
         app, '                display->SetStatus(Lang::Strings::STANDBY);\n'
         '                display->ClearChatMessages();',
         '#if CONFIG_CLAW4_TIMER_PREVIEW\n'
-        '                display->SetStatus(IsChatInterrupted() ? "Paused" : Lang::Strings::STANDBY);\n'
+        '                display->SetStatus(IsChatInterrupted() ? "对话已暂停" : Lang::Strings::STANDBY);\n'
         '#else\n'
         '                display->SetStatus(Lang::Strings::STANDBY);\n'
         '#endif\n'

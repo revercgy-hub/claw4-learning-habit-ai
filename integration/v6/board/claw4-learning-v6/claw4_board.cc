@@ -7,6 +7,7 @@
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
 #include "application.h"
 #include "timer_preview.h"
+#include "ui_fonts.h"
 bool Claw4TimerPreviewIsRinging();
 #endif
 #include "display/lcd_display.h"
@@ -71,8 +72,8 @@ class Claw4Display final : public LcdDisplay {
                 lv_obj_add_flag(chat_button_, LV_OBJ_FLAG_HIDDEN);
             } else {
                 const bool resume = mode == ChatButtonMode::Continue;
-                lv_label_set_text(chat_button_label_, resume ? "Continue" : "Interrupt");
-                ChatColor(chat_button_, resume ? 0x42866E : 0xA14655);
+                lv_label_set_text(chat_button_label_, resume ? "继续听我说" : "打断对话");
+                ChatColor(chat_button_, resume ? 0x2E6D5D : 0x75485E);
                 lv_obj_remove_flag(chat_button_, LV_OBJ_FLAG_HIDDEN);
             }
         }
@@ -83,60 +84,58 @@ class Claw4Display final : public LcdDisplay {
         lv_obj_set_style_bg_color(obj, lv_color_hex(color), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
     }
-    static void EnlargeText(lv_obj_t* label, int zoom) {
-        lv_obj_set_style_transform_pivot_x(label, lv_pct(50), LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(label, lv_pct(50), LV_PART_MAIN);
-        lv_obj_set_style_transform_scale_x(label, zoom, LV_PART_MAIN);
-        lv_obj_set_style_transform_scale_y(label, zoom, LV_PART_MAIN);
-    }
     void StyleChat() {
         if (!bottom_bar_ || !chat_message_label_ || !emoji_box_ || !lvgl_port_lock(1000)) return;
-        ChatColor(container_, 0x13262E);
-        lv_obj_set_style_bg_grad_color(container_, lv_color_hex(0x243244), LV_PART_MAIN);
+        ChatColor(container_, 0xE3EEF9);
+        lv_obj_set_style_bg_grad_color(container_, lv_color_hex(0xF8F2E6), LV_PART_MAIN);
         lv_obj_set_style_bg_grad_dir(container_, LV_GRAD_DIR_VER, LV_PART_MAIN);
         lv_obj_set_style_bg_image_src(container_, nullptr, LV_PART_MAIN);
 
-        ChatColor(top_bar_, 0x172C35);
+        ChatColor(top_bar_, 0xD7E5F2);
         for (auto* icon : {network_label_, battery_label_, mute_label_}) {
-            lv_obj_set_style_text_color(icon, lv_color_hex(0xD4E5E2), LV_PART_MAIN);
+            lv_obj_set_style_text_color(icon, lv_color_hex(0x234355), LV_PART_MAIN);
         }
-        ChatColor(status_bar_, 0x27454D);
-        lv_obj_set_size(status_bar_, 416, 58);
-        lv_obj_set_style_radius(status_bar_, 25, LV_PART_MAIN);
+        ChatColor(status_bar_, 0xFFFDF8);
+        lv_obj_set_size(status_bar_, 396, 62);
+        lv_obj_set_style_radius(status_bar_, 30, LV_PART_MAIN);
         lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 12);
         for (auto* label : {status_label_, notification_label_}) {
             lv_obj_set_width(label, 320);
-            lv_obj_set_style_text_color(label, lv_color_hex(0xEAF8F1), LV_PART_MAIN);
-            EnlargeText(label, 332);
+            lv_obj_set_style_text_color(label, lv_color_hex(0x203D4D), LV_PART_MAIN);
+            Claw4UiSetTextSize(label, 314);
         }
 
-        ChatColor(emoji_box_, 0x2C4450);
-        lv_obj_set_style_radius(emoji_box_, 26, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(emoji_box_, 20, LV_PART_MAIN);
+        ChatColor(emoji_box_, 0xFFFDF7);
+        lv_obj_set_style_radius(emoji_box_, 38, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(emoji_box_, 23, LV_PART_MAIN);
         lv_obj_set_style_border_width(emoji_box_, 2, LV_PART_MAIN);
-        lv_obj_set_style_border_color(emoji_box_, lv_color_hex(0x588077), LV_PART_MAIN);
+        lv_obj_set_style_border_color(emoji_box_, lv_color_hex(0xBDD6D2), LV_PART_MAIN);
         lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, -25);
 
-        ChatColor(bottom_bar_, 0xDAF4E8);
-        lv_obj_set_size(bottom_bar_, 656, 112);
+        ChatColor(bottom_bar_, 0xE4F4EB);
+        lv_obj_set_size(bottom_bar_, 660, 124);
         lv_obj_set_style_pad_all(bottom_bar_, 0, LV_PART_MAIN);
-        lv_obj_set_style_radius(bottom_bar_, 25, LV_PART_MAIN);
+        lv_obj_set_style_radius(bottom_bar_, 32, LV_PART_MAIN);
         lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, -24);
-        lv_obj_set_width(chat_message_label_, 505);
-        lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 13);
+        lv_obj_set_width(chat_message_label_, 550);
+        lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 22);
         lv_obj_set_style_text_color(chat_message_label_, lv_color_hex(0x203831), LV_PART_MAIN);
-        EnlargeText(chat_message_label_, 316);
+        Claw4UiSetTextSize(chat_message_label_, 284);
         if (!speaker_label_) {
             speaker_label_ = lv_label_create(bottom_bar_);
-            lv_label_set_text(speaker_label_, "Xiaozhi");
-            lv_obj_align(speaker_label_, LV_ALIGN_TOP_LEFT, 23, 13);
+            lv_label_set_text(speaker_label_, "小智");
+            Claw4UiSetTextSize(speaker_label_);
+            lv_obj_set_style_radius(speaker_label_, 14, LV_PART_MAIN);
+            lv_obj_set_style_pad_hor(speaker_label_, 12, LV_PART_MAIN);
+            ChatColor(speaker_label_, 0xF9FEF9);
+            lv_obj_align(speaker_label_, LV_ALIGN_TOP_LEFT, 24, 13);
             lv_obj_set_style_text_color(speaker_label_, lv_color_hex(0x32544B), LV_PART_MAIN);
         }
         if (!chat_button_) {
             chat_button_ = lv_button_create(lv_obj_get_parent(bottom_bar_));
-            lv_obj_set_size(chat_button_, 178, 55);
-            lv_obj_align(chat_button_, LV_ALIGN_BOTTOM_MID, 0, -153);
-            lv_obj_set_style_radius(chat_button_, 21, LV_PART_MAIN);
+            lv_obj_set_size(chat_button_, 184, 54);
+            lv_obj_align(chat_button_, LV_ALIGN_BOTTOM_MID, 0, -165);
+            lv_obj_set_style_radius(chat_button_, 27, LV_PART_MAIN);
             lv_obj_set_style_bg_opa(chat_button_, LV_OPA_70, LV_STATE_PRESSED);
             lv_obj_add_event_cb(chat_button_, [](lv_event_t* event) {
                 const auto* display = static_cast<Claw4Display*>(lv_event_get_user_data(event));
@@ -146,7 +145,7 @@ class Claw4Display final : public LcdDisplay {
             }, LV_EVENT_CLICKED, this);
             chat_button_label_ = lv_label_create(chat_button_);
             lv_obj_set_style_text_color(chat_button_label_, lv_color_white(), LV_PART_MAIN);
-            EnlargeText(chat_button_label_, 316);
+            Claw4UiSetTextSize(chat_button_label_, 282);
             lv_obj_center(chat_button_label_);
             lv_obj_add_flag(chat_button_, LV_OBJ_FLAG_HIDDEN);
         }
@@ -186,8 +185,8 @@ public:
         if (!speaker_label_ || !content || !*content || !lvgl_port_lock(100)) return;
         const bool user = std::strcmp(role, "user") == 0;
         const bool assistant = std::strcmp(role, "assistant") == 0;
-        ChatColor(bottom_bar_, user ? 0xEEE3FA : assistant ? 0xDAF4E8 : 0xE1EDF4);
-        lv_label_set_text(speaker_label_, user ? "You" : assistant ? "Xiaozhi" : "Claw4");
+        ChatColor(bottom_bar_, user ? 0xF0E6F9 : assistant ? 0xE4F4EB : 0xEDF6FC);
+        lv_label_set_text(speaker_label_, user ? "你" : assistant ? "小智" : "设备提示");
         lvgl_port_unlock();
     }
 #endif
