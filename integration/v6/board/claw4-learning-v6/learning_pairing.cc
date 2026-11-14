@@ -5,7 +5,6 @@
 #include "learning_usb_pairing.inc"
 
 #include <atomic>
-#include <cstring>
 #include <string>
 #include <string_view>
 
@@ -88,12 +87,17 @@ void Receive(void*) {
   ESP_LOGI("Claw4Pairing", "LEARNING_PAIRING_READY %s", kLearningPairingSha256);
   std::string line;
   line.reserve(kMaxFrame);
+  bool discard = false;
   const int64_t deadline = esp_timer_get_time() + 30000000;
   while (esp_timer_get_time() < deadline) {
     unsigned char bytes[64];
     const int count = usb_serial_jtag_ll_read_rxfifo(bytes, sizeof(bytes));
     for (int i = 0; i < count; ++i) {
-      if (line.size() == kMaxFrame) { line.clear(); continue; }
+      if (discard || line.size() == kMaxFrame) {
+        discard = bytes[i] != '\n';
+        line.clear();
+        continue;
+      }
       line.push_back(static_cast<char>(bytes[i]));
       if (bytes[i] == '\n') {
         claw4::sync::ProvisionedBackendConfig config;
@@ -118,7 +122,8 @@ void Claw4LearningPairingBegin() {
   if (Load(config) != Read::Missing) return;
   // Legacy records, including partial records, are never overwritten here.
   nvs_handle_t handle;
-  if (nvs_open(kNamespace, NVS_READONLY, &handle) == ESP_OK) {
+  const auto opened = nvs_open(kNamespace, NVS_READONLY, &handle);
+  if (opened == ESP_OK) {
     constexpr const char* keys[] = {"base_url", "device_id", "child_id", "device_secret"};
     for (const auto* key : keys) {
       size_t size = 0;
@@ -126,6 +131,8 @@ void Claw4LearningPairingBegin() {
       if (rc != ESP_ERR_NVS_NOT_FOUND) { nvs_close(handle); return; }
     }
     nvs_close(handle);
+  } else if (opened != ESP_ERR_NVS_NOT_FOUND) {
+    return;
   }
   pending.store(true);
   if (xTaskCreate(Receive, "learning_pair", 4096, nullptr, 3, nullptr) != pdPASS) pending.store(false);
