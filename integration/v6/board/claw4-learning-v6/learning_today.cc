@@ -5,11 +5,13 @@
 #include <array>
 #include <ctime>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <type_traits>
 
 #include <esp_crt_bundle.h>
 #include <esp_http_client.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -66,35 +68,78 @@ class TodayTransport final : public sync::HttpTransport {
   }
 };
 
-struct Worker {
+class Worker {
+ public:
+  Worker(sync::ProvisionedBackendConfig config, std::function<void(LearningTodayUpdate)> apply,
+         LearningUploadResult uploaded)
+      : config(std::move(config)), apply(std::move(apply)), uploaded(std::move(uploaded)) {}
+
+  TaskHandle_t task = nullptr;
+  std::mutex mailbox_mutex;
+  std::optional<application::SyncRequestEnvelope> mailbox;
+
+  void Run();
+
+ private:
   sync::ProvisionedBackendConfig config;
   std::function<void(LearningTodayUpdate)> apply;
+  LearningUploadResult uploaded;
 
-  void Run() {
-    TodayTransport transport;
-    sync::BackendClient client(transport, config.base_url, 4000);
-    auto sign = CreateLearningVoiceSigner(std::move(config.device_secret));
-    for (;;) {
-      sync::SyncErrorClass error{};
-      sync::wire::AuthResponse auth;
-      if (client.accessToken().empty())
+  void PublishAuthorizationLost() {
+    Application::GetInstance().Schedule([apply = apply] { apply({}); });
+  }
+};
+
+void Worker::Run() {
+  TodayTransport transport;
+  sync::BackendClient client(transport, config.base_url, 4000);
+  auto sign = CreateLearningVoiceSigner(std::move(config.device_secret));
+  const auto authenticate = [&](sync::SyncErrorClass& error) {
+    sync::wire::AuthResponse auth;
+    return !client.accessToken().empty() ||
         client.authenticate(config.device_id, [&](const auto& device, const auto& id, const auto& nonce) {
           return sign(device + "|" + id + "|" + nonce);
         }, auth, error);
+  };
+  int64_t next_today_ms = 0;
+  for (;;) {
+    std::optional<application::SyncRequestEnvelope> upload;
+    {
+      std::lock_guard lock(mailbox_mutex);
+      upload.swap(mailbox);
+    }
+    if (upload) {
+      sync::SyncClient::Response response;
+      if (authenticate(response.error_class)) response = client.syncBatch(upload->request);
+      if (response.error_class == sync::SyncErrorClass::Auth) {
+        client.clearAuth();
+        PublishAuthorizationLost();
+        next_today_ms = esp_timer_get_time() / 1000 + 5'000;
+      }
+      Application::GetInstance().Schedule(
+          [done = uploaded, sent = std::move(*upload), result = std::move(response)]() mutable {
+            done(std::move(sent), std::move(result));
+          });
+    }
+    if (esp_timer_get_time() / 1000 >= next_today_ms) {
+      sync::SyncErrorClass error{};
       sync::wire::TodayResponse today;
-      const bool success = !client.accessToken().empty() && client.fetchToday(config.child_id, today, error);
+      const bool success = authenticate(error) && client.fetchToday(config.child_id, today, error);
       if (success) {
         Application::GetInstance().Schedule([apply = apply, today = std::move(today)]() mutable {
           apply({std::move(today)});
         });
       } else if (error == sync::SyncErrorClass::Auth) {
         client.clearAuth();
-        Application::GetInstance().Schedule([apply = apply] { apply({}); });
+        PublishAuthorizationLost();
       }
-      vTaskDelay(pdMS_TO_TICKS(success ? 30'000 : 60'000));
+      next_today_ms = esp_timer_get_time() / 1000 + (success ? 30'000 : 60'000);
     }
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1'000));
   }
-};
+}
+
+Worker* worker = nullptr;  // Registered and queued only by the Application task.
 
 }  // namespace
 
@@ -124,18 +169,31 @@ bool LearningTodayMatches(const sync::wire::TodayResponse& today, const domain::
 }
 
 bool StartLearningTodayWorker(sync::ProvisionedBackendConfig config,
-                              std::function<void(LearningTodayUpdate)> apply) {
-  if (!apply || !config.complete() || config.device_secret.size() < 32 ||
+                              std::function<void(LearningTodayUpdate)> apply,
+                              LearningUploadResult uploaded) {
+  if (worker || !apply || !uploaded || !config.complete() || config.device_secret.size() < 32 ||
       !config.base_url.starts_with("https://") ||
       config.base_url.find_first_of("@?#\\\r\n\t ") != std::string::npos ||
       config.child_id.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") !=
           std::string::npos) return false;
-  auto* worker = new Worker{std::move(config), std::move(apply)};
+  worker = new Worker(std::move(config), std::move(apply), std::move(uploaded));
   if (xTaskCreate([](void* argument) {
         static_cast<Worker*>(argument)->Run();
-      }, "claw4_today", 8192, worker, 2, nullptr) == pdPASS) return true;
+      }, "claw4_today", 8192, worker, 2, &worker->task) == pdPASS) return true;
   delete worker;
+  worker = nullptr;
   return false;
+}
+
+bool QueueLearningUpload(application::SyncRequestEnvelope envelope) {
+  if (!worker || envelope.request.events.empty()) return false;
+  {
+    std::lock_guard lock(worker->mailbox_mutex);
+    if (worker->mailbox) return false;
+    worker->mailbox = std::move(envelope);
+  }
+  xTaskNotifyGive(worker->task);
+  return true;
 }
 
 }  // namespace claw4::v6

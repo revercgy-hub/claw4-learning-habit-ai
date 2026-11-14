@@ -23,6 +23,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -177,7 +178,7 @@ class AppCoordinator {
   // caller's state-owner lock. It performs no I/O, allocates no lock-holding
   // reference and never blocks. The returned envelope is safe to hand to a
   // worker task that will hold it across the whole DNS/connect/read/close.
-  SyncRequestEnvelope prepareSync() const;
+  SyncRequestEnvelope prepareSync(std::size_t max_events = sync::OutboxCore::kMaxPending) const;
 
   // applySyncResult() must be called inside another SHORT critical section
   // after the worker returned. It never performs I/O and never invokes the

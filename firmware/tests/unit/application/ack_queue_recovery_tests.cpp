@@ -362,6 +362,42 @@ static bool run_case_success_still_works() {
   return true;
 }
 
+static bool run_case_bounded_replay_survives_reboot() {
+  Env env;
+  auto initial = seedFourPending(env);
+  CHECK(initial.has_value());
+  const auto first = initial->prepareSync(2);
+  CHECK(first.request.events.size() == 2);
+  CHECK(first.first_sent_sequence == 1 && first.max_sent_sequence == 2);
+  SyncClient::Response lost;
+  lost.error_class = SyncErrorClass::Network;
+  CHECK(initial->applySyncResult(first, lost).outcome == SyncOutcome::Backoff);
+  CHECK(initial->pendingCount() == 4);
+
+  auto restarted = env.make();
+  CHECK(restarted.prepareAfterBoot(0));
+  const auto retry = restarted.prepareSync(2);
+  CHECK(retry.request.events.size() == first.request.events.size());
+  std::vector<PerEventResult> rows;
+  for (std::size_t i = 0; i < retry.request.events.size(); ++i) {
+    const auto& original = first.request.events[i];
+    const auto& repeated = retry.request.events[i];
+    CHECK(original.event_id == repeated.event_id && original.sequence == repeated.sequence);
+    CHECK(original.payload == repeated.payload);
+    rows.push_back(mkRow(repeated.sequence, repeated.event_id, EventOutcome::Duplicate));
+  }
+  CHECK(restarted.applySyncResult(retry, mkResponse(4, std::move(rows))).outcome == SyncOutcome::Synced);
+  CHECK(restarted.lastAcked() == 2 && restarted.pendingCount() == 2);
+  const auto rest = restarted.prepareSync(2);
+  CHECK(rest.first_sent_sequence == 3 && rest.max_sent_sequence == 4);
+  rows.clear();
+  for (const auto& event : rest.request.events)
+    rows.push_back(mkRow(event.sequence, event.event_id, EventOutcome::Accepted));
+  CHECK(restarted.applySyncResult(rest, mkResponse(4, std::move(rows))).outcome == SyncOutcome::Synced);
+  CHECK(restarted.lastAcked() == 4 && restarted.pendingCount() == 0);
+  return true;
+}
+
 static bool run_case_all() {
   CASE(blocked_queue_is_not_reported_as_synced);
   CASE(desync_is_rebased_losslessly_then_drains);
@@ -369,6 +405,7 @@ static bool run_case_all() {
   CASE(rebase_failure_is_fail_closed);
   CASE(partial_answer_never_triggers_rebase);
   CASE(success_still_works);
+  CASE(bounded_replay_survives_reboot);
   return g_fail == 0;
 }
 

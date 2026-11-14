@@ -390,7 +390,7 @@ sync::BatchSyncResult AppCoordinator::scopeBatchToSent(
   return scoped;
 }
 
-SyncRequestEnvelope AppCoordinator::prepareSync() const {
+SyncRequestEnvelope AppCoordinator::prepareSync(std::size_t max_events) const {
   SyncRequestEnvelope env;
   if (auth_paused_) {
     env.auth_paused = true;
@@ -398,7 +398,7 @@ SyncRequestEnvelope AppCoordinator::prepareSync() const {
   }
 
   const sync::OutboxState os = loadFrom(storage_);
-  if (os.pending.empty()) return env;  // has_work stays false -> NoPending
+  if (os.pending.empty() || max_events == 0) return env;
 
   env.has_work = true;
   env.generation = generation_;
@@ -410,7 +410,7 @@ SyncRequestEnvelope AppCoordinator::prepareSync() const {
 
   int64_t expected = os.last_acked_sequence + 1;
   for (const auto& row : os.pending) {
-    if (row.sequence != expected) break;  // gap: stop at the first discontinuity
+    if (row.sequence != expected || env.request.events.size() == max_events) break;
     claw4::domain::DeviceEvent ev;
     ev.event_id = row.event_id;
     ev.device_id = row.device_id;

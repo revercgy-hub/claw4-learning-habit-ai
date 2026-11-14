@@ -70,7 +70,7 @@ struct Runtime {
   reminder::ReminderCore reminders{{}, reminder_store, calendar};
   metalio::NvsOutboxStorage storage{paired ? "claw4_v6study" : "claw4_v6demo"};
   domain::DomainReducer reducer;
-  application::AppCoordinator coordinator{storage, reducer};
+  application::AppCoordinator coordinator{storage, reducer, {.allow_baseline_rebase = false}};
   application::LearningVoiceCommands commands{coordinator, reminders};
   domain::TaskId selection{"math"};
   domain::SessionId cue_session;
@@ -79,6 +79,11 @@ struct Runtime {
   int64_t voice_epoch = 0;
   bool voice_confirmation = false;
   bool backend_authorized = false;
+  bool worker_started = false;
+  bool upload_inflight = false;
+  bool upload_blocked = false;
+  bool records_pending = false;
+  int64_t next_upload_ms = 0;
   std::optional<int64_t> snapshot_epoch;
   std::string snapshot_date;
   const char* feedback = "";
@@ -151,11 +156,50 @@ struct Runtime {
     }
     auto& today = *update.snapshot;
     const auto now = Claw4TimerPreviewTrustedTime();
-    if (!now || !v6::LearningTodayMatches(today, identity.child_id, *now) ||
-        !coordinator.applyTodaySnapshot(today.tasks)) return;
+    if (!now || !v6::LearningTodayMatches(today, identity.child_id, *now)) return;
+    if (!backend_authorized) {
+      coordinator.resetAuthPause();
+      next_upload_ms = 0;
+    }
+    backend_authorized = true;
+    // An authenticated device can drain its queue even if a larger snapshot
+    // cannot fit until pending events have been acknowledged.
+    if (!coordinator.applyTodaySnapshot(today.tasks)) return;
     snapshot_date = std::move(today.date);
     snapshot_epoch = now;
-    backend_authorized = true;
+  }
+  void TickUpload() {
+    if (!worker_started || upload_inflight || clock.monotonicMs() < next_upload_ms)
+      return;
+    next_upload_ms = clock.monotonicMs() + 2'000;
+    records_pending = coordinator.pendingCount() > 0;
+    if (!records_pending || !backend_authorized) return;
+    auto outgoing = coordinator.prepareSync(8);
+    if (outgoing.auth_paused || outgoing.request.events.empty()) return;
+    if (outgoing.request.device_id != identity.device_id ||
+        !std::all_of(outgoing.request.events.begin(), outgoing.request.events.end(), [&](const auto& row) {
+          return row.device_id == identity.device_id && row.child_id == identity.child_id;
+        })) {
+      upload_blocked = true;
+      next_upload_ms = clock.monotonicMs() + 60'000;
+      return;
+    }
+    upload_inflight = v6::QueueLearningUpload(std::move(outgoing));
+  }
+  void UploadFinished(application::SyncRequestEnvelope sent, sync::SyncClient::Response result) {
+    upload_inflight = false;
+    const auto before = coordinator.lastAcked();
+    const auto applied = coordinator.applySyncResult(sent, result);
+    const auto after = coordinator.lastAcked();
+    records_pending = coordinator.pendingCount() > 0;
+    upload_blocked = applied.outcome == application::SyncOutcome::Blocked;
+    if (after > before && applied.outcome == application::SyncOutcome::Synced) {
+      next_upload_ms = 0;
+      ESP_LOGI(kTag, "LEARNING_UPLOAD_ACK count=%d", int(after - before));
+    } else {
+      const auto wait = std::max<int64_t>(2'000, coordinator.backoffDelayMs());
+      next_upload_ms = clock.monotonicMs() + (applied.outcome == application::SyncOutcome::Blocked ? 30'000 : wait);
+    }
   }
 };
 
@@ -181,6 +225,7 @@ void Color(lv_obj_t* obj, uint32_t color) {
 void Refresh() {
   auto& r = *runtime;
   if (r.paired) r.RefreshConnection();
+  r.TickUpload();
   const auto& state = r.coordinator.state();
   ui::ViewState view;
   view.domain.active_session = state.active_session;
@@ -216,7 +261,9 @@ void Refresh() {
   Text(state_label, due ? "Time is up" : focus.running ? "Focusing" : focus.has_session ? "Paused" :
        !current_today ? "Waiting for tasks" : shown_count == 0 ? "No tasks today" : "Choose a task");
   Text(feedback_label, !r.ready ? "Learning storage unavailable" : !now ? "Waiting for device clock" :
-       r.confirming && !*r.feedback ? "Confirm completion on this screen." : r.feedback);
+       r.confirming && !*r.feedback ? "Confirm completion on this screen." :
+       r.upload_blocked ? "Learning records need review." :
+       r.records_pending && !*r.feedback ? "Records saved on Claw4. Sync pending." : r.feedback);
   Text(lv_obj_get_child(primary, 0), focus.running ? "Pause" : focus.has_session ? "Resume" : "Start focus");
   const bool selected_ready = current_today &&
       std::any_of(state.tasks.begin(), state.tasks.end(), [&](const auto& item) {
@@ -383,10 +430,12 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
         runtime = std::make_unique<Runtime>();
         auto& r = *runtime;
         if (r.paired && r.ready) {
-          const bool worker_started = v6::StartLearningTodayWorker(r.pairing, [](v6::LearningTodayUpdate update) {
+          r.worker_started = v6::StartLearningTodayWorker(r.pairing, [](v6::LearningTodayUpdate update) {
             runtime->ApplyToday(std::move(update));
+          }, [](application::SyncRequestEnvelope sent, sync::SyncClient::Response result) {
+            runtime->UploadFinished(std::move(sent), std::move(result));
           });
-          if (!worker_started) r.feedback = "Task sync unavailable.";
+          if (!r.worker_started) r.feedback = "Task sync unavailable.";
           v6::RegisterLearningVoiceTool(r.commands, v6::CreateLearningVoiceSigner(std::move(r.pairing.device_secret)),
               []() -> std::optional<v6::LearningVoiceCallContext> {
                 auto& current = *runtime;

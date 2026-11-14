@@ -120,6 +120,7 @@ SyncClient::Response BackendClient::syncBatch(const SyncClient::Request& request
     if (result.error_class == SyncErrorClass::None) {
       result.error_class = SyncErrorClass::Unknown;
     }
+    result.batch = {};
     return result;
   }
   result.http_status = response.status;

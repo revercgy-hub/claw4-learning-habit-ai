@@ -108,12 +108,25 @@ void RejectMalformedToday() {
       "\"status\":\"ready\",\"scheduled_date\":\"2026-09-06\",\"version\":1}]}", today));
 }
 
+void RejectIncompleteAcknowledgement() {
+  FakeHttp transport;
+  transport.responses = {{true, 200,
+      "{\"last_acked_sequence\":2,\"server_time\":1700000000,\"results\":["
+      "{\"event_id\":\"e1\",\"sequence\":1,\"status\":\"accepted\",\"http_status\":200},"
+      "{\"event_id\":\"e2\",\"sequence\":2}]}"}};
+  sync::BackendClient client(transport, "https://relay");
+  const auto result = client.syncBatch({});
+  CHECK(result.error_class == sync::SyncErrorClass::Unknown);
+  CHECK(result.batch.last_acked_sequence == 0 && result.batch.results.empty());
+}
+
 }  // namespace
 
 int main() {
   RunConfiguredCycle();
   RunUnconfiguredIsSafe();
   RejectMalformedToday();
+  RejectIncompleteAcknowledgement();
   if (g_fail == 0) {
     std::printf("learning_backend_session_tests: all PASS\n");
     return 0;
