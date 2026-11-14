@@ -294,7 +294,7 @@ TransitionResult DomainReducer::endRecoveredSession(const DomainState& state,
   }
   DomainState next = state;
   const int ti = findTask(next, next.active_session->task_id);
-  StudySession saved = *next.active_session;  // copy before clearing
+  StudySession saved = *state.active_session;
   if (!settleRunningSegment(saved, ctx.monotonic_ms)) {
     return {false, RejectReason::ClockWentBackwards, IntentResult::RejectedInvalidState,
             std::nullopt, {}};

@@ -2,7 +2,9 @@
 // WB-LEARNING-V4-L1 — OutboxState <-> string codec (see header for format).
 #include "metalio_claw4/device/core/outbox_codec.h"
 
+#include <cerrno>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <sstream>
 #include <vector>
@@ -186,13 +188,17 @@ std::vector<std::string> Split(const std::string& line) {
 }
 
 bool ReadInt(const std::string& s, int64_t& v) {
-  size_t used = 0;
-  try {
-    v = std::stoll(s, &used);
-  } catch (...) {
+  const char* const begin = s.c_str();
+  char* end = nullptr;
+  errno = 0;
+  const long long parsed = std::strtoll(begin, &end, 10);
+  if (end == begin || end != begin + s.size() || errno == ERANGE ||
+      parsed < std::numeric_limits<int64_t>::min() ||
+      parsed > std::numeric_limits<int64_t>::max()) {
     return false;
   }
-  return used == s.size();
+  v = static_cast<int64_t>(parsed);
+  return true;
 }
 
 }  // namespace
