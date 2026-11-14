@@ -3,6 +3,7 @@
 #include "sdkconfig.h"
 #include "claw4_audio.h"
 #include "board_algorithms.h"
+#include "learning_preview.h"
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
 #include "application.h"
 #include "timer_preview.h"
@@ -160,6 +161,9 @@ public:
             StyleChat();
             Claw4TimerPreviewSetupUI(lv_display_get_layer_top(display_));
             Claw4TimerPreviewStart();
+#ifdef CLAW4_LEARNING_PREVIEW
+            Claw4LearningPreviewSetup(lv_display_get_layer_top(display_));
+#endif
             preview_setup_ = true;
         }
 #endif

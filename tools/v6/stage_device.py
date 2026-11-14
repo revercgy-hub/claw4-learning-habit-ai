@@ -688,13 +688,52 @@ void Claw4TimerPreviewAcceptTime(int64_t epoch_ms);
     )
 
 
-def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer_preview=False):
+LEARNING_PREVIEW_CORE = (
+    'application/coordinator.cpp', 'application/learning_voice_commands.cpp',
+    'learning_domain/reducer.cpp', 'sync/outbox_core.cpp', 'ui/presenters.cpp',
+)
+LEARNING_PREVIEW_ADAPTER = (
+    'device/core/outbox_codec.cpp', 'device/core/outbox_codec.h',
+    'device/ports/nvs_outbox_storage.cpp', 'device/ports/nvs_outbox_storage.h',
+)
+
+
+def stage_learning_preview(destination):
+    output = destination / 'main/claw4_learning_core'
+    core = ROOT / 'firmware/main'
+    inputs = {}
+    for source in sorted(core.rglob('*.h')):
+        inputs[source.relative_to(core).as_posix()] = source
+    for name in LEARNING_PREVIEW_CORE:
+        inputs[name] = core / name
+    for name in LEARNING_PREVIEW_ADAPTER:
+        inputs[f'metalio_claw4/{name}'] = ROOT / 'integration/metalio_claw4' / name
+    for name, source in inputs.items():
+        target = output / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    cmake = destination / 'main/CMakeLists.txt'
+    sources = '\n'.join(f'    "claw4_learning_core/{name}"' for name in inputs if name.endswith('.cpp'))
+    replace_once(cmake, 'list(APPEND SOURCES ${BOARD_SOURCES})',
+                 'list(APPEND SOURCES ${BOARD_SOURCES})\n'
+                 f'list(APPEND SOURCES\n{sources})\n'
+                 'list(APPEND INCLUDE_DIRS "claw4_learning_core")')
+    replace_once(cmake, 'idf_component_register(SRCS ${SOURCES}',
+                 'add_compile_definitions(CLAW4_LEARNING_PREVIEW=1)\n'
+                 'idf_component_register(SRCS ${SOURCES}')
+    return {name: hashlib.sha256(source.read_bytes()).hexdigest() for name, source in inputs.items()}
+
+
+def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer_preview=False,
+          learning_preview=False):
     if variant not in ('m0', 'm1'):
         raise ValueError(f'Unknown build variant: {variant}')
     if m1_input_diagnostics and variant != 'm1':
         raise ValueError('M1 input diagnostics require the M1 variant')
     if timer_preview and variant != 'm1':
         raise ValueError('Timer preview requires the M1 variant')
+    if learning_preview and not timer_preview:
+        raise ValueError('Learning preview requires the timer preview')
     lock = json.loads((ROOT / 'integration/v6/baseline.lock.json').read_text())
     pin = lock['sources']['xiaozhi']['sha']
     verify_checkout(upstream, pin)
@@ -747,6 +786,7 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer
                  'endif()')
     if timer_preview:
         stage_timer_preview(destination)
+    learning_inputs = stage_learning_preview(destination) if learning_preview else None
     # CMake identity is recorded separately; do not masquerade as upstream releases.
     replace_once(destination / 'CMakeLists.txt', 'set(PROJECT_VER "2.5.0")',
                  f'set(PROJECT_VER "6.0.0-{variant}.1")')
@@ -756,7 +796,7 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer
             entries[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {'upstream_sha': pin, 'overlay_sha256': entries,
                 'partition_csv': f'partitions/{partition_name}',
-                'learning_linked': False, 'diagnostics': variant == 'm0',
+                'learning_linked': learning_preview, 'diagnostics': variant == 'm0',
                 'variant': variant,
                 'nvs_init_policy': 'fail_closed_no_erase' if variant == 'm1' else 'upstream',
                 'endpoint_policy': 'm1_fixed_nas_ota_ws_no_upgrade' if variant == 'm1' else 'upstream',
@@ -772,6 +812,8 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer
             relative: hashlib.sha256((destination / 'main/claw4_timer_core' / relative).read_bytes()).hexdigest()
             for relative in TIMER_PREVIEW_CORE
         }
+    if learning_inputs is not None:
+        manifest['learning_core_sha256'] = learning_inputs
     (destination / 'v6-stage-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
 
 
@@ -784,6 +826,8 @@ if __name__ == '__main__':
                         help='Enable M1 mic level/read-failure counters in this staged candidate')
     parser.add_argument('--timer-preview', action='store_true',
                         help='Stage the approved local timer/alarm preview for M1')
+    parser.add_argument('--learning-preview', action='store_true',
+                        help='Include the local learning firmware preview')
     args = parser.parse_args()
     stage(args.upstream.resolve(), args.destination.resolve(), args.variant,
-          args.m1_input_diagnostics, args.timer_preview)
+          args.m1_input_diagnostics, args.timer_preview, args.learning_preview)

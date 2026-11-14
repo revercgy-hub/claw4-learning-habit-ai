@@ -77,6 +77,23 @@ class TimerPreviewStageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires the M1 variant"):
             stage(Path("unused"), Path("unused"), timer_preview=True)
 
+    def test_learning_preview_copies_its_own_sources_without_sibling_runtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            main = root / "main"
+            main.mkdir()
+            cmake = main / "CMakeLists.txt"
+            cmake.write_text('list(APPEND SOURCES ${BOARD_SOURCES})\n'
+                             'idf_component_register(SRCS ${SOURCES})\n', encoding="utf-8")
+            files = stage_device.stage_learning_preview(root)
+            for name, digest in files.items():
+                path = main / "claw4_learning_core" / name
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
+            self.assertNotIn("learning_runtime.cpp", cmake.read_text())
+            self.assertIn("CLAW4_LEARNING_PREVIEW=1", cmake.read_text())
+        with self.assertRaisesRegex(ValueError, "requires the timer preview"):
+            stage(Path("unused"), Path("unused"), "m1", learning_preview=True)
+
 
 class NvsPolicyPatchTests(unittest.TestCase):
     def setUp(self):

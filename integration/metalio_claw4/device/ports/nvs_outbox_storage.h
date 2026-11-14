@@ -18,7 +18,8 @@ namespace metalio {
 class NvsOutboxStorage final : public claw4::sync::OutboxStorage {
  public:
   enum class StateReadStatus { Missing, Present, Error };
-  NvsOutboxStorage() = default;
+  explicit NvsOutboxStorage(std::string storage_namespace = "learning")
+      : storage_namespace_(storage_namespace) {}
   ~NvsOutboxStorage() override = default;
 
   bool load(claw4::sync::OutboxState& out) override;
@@ -51,6 +52,7 @@ class NvsOutboxStorage final : public claw4::sync::OutboxStorage {
   static bool hasState();  // whether a committed blob exists
 
  private:
+  std::string storage_namespace_;
   claw4::sync::CommitStatus Save(claw4::sync::OutboxState cur);
 };
 

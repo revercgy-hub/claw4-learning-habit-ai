@@ -475,4 +475,11 @@ void Claw4TimerPreviewAcceptTime(int64_t epoch_ms) {
     const auto result = authority.acceptSync(epoch_ms, "lan_ota", 1000);
     ESP_LOGI("Claw4Timer", "TIME_ANCHOR outcome=%d", static_cast<int>(result.outcome));
 }
+#ifdef CLAW4_LEARNING_PREVIEW
+std::optional<int64_t> Claw4TimerPreviewTrustedTime() {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    const auto status = authority.status();
+    return status.calendar_allowed ? status.epoch_ms : std::nullopt;
+}
+#endif
 #endif

@@ -21,9 +21,9 @@ constexpr const char* kStateKey = "st";
 
 // Every operation opens/closes its own handle: the coordinator is the single
 // caller and the cost is negligible next to the flash write itself.
-bool OpenReadWrite(nvs_handle_t& h) {
-  if (nvs_open(kNvsNamespace, NVS_READWRITE, &h) != ESP_OK) {
-    ESP_LOGE(TAG, "nvs_open(%s) failed", kNvsNamespace);
+bool OpenReadWrite(nvs_handle_t& h, const char* storage_namespace) {
+  if (nvs_open(storage_namespace, NVS_READWRITE, &h) != ESP_OK) {
+    ESP_LOGE(TAG, "nvs_open(%s) failed", storage_namespace);
     return false;
   }
   return true;
@@ -34,7 +34,7 @@ bool OpenReadWrite(nvs_handle_t& h) {
 NvsOutboxStorage::StateReadStatus NvsOutboxStorage::loadWithPresence(
     claw4::sync::OutboxState& out) {
   nvs_handle_t h;
-  const esp_err_t open_rc = nvs_open(kNvsNamespace, NVS_READONLY, &h);
+  const esp_err_t open_rc = nvs_open(storage_namespace_.c_str(), NVS_READONLY, &h);
   if (open_rc == ESP_ERR_NVS_NOT_FOUND) {
     out = claw4::sync::OutboxState{};
     return StateReadStatus::Missing;
@@ -83,7 +83,7 @@ claw4::sync::CommitStatus NvsOutboxStorage::Save(claw4::sync::OutboxState cur) {
     return claw4::sync::CommitStatus::StorageError;
   }
   nvs_handle_t h;
-  if (!OpenReadWrite(h)) return claw4::sync::CommitStatus::StorageError;
+  if (!OpenReadWrite(h, storage_namespace_.c_str())) return claw4::sync::CommitStatus::StorageError;
   const esp_err_t set = nvs_set_blob(h, kStateKey, blob.data(), blob.size());
   esp_err_t commit = ESP_OK;
   if (set == ESP_OK) commit = nvs_commit(h);
@@ -190,7 +190,7 @@ bool NvsOutboxStorage::eraseAll() {
 
 bool NvsOutboxStorage::hasState() {
   nvs_handle_t h;
-  if (!OpenReadWrite(h)) return false;
+  if (!OpenReadWrite(h, kNvsNamespace)) return false;
   size_t len = 0;
   const esp_err_t rc = nvs_get_blob(h, kStateKey, nullptr, &len);
   nvs_close(h);
