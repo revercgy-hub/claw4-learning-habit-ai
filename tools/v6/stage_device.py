@@ -718,9 +718,10 @@ def stage_learning_preview(destination):
                  'list(APPEND SOURCES ${BOARD_SOURCES})\n'
                  f'list(APPEND SOURCES\n{sources})\n'
                  'list(APPEND INCLUDE_DIRS "claw4_learning_core")')
-    replace_once(cmake, 'idf_component_register(SRCS ${SOURCES}',
-                 'add_compile_definitions(CLAW4_LEARNING_PREVIEW=1)\n'
-                 'idf_component_register(SRCS ${SOURCES}')
+    with cmake.open('a', encoding='utf-8') as stream:
+        stream.write('\nif(NOT CMAKE_BUILD_EARLY_EXPANSION)\n'
+                     '    target_compile_definitions(${COMPONENT_LIB} PRIVATE CLAW4_LEARNING_PREVIEW=1)\n'
+                     'endif()\n')
     return {name: hashlib.sha256(source.read_bytes()).hexdigest() for name, source in inputs.items()}
 
 
