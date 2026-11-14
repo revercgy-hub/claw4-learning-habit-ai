@@ -14,8 +14,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/usb_serial_jtag_ll.h"
-#include "mbedtls/sha256.h"
 #include "nvs.h"
+#include "psa/crypto.h"
 
 namespace {
 constexpr char kNamespace[] = "learning_cfg";
@@ -47,7 +47,10 @@ bool Valid(std::string_view frame, claw4::sync::ProvisionedBackendConfig& out) {
   for (char c : frame.substr(45, second - 45)) if (!Child(c)) return false;
   for (char c : frame.substr(second + 1, 64)) if (!Hex(c)) return false;
   unsigned char sha[32];
-  if (mbedtls_sha256(reinterpret_cast<const unsigned char*>(frame.data()), frame.size(), sha, 0) != 0) return false;
+  size_t digest_size = 0;
+  if (psa_crypto_init() != PSA_SUCCESS ||
+      psa_hash_compute(PSA_ALG_SHA_256, reinterpret_cast<const unsigned char*>(frame.data()), frame.size(),
+                       sha, sizeof(sha), &digest_size) != PSA_SUCCESS || digest_size != sizeof(sha)) return false;
   unsigned diff = 0;
   if (sizeof(kLearningPairingSha256) != 65) return false;
   for (size_t i = 0; i < 32; ++i) {
