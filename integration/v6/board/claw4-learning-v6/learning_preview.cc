@@ -5,6 +5,7 @@
 #include "application/learning_voice_commands.h"
 #include "assets/lang_config.h"
 #include "learning_today.h"
+#include "learning_pairing.h"
 #include "learning_voice_mcp.h"
 #include "metalio_claw4/device/ports/nvs_backend_provisioning.h"
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
@@ -33,6 +34,11 @@ const application::LearningVoiceBinding binding{{"v6-preview"}, {"demo"}, 1};
 
 sync::ProvisionedBackendConfig ReadPairing() {
   sync::ProvisionedBackendConfig config;
+#ifdef CLAW4_LEARNING_USB_PAIRING
+  bool allow_legacy = false;
+  config = Claw4LearningPairingRead(allow_legacy);
+  if (!allow_legacy) return config;
+#endif
   metalio::NvsBackendProvisioning provisioning;
   if (provisioning.load(config) != sync::ProvisioningStatus::Ready ||
       config.device_secret.size() != 64 ||
@@ -386,6 +392,7 @@ lv_obj_t* Button(lv_obj_t* parent, const char* title, Tap tap,
 }  // namespace
 
 void Claw4LearningPreviewSetup(lv_obj_t* parent) {
+  Claw4LearningPairingBegin();
   if (panel || !lvgl_port_lock(1000)) return;
   Button(parent, "Study", Tap::Open, 548, 92, 154, 50, kMint);
   panel = lv_obj_create(parent);
@@ -426,7 +433,7 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
   lv_timer_create([](lv_timer_t*) {
     if (refresh_pending.exchange(true)) return;
     Application::GetInstance().Schedule([] {
-      if (!runtime) {
+      if (!runtime && !Claw4LearningPairingPending()) {
         runtime = std::make_unique<Runtime>();
         auto& r = *runtime;
         if (r.paired && r.ready) {
