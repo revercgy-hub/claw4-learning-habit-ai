@@ -1,0 +1,7 @@
+**
+!Dockerfile.learning-voice
+!claw4_learning_voice.py
+!claw4_learning_exchange.py
+!claw4_learning_bridge.py
+!claw4_timer_bridge.py
+!patch_learning_voice.py

@@ -11,15 +11,18 @@ TOOL = "self.claw4.learning"
 ALIAS = "self_claw4_learning"
 
 
-def resolve_learning_reply(conn, kind, sentence_id, paired_session):
-    """The connection owner supplies its current trusted pairing, if any."""
+def resolve_learning_reply(conn, kind, sentence_id, resolve_pairing):
+    """The connection owner supplies its current immutable pairing lease."""
     if conn.sentence_id != sentence_id or conn.client_abort or conn.stop_event.is_set():
         return None
+    paired_session = resolve_pairing()
     command = new_command(kind, paired_session, time.time_ns() // 1_000_000)
     if command is None:
         return reply(kind, None, None)
     response = call_device_tool(conn, command.arguments(paired_session), sentence_id, TOOL, ALIAS)
     if conn.sentence_id != sentence_id or conn.client_abort or conn.stop_event.is_set():
         return None
+    if resolve_pairing() is not paired_session:
+        return reply(kind, command.command_id, None)
     verified = verify_result(command, paired_session, response, time.time_ns() // 1_000_000)
     return reply(kind, command.command_id, verified)

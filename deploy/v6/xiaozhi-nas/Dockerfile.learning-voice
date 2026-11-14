@@ -1,0 +1,6 @@
+FROM claw4-xiaozhi-v6:timer-preview-20261112-05
+
+COPY claw4_learning_voice.py claw4_learning_exchange.py claw4_learning_bridge.py claw4_timer_bridge.py /opt/xiaozhi-esp32-server/core/utils/
+COPY patch_learning_voice.py /tmp/patch_learning_voice.py
+RUN python /tmp/patch_learning_voice.py /opt/xiaozhi-esp32-server \
+    && rm /tmp/patch_learning_voice.py

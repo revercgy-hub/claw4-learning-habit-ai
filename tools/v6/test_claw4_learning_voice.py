@@ -123,11 +123,12 @@ class LearningExchangeTests(unittest.TestCase):
                                       "core.utils.claw4_learning_voice": voice,
                                       "core.utils.claw4_learning_exchange": exchange}):
             bridge_spec.loader.exec_module(bridge)
-        self.assertIsNone(bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "old", self.session))
+        paired = lambda: self.session
+        self.assertIsNone(bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "old", paired))
         self.assertIn("还没有收到设备确认",
-                      bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", None))
+                      bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", lambda: None))
         self.assertEqual(calls, [])
-        text = bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", self.session)
+        text = bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", paired)
         self.assertIn("点确认", text)
         conn, request, turn, tool, alias = calls[0]
         self.assertIs(conn, connection)
@@ -141,4 +142,10 @@ class LearningExchangeTests(unittest.TestCase):
             return result
 
         with patch.object(bridge, "call_device_tool", abort_during_call):
-            self.assertIsNone(bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", self.session))
+            self.assertIsNone(bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current", paired))
+        connection.client_abort = False
+        with patch.object(bridge, "call_device_tool", call_device_tool):
+            leases = iter((self.session, None))
+            result = bridge.resolve_learning_reply(connection, "COMPLETE_REQUEST", "current",
+                                                   lambda: next(leases))
+            self.assertIn("还没有收到设备确认", result)
