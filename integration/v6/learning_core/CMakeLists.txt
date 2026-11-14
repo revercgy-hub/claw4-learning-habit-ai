@@ -8,6 +8,7 @@ add_library(claw4_learning_core STATIC
     "${CORE}/learning_domain/reducer.cpp"
     "${CORE}/application/coordinator.cpp"
     "${CORE}/application/learning_voice_commands.cpp"
+    "${CORE}/application/learning_voice_exchange.cpp"
     "${CORE}/sync/outbox_core.cpp"
     "${CORE}/sync/wire_codec.cpp"
     "${CORE}/sync/backend_client.cpp"

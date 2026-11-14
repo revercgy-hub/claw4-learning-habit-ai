@@ -144,7 +144,26 @@ LearningVoiceReply LearningVoiceCommands::execute(
     return {Status::Applied, {}, {}, {}, version};
   }
   if (request.kind != Kind::CompleteRequest || !session) return {Status::InvalidState};
-  pending_ = Pending{context.device_id, context.child_id, task->task_id, *session,
+  const auto used = std::find_if(confirmation_requests_.begin(), confirmation_requests_.end(),
+      [&](const auto& row) {
+        return row.session_epoch == request.session_epoch && row.command_id == request.command_id;
+      });
+  if (used != confirmation_requests_.end()) {
+    if (!pending_ || pending_->command_id != request.command_id ||
+        pending_->expires_at_ms != request.expires_at_ms || pending_->session_epoch != request.session_epoch ||
+        pending_->device_id != context.device_id || pending_->child_id != context.child_id ||
+        pending_->session_id != *session || pending_->task_id != task->task_id ||
+        pending_->task_version != task->version || pending_->session_status != state.active_session->status ||
+        pending_->pause_count != state.active_session->pause_count) return {Status::Stale};
+    return {Status::ConfirmationRequired, {}, {}, {}, task->version};
+  }
+  confirmation_requests_.erase(std::remove_if(confirmation_requests_.begin(), confirmation_requests_.end(),
+      [&](const auto& row) {
+        return row.session_epoch != request.session_epoch || row.expires_at_ms <= *now;
+      }), confirmation_requests_.end());
+  if (confirmation_requests_.size() >= domain::LearningCommandReceipt::kCapacity) return {Status::Busy};
+  confirmation_requests_.push_back({request.command_id, request.session_epoch, request.expires_at_ms});
+  pending_ = Pending{request.command_id, context.device_id, context.child_id, task->task_id, *session,
                      binding->session_epoch, task->version, state.active_session->status,
                      state.active_session->pause_count, request.expires_at_ms};
   return {Status::ConfirmationRequired, {}, {}, {}, task->version};

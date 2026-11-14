@@ -690,6 +690,7 @@ void Claw4TimerPreviewAcceptTime(int64_t epoch_ms);
 
 LEARNING_PREVIEW_CORE = (
     'application/coordinator.cpp', 'application/learning_voice_commands.cpp',
+    'application/learning_voice_exchange.cpp',
     'learning_domain/reducer.cpp', 'sync/outbox_core.cpp', 'ui/presenters.cpp',
 )
 LEARNING_PREVIEW_ADAPTER = (

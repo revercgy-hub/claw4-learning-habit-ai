@@ -69,6 +69,7 @@ class LearningVoiceCommands {
 
  private:
   struct Pending {
+    std::string command_id;
     domain::DeviceId device_id;
     domain::ChildId child_id;
     domain::TaskId task_id;
@@ -79,9 +80,15 @@ class LearningVoiceCommands {
     int pause_count;
     int64_t expires_at_ms;
   };
+  struct ConfirmationRequest {
+    std::string command_id;
+    int64_t session_epoch;
+    int64_t expires_at_ms;
+  };
   AppCoordinator& coordinator_;
   reminder::ReminderCore& reminders_;
   std::optional<Pending> pending_;
+  std::vector<ConfirmationRequest> confirmation_requests_;
 };
 
 }  // namespace claw4::application
