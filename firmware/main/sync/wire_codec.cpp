@@ -2,8 +2,10 @@
 #include "sync/wire_codec.h"
 
 #include <cctype>
+#include <charconv>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <utility>
@@ -29,7 +31,7 @@ class JsonParser {
 
   bool Parse(JsonValue& value) {
     SkipWhitespace();
-    if (!ParseValue(value)) return false;
+    if (!ParseValue(value, 0)) return false;
     SkipWhitespace();
     return pos_ == text_.size();
   }
@@ -48,14 +50,15 @@ class JsonParser {
     return true;
   }
 
-  bool ParseValue(JsonValue& value) {
+  bool ParseValue(JsonValue& value, unsigned depth) {
+    if (depth > 16) return false;
     SkipWhitespace();
     if (pos_ >= text_.size()) return false;
     switch (text_[pos_]) {
       case '{':
-        return ParseObject(value);
+        return ParseObject(value, depth + 1);
       case '[':
-        return ParseArray(value);
+        return ParseArray(value, depth + 1);
       case '"':
         value.kind = JsonValue::Kind::String;
         return ParseString(value.string);
@@ -69,7 +72,7 @@ class JsonParser {
     }
   }
 
-  bool ParseObject(JsonValue& value) {
+  bool ParseObject(JsonValue& value, unsigned depth) {
     if (!Consume('{')) return false;
     value.kind = JsonValue::Kind::Object;
     value.object.clear();
@@ -81,7 +84,7 @@ class JsonParser {
       SkipWhitespace();
       if (!Consume(':')) return false;
       JsonValue child;
-      if (!ParseValue(child)) return false;
+      if (!ParseValue(child, depth)) return false;
       value.object[std::move(key)] = std::move(child);
       SkipWhitespace();
       if (Consume('}')) return true;
@@ -91,7 +94,7 @@ class JsonParser {
     return false;
   }
 
-  bool ParseArray(JsonValue& value) {
+  bool ParseArray(JsonValue& value, unsigned depth) {
     if (!Consume('[')) return false;
     value.kind = JsonValue::Kind::Array;
     value.array.clear();
@@ -99,7 +102,7 @@ class JsonParser {
     if (Consume(']')) return true;
     while (pos_ < text_.size()) {
       JsonValue child;
-      if (!ParseValue(child)) return false;
+      if (!ParseValue(child, depth)) return false;
       value.array.push_back(std::move(child));
       SkipWhitespace();
       if (Consume(']')) return true;
@@ -182,11 +185,9 @@ class JsonParser {
     const std::size_t digits = pos_;
     while (pos_ < text_.size() && std::isdigit(static_cast<unsigned char>(text_[pos_]))) ++pos_;
     if (digits == pos_) return false;
-    try {
-      value.number = std::stoll(text_.substr(start, pos_ - start));
-    } catch (...) {
-      return false;
-    }
+    const char* end = text_.data() + pos_;
+    const auto parsed = std::from_chars(text_.data() + start, end, value.number);
+    if (parsed.ec != std::errc{} || parsed.ptr != end) return false;
     value.kind = JsonValue::Kind::Number;
     return true;
   }
@@ -363,6 +364,7 @@ bool DecodeTodayResponse(const std::string& json, TodayResponse& response) {
         !StringField(value, "title", task.title) ||
         !StringField(value, "subject", task.subject) ||
         !NumberField(value, "estimated_minutes", estimated) ||
+        estimated < std::numeric_limits<int>::min() || estimated > std::numeric_limits<int>::max() ||
         !StringField(value, "priority", task.priority) ||
         !StringField(value, "status", status) ||
         !StringField(value, "scheduled_date", task.scheduled_date) ||

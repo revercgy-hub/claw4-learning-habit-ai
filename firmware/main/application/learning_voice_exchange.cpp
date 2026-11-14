@@ -88,7 +88,10 @@ std::optional<LearningVoiceResult> exchangeLearningVoice(
       "\n" + std::to_string(envelope.expires_at_ms);
   if (!sameMac(sign("claw4-learning-request-v1\n" + fields), request_mac)) return std::nullopt;
 
-  const auto reply = commands.execute({envelope.command_id, envelope.session_epoch, kind->second,
+  const bool needs_snapshot = kind->second == Kind::StartTask || kind->second == Kind::QueryTodayTasks;
+  const auto reply = needs_snapshot && (!snapshot || *snapshot <= 0 || *snapshot > *now)
+      ? LearningVoiceReply{Status::Stale} :
+      commands.execute({envelope.command_id, envelope.session_epoch, kind->second,
                                        {}, {}, envelope.expires_at_ms},
                                       binding, context, now, snapshot, presented_reminder);
   LearningVoiceResult result{statusName(reply.status), {}, {}, {}};

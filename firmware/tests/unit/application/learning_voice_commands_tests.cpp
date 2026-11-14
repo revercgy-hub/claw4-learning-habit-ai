@@ -195,12 +195,13 @@ int main() {
   auto sign = [&](std::string_view message) -> std::string {
     if (message == "claw4-learning-request-v1\n" + fields) return request_mac;
     if (message == "claw4-learning-result-v1\n" + fields + "\nAPPLIED\n-\n-") return result_mac;
+    if (message == "claw4-learning-result-v1\n" + fields + "\nSTALE\n-\n-") return request_mac;
     return {};
   };
   auto exchange = [&](const auto& input, std::string_view mac,
                       std::optional<LearningVoiceBinding> current, int64_t when) {
     return exchangeLearningVoice(signed_commands, input, mac, current, sign, paired_ctx,
-                                 when, {}, {});
+                                 when, when, {});
   };
   check(!exchange(envelope, request_mac, {}, now));
   check(!exchange(envelope, result_mac, paired, now));
@@ -211,6 +212,9 @@ int main() {
   auto wrong_session = paired;
   ++wrong_session.session_epoch;
   check(!exchange(envelope, request_mac, wrong_session, now));
+  const auto no_snapshot = exchangeLearningVoice(signed_commands, envelope, request_mac, paired, sign,
+                                                 paired_ctx, now, {}, {});
+  check(no_snapshot && no_snapshot->status == "STALE");
   check(signed_coordinator.pendingCount() == 0);
   const auto signed_result = exchange(envelope, request_mac, paired, now);
   check(signed_result && signed_result->status == "APPLIED" && signed_result->mac == result_mac);

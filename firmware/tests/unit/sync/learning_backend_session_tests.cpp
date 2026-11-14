@@ -80,6 +80,7 @@ void RunConfiguredCycle() {
   CHECK(session.diagnostics().last_operation == "events");
   CHECK(session.diagnostics().last_error == sync::SyncErrorClass::None);
   CHECK(app.state().tasks.size() == 1);
+  CHECK(app.state().tasks.front().child_id == domain::ChildId{"child-1"});
 }
 
 void RunUnconfiguredIsSafe() {
@@ -96,11 +97,23 @@ void RunUnconfiguredIsSafe() {
   CHECK(session.diagnostics().pending_count == 0);
 }
 
+void RejectMalformedToday() {
+  sync::wire::TodayResponse today;
+  CHECK(!sync::wire::DecodeTodayResponse(
+      "{\"date\":\"2026-09-06\",\"tasks\":[],\"extra\":" +
+      std::string(20, '[') + "0" + std::string(20, ']') + "}", today));
+  CHECK(!sync::wire::DecodeTodayResponse(
+      "{\"date\":\"2026-09-06\",\"tasks\":[{\"task_id\":\"t\",\"title\":\"Math\","
+      "\"subject\":\"math\",\"estimated_minutes\":4294967297,\"priority\":\"high\","
+      "\"status\":\"ready\",\"scheduled_date\":\"2026-09-06\",\"version\":1}]}", today));
+}
+
 }  // namespace
 
 int main() {
   RunConfiguredCycle();
   RunUnconfiguredIsSafe();
+  RejectMalformedToday();
   if (g_fail == 0) {
     std::printf("learning_backend_session_tests: all PASS\n");
     return 0;

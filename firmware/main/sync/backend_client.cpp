@@ -101,6 +101,7 @@ bool BackendClient::fetchToday(const std::string& child_id,
     if (error == SyncErrorClass::None) error = SyncErrorClass::Unknown;
     return false;
   }
+  for (auto& task : today.tasks) task.child_id = domain::ChildId{child_id};
   return true;
 }
 

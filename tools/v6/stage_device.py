@@ -691,7 +691,8 @@ void Claw4TimerPreviewAcceptTime(int64_t epoch_ms);
 LEARNING_PREVIEW_CORE = (
     'application/coordinator.cpp', 'application/learning_voice_commands.cpp',
     'application/learning_voice_exchange.cpp',
-    'learning_domain/reducer.cpp', 'sync/outbox_core.cpp', 'ui/presenters.cpp',
+    'learning_domain/reducer.cpp', 'sync/outbox_core.cpp', 'sync/backend_client.cpp',
+    'sync/wire_codec.cpp', 'ui/presenters.cpp',
 )
 LEARNING_PREVIEW_ADAPTER = (
     'device/core/outbox_codec.cpp', 'device/core/outbox_codec.h',
@@ -720,6 +721,8 @@ def stage_learning_preview(destination):
                  'list(APPEND SOURCES ${BOARD_SOURCES})\n'
                  f'list(APPEND SOURCES\n{sources})\n'
                  'list(APPEND INCLUDE_DIRS "claw4_learning_core")')
+    replace_once(cmake, '                    PRIV_REQUIRES\n',
+                 '                    PRIV_REQUIRES\n                        esp_http_client\n')
     with cmake.open('a', encoding='utf-8') as stream:
         stream.write('\nif(NOT CMAKE_BUILD_EARLY_EXPANSION)\n'
                      '    target_compile_definitions(${COMPONENT_LIB} PRIVATE CLAW4_LEARNING_PREVIEW=1)\n'

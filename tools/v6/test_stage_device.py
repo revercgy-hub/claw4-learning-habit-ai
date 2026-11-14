@@ -84,7 +84,8 @@ class TimerPreviewStageTests(unittest.TestCase):
             main.mkdir()
             cmake = main / "CMakeLists.txt"
             cmake.write_text('list(APPEND SOURCES ${BOARD_SOURCES})\n'
-                             'idf_component_register(SRCS ${SOURCES})\n', encoding="utf-8")
+                             'idf_component_register(SRCS ${SOURCES}\n'
+                             '                    PRIV_REQUIRES\n                        mbedtls)\n', encoding="utf-8")
             (main / "application.h").write_text('    void SendMcpMessage(const std::string& payload);\n')
             (main / "application.cc").write_text('void Application::ResetProtocol() {\n}')
             files = stage_device.stage_learning_preview(root)

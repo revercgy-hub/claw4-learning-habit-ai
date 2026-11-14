@@ -4,6 +4,7 @@
 #include "application.h"
 #include "application/learning_voice_commands.h"
 #include "assets/lang_config.h"
+#include "learning_today.h"
 #include "learning_voice_mcp.h"
 #include "metalio_claw4/device/ports/nvs_backend_provisioning.h"
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
@@ -77,6 +78,9 @@ struct Runtime {
   std::string voice_connection;
   int64_t voice_epoch = 0;
   bool voice_confirmation = false;
+  bool backend_authorized = false;
+  std::optional<int64_t> snapshot_epoch;
+  std::string snapshot_date;
   const char* feedback = "";
 
   Runtime() {
@@ -131,13 +135,36 @@ struct Runtime {
   application::LearningVoiceBinding TouchBinding() const {
     return {identity.device_id, identity.child_id, voice_confirmation ? voice_epoch : 1};
   }
+  std::optional<int64_t> Today(int64_t now) const {
+    return snapshot_epoch && *snapshot_epoch <= now && v6::LearningTodayDateMatches(snapshot_date, now)
+        ? snapshot_epoch : std::nullopt;
+  }
+  void ApplyToday(v6::LearningTodayUpdate update) {
+    if (!update.snapshot) {
+      backend_authorized = false;
+      snapshot_epoch.reset();
+      if (voice_confirmation) {
+        commands.cancelConfirmation();
+        confirming = voice_confirmation = false;
+      }
+      return;
+    }
+    auto& today = *update.snapshot;
+    const auto now = Claw4TimerPreviewTrustedTime();
+    if (!now || !v6::LearningTodayMatches(today, identity.child_id, *now) ||
+        !coordinator.applyTodaySnapshot(today.tasks)) return;
+    snapshot_date = std::move(today.date);
+    snapshot_epoch = now;
+    backend_authorized = true;
+  }
 };
 
-enum class Tap { Open, Close, Math, Reading, StartPause, Finish, Confirm, Cancel };
+enum class Tap { Open, Close, SelectFirst, SelectSecond, StartPause, Finish, Confirm, Cancel, Next };
 std::unique_ptr<Runtime> runtime;
 std::atomic<bool> refresh_pending{false};
 lv_obj_t *panel, *counter, *progress, *state_label, *feedback_label, *subtitle;
-lv_obj_t *primary, *finish, *confirm, *cancel, *task[2];
+lv_obj_t *primary, *finish, *confirm, *cancel, *next_tasks, *task[2];
+std::size_t task_page = 0;
 
 void Show(lv_obj_t* obj, bool show) {
   if (show && lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
@@ -180,28 +207,34 @@ void Refresh() {
   if (Claw4TimerPreviewIsRinging()) Show(panel, false);
   Text(subtitle, r.paired ? "Paired learning" : "Local preview  /  Sample tasks");
   Text(counter, focus.has_session ? focus.countdown_text.c_str() : "01:00");
+  const bool current_today = !r.paired || (now && r.Today(*now));
+  const auto shown_count = current_today ? state.tasks.size() : 0;
+  if (task_page >= shown_count) task_page = 0;
   const int percent = focus.has_session && focus.planned_minutes > 0
       ? int(100 - focus.remaining_ms * 100 / (int64_t(focus.planned_minutes) * 60000)) : 0;
   if (lv_bar_get_value(progress) != percent) lv_bar_set_value(progress, percent, LV_ANIM_OFF);
   Text(state_label, due ? "Time is up" : focus.running ? "Focusing" : focus.has_session ? "Paused" :
-       r.paired && state.tasks.empty() ? "Waiting for tasks" : "Choose a task");
+       !current_today ? "Waiting for tasks" : shown_count == 0 ? "No tasks today" : "Choose a task");
   Text(feedback_label, !r.ready ? "Learning storage unavailable" : !now ? "Waiting for device clock" :
        r.confirming && !*r.feedback ? "Confirm completion on this screen." : r.feedback);
   Text(lv_obj_get_child(primary, 0), focus.running ? "Pause" : focus.has_session ? "Resume" : "Start focus");
-  Show(primary, r.ready && now && !r.confirming && (focus.has_session || !state.tasks.empty()));
+  const bool selected_ready = current_today &&
+      std::any_of(state.tasks.begin(), state.tasks.end(), [&](const auto& item) {
+        return item.task_id == r.selection && item.status == domain::TaskStatus::Ready;
+      });
+  Show(primary, r.ready && now && !r.confirming && (focus.has_session || selected_ready));
   Show(finish, r.ready && now && focus.has_session && !r.confirming);
   Show(confirm, r.confirming && now);
   Show(cancel, r.confirming);
+  Show(next_tasks, shown_count > 2 && !r.confirming);
   for (int i = 0; i < 2; ++i) {
-    if (r.paired) { Show(task[i], false); continue; }
-    const std::string_view id = i == 0 ? "math" : "reading";
-    Color(task[i], (focus.has_session ? focus.task_id : r.selection).value == id ? kMint : kWhite);
-    const char* title = i == 0 ? "Math warm-up" : "Reading break";
-    for (const auto& item : state.tasks) {
-      if (item.task_id.value == id && item.status == domain::TaskStatus::Completed)
-        title = i == 0 ? "Math completed" : "Reading completed";
-    }
-    Text(lv_obj_get_child(task[i], 0), title);
+    const auto index = task_page + i;
+    Show(task[i], index < shown_count);
+    if (index >= shown_count) continue;
+    const auto& item = state.tasks[index];
+    const auto title = item.status == domain::TaskStatus::Completed ? item.title + "  (Done)" : item.title;
+    Color(task[i], (focus.has_session ? focus.task_id : r.selection) == item.task_id ? kMint : kWhite);
+    Text(lv_obj_get_child(task[i], 0), title.c_str());
   }
   lvgl_port_unlock();
 }
@@ -223,9 +256,13 @@ void Handle(Tap tap) {
   } else if (r.ready) {
     const auto& state = r.coordinator.state();
     const auto now = Claw4TimerPreviewTrustedTime();
-    if (tap == Tap::Math || tap == Tap::Reading) {
-      if (!state.active_session) {
-        r.selection = {tap == Tap::Math ? "math" : "reading"};
+    const bool current_today = !r.paired || (now && r.Today(*now));
+    if (tap == Tap::Next && current_today) {
+      task_page = task_page + 2 < state.tasks.size() ? task_page + 2 : 0;
+    } else if (tap == Tap::SelectFirst || tap == Tap::SelectSecond) {
+      const auto index = task_page + (tap == Tap::SelectSecond);
+      if (current_today && !r.confirming && !state.active_session && index < state.tasks.size()) {
+        r.selection = state.tasks[index].task_id;
         r.feedback = "";
       }
     } else if (tap == Tap::Cancel) {
@@ -239,7 +276,8 @@ void Handle(Tap tap) {
       r.feedback = reply.status == Status::Applied ? "Task saved on Claw4." :
                    r.confirming ? "Could not save. Try confirming again." : "Confirmation expired.";
       ESP_LOGI(kTag, "LOCAL_CONFIRM outcome=%d", int(reply.status));
-    } else if (now && !r.confirming && (tap == Tap::StartPause || tap == Tap::Finish)) {
+    } else if (now && !r.confirming && (state.active_session || current_today) &&
+               (tap == Tap::StartPause || tap == Tap::Finish)) {
       const auto task_id = state.active_session ? state.active_session->task_id : r.selection;
       auto status = Status::InvalidState;
       if (tap == Tap::Finish) {
@@ -310,8 +348,15 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
   Label(panel, "Study corner", 28, 23, kInk, true);
   subtitle = Label(panel, "Local preview  /  Sample tasks", 29, 64, kMuted);
   Button(panel, "Close", Tap::Close, 488, 27, 94, 48, kLilac);
-  task[0] = Button(panel, "Math warm-up", Tap::Math, 28, 108, 270, 64, kMint, true);
-  task[1] = Button(panel, "Reading break", Tap::Reading, 310, 108, 272, 64, kWhite, true);
+  task[0] = Button(panel, "Math warm-up", Tap::SelectFirst, 28, 108, 270, 64, kMint, true);
+  task[1] = Button(panel, "Reading break", Tap::SelectSecond, 310, 108, 272, 64, kWhite, true);
+  for (auto* button : task) {
+    auto* label = lv_obj_get_child(button, 0);
+    lv_obj_set_width(label, 238);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+  }
+  next_tasks = Button(panel, "More", Tap::Next, 496, 350, 86, 39, kLilac);
   auto* card = lv_obj_create(panel);
   Surface(card, kLilac, 24);
   lv_obj_set_pos(card, 28, 192);
@@ -338,15 +383,20 @@ void Claw4LearningPreviewSetup(lv_obj_t* parent) {
         runtime = std::make_unique<Runtime>();
         auto& r = *runtime;
         if (r.paired && r.ready) {
+          const bool worker_started = v6::StartLearningTodayWorker(r.pairing, [](v6::LearningTodayUpdate update) {
+            runtime->ApplyToday(std::move(update));
+          });
+          if (!worker_started) r.feedback = "Task sync unavailable.";
           v6::RegisterLearningVoiceTool(r.commands, v6::CreateLearningVoiceSigner(std::move(r.pairing.device_secret)),
               []() -> std::optional<v6::LearningVoiceCallContext> {
                 auto& current = *runtime;
                 current.RefreshConnection();
                 const auto now = Claw4TimerPreviewTrustedTime();
-                if (!now || !current.voice_epoch || Claw4TimerPreviewIsRinging()) return std::nullopt;
+                if (!current.backend_authorized || !now || !current.voice_epoch ||
+                    Claw4TimerPreviewIsRinging()) return std::nullopt;
                 return v6::LearningVoiceCallContext{
                     {current.identity.device_id, current.identity.child_id, current.voice_epoch},
-                    current.voice_connection, current.context(*now), now, {}, {}};
+                    current.voice_connection, current.context(*now), now, current.Today(*now), {}};
               }, [] {
                 runtime->confirming = runtime->voice_confirmation = true;
                 runtime->feedback = "";

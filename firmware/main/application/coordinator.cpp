@@ -194,7 +194,8 @@ domain::TransitionResult AppCoordinator::persistOrFail(sync::PendingTransition t
 
 bool AppCoordinator::applyTodaySnapshot(
     const std::vector<domain::Task>& server_tasks) {
-  sync::OutboxState os = loadFrom(storage_);
+  sync::OutboxState os;
+  if (!storage_.load(os)) return false;
   domain::DomainState next = os.domain;
 
   // WB-V53-NEXT-001 CP2 (A04): a locally reached TERMINAL state whose terminal
