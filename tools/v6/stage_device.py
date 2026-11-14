@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -743,8 +744,26 @@ def stage_learning_preview(destination):
     return {name: hashlib.sha256(source.read_bytes()).hexdigest() for name, source in inputs.items()}
 
 
+def stage_learning_lan_ca(destination, ca, origin):
+    if not re.fullmatch(r'https://192\.168\.3\.100:[1-9][0-9]{0,4}', origin or '') or int(origin.rsplit(':', 1)[1]) > 65535:
+        raise ValueError('Learning LAN origin must be the NAS IPv4 HTTPS origin with an explicit port')
+    pem = ca.read_bytes().replace(b'\r\n', b'\n')
+    if len(pem) > 4096 or not re.fullmatch(
+            rb'-----BEGIN CERTIFICATE-----\n(?:[A-Za-z0-9+/=]+\n)+-----END CERTIFICATE-----\n?', pem):
+        raise ValueError('Expected one public CA certificate in PEM format')
+    pem = pem.rstrip(b'\n') + b'\n'
+    include = destination / 'main/claw4_learning_core/learning_lan_ca.inc'
+    include.write_bytes(b'constexpr char kLearningLanCa[] = R"PEM(' + pem + b')PEM";\n'
+                        + f'constexpr char kLearningLanOrigin[] = "{origin}";\n'.encode('ascii'))
+    cmake = destination / 'main/CMakeLists.txt'
+    replace_once(cmake, 'PRIVATE CLAW4_LEARNING_PREVIEW=1)',
+                 'PRIVATE CLAW4_LEARNING_PREVIEW=1 CLAW4_LEARNING_LAN_CA=1)')
+    return {'origin': origin, 'certificate_sha256': hashlib.sha256(pem).hexdigest(),
+            'include_sha256': hashlib.sha256(include.read_bytes()).hexdigest()}
+
+
 def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer_preview=False,
-          learning_preview=False):
+          learning_preview=False, learning_lan_ca=None, learning_lan_origin=None):
     if variant not in ('m0', 'm1'):
         raise ValueError(f'Unknown build variant: {variant}')
     if m1_input_diagnostics and variant != 'm1':
@@ -753,6 +772,8 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer
         raise ValueError('Timer preview requires the M1 variant')
     if learning_preview and not timer_preview:
         raise ValueError('Learning preview requires the timer preview')
+    if bool(learning_lan_ca) != bool(learning_lan_origin) or (learning_lan_ca and not learning_preview):
+        raise ValueError('Learning LAN TLS requires the preview, a public CA and an HTTPS origin')
     lock = json.loads((ROOT / 'integration/v6/baseline.lock.json').read_text())
     pin = lock['sources']['xiaozhi']['sha']
     verify_checkout(upstream, pin)
@@ -833,6 +854,8 @@ def stage(upstream, destination, variant='m0', m1_input_diagnostics=False, timer
         }
     if learning_inputs is not None:
         manifest['learning_core_sha256'] = learning_inputs
+    if learning_lan_ca:
+        manifest['learning_lan_tls'] = stage_learning_lan_ca(destination, learning_lan_ca, learning_lan_origin)
     (destination / 'v6-stage-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
 
 
@@ -847,6 +870,9 @@ if __name__ == '__main__':
                         help='Stage the approved local timer/alarm preview for M1')
     parser.add_argument('--learning-preview', action='store_true',
                         help='Include the local learning firmware preview')
+    parser.add_argument('--learning-lan-ca', type=Path)
+    parser.add_argument('--learning-lan-origin')
     args = parser.parse_args()
     stage(args.upstream.resolve(), args.destination.resolve(), args.variant,
-          args.m1_input_diagnostics, args.timer_preview, args.learning_preview)
+          args.m1_input_diagnostics, args.timer_preview, args.learning_preview,
+          args.learning_lan_ca, args.learning_lan_origin)

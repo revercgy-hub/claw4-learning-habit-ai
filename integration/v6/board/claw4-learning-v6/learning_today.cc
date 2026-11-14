@@ -21,6 +21,15 @@
 namespace claw4::v6 {
 namespace {
 
+#ifdef CLAW4_LEARNING_LAN_CA
+#include "learning_lan_ca.inc"
+
+bool UsesLanCa(std::string_view url) {
+  const std::string_view origin{kLearningLanOrigin};
+  return url == origin || (url.starts_with(origin) && url.size() > origin.size() && url[origin.size()] == '/');
+}
+#endif
+
 constexpr size_t kMaxBody = 16 * 1024;
 struct ReceivedBody {
   std::string bytes;
@@ -41,7 +50,16 @@ class TodayTransport final : public sync::HttpTransport {
     config.timeout_ms = static_cast<int>(timeout_ms);
     config.disable_auto_redirect = true;
     config.max_authorization_retries = -1;
+#ifdef CLAW4_LEARNING_LAN_CA
+    if (UsesLanCa(url)) {
+      config.cert_pem = kLearningLanCa;
+      config.cert_len = sizeof(kLearningLanCa);
+    } else {
+      config.crt_bundle_attach = esp_crt_bundle_attach;
+    }
+#else
     config.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
     config.user_data = &received;
     config.event_handler = [](esp_http_client_event_t* event) -> esp_err_t {
       if (event->event_id != HTTP_EVENT_ON_DATA) return ESP_OK;

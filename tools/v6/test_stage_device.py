@@ -77,6 +77,23 @@ class TimerPreviewStageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires the M1 variant"):
             stage(Path("unused"), Path("unused"), timer_preview=True)
 
+    def test_learning_lan_ca_is_scoped_and_recorded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            core = root / "main/claw4_learning_core"
+            core.mkdir(parents=True)
+            (root / "main/CMakeLists.txt").write_text("PRIVATE CLAW4_LEARNING_PREVIEW=1)\n")
+            ca = root / "ca.pem"
+            ca.write_bytes(b"-----BEGIN CERTIFICATE-----\nVEVTVA==\n-----END CERTIFICATE-----\n")
+            with self.assertRaises(ValueError):
+                stage_device.stage_learning_lan_ca(root, ca, "https://192.168.3.100:8744.example.com")
+            origin = "https://192.168.3.100:8744"
+            result = stage_device.stage_learning_lan_ca(root, ca, origin)
+            include = core / "learning_lan_ca.inc"
+            self.assertIn(origin, include.read_text())
+            self.assertEqual(result["certificate_sha256"], hashlib.sha256(ca.read_bytes()).hexdigest())
+            self.assertEqual(result["include_sha256"], hashlib.sha256(include.read_bytes()).hexdigest())
+
     def test_learning_preview_copies_its_own_sources_without_sibling_runtime(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
