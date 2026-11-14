@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -84,6 +85,13 @@ bool Save(std::string_view frame) {
   return commit == ESP_OK && Load(checked) == Read::Ready;
 }
 void Receive(void*) {
+  char elf[65]{};
+  if (esp_app_get_elf_sha256(elf, sizeof(elf)) != sizeof(elf)) {
+    pending.store(false);
+    vTaskDelete(nullptr);
+    return;
+  }
+  ESP_LOGI("Claw4Pairing", "LEARNING_PAIRING_ELF %s", elf);
   ESP_LOGI("Claw4Pairing", "LEARNING_PAIRING_READY %s", kLearningPairingSha256);
   std::string line;
   line.reserve(kMaxFrame);
@@ -105,6 +113,7 @@ void Receive(void*) {
           ESP_LOGI("Claw4Pairing", "LEARNING_PAIRING_SAVED %s", kLearningPairingSha256);
           pending.store(false);
           vTaskDelete(nullptr);
+          return;
         }
         line.clear();
       }

@@ -15,7 +15,7 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 CHILD = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 READY = re.compile(rb"LEARNING_PAIRING_READY ([0-9a-f]{64})")
 SAVED = re.compile(rb"LEARNING_PAIRING_SAVED ([0-9a-f]{64})")
-ELF = re.compile(rb"ELF file SHA256:  ([0-9a-f]{64})")
+ELF = re.compile(rb"LEARNING_PAIRING_ELF ([0-9a-f]{64})(?![0-9a-f])")
 
 
 class PairingError(Exception):
@@ -61,7 +61,9 @@ def verify_manifest(path, digest):
         elf = manifest["elf"]["sha256"]
         if not HEX64.fullmatch(digest) or pairing["frame_sha256"] != digest:
             raise ValueError()
-        if pairing["include_sha256"] != digest or not HEX64.fullmatch(elf):
+        include = f'constexpr char kLearningPairingSha256[] = "{digest}";\n'.encode("ascii")
+        if (pairing["include_sha256"] != hashlib.sha256(include).hexdigest() or
+                not HEX64.fullmatch(elf)):
             raise ValueError()
         return elf
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
@@ -73,13 +75,12 @@ def send_on_stream(stream, frame, digest, elf_sha256, timeout=30):
     deadline = time.monotonic() + timeout
     got_elf = got_ready = False
     while time.monotonic() < deadline:
-        line = stream.readline()
+        line = stream.readline(512)
         if not line:
             continue
-        line = line[:512]
         match = ELF.search(line)
-        if match and match.group(1).decode("ascii") == elf_sha256:
-            got_elf = True
+        if match:
+            got_elf = match.group(1).decode("ascii") == elf_sha256
         match = READY.search(line)
         if got_elf and match and match.group(1).decode("ascii") == digest:
             got_ready = True
@@ -87,15 +88,15 @@ def send_on_stream(stream, frame, digest, elf_sha256, timeout=30):
             break
     if not (got_elf and got_ready):
         raise PairingError("device_not_ready")
-    stream.write(frame)
+    if stream.write(frame) != len(frame):
+        raise PairingError("short_write")
     if hasattr(stream, "flush"):
         stream.flush()
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        line = stream.readline()
-        if SAVED.search(line[:512]):
-            if SAVED.search(line[:512]).group(1).decode("ascii") == digest:
-                return
+        match = SAVED.search(stream.readline(512))
+        if match and match.group(1).decode("ascii") == digest:
+            return
     raise PairingError("save_unconfirmed")
 
 

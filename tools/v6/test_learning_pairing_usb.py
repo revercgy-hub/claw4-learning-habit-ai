@@ -23,11 +23,12 @@ class FakeSerial:
         self.written = []
         self.flushed = False
 
-    def readline(self):
+    def readline(self, size):
         return next(self.lines, b"")
 
     def write(self, data):
         self.written.append(data)
+        return len(data)
 
     def flush(self):
         self.flushed = True
@@ -51,8 +52,9 @@ class LearningPairingUsbTests(unittest.TestCase):
         _, digest = build_frame(PAYLOAD, ORIGIN)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "candidate.json"
+            include = f'constexpr char kLearningPairingSha256[] = "{digest}";\n'.encode("ascii")
             path.write_text(json.dumps({"learning_usb_pairing": {
-                "frame_sha256": digest, "include_sha256": digest},
+                "frame_sha256": digest, "include_sha256": hashlib.sha256(include).hexdigest()},
                 "elf": {"sha256": "b" * 64}}), encoding="utf-8")
             self.assertEqual(verify_manifest(path, digest), "b" * 64)
             path.write_text("{}", encoding="utf-8")
@@ -63,8 +65,8 @@ class LearningPairingUsbTests(unittest.TestCase):
         frame, digest = build_frame(PAYLOAD, ORIGIN)
         elf = "b" * 64
         stream = FakeSerial([
-            f"I (1) app_init: ELF file SHA256:  {'c' * 64}\n".encode(),
-            f"I (2) app_init: ELF file SHA256:  {elf}\n".encode(),
+            f"I (1) Claw4Pairing: LEARNING_PAIRING_ELF {'c' * 64}\n".encode(),
+            f"I (2) Claw4Pairing: LEARNING_PAIRING_ELF {elf}\n".encode(),
             f"I (3) Pair: LEARNING_PAIRING_READY {'0' * 64}\n".encode(),
             f"I (4) Pair: LEARNING_PAIRING_READY {digest}\n".encode(),
             f"I (5) Pair: LEARNING_PAIRING_SAVED {digest}\n".encode(),
@@ -76,11 +78,21 @@ class LearningPairingUsbTests(unittest.TestCase):
     def test_does_not_send_without_exact_ready_digest(self):
         frame, digest = build_frame(PAYLOAD, ORIGIN)
         elf = "b" * 64
-        stream = FakeSerial([f"ELF file SHA256:  {elf}\n".encode(),
+        stream = FakeSerial([f"LEARNING_PAIRING_ELF {elf}\n".encode(),
                              f"LEARNING_PAIRING_READY {'0' * 64}\n".encode()])
         with self.assertRaises(PairingError):
             send_on_stream(stream, frame, digest, elf, timeout=0.001)
         self.assertEqual(stream.written, [])
+
+    def test_later_boot_identity_invalidates_earlier_anchor(self):
+        frame, digest = build_frame(PAYLOAD, ORIGIN)
+        elf = "b" * 64
+        stream = FakeSerial([f"LEARNING_PAIRING_ELF {elf}\n".encode(),
+                             f"LEARNING_PAIRING_ELF {'d' * 64}\n".encode(),
+                             f"LEARNING_PAIRING_READY {digest}\n".encode()])
+        with self.assertRaises(PairingError):
+            send_on_stream(stream, frame, digest, elf, timeout=0.001)
+        self.assertFalse(stream.written)
 
     def test_stdin_mode_emits_only_digest_metadata(self):
         out = io.StringIO()
