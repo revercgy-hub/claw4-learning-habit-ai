@@ -1,5 +1,6 @@
 #include "timer_preview.h"
 #include "timer_preview_cue.h"
+#include "ui_fonts.h"
 #include "sdkconfig.h"
 
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
@@ -35,13 +36,14 @@ constexpr char kChild[] = "timer_preview";
 constexpr int kAcknowledgeRinging = 11;
 constexpr int kOneMinuteFocus = 12;
 constexpr int kToggleFocusPause = 13;
-constexpr uint32_t kSurface = 0x121F29;
-constexpr uint32_t kCard = 0x1B2D39;
-constexpr uint32_t kText = 0xF1F6F5;
-constexpr uint32_t kMuted = 0xB3C4C9;
-constexpr uint32_t kMint = 0x8DE2BF;
-constexpr uint32_t kAmber = 0xFFD18F;
-constexpr uint32_t kRed = 0xB62D28;
+constexpr uint32_t kSurface = 0xFFF8EC;
+constexpr uint32_t kCard = 0xFFFFFF;
+constexpr uint32_t kText = 0x24353A;
+constexpr uint32_t kMuted = 0x66777A;
+constexpr uint32_t kMint = 0xBDEBD8;
+constexpr uint32_t kLilac = 0xE3DDF7;
+constexpr uint32_t kAmber = 0xF5DCA8;
+constexpr uint32_t kRed = 0xC64B51;
 
 class Clock final : public claw4::ports::ClockPort {
 public:
@@ -172,30 +174,30 @@ void Render() {
         progress = duration_ms > 0 ?
             static_cast<int>(std::clamp((duration_ms - left) * 1000 / duration_ms, int64_t{0}, int64_t{1000})) : 0;
         std::snprintf(focus, sizeof(focus), "%02d:%02d", seconds / 60, seconds % 60);
-        status_text = focus_ringing ? "Ringing" : focus_done ? "Complete" : paused ? "Paused" : running ? "Focusing" : "Ready";
-        if (ring_visible) std::snprintf(chip, sizeof(chip), "Alarm ringing");
-        else if (alarm_visual) std::snprintf(chip, sizeof(chip), "Alarm done");
-        else if (focus_done) std::snprintf(chip, sizeof(chip), "Focus done");
-        else if (running) std::snprintf(chip, sizeof(chip), "%s %s", paused ? "Paused" : "Focus", focus);
-        else std::snprintf(chip, sizeof(chip), "Timer / Alarm");
+        status_text = focus_ringing ? "计时结束" : focus_done ? "已完成" : paused ? "已暂停" : running ? "专注中" : "准备好了";
+        if (ring_visible) std::snprintf(chip, sizeof(chip), "闹钟响了");
+        else if (alarm_visual) std::snprintf(chip, sizeof(chip), "闹钟已确认");
+        else if (focus_done) std::snprintf(chip, sizeof(chip), "专注完成");
+        else if (running) std::snprintf(chip, sizeof(chip), "%s %s", paused ? "已暂停" : "专注中", focus);
+        else std::snprintf(chip, sizeof(chip), "专注计时与闹钟");
         const auto status = authority.status();
         can_set_alarm = storage_ok && status.calendar_allowed && !alarm_due;
         can_cancel_alarm = storage_ok && alarm_due && acknowledged_alarm.empty();
-        if (alarm_ringing) std::snprintf(alarm, sizeof(alarm), "Ringing now");
-        else if (!storage_ok) std::snprintf(alarm, sizeof(alarm), "Storage unavailable");
-        else if (!status.calendar_allowed) std::snprintf(alarm, sizeof(alarm), "Waiting for clock");
-        else if (alarm_visual) std::snprintf(alarm, sizeof(alarm), "Alarm acknowledged");
+        if (alarm_ringing) std::snprintf(alarm, sizeof(alarm), "闹钟正在响，请按下方按钮确认");
+        else if (!storage_ok) std::snprintf(alarm, sizeof(alarm), "暂时无法保存闹钟");
+        else if (!status.calendar_allowed) std::snprintf(alarm, sizeof(alarm), "正在等待校准时间");
+        else if (alarm_visual) std::snprintf(alarm, sizeof(alarm), "闹钟已确认");
         else if (alarm_due) {
             int64_t local = (alarm_due + kChina) / 60000;
-            std::snprintf(alarm, sizeof(alarm), "%02lld:%02lld  China time", (long long)((local / 60) % 24), (long long)(local % 60));
-        } else std::snprintf(alarm, sizeof(alarm), "No alarm set");
+            std::snprintf(alarm, sizeof(alarm), "已设闹钟  %02lld:%02lld", (long long)((local / 60) % 24), (long long)(local % 60));
+        } else std::snprintf(alarm, sizeof(alarm), "还没有设置闹钟");
     }
     if (!lvgl_port_lock(100)) return;
     SetText(entry_label, chip);
     SetText(focus_label, focus);
     SetText(focus_state, status_text);
     SetText(alarm_label, alarm);
-    SetText(focus_pause_label, is_paused ? "Resume" : "Pause");
+    SetText(focus_pause_label, is_paused ? "继续" : "暂停");
     if (lv_bar_get_value(focus_progress) != progress) lv_bar_set_value(focus_progress, progress, LV_ANIM_OFF);
     for (auto* preset : focus_presets) Enable(preset, !ring_visible && !is_running);
     Enable(focus_pause, !ring_visible && is_running);
@@ -363,6 +365,7 @@ void Click(lv_event_t* event) {
 lv_obj_t* Label(lv_obj_t* parent, const char* text, int x, int y, uint32_t color) {
     auto* label = lv_label_create(parent);
     lv_label_set_text(label, text);
+    Claw4UiSetTextSize(label);
     lv_obj_set_pos(label, x, y);
     lv_obj_set_style_text_color(label, lv_color_hex(color), LV_PART_MAIN);
     return label;
@@ -383,18 +386,19 @@ lv_obj_t* Card(lv_obj_t* parent, int x, int y, int width, int height, uint32_t c
     return card;
 }
 lv_obj_t* Button(lv_obj_t* parent, const char* text, int action, int x, int y,
-                 int width, int height, uint32_t color = 0x2B4350, uint32_t ink = kText) {
+                 int width, int height, uint32_t color = kLilac, uint32_t ink = kText) {
     lv_obj_t* button = lv_button_create(parent);
     Surface(button, color, 13);
     lv_obj_set_size(button, width, height);
     lv_obj_set_pos(button, x, y);
     lv_obj_set_style_shadow_width(button, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(button, LV_OPA_60, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(button, LV_OPA_70, LV_STATE_PRESSED);
     lv_obj_set_style_opa(button, LV_OPA_50, LV_STATE_DISABLED);
     lv_obj_set_style_text_color(button, lv_color_hex(ink), LV_PART_MAIN);
     lv_obj_add_event_cb(button, Click, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(action)));
     lv_obj_t* label = lv_label_create(button);
     lv_label_set_text(label, text);
+    Claw4UiSetTextSize(label);
     lv_obj_center(label);
     return button;
 }
@@ -402,43 +406,43 @@ lv_obj_t* Button(lv_obj_t* parent, const char* text, int action, int x, int y,
 
 void Claw4TimerPreviewSetupUI(lv_obj_t* parent) {
     if (!lvgl_port_lock(1000)) return;
-    entry = Button(parent, "Timer / Alarm", 7, 18, 92, 172, 50, kCard);
+    entry = Button(parent, "专注计时", 7, 18, 92, 172, 50, kMint);
     entry_label = lv_obj_get_child(entry, 0);
     panel = Card(parent, 0, 0, 620, 496, kSurface, 26);
     lv_obj_center(panel);
-    auto* title = Label(panel, "Timer / Alarm", 24, 19, kText);
-    lv_obj_set_style_text_font(title, &font_noto_sans_basic_30_4, LV_PART_MAIN);
-    close_panel = Button(panel, "Close", 8, 503, 18, 93, 44);
+    auto* title = Label(panel, "专注与闹钟", 24, 19, kText);
+    Claw4UiSetTextSize(title, 320);
+    close_panel = Button(panel, "收起", 8, 503, 18, 93, 44);
 
     auto* focus_card = Card(panel, 20, 82, 580, 238, kCard, 19);
-    Label(focus_card, "Focus timer", 20, 18, kMint);
-    focus_state = Label(focus_card, "Ready", 0, 0, kMint);
+    Label(focus_card, "专注计时", 20, 18, kMuted);
+    focus_state = Label(focus_card, "准备好了", 0, 0, kText);
     lv_obj_align(focus_state, LV_ALIGN_TOP_RIGHT, -22, 18);
-    focus_label = Label(focus_card, "00:00", 20, 47, kText);
+    focus_label = Label(focus_card, "00:00", 20, 47, 0x182A35);
     lv_obj_set_style_text_font(focus_label, &font_noto_sans_basic_30_4, LV_PART_MAIN);
-    lv_obj_set_style_transform_scale_x(focus_label, 448, LV_PART_MAIN);
-    lv_obj_set_style_transform_scale_y(focus_label, 448, LV_PART_MAIN);
+    lv_obj_set_style_transform_scale_x(focus_label, 512, LV_PART_MAIN);
+    lv_obj_set_style_transform_scale_y(focus_label, 512, LV_PART_MAIN);
     focus_progress = lv_bar_create(focus_card);
     lv_obj_set_pos(focus_progress, 20, 126);
     lv_obj_set_size(focus_progress, 540, 9);
     lv_bar_set_range(focus_progress, 0, 1000);
-    lv_obj_set_style_bg_color(focus_progress, lv_color_hex(0x355260), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(focus_progress, lv_color_hex(kMint), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(focus_progress, lv_color_hex(0xE7E3DC), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(focus_progress, lv_color_hex(0x46B78D), LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(focus_progress, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(focus_progress, LV_OPA_COVER, LV_PART_INDICATOR);
-    focus_presets[0] = Button(focus_card, "1 min", kOneMinuteFocus, 20, 159, 86, 54);
-    focus_presets[1] = Button(focus_card, "5 min", 10, 116, 159, 86, 54);
-    focus_presets[2] = Button(focus_card, "25 min", 0, 212, 159, 97, 54, kMint, kSurface);
-    focus_pause = Button(focus_card, "Pause", kToggleFocusPause, 335, 159, 110, 54);
+    focus_presets[0] = Button(focus_card, "1 分钟", kOneMinuteFocus, 20, 159, 86, 54);
+    focus_presets[1] = Button(focus_card, "5 分钟", 10, 116, 159, 86, 54);
+    focus_presets[2] = Button(focus_card, "25 分钟", 0, 212, 159, 97, 54, kMint, kText);
+    focus_pause = Button(focus_card, "暂停", kToggleFocusPause, 335, 159, 110, 54);
     focus_pause_label = lv_obj_get_child(focus_pause, 0);
-    focus_cancel = Button(focus_card, "Cancel", 3, 455, 159, 105, 54);
+    focus_cancel = Button(focus_card, "结束", 3, 455, 159, 105, 54);
 
     auto* alarm_card = Card(panel, 20, 338, 580, 132, kCard, 19);
-    Label(alarm_card, "One-time alarm", 20, 20, kAmber);
-    alarm_label = Label(alarm_card, "No alarm set", 20, 53, kText);
-    alarm_set = Button(alarm_card, "Alarm +1m", 9, 299, 39, 125, 54, kAmber, kSurface);
-    alarm_cancel = Button(alarm_card, "Cancel alarm", 5, 435, 39, 125, 54);
-    stop_alarm = Button(panel, "Stop Alarm", kAcknowledgeRinging, 20, 490, 580, 55, kRed);
+    Label(alarm_card, "一次性闹钟", 20, 20, kMuted);
+    alarm_label = Label(alarm_card, "还没有设置闹钟", 20, 53, kText);
+    alarm_set = Button(alarm_card, "1 分钟后", 9, 299, 39, 125, 54, kAmber, kText);
+    alarm_cancel = Button(alarm_card, "取消闹钟", 5, 435, 39, 125, 54);
+    stop_alarm = Button(panel, "我知道了，停止提醒", kAcknowledgeRinging, 20, 490, 580, 55, kRed, 0xFFFFFF);
     lv_obj_add_flag(stop_alarm, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
     lvgl_port_unlock();
