@@ -210,6 +210,18 @@ class EndpointPatchTests(unittest.TestCase):
         self.assertIn('protocol_ = std::make_unique<WebsocketProtocol>();', app)
         self.assertIn('return false;\n    auto& board = Board::GetInstance();', app)
 
+    def test_m1_activation_retries_and_hands_off_protocol_to_main(self):
+        patch_m1_endpoints(self.stage)
+        app = (self.stage / 'main/application.cc').read_text(encoding='utf-8')
+        retry = app[app.index('// Keep the same activation worker'):app.index('// MAIN_EVENT_ACTIVATION_DONE publishes')]
+        self.assertIn('if (check && ota_->HasWebsocketConfig())', retry)
+        self.assertIn('vTaskDelay(pdMS_TO_TICKS(retry_ms));', retry)
+        self.assertIn('kMaxRetryMs = 30000;', retry)
+        self.assertIn('SetDeviceState(kDeviceStateIdle);', retry)
+        self.assertNotIn('MAIN_EVENT_ERROR', retry)
+        self.assertNotIn('InitializeProtocol();', retry)
+        self.assertIn('const bool recovered = GetDeviceState() == kDeviceStateIdle;\n    InitializeProtocol();', app)
+
     def test_each_drift_and_duplicate_anchor_refuses(self):
         for relative, edits in M1_ENDPOINT_PATCHES.items():
             for old, _ in edits:

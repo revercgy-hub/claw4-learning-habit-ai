@@ -88,14 +88,51 @@ M1_ENDPOINT_PATCHES = {
     CheckNewVersion();
 
     // Initialize the protocol
-    InitializeProtocol();''', '''    // M1 preflight performs one fixed NAS check, without asset or firmware upgrades.
-    auto check = ota_->CheckVersion();
-    if (!check || !ota_->HasWebsocketConfig()) {
-        last_error_message_ = "M1 preflight NAS WebSocket configuration rejected";
-        xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR | MAIN_EVENT_ACTIVATION_DONE);
-        return;
+    InitializeProtocol();''', '''    // Keep the same activation worker until the fixed NAS configuration is valid.
+    constexpr int kInitialRetryMs = 2000;
+    constexpr int kMaxRetryMs = 30000;
+    int retry_ms = kInitialRetryMs;
+    for (;;) {
+        const auto check = ota_->CheckVersion();
+        if (check && ota_->HasWebsocketConfig()) {
+            break;
+        }
+        ESP_LOGW(TAG, "Voice configuration unavailable, retrying in %d ms", retry_ms);
+        if (retry_ms == kInitialRetryMs) {
+            Schedule([this]() {
+                if (GetDeviceState() == kDeviceStateActivating) {
+                    // Local features require idle even while the voice service is unavailable.
+                    SetDeviceState(kDeviceStateIdle);
+                    Board::GetInstance().GetDisplay()->ShowNotification("语音服务暂不可用，正在重连");
+                }
+            });
+        }
+        vTaskDelay(pdMS_TO_TICKS(retry_ms));
+        retry_ms = retry_ms >= kMaxRetryMs / 2 ? kMaxRetryMs : retry_ms * 2;
     }
-    InitializeProtocol();'''),
+    // MAIN_EVENT_ACTIVATION_DONE publishes the protocol on the main task.'''),
+        ('''    ESP_LOGI(TAG, "Activation done");
+
+    SystemInfo::PrintHeapStats();''', '''    const bool recovered = GetDeviceState() == kDeviceStateIdle;
+    InitializeProtocol();
+    ESP_LOGI(TAG, "Activation done");
+
+    SystemInfo::PrintHeapStats();'''),
+        ('''    // Protocol start may have already raised MAIN_EVENT_ERROR. Do not replace
+    // that alert with the "ready" UI/sound — the main loop can process both
+    // events back-to-back because the activation task is lower priority.''', '''    // Preserve a real protocol error raised during initialization.'''),
+        ('''    if (!has_error) {
+        auto display = Board::GetInstance().GetDisplay();
+        std::string message = std::string(Lang::Strings::VERSION) + ota_->GetCurrentVersion();''', '''    if (!has_error) {
+        // An idle-to-idle recovery does not emit MAIN_EVENT_STATE_CHANGED.
+        DismissAlert();
+        auto display = Board::GetInstance().GetDisplay();
+        std::string message = std::string(Lang::Strings::VERSION) + ota_->GetCurrentVersion();'''),
+        ('''    if (!has_error) {
+        Schedule([this]() {
+            // Play the success sound to indicate the device is ready''', '''    if (!has_error && !recovered) {
+        Schedule([this]() {
+            // Play the success sound to indicate the device is ready'''),
         ('''    if (ota_->HasMqttConfig()) {
         protocol_ = std::make_unique<MqttProtocol>();
     } else if (ota_->HasWebsocketConfig()) {
