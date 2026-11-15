@@ -4,9 +4,13 @@
 
 配对候选从既有 NAS 专用 HTTPS 健康接口读取 UTC 时间。仅使用预配的 NAS 地址和 CA，校验 TLS，拒绝重定向、重复或缓存时间头、格式错误或超过 4 秒的采样。校准间隔 15 分钟，失败后 30 秒重试。现有 TimeAuthority 门限保持不变，失联时按本次开机上一次可信校准计算，冷启动无可信时间时抑制日历提醒。
 
-候选 `claw4-learning-v6-m2-clock-20261115-13` 状态 `BUILT_NOT_FLASHED`，源码 `42f453b05527e029f9c4ed2bb5b1fd4e4dccb41b`，manifest SHA-256 `2c36be98a82ee5742d5a4554d9b0ba60365edfa51d5a543528910132f9371c95`，应用 SHA-256 `660bb0faf867edc53d3820ef0c619044a9c66155c85c560a7fdd8a7d699be436`。整包及镜像身份核对通过。V6 工具 266/266、TimeAuthority 14/14、C++17 HTTPS 时间解析与离线门限仿真通过。NAS 返回一条有效 UTC 时间头，探针摘要 SHA-256 `824df9034ee9498c18d176bbfbdfE8dfade9d6c7e559d6348c95ccbd06d46657`。
+候选 `claw4-learning-v6-m2-clock-20261115-13` 的冻结源码 `42f453b05527e029f9c4ed2bb5b1fd4e4dccb41b`，manifest SHA-256 `2c36be98a82ee5742d5a4554d9b0ba60365edfa51d5a543528910132f9371c95`，应用 SHA-256 `660bb0faf867edc53d3820ef0c619044a9c66155c85c560a7fdd8a7d699be436`。整包及镜像身份核对通过。V6 工具 266/266、TimeAuthority 14/14、C++17 HTTPS 时间解析与离线门限仿真通过。NAS 返回一条有效 UTC 时间头，探针摘要 SHA-256 `824df9034ee9498c18d176bbfbdfE8dfade9d6c7e559d6348c95ccbd06d46657`。
 
-NAS 仍仅有既有会话的两条开始事件。Claw4 保留界面候选 11，完成同步及新候选的真机校时仍待确认。M2.5 的冷启动真实时间来源与断电后响铃待验证。
+旧会话完成后，候选 13 仅写入 `ota_0` 并完整读回，分区表、启动选择区、唤醒模型取样及 NVS 写前后匹配。候选匹配的 USB 复位日志记录启动后 15.529 秒应用 1 条今日任务，40.854 秒通过 NAS HTTPS 校时，报告误差上界 1.331 秒。启动证据前缀 SHA-256 `98ec723257f396bab8ca4efeac7f56965bbf1a08a8e86ad586ea077310deff43`。
+
+同一启动会话内，用户开启一分钟任务并确认倒计时暂停。串口记录两次操作成功与 2+1 条 ACK，NAS 序号 5–7 对应 `task.started`、`study.session.started`、`task.paused`。隔离 HTTPS 8744 暂停 90 秒，主机探针超时，设备记录连接失败，恢复后主机核验 HTTP 200。继续与完成确认发生在服务恢复后。串口记录恢复倒计时、触屏确认成功和 1+2 条 ACK，NAS 序号 8–10 入账，家长接口显示新增一条完成记录，实际专注 17 秒、暂停 1 次。串口 SHA-256 `4a1bf5689f6a36e585f89ad89753f28b3a7e1be7a519404fbf9edd867ee1380c`，NAS 摘要 SHA-256 `a7e8e0198f4cfb3a445fd91efddc7bc468cb7fb52cbef1a930f78d4d3a9ea238`。离线完成、重启补传及 15 分钟周期校时仍待验证。合成账号已准备「离线专注练习」。
+
+候选构建时，NAS 仅有既有会话的两条开始事件。用户随后在界面候选 11 上确认完成，NAS 接收序号 3 `task.completed` 和序号 4 `study.session.completed`，家长接口仅返回一条已完成记录。操作发生在上一段串口采集结束后，记录跨候选，不能用作同一候选的完整轮次。长时间留在进行中后才确认的记录，用于验证完成同步，不用于验证计时准确性。NAS 摘要 SHA-256 `671f5538eea64220ec5ad7e8a6fa24db00cca14ec88908def17ff3e99a0f7e7a`。M2.5 的冷启动真实时间来源与断电后响铃待验证。
 
 ## 2026-11-15 M2 今日任务启动与网络恢复
 
