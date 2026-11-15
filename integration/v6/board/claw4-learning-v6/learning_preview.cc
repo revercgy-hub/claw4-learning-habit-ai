@@ -174,6 +174,9 @@ struct Runtime {
     // An authenticated device can drain its queue even if a larger snapshot
     // cannot fit until pending events have been acknowledged.
     if (!coordinator.applyTodaySnapshot(today.tasks)) return;
+    if (!snapshot_epoch || snapshot_date != today.date) {
+      ESP_LOGI(kTag, "LEARNING_TODAY_READY count=%u", static_cast<unsigned>(today.tasks.size()));
+    }
     snapshot_date = std::move(today.date);
     snapshot_epoch = now;
   }

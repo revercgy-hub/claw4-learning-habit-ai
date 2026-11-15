@@ -16,7 +16,9 @@
 #include <freertos/task.h>
 
 #include "application.h"
+#include "learning_today_retry.h"
 #include "learning_voice_mcp.h"
+#include "timer_preview.h"
 
 namespace claw4::v6 {
 namespace {
@@ -120,6 +122,7 @@ void Worker::Run() {
         }, auth, error);
   };
   int64_t next_today_ms = 0;
+  LearningTodayRetry retry;
   for (;;) {
     std::optional<application::SyncRequestEnvelope> upload;
     {
@@ -139,7 +142,8 @@ void Worker::Run() {
             done(std::move(sent), std::move(result));
           });
     }
-    if (esp_timer_get_time() / 1000 >= next_today_ms) {
+    // Until the clock anchors, any task snapshot fetched here would be discarded by ApplyToday.
+    if (esp_timer_get_time() / 1000 >= next_today_ms && Claw4TimerPreviewTrustedTime()) {
       sync::SyncErrorClass error{};
       sync::wire::TodayResponse today;
       const bool success = authenticate(error) && client.fetchToday(config.child_id, today, error);
@@ -151,7 +155,10 @@ void Worker::Run() {
         client.clearAuth();
         PublishAuthorizationLost();
       }
-      next_today_ms = esp_timer_get_time() / 1000 + (success ? 30'000 : 60'000);
+      using Result = LearningTodayRetry::Result;
+      const auto result = success ? Result::Updated :
+          error == sync::SyncErrorClass::Network ? Result::Unreachable : Result::Rejected;
+      next_today_ms = esp_timer_get_time() / 1000 + retry.DelayAfter(result);
     }
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1'000));
   }

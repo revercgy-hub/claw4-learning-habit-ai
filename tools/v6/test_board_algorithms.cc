@@ -1,4 +1,5 @@
 #include "../../integration/v6/board/claw4-learning-v6/board_algorithms.h"
+#include "../../integration/v6/board/claw4-learning-v6/learning_today_retry.h"
 #include "../../integration/v6/board/claw4-learning-v6/preview_pages.h"
 #include "../../integration/v6/board/claw4-learning-v6/timer_preview_cue.h"
 #include <cassert>
@@ -6,6 +7,15 @@
 #include <vector>
 
 int main() {
+    claw4::v6::LearningTodayRetry today_retry;
+    using Result = claw4::v6::LearningTodayRetry::Result;
+    for (auto wait_ms : {2000, 4000, 8000, 16000, 30000, 30000})
+        assert(today_retry.DelayAfter(Result::Unreachable) == wait_ms);
+    assert(today_retry.DelayAfter(Result::Updated) == 30000);
+    assert(today_retry.DelayAfter(Result::Unreachable) == 2000);
+    assert(today_retry.DelayAfter(Result::Rejected) == 60000);
+    assert(today_retry.DelayAfter(Result::Unreachable) == 2000);
+
     using Page = PreviewPage;
     PreviewPageSelection pages;
     assert(pages.Visible() == Page::Home);
