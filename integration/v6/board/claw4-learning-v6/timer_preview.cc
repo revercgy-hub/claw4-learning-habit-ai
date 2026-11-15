@@ -483,6 +483,13 @@ void Claw4TimerPreviewAcceptTime(int64_t epoch_ms) {
     ESP_LOGI("Claw4Timer", "TIME_ANCHOR outcome=%d", static_cast<int>(result.outcome));
 }
 #ifdef CLAW4_LEARNING_PREVIEW
+void Claw4TimerPreviewAcceptBackendTime(int64_t epoch_ms, int64_t uncertainty_ms) {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    const auto result = authority.acceptSync(epoch_ms, "learning_https", uncertainty_ms);
+    ESP_LOGI("Claw4Timer", "TIME_BACKEND_ANCHOR outcome=%d uncertainty_ms=%d",
+             static_cast<int>(result.outcome), static_cast<int>(uncertainty_ms));
+}
+
 std::optional<int64_t> Claw4TimerPreviewTrustedTime() {
     std::lock_guard<std::mutex> lock(state_mutex);
     const auto status = authority.status();

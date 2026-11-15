@@ -1,4 +1,5 @@
 #include "../../integration/v6/board/claw4-learning-v6/board_algorithms.h"
+#include "../../integration/v6/board/claw4-learning-v6/backend_http_time.h"
 #include "../../integration/v6/board/claw4-learning-v6/learning_today_retry.h"
 #include "../../integration/v6/board/claw4-learning-v6/preview_pages.h"
 #include "../../integration/v6/board/claw4-learning-v6/timer_preview_cue.h"
@@ -7,6 +8,18 @@
 #include <vector>
 
 int main() {
+    using claw4::v6::ParseBackendTime;
+    const auto anchor = ParseBackendTime("Sun, 15 Nov 2026 06:45:08 GMT", 18);
+    assert(anchor && anchor->epoch_ms == 1794725108000LL && anchor->uncertainty_ms == 1018);
+    const auto leap = ParseBackendTime("Tue, 29 Feb 2028 00:00:00 GMT", 4000);
+    assert(leap && leap->epoch_ms == 1835395200000LL && leap->uncertainty_ms == 5000);
+    assert(!ParseBackendTime("Mon, 15 Nov 2026 06:45:08 GMT", 18));
+    assert(!ParseBackendTime("Wed, 29 Feb 2027 00:00:00 GMT", 2));
+    assert(!ParseBackendTime("Sun, 15 Nov 2026 06:45:08 CST", 2));
+    assert(!ParseBackendTime("Sun, 15 Nov 2026 26:45:08 GMT", 2));
+    assert(!ParseBackendTime("Sun, 15 Nov 2026 06:45:08 GMT", 4001));
+    assert(!ParseBackendTime("", 20));
+
     claw4::v6::LearningTodayRetry today_retry;
     using Result = claw4::v6::LearningTodayRetry::Result;
     for (auto wait_ms : {2000, 4000, 8000, 16000, 30000, 30000})

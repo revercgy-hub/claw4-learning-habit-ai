@@ -3,11 +3,13 @@
 #ifdef CLAW4_LEARNING_PREVIEW
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <ctime>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <type_traits>
+#include <strings.h>
 
 #include <esp_crt_bundle.h>
 #include <esp_http_client.h>
@@ -16,6 +18,7 @@
 #include <freertos/task.h>
 
 #include "application.h"
+#include "backend_http_time.h"
 #include "learning_today_retry.h"
 #include "learning_voice_mcp.h"
 #include "timer_preview.h"
@@ -33,19 +36,63 @@ bool UsesLanCa(std::string_view url) {
 #endif
 
 constexpr size_t kMaxBody = 16 * 1024;
+struct ClockHeaders {
+  std::array<char, 29> date{};
+  bool has_date = false;
+  bool invalid = false;
+
+  void Read(const char* key, const char* value) {
+    if (!key || !value) return;
+    if (strcasecmp(key, "Age") == 0) invalid = true;
+    if (strcasecmp(key, "Date") != 0) return;
+    if (has_date || std::strlen(value) != date.size()) {
+      invalid = true;
+      return;
+    }
+    std::copy_n(value, date.size(), date.data());
+    has_date = true;
+  }
+};
+
 struct ReceivedBody {
   std::string bytes;
   bool oversized = false;
+  ClockHeaders* clock_headers = nullptr;
 };
 
 class TodayTransport final : public sync::HttpTransport {
  public:
+  std::optional<BackendTimeSample> SampleClock(const std::string& origin) {
+#ifdef CLAW4_LEARNING_LAN_CA
+    if (origin == kLearningLanOrigin) {
+      ClockHeaders clock;
+      const auto started = esp_timer_get_time();
+      const auto response = Request("GET", origin + "/health", {{"Cache-Control", "no-cache"}}, "", 4'000, &clock);
+      const auto elapsed = (esp_timer_get_time() - started + 999) / 1000;
+      if (response.transport_ok && response.status == 200 && clock.has_date && !clock.invalid) {
+        return ParseBackendTime({clock.date.data(), clock.date.size()}, elapsed);
+      }
+    }
+#else
+    (void)origin;
+#endif
+    return std::nullopt;
+  }
+
   sync::HttpResponse request(const std::string& method, const std::string& url,
                              const std::vector<std::pair<std::string, std::string>>& headers,
                              const std::string& body, int64_t timeout_ms) override {
+    return Request(method, url, headers, body, timeout_ms, nullptr);
+  }
+
+ private:
+  sync::HttpResponse Request(const std::string& method, const std::string& url,
+                            const std::vector<std::pair<std::string, std::string>>& headers,
+                            const std::string& body, int64_t timeout_ms, ClockHeaders* clock_headers) {
     if (!url.starts_with("https://") || (method != "GET" && method != "POST") ||
         body.size() > kMaxBody) return {};
     ReceivedBody received;
+    received.clock_headers = clock_headers;
     esp_http_client_config_t config{};
     config.url = url.c_str();
     config.method = method == "GET" ? HTTP_METHOD_GET : HTTP_METHOD_POST;
@@ -64,8 +111,10 @@ class TodayTransport final : public sync::HttpTransport {
 #endif
     config.user_data = &received;
     config.event_handler = [](esp_http_client_event_t* event) -> esp_err_t {
-      if (event->event_id != HTTP_EVENT_ON_DATA) return ESP_OK;
       auto& output = *static_cast<ReceivedBody*>(event->user_data);
+      if (event->event_id == HTTP_EVENT_ON_HEADER && output.clock_headers)
+        output.clock_headers->Read(event->header_key, event->header_value);
+      if (event->event_id != HTTP_EVENT_ON_DATA) return ESP_OK;
       if (event->data_len <= 0) return ESP_OK;
       if (output.oversized || static_cast<size_t>(event->data_len) > kMaxBody - output.bytes.size()) {
         output.oversized = true;
@@ -122,6 +171,10 @@ void Worker::Run() {
         }, auth, error);
   };
   int64_t next_today_ms = 0;
+#ifdef CLAW4_LEARNING_LAN_CA
+  std::optional<int64_t> next_clock_ms;
+  if (config.base_url == kLearningLanOrigin) next_clock_ms = 0;
+#endif
   LearningTodayRetry retry;
   for (;;) {
     std::optional<application::SyncRequestEnvelope> upload;
@@ -142,6 +195,13 @@ void Worker::Run() {
             done(std::move(sent), std::move(result));
           });
     }
+#ifdef CLAW4_LEARNING_LAN_CA
+    if (next_clock_ms && esp_timer_get_time() / 1000 >= *next_clock_ms) {
+      const auto clock = transport.SampleClock(config.base_url);
+      if (clock) Claw4TimerPreviewAcceptBackendTime(clock->epoch_ms, clock->uncertainty_ms);
+      next_clock_ms = esp_timer_get_time() / 1000 + (clock ? 15 * 60'000 : 30'000);
+    }
+#endif
     // Until the clock anchors, any task snapshot fetched here would be discarded by ApplyToday.
     if (esp_timer_get_time() / 1000 >= next_today_ms && Claw4TimerPreviewTrustedTime()) {
       sync::SyncErrorClass error{};

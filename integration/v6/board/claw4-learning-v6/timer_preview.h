@@ -10,5 +10,6 @@ void Claw4TimerPreviewAcceptTime(int64_t epoch_ms);
 #ifdef CLAW4_LEARNING_PREVIEW
 #include <optional>
 std::optional<int64_t> Claw4TimerPreviewTrustedTime();
+void Claw4TimerPreviewAcceptBackendTime(int64_t epoch_ms, int64_t uncertainty_ms);
 bool Claw4TimerPreviewIsRinging();
 #endif
