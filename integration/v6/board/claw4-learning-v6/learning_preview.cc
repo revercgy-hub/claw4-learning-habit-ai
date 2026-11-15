@@ -11,6 +11,8 @@
 #include "metalio_claw4/device/ports/nvs_outbox_storage.h"
 #include "timer_preview.h"
 #include "ui_fonts.h"
+#include "preview_pages.h"
+#include <material_symbols.h>
 
 #include <esp_log.h>
 #include <esp_lvgl_port.h>
@@ -262,9 +264,8 @@ void Refresh() {
     r.feedback = "确认已过期";
   }
   if (!lvgl_port_lock(100)) return;
-  if (Claw4TimerPreviewIsRinging()) Show(panel, false);
   Text(subtitle, r.paired ? "已连接学习" : "本地预览 · 示例任务");
-  Text(counter, focus.has_session ? focus.countdown_text.c_str() : "01:00");
+  Text(counter, focus.has_session ? focus.countdown_text.c_str() : "--:--");
   const bool current_today = !r.paired || (now && r.Today(*now));
   const auto shown_count = current_today ? state.tasks.size() : 0;
   if (task_page >= shown_count) task_page = 0;
@@ -298,6 +299,7 @@ void Refresh() {
     Color(task[i], selected ? kMint : kWhite);
     lv_obj_set_style_border_width(task[i], selected ? 3 : 0, LV_PART_MAIN);
     lv_obj_set_style_border_color(task[i], lv_color_hex(0x468675), LV_PART_MAIN);
+    Show(lv_obj_get_child(task[i], 1), selected);
     Text(lv_obj_get_child(task[i], 0), title.c_str());
   }
   lvgl_port_unlock();
@@ -309,8 +311,8 @@ void Handle(Tap tap) {
   if (r.paired) r.RefreshConnection();
   if (tap == Tap::Open || tap == Tap::Close) {
     if (lvgl_port_lock(100)) {
-      Show(panel, tap == Tap::Open);
-      if (tap == Tap::Open) lv_obj_move_foreground(panel);
+      if (tap == Tap::Open) Claw4PreviewOpen(PreviewPage::Learning);
+      else Claw4PreviewClose(PreviewPage::Learning);
       lvgl_port_unlock();
     }
     if (tap == Tap::Close) {
@@ -405,43 +407,51 @@ lv_obj_t* Button(lv_obj_t* parent, const char* title, Tap tap,
 void Claw4LearningPreviewSetup(lv_obj_t* parent) {
   Claw4LearningPairingBegin();
   if (panel || !lvgl_port_lock(1000)) return;
-  Button(parent, "学习", Tap::Open, 548, 92, 154, 50, kMint);
-  panel = lv_obj_create(parent);
+  auto* entry = Claw4UiShortcut(parent, 370, "学习", MATERIAL_SYMBOLS_EDIT_SQUARE, 0xE7F6EC, 0xBFE6D2);
+  lv_obj_add_event_cb(entry, [](lv_event_t*) {
+    Application::GetInstance().Schedule([] { Handle(Tap::Open); });
+  }, LV_EVENT_CLICKED, nullptr);
+  panel = lv_obj_create(Claw4PreviewPanelHost());
   Surface(panel, kPaper, 32);
-  lv_obj_set_size(panel, 610, 515);
+  lv_obj_set_size(panel, 648, 566);
   lv_obj_center(panel);
-  Label(panel, "学习时间", 28, 22, kInk, true);
-  subtitle = Label(panel, "本地预览 · 示例任务", 29, 64, kMuted);
-  Button(panel, "关闭", Tap::Close, 488, 27, 94, 48, kLilac);
-  task[0] = Button(panel, "数学热身", Tap::SelectFirst, 28, 108, 270, 64, kMint, true);
-  task[1] = Button(panel, "阅读休息", Tap::SelectSecond, 310, 108, 272, 64, kWhite, true);
+  lv_obj_set_pos(Claw4UiAddIcon(panel, MATERIAL_SYMBOLS_EDIT_SQUARE, 0x326C5D), 28, 25);
+  Label(panel, "学习时间", 74, 22, kInk, true);
+  subtitle = Label(panel, "本地预览 · 示例任务", 29, 67, kMuted);
+  Button(panel, "关闭", Tap::Close, 526, 22, 94, 54, kLilac);
+  task[0] = Button(panel, "数学热身", Tap::SelectFirst, 28, 111, 592, 60, kMint);
+  task[1] = Button(panel, "阅读休息", Tap::SelectSecond, 28, 183, 592, 60, kWhite);
   for (auto* button : task) {
     auto* label = lv_obj_get_child(button, 0);
-    lv_obj_set_width(label, 238);
+    lv_obj_set_width(label, 490);
     lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_align(label, LV_ALIGN_LEFT_MID, 20, 0);
+    lv_obj_align(Claw4UiAddIcon(button, MATERIAL_SYMBOLS_CHECK_CIRCLE, 0x326C5D), LV_ALIGN_RIGHT_MID, -17, 0);
   }
-  next_tasks = Button(panel, "更多", Tap::Next, 496, 350, 86, 39, kLilac);
+  next_tasks = Button(panel, "更多", Tap::Next, 520, 418, 100, 48, kLilac);
   auto* card = lv_obj_create(panel);
   Surface(card, kLilac, 24);
-  lv_obj_set_pos(card, 28, 192);
-  lv_obj_set_size(card, 554, 144);
+  lv_obj_set_pos(card, 28, 260);
+  lv_obj_set_size(card, 592, 145);
   state_label = Label(card, "选择一个任务开始", 25, 13, kInk, true);
-  counter = Label(card, "01:00", 24, 50, kInk, true);
+  counter = Label(card, "--:--", 24, 50, kInk, true);
   lv_obj_set_style_text_font(counter, &font_noto_sans_basic_30_4, LV_PART_MAIN);
   lv_obj_set_style_transform_scale_x(counter, 390, LV_PART_MAIN);
   lv_obj_set_style_transform_scale_y(counter, 390, LV_PART_MAIN);
   progress = lv_bar_create(card);
   lv_obj_set_pos(progress, 25, 112);
-  lv_obj_set_size(progress, 504, 9);
+  lv_obj_set_size(progress, 542, 10);
   lv_obj_set_style_bg_color(progress, lv_color_hex(0xD2C3E5), LV_PART_MAIN);
   lv_obj_set_style_bg_color(progress, lv_color_hex(0x468675), LV_PART_INDICATOR);
-  feedback_label = Label(panel, "", 29, 357, kMuted);
-  primary = Button(panel, "开始专注", Tap::StartPause, 28, 407, 270, 62, kMint, true);
-  finish = Button(panel, "完成任务", Tap::Finish, 310, 407, 272, 62, kWhite, true);
-  confirm = Button(panel, "确认完成", Tap::Confirm, 28, 407, 270, 62, kMint, true);
-  cancel = Button(panel, "继续学习", Tap::Cancel, 310, 407, 272, 62, kWhite, true);
-  Show(panel, false);
+  feedback_label = Label(panel, "", 29, 422, kMuted);
+  lv_obj_set_width(feedback_label, 466);
+  lv_label_set_long_mode(feedback_label, LV_LABEL_LONG_DOT);
+  primary = Button(panel, "开始专注", Tap::StartPause, 28, 483, 288, 62, kMint, true);
+  finish = Button(panel, "完成任务", Tap::Finish, 332, 483, 288, 62, kWhite, true);
+  confirm = Button(panel, "确认完成", Tap::Confirm, 28, 483, 288, 62, kMint, true);
+  cancel = Button(panel, "继续学习", Tap::Cancel, 332, 483, 288, 62, kWhite, true);
+  Claw4PreviewRegister(PreviewPage::Learning, panel);
   lv_timer_create([](lv_timer_t*) {
     if (refresh_pending.exchange(true)) return;
     Application::GetInstance().Schedule([] {

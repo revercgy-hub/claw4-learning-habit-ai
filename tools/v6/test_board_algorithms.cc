@@ -1,10 +1,31 @@
 #include "../../integration/v6/board/claw4-learning-v6/board_algorithms.h"
+#include "../../integration/v6/board/claw4-learning-v6/preview_pages.h"
 #include "../../integration/v6/board/claw4-learning-v6/timer_preview_cue.h"
 #include <cassert>
 #include <climits>
 #include <vector>
 
 int main() {
+    using Page = PreviewPage;
+    PreviewPageSelection pages;
+    assert(pages.Visible() == Page::Home);
+    pages.Open(Page::Timer);
+    assert(pages.Visible() == Page::Timer);
+    pages.Open(Page::Learning);
+    pages.Close(Page::Timer);
+    assert(pages.Visible() == Page::Learning);
+    pages.SetRinging(true);
+    pages.Close(Page::Timer);
+    pages.Open(Page::Timer);
+    assert(pages.Visible() == Page::Timer);
+    pages.SetRinging(false);
+    assert(pages.Visible() == Page::Learning);
+    pages.Close(Page::Learning);
+    pages.SetRinging(true);
+    assert(pages.Visible() == Page::Timer);
+    pages.SetRinging(false);
+    assert(pages.Visible() == Page::Home);
+
     claw4::TimerPreviewCue cue;
     cue.Arm(1000);
     assert(cue.active() && !cue.Poll(1000, false));

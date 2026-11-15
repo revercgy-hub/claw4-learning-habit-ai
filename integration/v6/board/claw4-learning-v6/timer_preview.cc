@@ -1,6 +1,8 @@
 #include "timer_preview.h"
 #include "timer_preview_cue.h"
 #include "ui_fonts.h"
+#include "preview_pages.h"
+#include <material_symbols.h>
 #include "sdkconfig.h"
 
 #ifdef CONFIG_CLAW4_TIMER_PREVIEW
@@ -209,12 +211,11 @@ void Render() {
         if (ring_visible) {
             lv_obj_set_height(panel, 566);
             lv_obj_remove_flag(stop_alarm, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(panel, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(stop_alarm, LV_OBJ_FLAG_HIDDEN);
             lv_obj_set_height(panel, 496);
         }
-        lv_obj_set_style_bg_color(entry, lv_color_hex(ring_visible ? kRed : kCard), LV_PART_MAIN);
+        Claw4PreviewSetRinging(ring_visible);
         shown_ringing = ring_visible;
     }
     lvgl_port_unlock();
@@ -339,8 +340,8 @@ void TickTask(void*) {
 }
 void Click(lv_event_t* event) {
     const int action = static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
-    if (action == 7) { lv_obj_remove_flag(panel, LV_OBJ_FLAG_HIDDEN); return; }
-    if (action == 8) { lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN); return; }
+    if (action == 7) { Claw4PreviewOpen(PreviewPage::Timer); return; }
+    if (action == 8) { Claw4PreviewClose(PreviewPage::Timer); return; }
     Application::GetInstance().Schedule([action] {
         if (action == kAcknowledgeRinging) {
             AcknowledgeRinging();
@@ -406,11 +407,12 @@ lv_obj_t* Button(lv_obj_t* parent, const char* text, int action, int x, int y,
 
 void Claw4TimerPreviewSetupUI(lv_obj_t* parent) {
     if (!lvgl_port_lock(1000)) return;
-    entry = Button(parent, "专注计时", 7, 18, 92, 172, 50, kMint);
-    entry_label = lv_obj_get_child(entry, 0);
-    panel = Card(parent, 0, 0, 620, 496, kSurface, 26);
+    entry = Claw4UiShortcut(parent, 26, "专注与闹钟", MATERIAL_SYMBOLS_SCHEDULE, 0xEFF5FF, 0xCDDFF7, &entry_label);
+    lv_obj_add_event_cb(entry, Click, LV_EVENT_CLICKED, reinterpret_cast<void*>(static_cast<intptr_t>(7)));
+    panel = Card(Claw4PreviewPanelHost(), 0, 0, 620, 496, kSurface, 32);
     lv_obj_center(panel);
-    auto* title = Label(panel, "专注与闹钟", 24, 19, kText);
+    lv_obj_set_pos(Claw4UiAddIcon(panel, MATERIAL_SYMBOLS_SCHEDULE, 0x306782), 24, 21);
+    auto* title = Label(panel, "专注与闹钟", 72, 19, kText);
     Claw4UiSetTextSize(title, 320);
     close_panel = Button(panel, "收起", 8, 503, 18, 93, 44);
 
@@ -438,13 +440,14 @@ void Claw4TimerPreviewSetupUI(lv_obj_t* parent) {
     focus_cancel = Button(focus_card, "结束", 3, 455, 159, 105, 54);
 
     auto* alarm_card = Card(panel, 20, 338, 580, 132, kCard, 19);
-    Label(alarm_card, "一次性闹钟", 20, 20, kMuted);
+    lv_obj_set_pos(Claw4UiAddIcon(alarm_card, MATERIAL_SYMBOLS_ALARM, 0x865D31), 20, 17);
+    Label(alarm_card, "一次性闹钟", 65, 20, kMuted);
     alarm_label = Label(alarm_card, "还没有设置闹钟", 20, 53, kText);
     alarm_set = Button(alarm_card, "1 分钟后", 9, 299, 39, 125, 54, kAmber, kText);
     alarm_cancel = Button(alarm_card, "取消闹钟", 5, 435, 39, 125, 54);
     stop_alarm = Button(panel, "我知道了，停止提醒", kAcknowledgeRinging, 20, 490, 580, 55, kRed, 0xFFFFFF);
     lv_obj_add_flag(stop_alarm, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(panel, LV_OBJ_FLAG_HIDDEN);
+    Claw4PreviewRegister(PreviewPage::Timer, panel);
     lvgl_port_unlock();
     ESP_LOGI("Claw4Timer", "PREVIEW_UI_READY");
 }
