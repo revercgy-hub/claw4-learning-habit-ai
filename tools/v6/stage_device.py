@@ -126,6 +126,13 @@ M1_ENDPOINT_PATCHES = {
         std::string message = std::string(Lang::Strings::VERSION) + ota_->GetCurrentVersion();''', '''    if (!has_error) {
         // An idle-to-idle recovery does not emit MAIN_EVENT_STATE_CHANGED.
         DismissAlert();
+        if (recovered && protocol_ && GetDeviceState() == kDeviceStateIdle) {
+#if CONFIG_CLAW4_TIMER_PREVIEW
+            // The ringer owns wake restoration until its playback drains.
+            if (!Claw4TimerPreviewIsRinging() && !IsChatInterrupted())
+#endif
+                audio_service_.EnableWakeWordDetection(true);
+        }
         auto display = Board::GetInstance().GetDisplay();
         std::string message = std::string(Lang::Strings::VERSION) + ota_->GetCurrentVersion();'''),
         ('''    if (!has_error) {

@@ -222,6 +222,16 @@ class EndpointPatchTests(unittest.TestCase):
         self.assertNotIn('InitializeProtocol();', retry)
         self.assertIn('const bool recovered = GetDeviceState() == kDeviceStateIdle;\n    InitializeProtocol();', app)
 
+        success = app[app.index('    if (!has_error) {'):app.index('        auto display = Board::GetInstance().GetDisplay();')]
+        self.assertIn('DismissAlert();', success)
+        self.assertIn('if (recovered && protocol_ && GetDeviceState() == kDeviceStateIdle)', success)
+        self.assertIn('if (!Claw4TimerPreviewIsRinging() && !IsChatInterrupted())', success)
+        self.assertIn('audio_service_.EnableWakeWordDetection(true);', success)
+        self.assertLess(success.index('DismissAlert();'), success.index('EnableWakeWordDetection(true);'))
+        self.assertNotIn('EnableWakeWordDetection(true);', retry)
+        self.assertIn('if (!has_error && !recovered)', app)
+        verify_m1_endpoint_sources(self.stage)
+
     def test_each_drift_and_duplicate_anchor_refuses(self):
         for relative, edits in M1_ENDPOINT_PATCHES.items():
             for old, _ in edits:
